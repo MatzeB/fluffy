@@ -1,3 +1,12 @@
+/**
+ * @file
+ * @date    17.03.2007
+ * @brief   Geberic hashset implementation
+ * @author  Matthias Braun, inspiration from densehash from google sparsehash
+ *          package
+ * @version $Id$
+ */
+
 /* You have to specialize this file by defining:
  * JUMP, ValueType, Hash(x), ValsEqual(x,y), Alloc(size), Free(ptr), EmptyEntry,
  * DeletedEntry, IsEmptyEntry(x), IsDeletedEntry(x), SetRangeEmpty(ptr,size)
@@ -42,6 +51,9 @@ void insert_nogrow(HashSet *this, ValueType value)
 	size_t hashmask = num_buckets - 1;
 	size_t bucknum = Hash(value) & hashmask;
 	size_t insert_pos = ILLEGAL_POS;
+
+	assert(value != EmptyEntry);
+	assert(value != DeletedEntry);
 
 	while(1) {
 		ValueType v = this->entries[bucknum];
@@ -108,6 +120,9 @@ void resize(HashSet *this, size_t new_size)
 	/* reinsert all elements */
 	for(i = 0; i < num_buckets; ++i) {
 		ValueType v = old_entries[i];
+		if(IsEmptyEntry(v) || IsDeletedEntry(v))
+			continue;
+
 		insert_nogrow(this, v);
 	}
 
@@ -216,6 +231,7 @@ static inline
 void init_size(HashSet *this, size_t initial_size)
 {
 	this->entries = Alloc(initial_size);
+	SetRangeEmpty(this->entries, initial_size);
 	this->num_buckets = initial_size;
 	this->consider_shrink = 0;
 	this->num_elements = 0;
