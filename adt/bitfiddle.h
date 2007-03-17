@@ -166,7 +166,7 @@ unsigned ceil_po2(unsigned x)
 {
 	if(x == 0)
 		return 0;
-	assert(x < (1 << 31));
+	assert(x < (1U << 31));
 
 #ifdef USE_X86_ASSEMBLY // in this case nlz is fast
 	// note that x != 0 here!
@@ -180,6 +180,15 @@ unsigned ceil_po2(unsigned x)
 	x |= x >> 16;
 	return x + 1;
 #endif
+}
+
+/**
+ * Tests whether @p x is a power of 2
+ */
+static inline __attribute__((const))
+int is_po2(unsigned x)
+{
+	return (x & (x-1)) == 0;
 }
 
 #endif
