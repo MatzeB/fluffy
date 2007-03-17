@@ -1,3 +1,9 @@
+/* You have to specialize this file by defining:
+ * JUMP, ValueType, Hash(x), ValsEqual(x,y), Alloc(size), Free(ptr), EmptyEntry,
+ * DeletedEntry, IsEmptyEntry(x), IsDeletedEntry(x), SetRangeEmpty(ptr,size)
+ */
+#ifdef HashSet
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -6,45 +12,24 @@
 #include "util.h"
 #include "xmalloc.h"
 
-/** probing method: quadratic probing */
-#define JUMP(num_probes)        (num_probes)
-#define ValueType               void*
-#define Hash(value)             ((int) (value))
-#define ValsEqual(val1, val2)   ((val1) == (val2))
-#define Alloc(size)             (ValueType*) xmalloc((size) * sizeof(ValueType))
-#define ReAlloc(ptr,size)       realloc(ptr, (size) * sizeof(ValueType))
-#define Free(ptr)               free(ptr)
-#define EmptyEntry              NULL
-#define DeletedEntry            ((char*)-1)
-#define IsEmptyEntry(entry)     ((entry) == EmptyEntry)
-#define IsDeletedEntry(entry)   ((entry) == DeletedEntry)
-#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(ValueType))
-
+#ifndef HT_OCCUPANCY_FLT
 /** how full before we double size */
 #define HT_OCCUPANCY_FLT  0.5f
+#endif
+
+#ifndef HT_EMPTY_FLT
 /** how empty before we half size */
 #define HT_EMPTY_FLT      (0.4f * (HT_OCCUPANCY_FLT))
+#endif
+
+#ifndef HT_MIN_BUCKETS
 /** default smallest bucket size */
 #define HT_MIN_BUCKETS    32
+#endif
 
 #define ILLEGAL_POS       ((size_t) -1)
 
-typedef struct HashSet {
-	ValueType *entries;
-	size_t num_buckets;
-	size_t enlarge_threshold;
-	size_t shrink_threshold;
-	size_t num_elements;
-	size_t num_deleted;
-	int consider_shrink;
-} HashSet;
-
-struct HashSetIterator {
-	ValueType *i;
-	ValueType *end;
-};
-
-size_t hashset_size(HashSet *this)
+size_t hashset_size(const HashSet *this)
 {
 	return this->num_elements - this->num_deleted;
 }
@@ -115,6 +100,9 @@ void resize(HashSet *this, size_t new_size)
 	this->num_buckets = new_size;
 	this->num_elements = 0;
 	this->num_deleted = 0;
+#ifndef NDEBUG
+	this->entries_version++;
+#endif
 	reset_thresholds(this);
 
 	/* reinsert all elements */
@@ -161,12 +149,16 @@ void maybe_shrink(HashSet *this)
 
 void hashset_insert(HashSet *this, ValueType value)
 {
+#ifndef NDEBUG
+	this->entries_version++;
+#endif
+
 	maybe_shrink(this);
 	maybe_grow(this);
 	insert_nogrow(this, value);
 }
 
-int hashset_contains(const HashSet *this, ValueType value)
+ValueType hashset_find(const HashSet *this, const ValueType value)
 {
 	size_t num_probes = 0;
 	size_t num_buckets = this->num_buckets;
@@ -177,11 +169,11 @@ int hashset_contains(const HashSet *this, ValueType value)
 		ValueType v = this->entries[bucknum];
 
 		if(IsEmptyEntry(v)) {
-			return 0;
+			return EmptyEntry;
 		}
 		if(ValsEqual(v, value)) {
 			// Value already in the set
-			return 1;
+			return v;
 		}
 
 		++num_probes;
@@ -190,12 +182,16 @@ int hashset_contains(const HashSet *this, ValueType value)
 	}
 }
 
-void hashset_remove(HashSet *this, ValueType value)
+void hashset_remove(HashSet *this, const ValueType value)
 {
 	size_t num_probes = 0;
 	size_t num_buckets = this->num_buckets;
 	size_t hashmask = num_buckets - 1;
 	size_t bucknum = Hash(value) & hashmask;
+
+#ifndef NDEBUG
+	this->entries_version++;
+#endif
 
 	while(1) {
 		ValueType v = this->entries[bucknum];
@@ -222,7 +218,11 @@ void init_size(HashSet *this, size_t initial_size)
 	this->entries = Alloc(initial_size);
 	this->num_buckets = initial_size;
 	this->consider_shrink = 0;
+	this->num_elements = 0;
 	this->num_deleted = 0;
+#ifndef NDEBUG
+	this->entries_version = 0;
+#endif
 
 	reset_thresholds(this);
 }
@@ -230,6 +230,14 @@ void init_size(HashSet *this, size_t initial_size)
 void hashset_init(HashSet *this)
 {
 	init_size(this, HT_MIN_BUCKETS);
+}
+
+void hashset_destroy(HashSet *this)
+{
+	Free(this->entries);
+#ifndef NDEBUG
+	this->entries = NULL;
+#endif
 }
 
 void hashset_init_size(HashSet *this, size_t expected_elements)
@@ -246,3 +254,39 @@ void hashset_init_size(HashSet *this, size_t expected_elements)
 	init_size(this, po2size);
 }
 
+void hashset_iterator_init(HashSetIterator *this, const HashSet *hashset)
+{
+	this->current_bucket = hashset->entries;
+	this->end = hashset->entries + hashset->num_buckets;
+#ifndef NDEBUG
+	this->set = hashset;
+	this->entries_version = hashset->entries_version;
+#endif
+}
+
+ValueType hashset_iterator_next(HashSetIterator *this)
+{
+	ValueType *current_bucket = this->current_bucket;
+	ValueType res;
+	ValueType *next;
+	ValueType *end;
+
+	if(current_bucket >= this->end)
+		return EmptyEntry;
+
+	/* make sure hashset_insert or hashset_remove is not used while iterating */
+	assert(this->entries_version == this->set->entries_version);
+
+	end = this->end;
+	res = * (this->current_bucket);
+	next = res + 1;
+
+	while(next < end && (IsEmptyEntry(*next) || IsDeletedEntry(*next))) {
+		next++;
+	}
+	this->current_bucket = next;
+
+	return res;
+}
+
+#endif
