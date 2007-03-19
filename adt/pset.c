@@ -3,19 +3,14 @@
 #include "pset.h"
 
 /** probing method: quadratic probing */
+#define DO_REHASH
 #define HashSet                 pset_t
 #define HashSetIterator         pset_iterator_t
-#define JUMP(num_probes)        (num_probes)
 #define ValueType               void*
-#define Hash(value)             ((int) (value))
-#define ValsEqual(val1, val2)   ((val1) == (val2))
-#define Alloc(size)             (ValueType*) xmalloc((size) * sizeof(ValueType))
-#define Free(ptr)               free(ptr)
-#define EmptyEntry              NULL
-#define DeletedEntry            ((char*)-1)
-#define IsEmptyEntry(entry)     ((entry) == EmptyEntry)
-#define IsDeletedEntry(entry)   ((entry) == DeletedEntry)
-#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(ValueType))
+#define NullValue               NULL
+#define DeletedValue            ((void*)-1)
+#define KeysEqual(key1, key2)   1
+#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(HashSetEntry))
 
 #define hashset_init          pset_init
 #define hashset_init_size     pset_init_size
@@ -31,5 +26,6 @@
 
 int pset_contains(const pset_t *pset, const ValueType val)
 {
-	return pset_find(pset, val) != EmptyEntry;
+	return pset_find(pset, val) != NullValue;
 }
+

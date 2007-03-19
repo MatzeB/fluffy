@@ -1,4 +1,4 @@
-CFLAGS=-Wall -W -Werror -O3 -I. -DHAVE_CONFIG_H -march=pentium3 -DNDEBUG
+CFLAGS=-Wall -W -Werror -O3 -I. -DHAVE_CONFIG_H -march=pentium3 
 LFLAGS=
 GOAL=mlang
 FGOAL=ftest

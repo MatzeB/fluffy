@@ -13,11 +13,11 @@ int main()
 	pset_insert_ptr(pset, (void*) main);
 	printf("Contains main: %d\n",
 			pset_find_ptr(pset, (void*) main) != NULL);
-	for(i = 0; i < 1000000; ++i) {
-		if(rand() % 2) {
-			pset_insert_ptr(pset, (void*) (rand() % 80)+1);
+	for(i = 0; i < 100000; ++i) {
+		if(rand() % 3) {
+			pset_insert_ptr(pset, (void*) (rand() % 10000)+1);
 		} else {
-			pset_remove_ptr(pset, (void*) (rand() % 80)+1);
+			pset_remove_ptr(pset, (void*) (rand() % 10000)+1);
 		}
 	}
 	pset_remove_ptr(pset, NULL);

@@ -21,6 +21,71 @@
 #include "util.h"
 #include "xmalloc.h"
 
+/* quadratic probing */
+#ifndef JUMP
+#define JUMP(num_probes)   (num_probes)
+#endif
+
+#ifndef Hash
+#define ID_HASH
+#define Hash(value)        ((unsigned)(value))
+#endif
+
+#ifdef DO_REHASH
+#define HashSetEntry                 ValueType
+#define EntrySetHash(entry,new_hash)
+#define EntryGetHash(entry)          Hash(entry)
+#define EntryGetValue(entry)         (entry)
+#else
+#define EntryGetHash(entry)          (entry).hash
+#define EntrySetHash(entry,new_hash) (entry).hash = (new_hash)
+#define EntryGetValue(entry)         (entry).data
+#endif
+
+#ifndef Alloc
+#define Alloc(size)    (HashSetEntry*) xmalloc((size) * sizeof(HashSetEntry))
+#define Free(ptr)      free(ptr)
+#endif
+
+#ifdef ID_HASH
+#define InsertReturnValue           void
+#define GetInsertReturnValue(entry)
+#else
+#define InsertReturnValue           ValueType
+#define GetInsertReturnValue(entry) EntryGetValue(entry)
+#endif
+
+#ifndef KeyType
+#define KeyType                  ValueType
+#define GetKey(value)            (value)
+#define InitData(this,value,key) (value) = (key)
+#endif
+
+#ifndef EntrySetEmpty
+#define EntrySetEmpty(entry)     EntryGetValue(entry) = NullValue
+#endif
+#ifndef EntrySetDeleted
+#define EntrySetDeleted(entry)   EntryGetValue(entry) = DeletedValue
+#endif
+#ifndef EntryIsEmpty
+#define EntryIsEmpty(entry)      (EntryGetValue(entry) == NullValue)
+#endif
+#ifndef EntryIsDeleted
+#define EntryIsDeleted(entry)    (EntryGetValue(entry) == DeletedValue)
+#endif
+#ifndef SetRangeEmpty
+#define SetRangeEmpty(ptr,size)                \
+{                                              \
+	size_t _i;                                 \
+	size_t _size = (size);                     \
+	HashSetEntry *entries = (ptr);             \
+	for(_i = 0; _i < _size; ++_i) {            \
+		HashSetEntry *entry = & entries[_i];   \
+		EntrySetEmpty(*entry);                 \
+	}                                          \
+}
+#endif
+
 #ifndef HT_OCCUPANCY_FLT
 /** how full before we double size */
 #define HT_OCCUPANCY_FLT  0.5f
@@ -43,40 +108,83 @@ size_t hashset_size(const HashSet *this)
 	return this->num_elements - this->num_deleted;
 }
 
-static
-void insert_nogrow(HashSet *this, ValueType value)
+static inline
+InsertReturnValue insert_nogrow(HashSet *this, KeyType key)
 {
 	size_t num_probes = 0;
 	size_t num_buckets = this->num_buckets;
 	size_t hashmask = num_buckets - 1;
-	size_t bucknum = Hash(value) & hashmask;
+	unsigned hash = Hash(key);
+	size_t bucknum = hash & hashmask;
 	size_t insert_pos = ILLEGAL_POS;
 
-	assert(value != EmptyEntry);
-	assert(value != DeletedEntry);
-
 	while(1) {
-		ValueType v = this->entries[bucknum];
+		HashSetEntry *entry = & this->entries[bucknum];
 
-		if(IsEmptyEntry(v)) {
+		if(EntryIsEmpty(*entry)) {
 			size_t p;
+			HashSetEntry *nentry;
 
 			if(insert_pos != ILLEGAL_POS) {
 				p = insert_pos;
 			} else {
 				p = bucknum;
 			}
-			this->entries[p] = value;
+
+			nentry = &this->entries[p];
+			InitData(this, EntryGetValue(*nentry), key);
+			EntrySetHash(*nentry, hash);
+			this->num_elements++;
+			return GetInsertReturnValue(*nentry);
+		}
+		if(EntryIsDeleted(*entry)) {
+			if(insert_pos == ILLEGAL_POS)
+				insert_pos = bucknum;
+		} else if(EntryGetHash(*entry) == hash) {
+			if(KeysEqual(GetKey(EntryGetValue(*entry)), key)) {
+				// Value already in the set, return it
+				return GetInsertReturnValue(*entry);
+			}
+		}
+
+		++num_probes;
+		bucknum = (bucknum + JUMP(num_probes)) & hashmask;
+		assert(num_probes < num_buckets);
+	}
+}
+
+static
+void insert_new(HashSet *this, ValueType value)
+{
+	size_t num_probes = 0;
+	size_t num_buckets = this->num_buckets;
+	size_t hashmask = num_buckets - 1;
+	unsigned hash = Hash(GetKey(value));
+	size_t bucknum = hash & hashmask;
+	size_t insert_pos = ILLEGAL_POS;
+
+	assert(value != NullValue);
+
+	while(1) {
+		HashSetEntry *entry = & this->entries[bucknum];
+
+		if(EntryIsEmpty(*entry)) {
+			size_t p;
+			HashSetEntry *nentry;
+
+			if(insert_pos != ILLEGAL_POS) {
+				p = insert_pos;
+			} else {
+				p = bucknum;
+			}
+			nentry = &this->entries[p];
+
+			EntryGetValue(*nentry) = value;
+			EntrySetHash(*nentry, hash);
 			this->num_elements++;
 			return;
 		}
-		if(IsDeletedEntry(v)) {
-			if(insert_pos == ILLEGAL_POS)
-				insert_pos = bucknum;
-		} else if(ValsEqual(v, value)) {
-			// Value already in the set
-			return;
-		}
+		assert(!EntryIsDeleted(*entry));
 
 		++num_probes;
 		bucknum = (bucknum + JUMP(num_probes)) & hashmask;
@@ -100,8 +208,8 @@ void resize(HashSet *this, size_t new_size)
 {
 	size_t num_buckets = this->num_buckets;
 	size_t i;
-	ValueType *old_entries = this->entries;
-	ValueType *new_entries;
+	HashSetEntry *old_entries = this->entries;
+	HashSetEntry *new_entries;
 
 	/* allocate a new array with double size */
 	new_entries = Alloc(new_size);
@@ -119,11 +227,11 @@ void resize(HashSet *this, size_t new_size)
 
 	/* reinsert all elements */
 	for(i = 0; i < num_buckets; ++i) {
-		ValueType v = old_entries[i];
-		if(IsEmptyEntry(v) || IsDeletedEntry(v))
+		HashSetEntry *entry = & old_entries[i];
+		if(EntryIsEmpty(*entry) || EntryIsDeleted(*entry))
 			continue;
 
-		insert_nogrow(this, v);
+		insert_new(this, EntryGetValue(*entry));
 	}
 
 	/* now we can free the old array */
@@ -162,7 +270,7 @@ void maybe_shrink(HashSet *this)
 	resize(this, resize_to);
 }
 
-void hashset_insert(HashSet *this, ValueType value)
+InsertReturnValue hashset_insert(HashSet *this, KeyType key)
 {
 #ifndef NDEBUG
 	this->entries_version++;
@@ -170,25 +278,30 @@ void hashset_insert(HashSet *this, ValueType value)
 
 	maybe_shrink(this);
 	maybe_grow(this);
-	insert_nogrow(this, value);
+	return insert_nogrow(this, key);
 }
 
-ValueType hashset_find(const HashSet *this, const ValueType value)
+ValueType hashset_find(const HashSet *this, const KeyType key)
 {
 	size_t num_probes = 0;
 	size_t num_buckets = this->num_buckets;
 	size_t hashmask = num_buckets - 1;
-	size_t bucknum = Hash(value) & hashmask;
+	unsigned hash = Hash(key);
+	size_t bucknum = hash & hashmask;
 
 	while(1) {
-		ValueType v = this->entries[bucknum];
+		HashSetEntry *entry = & this->entries[bucknum];
 
-		if(IsEmptyEntry(v)) {
-			return EmptyEntry;
+		if(EntryIsEmpty(*entry)) {
+			return NullValue;
 		}
-		if(ValsEqual(v, value)) {
-			// Value already in the set
-			return v;
+		if(EntryIsDeleted(*entry)) {
+			// value is deleted
+		} else if(EntryGetHash(*entry) == hash) {
+			if(KeysEqual(GetKey(EntryGetValue(*entry)), key)) {
+				// found the value
+				return EntryGetValue(*entry);
+			}
 		}
 
 		++num_probes;
@@ -197,28 +310,33 @@ ValueType hashset_find(const HashSet *this, const ValueType value)
 	}
 }
 
-void hashset_remove(HashSet *this, const ValueType value)
+void hashset_remove(HashSet *this, const KeyType key)
 {
 	size_t num_probes = 0;
 	size_t num_buckets = this->num_buckets;
 	size_t hashmask = num_buckets - 1;
-	size_t bucknum = Hash(value) & hashmask;
+	unsigned hash = Hash(key);
+	size_t bucknum = hash & hashmask;
 
 #ifndef NDEBUG
 	this->entries_version++;
 #endif
 
 	while(1) {
-		ValueType v = this->entries[bucknum];
+		HashSetEntry *entry = & this->entries[bucknum];
 
-		if(IsEmptyEntry(v)) {
+		if(EntryIsEmpty(*entry)) {
 			return;
 		}
-		if(ValsEqual(v, value)) {
-			this->entries[bucknum] = DeletedEntry;
-			this->num_deleted++;
-			this->consider_shrink = 1;
-			return;
+		if(EntryIsDeleted(*entry)) {
+			// entry is deleted
+		} else if(EntryGetHash(*entry) == hash) {
+			if(KeysEqual(GetKey(EntryGetValue(*entry)), key)) {
+				EntrySetDeleted(*entry);
+				this->num_deleted++;
+				this->consider_shrink = 1;
+				return;
+			}
 		}
 
 		++num_probes;
@@ -282,22 +400,22 @@ void hashset_iterator_init(HashSetIterator *this, const HashSet *hashset)
 
 ValueType hashset_iterator_next(HashSetIterator *this)
 {
-	ValueType *current_bucket = this->current_bucket;
+	HashSetEntry *current_bucket = this->current_bucket;
 	ValueType res;
-	ValueType *next;
-	ValueType *end;
+	HashSetEntry *next;
+	HashSetEntry *end;
 
 	if(current_bucket >= this->end)
-		return EmptyEntry;
+		return NullValue;
 
-	/* make sure hashset_insert or hashset_remove is not used while iterating */
+	/* using hashset_insert or hashset_remove is not allowed while iterating */
 	assert(this->entries_version == this->set->entries_version);
 
 	end = this->end;
-	res = * (this->current_bucket);
-	next = res + 1;
+	res = EntryGetValue(*current_bucket);
+	next = current_bucket + 1;
 
-	while(next < end && (IsEmptyEntry(*next) || IsDeletedEntry(*next))) {
+	while(next < end && (EntryIsEmpty(*next) || EntryIsDeleted(*next))) {
 		next++;
 	}
 	this->current_bucket = next;

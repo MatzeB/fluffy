@@ -11,7 +11,9 @@
 #define HashSet          pset_t
 #define HashSetIterator  pset_iterator_t
 #define ValueType        void*
+#define DO_REHASH
 #include "hashset.h"
+#undef DO_REHASH
 #undef HashSet
 #undef HashSetIterator
 #undef ValueType

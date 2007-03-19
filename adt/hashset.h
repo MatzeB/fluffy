@@ -1,14 +1,24 @@
-#ifndef _FIRM_HASHSET_H_
-#define _FIRM_HASHSET_H_
-
-#include <stdlib.h>
-
 /* You have to specialize this header by defining HashSet, HashSetIterator and
  * ValueType */
 #ifdef HashSet
 
+#include <stdlib.h>
+
+#ifndef ADDITIONAL_DATA
+#define ADDITIONAL_DATA
+#endif
+
+#ifdef DO_REHASH
+#define HashSetEntry ValueType
+#else
+typedef struct HashSetEntry {
+	ValueType data;
+	unsigned hash;
+} HashSetEntry;
+#endif
+
 typedef struct HashSet {
-	ValueType *entries;
+	HashSetEntry *entries;
 	size_t num_buckets;
 	size_t enlarge_threshold;
 	size_t shrink_threshold;
@@ -18,17 +28,20 @@ typedef struct HashSet {
 #ifndef NDEBUG
 	unsigned entries_version;
 #endif
+	ADDITIONAL_DATA;
 } HashSet;
 
 typedef struct HashSetIterator {
-	ValueType *current_bucket;
-	ValueType *end;
+	HashSetEntry *current_bucket;
+	HashSetEntry *end;
 #ifndef NDEBUG
 	const HashSet *set;
 	unsigned entries_version;
 #endif
 } HashSetIterator;
 
+#ifdef DO_REHASH
+#undef HashSetEntry
 #endif
 
 #endif
