@@ -1,20 +1,16 @@
+#include <config.h>
+
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
-#include <obstack.h>
+#include "adt/obst.h"
 #include "adt/pset.h"
 #include "adt/strset.h"
 #include "adt/xmalloc.h"
 
-static inline __attribute__((malloc))
-void *obstack_chunk_alloc(size_t size) {
-	return xmalloc(size);
-}
-
-static inline
-void obstack_chunk_free(void *ptr) {
-	free(ptr);
-}
+#include "symbol_table_t.h"
+#include "lexer_t.h"
 
 void test_pset()
 {
@@ -101,10 +97,45 @@ void test_strset()
 	obstack_free(&obst, NULL);
 }
 
-int main()
+void test_lexer(const char *fname)
+{
+	symbol_table_t symbol_table;
+	lexer_t lexer;
+	token_t token;
+	FILE *in = fopen(fname, "r");
+	
+	if(in == NULL) {
+		fprintf(stderr, "Couldn't open '%s': %s\n", fname, strerror(errno));
+		exit(1);
+	}
+
+	symbol_table_init(&symbol_table);
+	lexer_init(&lexer, &symbol_table, in);
+
+	do {
+		token = lexer_next_token(&lexer);
+		printf("Found Token: %d", token.type);
+		if(token.type == TOKEN_SYMBOL) {
+			printf(" (symbol ID %d string '%s'-%p)", token.symbol->ID, token.symbol->symbol, token.symbol->symbol);
+		}
+		if(token.type < 256) {
+			printf(" '%c'", token.type);
+		}
+		printf("\n");
+	} while(token.type != TOKEN_EOF);
+
+	lexer_destroy(&lexer);
+	symbol_table_destroy(&symbol_table);
+	fclose(in);
+}
+
+int main(int argc, char **argv)
 {
 	//test_strset();
-	test_pset();
+	//test_pset();
+	if(argc > 1) {
+		test_lexer(argv[1]);
+	}
 
 	return 0;
 }

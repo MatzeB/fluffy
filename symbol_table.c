@@ -1,8 +1,15 @@
 #include <config.h> 
 
-#include "symbol_table.h"
+#include "symbol_table_t.h"
 #include "adt/hash_string.h"
-#include <obstack.h>
+#include "adt/obst.h"
+
+static inline
+void init_symbol_table_entry(symbol_table_entry_t *entry, const char *symbol)
+{
+	entry->symbol = symbol;
+	/* init additional stuff... */
+}
 
 #define HashSet                  symbol_table_t
 #define HashSetIterator          symbol_table_iterator_t
@@ -12,20 +19,32 @@
 #define DeletedValue             ((void*)-1)
 #define KeyType                  const char *
 #define GetKey(value)            (value)->symbol
-#define InitData(this,value,key) { (value) = obstack_alloc(this->obst, sizeof(ValueType)); (value)->symbol = key; }
+#define InitData(this,value,key) { (value) = (ValueType) obstack_alloc(&this->obst, sizeof(symbol_table_entry_t)); init_symbol_table_entry((value), key); }
 #define Hash(key)               hash_string(key)
 #define KeysEqual(key1, key2)   (strcmp(key1, key2) == 0)
-//#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(strset_entry_t))
+#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(symbol_table_hash_entry_t))
 
-#define hashset_init          symbol_table_init
-#define hashset_init_size     symbol_table_init_size
-#define hashset_destroy       symbol_table_destroy
+#define hashset_init          _symbol_table_init
+#define hashset_init_size     _symbol_table_init_size
+#define hashset_destroy       _symbol_table_destroy
 #define hashset_insert        symbol_table_insert
-#define hashset_remove        symbol_table_remove
-#define hashset_find          symbol_table_find
-#define hashset_size          symbol_table_size
-#define hashset_iterator_init symbol_table_iterator_init
-#define hashset_iterator_next symbol_table_iterator_next
+#define hashset_remove        _symbol_table_remove
+#define hashset_find          _symbol_table_find
+#define hashset_size          _symbol_table_size
+#define hashset_iterator_init _symbol_table_iterator_init
+#define hashset_iterator_next _symbol_table_iterator_next
 
 #include "adt/hashset.c"
+
+void symbol_table_init(symbol_table_t *this)
+{
+	obstack_init(&this->obst);
+	_symbol_table_init(this);
+}
+
+void symbol_table_destroy(symbol_table_t *this)
+{
+	_symbol_table_destroy(this);
+	obstack_free(&this->obst, NULL);
+}
 

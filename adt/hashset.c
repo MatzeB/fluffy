@@ -8,8 +8,10 @@
  */
 
 /* You have to specialize this file by defining:
- * JUMP, ValueType, Hash(x), ValsEqual(x,y), Alloc(size), Free(ptr), EmptyEntry,
- * DeletedEntry, IsEmptyEntry(x), IsDeletedEntry(x), SetRangeEmpty(ptr,size)
+ * HashSet, HashSetIterator, ValueType, NullValue DeletedValue, Hash(x),
+ *
+ * Optionally you can define: JUMP, KeyType, GetKey, DO_REHASH, Alloc, Free,
+ * SetRangeEmpty, ...
  */
 #ifdef HashSet
 
@@ -19,7 +21,6 @@
 
 #include "bitfiddle.h"
 #include "util.h"
-#include "xmalloc.h"
 
 /* quadratic probing */
 #ifndef JUMP
@@ -43,6 +44,7 @@
 #endif
 
 #ifndef Alloc
+#include "xmalloc.h"
 #define Alloc(size)    (HashSetEntry*) xmalloc((size) * sizeof(HashSetEntry))
 #define Free(ptr)      free(ptr)
 #endif

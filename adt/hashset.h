@@ -4,10 +4,6 @@
 
 #include <stdlib.h>
 
-#ifndef ADDITIONAL_DATA
-#define ADDITIONAL_DATA
-#endif
-
 #ifdef DO_REHASH
 #define HashSetEntry ValueType
 #else
@@ -28,7 +24,9 @@ typedef struct HashSet {
 #ifndef NDEBUG
 	unsigned entries_version;
 #endif
+#ifdef ADDITIONAL_DATA
 	ADDITIONAL_DATA;
+#endif
 } HashSet;
 
 typedef struct HashSetIterator {
