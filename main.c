@@ -23,9 +23,9 @@ void test_pset()
 	pset_init(&pset);
 	for(i = 0; i < 1000000; ++i) {
 		if(rand() % 3) {
-			pset_insert(&pset, (void*) (rand() % 10000)+1);
+			pset_insert(&pset, (void*) (rand() % 100)+1);
 		} else {
-			pset_remove(&pset, (void*) (rand() % 10000)+1);
+			pset_remove(&pset, (void*) (rand() % 100)+1);
 		}
 	}
 	pset_remove(&pset, NULL);

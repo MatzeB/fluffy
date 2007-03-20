@@ -5,9 +5,7 @@
 #define HashSetIterator  strset_iterator_t
 #define HashSetEntry     strset_entry_t
 #define ValueType        const char*
-#define DONT_REHASH
 #include "hashset.h"
-#undef DONT_REHASH
 #undef ValueType
 #undef HashSetEntry
 #undef HashSetIterator

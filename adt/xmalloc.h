@@ -12,16 +12,15 @@
 
 #include <stdlib.h>
 
-__attribute__((malloc, warn_unused_result))
+__attribute__((malloc))
 void *xmalloc(size_t size);
 
-__attribute__((malloc, warn_unused_result))
+__attribute__((malloc))
 void *xcalloc(size_t num, size_t size);
 
-__attribute__((warn_unused_result))
 void *xrealloc(void *ptr, size_t size);
 
-__attribute__((malloc, warn_unused_result))
+__attribute__((malloc))
 char *xstrdup(const char *str);
 
 #define xfree(ptr)      free(ptr)

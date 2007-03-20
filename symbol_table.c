@@ -11,18 +11,19 @@ void init_symbol_table_entry(symbol_table_entry_t *entry, const char *symbol)
 	/* init additional stuff... */
 }
 
-#define HashSet                  symbol_table_t
-#define HashSetIterator          symbol_table_iterator_t
-#define HashSetEntry             symbol_table_hash_entry_t
-#define ValueType                symbol_table_entry_t*
-#define NullValue                NULL
-#define DeletedValue             ((void*)-1)
-#define KeyType                  const char *
-#define GetKey(value)            (value)->symbol
-#define InitData(this,value,key) { (value) = (ValueType) obstack_alloc(&this->obst, sizeof(symbol_table_entry_t)); init_symbol_table_entry((value), key); }
-#define Hash(key)               hash_string(key)
-#define KeysEqual(key1, key2)   (strcmp(key1, key2) == 0)
-#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(symbol_table_hash_entry_t))
+#define HashSet                    symbol_table_t
+#define HashSetIterator            symbol_table_iterator_t
+#define HashSetEntry               symbol_table_hash_entry_t
+#define ValueType                  symbol_table_entry_t*
+#define NullValue                  NULL
+#define DeletedValue               ((void*)-1)
+#define KeyType                    const char *
+#define ConstKeyType               const char *
+#define GetKey(value)              (value)->symbol
+#define InitData(this,value,key)   { (value) = (ValueType) obstack_alloc(&this->obst, sizeof(symbol_table_entry_t)); init_symbol_table_entry((value), key); }
+#define Hash(this, key)            hash_string(key)
+#define KeysEqual(this,key1,key2)  (strcmp(key1, key2) == 0)
+#define SetRangeEmpty(ptr,size)    memset(ptr, 0, (size) * sizeof(symbol_table_hash_entry_t))
 
 #define hashset_init          _symbol_table_init
 #define hashset_init_size     _symbol_table_init_size

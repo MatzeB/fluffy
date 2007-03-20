@@ -3,15 +3,16 @@
 #include "strset.h"
 #include "hash_string.h"
 
-#define HashSet                 strset_t
-#define HashSetIterator         strset_iterator_t
-#define HashSetEntry            strset_entry_t
-#define ValueType               const char*
-#define NullValue               NULL
-#define DeletedValue            ((void*)-1)
-#define Hash(value)             hash_string(value)
-#define KeysEqual(key1, key2)   (strcmp(key1, key2) == 0)
-#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(strset_entry_t))
+#define HashSet                    strset_t
+#define HashSetIterator            strset_iterator_t
+#define HashSetEntry               strset_entry_t
+#define ValueType                  const char*
+#define ConstKeyType               const char*
+#define NullValue                  NULL
+#define DeletedValue               ((void*)-1)
+#define Hash(this, value)          hash_string(value)
+#define KeysEqual(this,key1,key2)  (strcmp(key1, key2) == 0)
+#define SetRangeEmpty(ptr,size)    memset(ptr, 0, (size) * sizeof(strset_entry_t))
 
 #define hashset_init          strset_init
 #define hashset_init_size     strset_init_size

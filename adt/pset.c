@@ -4,13 +4,13 @@
 
 /** probing method: quadratic probing */
 #define DO_REHASH
-#define HashSet                 pset_t
-#define HashSetIterator         pset_iterator_t
-#define ValueType               void*
-#define NullValue               NULL
-#define DeletedValue            ((void*)-1)
-#define KeysEqual(key1, key2)   1
-#define SetRangeEmpty(ptr,size) memset(ptr, 0, (size) * sizeof(HashSetEntry))
+#define HashSet                    pset_t
+#define HashSetIterator            pset_iterator_t
+#define ValueType                  void*
+#define NullValue                  NULL
+#define DeletedValue               ((void*)-1)
+#define KeysEqual(this,key1,key2)  1
+#define SetRangeEmpty(ptr,size)    memset(ptr, 0, (size) * sizeof(HashSetEntry))
 
 #define hashset_init          pset_init
 #define hashset_init_size     pset_init_size
