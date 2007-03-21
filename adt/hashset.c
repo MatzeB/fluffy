@@ -138,7 +138,35 @@
 #define HT_MIN_BUCKETS    32
 #endif
 
-#define ILLEGAL_POS       ((size_t) -1)
+#define ILLEGAL_POS       ((size_t)-1)
+
+#ifndef hashset_init
+#error You have to redefine hashset_init
+#endif
+#ifndef hashset_init_size
+#error You have to redefine hashset_init_size
+#endif
+#ifndef hashset_destroy
+#error You have to redefine hashset_destroy
+#endif
+#ifndef hashset_insert
+#error You have to redefine hashset_insert
+#endif
+#ifndef hashset_remove
+#error You have to redefine hashset_remove
+#endif
+#ifndef hashset_find
+#error You have to redefine hashset_find
+#endif
+#ifndef hashset_size
+#error You have to redefine hashset_size
+#endif
+#ifndef hashset_iterator_init
+#error You have to redefine hashset_iterator_init
+#endif
+#ifndef hashset_iterator_next
+#error You have to redefine hashset_iterator_next
+#endif
 
 /**
  * Returns the number of elements in the hashset
