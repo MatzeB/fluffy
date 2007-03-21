@@ -90,5 +90,14 @@ void strset_iterator_init(strset_iterator_t *iterator, const strset_t *strset);
  */
 const char *strset_iterator_next(strset_iterator_t *iterator);
 
+/**
+ * Removes the string from the set that the iterator currently points to
+ *
+ * @param strset    Pointer to the strset
+ * @param iter      Pointer to the iterator
+ */
+void strset_remove_iterator(strset_t *strset,
+                            const strset_iterator_t *iterator);
+
 #endif
 

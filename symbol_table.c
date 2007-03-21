@@ -25,15 +25,16 @@ void init_symbol_table_entry(symbol_table_entry_t *entry, const char *symbol)
 #define KeysEqual(this,key1,key2)  (strcmp(key1, key2) == 0)
 #define SetRangeEmpty(ptr,size)    memset(ptr, 0, (size) * sizeof(symbol_table_hash_entry_t))
 
-#define hashset_init          _symbol_table_init
-#define hashset_init_size     _symbol_table_init_size
-#define hashset_destroy       _symbol_table_destroy
-#define hashset_insert        symbol_table_insert
-#define hashset_remove        _symbol_table_remove
-#define hashset_find          _symbol_table_find
-#define hashset_size          _symbol_table_size
-#define hashset_iterator_init _symbol_table_iterator_init
-#define hashset_iterator_next _symbol_table_iterator_next
+#define hashset_init            _symbol_table_init
+#define hashset_init_size       _symbol_table_init_size
+#define hashset_destroy         _symbol_table_destroy
+#define hashset_insert          symbol_table_insert
+#define hashset_remove          _symbol_table_remove
+#define hashset_find            _symbol_table_find
+#define hashset_size            _symbol_table_size
+#define hashset_iterator_init   _symbol_table_iterator_init
+#define hashset_iterator_next   _symbol_table_iterator_next
+#define hashset_remove_iterator _symbol_table_remove_iterator
 
 #include "adt/hashset.c"
 

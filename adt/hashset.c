@@ -167,6 +167,9 @@
 #ifndef hashset_iterator_next
 #error You have to redefine hashset_iterator_next
 #endif
+#ifndef hashset_remove_iterator
+#error You have to redefine hashset_remove_iterator
+#endif
 
 /**
  * Returns the number of elements in the hashset
@@ -524,14 +527,13 @@ void hashset_init_size(HashSet *this, size_t expected_elements)
  */
 void hashset_iterator_init(HashSetIterator *this, const HashSet *hashset)
 {
-	this->current_bucket = hashset->entries;
+	this->current_bucket = hashset->entries - 1;
 	this->end = hashset->entries + hashset->num_buckets;
 #ifndef NDEBUG
 	this->set = hashset;
 	this->entries_version = hashset->entries_version;
 #endif
 }
-
 
 /**
  * Returns the next value in the iterator or NULL if no value is left
@@ -541,26 +543,42 @@ void hashset_iterator_init(HashSetIterator *this, const HashSet *hashset)
 ValueType hashset_iterator_next(HashSetIterator *this)
 {
 	HashSetEntry *current_bucket = this->current_bucket;
-	ValueType res;
-	HashSetEntry *next;
-	HashSetEntry *end;
+	HashSetEntry *end = this->end;
 
-	if(current_bucket >= this->end)
+	if(current_bucket >= end)
 		return NullValue;
 
 	/* using hashset_insert or hashset_remove is not allowed while iterating */
 	assert(this->entries_version == this->set->entries_version);
 
-	end = this->end;
-	res = EntryGetValue(*current_bucket);
-	next = current_bucket + 1;
+	do {
+		current_bucket++;
+	} while(current_bucket < end && 
+			(EntryIsEmpty(*current_bucket) || EntryIsDeleted(*current_bucket)));
 
-	while(next < end && (EntryIsEmpty(*next) || EntryIsDeleted(*next))) {
-		next++;
-	}
-	this->current_bucket = next;
+	this->current_bucket = current_bucket;
+	return EntryGetValue(*current_bucket);
+}
 
-	return res;
+/**
+ * Removes the element the iterator points to. Removing an element a second time
+ * has no result.
+ */
+void hashset_remove_iterator(HashSet *this, const HashSetIterator *iter)
+{
+	HashSetEntry *entry = iter->current_bucket;
+
+	/* iterator_next needs to have been called at least once */
+	assert(entry >= this->entries);
+	/* needs to be on a valid element */
+	assert(entry < this->entries + this->num_buckets);
+	
+	if(EntryIsDeleted(*entry))
+		return;
+
+	EntrySetDeleted(*entry);
+	this->num_deleted++;
+	this->consider_shrink = 1;
 }
 
 #endif

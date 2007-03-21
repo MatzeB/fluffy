@@ -88,12 +88,20 @@ void pset_iterator_init(pset_iterator_t *iterator, const pset_t *pset);
  * Advances the iterator and returns the current element or NULL if all elements
  * in the pset have been processed.
  * @attention It is not allowed to use pset_insert or pset_remove while
- *            iterating over a pset.
+ *            iterating over a pset; pset_remove_iter is allowed.
  *
  * @param iterator  Pointer to the pset iterator.
  * @returns         Next element in the pset or NULL
  */
 void* pset_iterator_next(pset_iterator_t *iterator);
+
+/**
+ * Removes the element that the iterator currently points to from the hashset.
+ *
+ * @param pset      Pointer to the pset
+ * @param iterator  Pointer to the iterator
+ */
+void pset_remove_iterator(pset_t *pset, const pset_iterator_t *iterator);
 
 #endif
 

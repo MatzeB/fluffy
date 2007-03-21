@@ -12,15 +12,16 @@
 #define KeysEqual(this,key1,key2)  1
 #define SetRangeEmpty(ptr,size)    memset(ptr, 0, (size) * sizeof(HashSetEntry))
 
-#define hashset_init          pset_init
-#define hashset_init_size     pset_init_size
-#define hashset_destroy       pset_destroy
-#define hashset_insert        pset_insert
-#define hashset_remove        pset_remove
-#define hashset_find          pset_find
-#define hashset_size          pset_size
-#define hashset_iterator_init pset_iterator_init
-#define hashset_iterator_next pset_iterator_next
+#define hashset_init            pset_init
+#define hashset_init_size       pset_init_size
+#define hashset_destroy         pset_destroy
+#define hashset_insert          pset_insert
+#define hashset_remove          pset_remove
+#define hashset_find            pset_find
+#define hashset_size            pset_size
+#define hashset_iterator_init   pset_iterator_init
+#define hashset_iterator_next   pset_iterator_next
+#define hashset_remove_iterator pset_remove_iterator
 
 #include "hashset.c"
 
