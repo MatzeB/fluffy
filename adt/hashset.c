@@ -195,6 +195,8 @@ InsertReturnValue insert_nogrow(HashSet *this, KeyType key)
 	size_t bucknum = hash & hashmask;
 	size_t insert_pos = ILLEGAL_POS;
 
+	assert((num_buckets & (num_buckets - 1)) == 0);
+
 	while(1) {
 		HashSetEntry *entry = & this->entries[bucknum];
 
@@ -360,6 +362,10 @@ void maybe_shrink(HashSet *this)
 		return;
 
 	resize_to = ceil_po2(size);
+
+	if(resize_to < 4)
+		resize_to = 4;
+
 	resize(this, resize_to);
 }
 
@@ -469,6 +475,9 @@ void hashset_remove(HashSet *this, ConstKeyType key)
 static inline
 void init_size(HashSet *this, size_t initial_size)
 {
+	if(initial_size < 4)
+		initial_size = 4;
+
 	this->entries = Alloc(initial_size);
 	SetRangeEmpty(this->entries, initial_size);
 	this->num_buckets = initial_size;

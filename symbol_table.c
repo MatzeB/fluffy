@@ -51,3 +51,15 @@ void symbol_table_destroy(symbol_table_t *this)
 	obstack_free(&this->obst, NULL);
 }
 
+#include <stdio.h>
+void iter_test(symbol_table_t *this)
+{
+	symbol_table_iterator_t iter;
+	symbol_table_entry_t *entry;
+
+	_symbol_table_iterator_init(&iter, this);
+	while ((entry = _symbol_table_iterator_next(&iter)) != NULL) {
+		printf("Entry: '%s'\n", entry->symbol);
+	}
+}
+	

@@ -97,6 +97,8 @@ void test_strset()
 	obstack_free(&obst, NULL);
 }
 
+void iter_test(symbol_table_t *this);
+
 void test_lexer(const char *fname)
 {
 	symbol_table_t symbol_table;
@@ -123,6 +125,8 @@ void test_lexer(const char *fname)
 		}
 		printf("\n");
 	} while(token.type != TOKEN_EOF);
+
+	iter_test(&symbol_table);
 
 	lexer_destroy(&lexer);
 	symbol_table_destroy(&symbol_table);
