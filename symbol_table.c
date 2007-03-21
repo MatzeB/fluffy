@@ -7,6 +7,7 @@
 static inline
 void init_symbol_table_entry(symbol_table_entry_t *entry, const char *symbol)
 {
+	entry->ID = 0;
 	entry->symbol = symbol;
 	/* init additional stuff... */
 }

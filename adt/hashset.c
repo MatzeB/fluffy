@@ -556,6 +556,9 @@ ValueType hashset_iterator_next(HashSetIterator *this)
 	} while(current_bucket < end && 
 			(EntryIsEmpty(*current_bucket) || EntryIsDeleted(*current_bucket)));
 
+	if(current_bucket >= end)
+		return NullValue;
+
 	this->current_bucket = current_bucket;
 	return EntryGetValue(*current_bucket);
 }
