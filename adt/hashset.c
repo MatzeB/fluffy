@@ -81,11 +81,11 @@
 #endif
 
 #ifdef ID_HASH
-#define InsertReturnValue           void
-#define GetInsertReturnValue(entry)
+#define InsertReturnValue               int
+#define GetInsertReturnValue(entry,new) (new)
 #else
-#define InsertReturnValue           ValueType
-#define GetInsertReturnValue(entry) EntryGetValue(entry)
+#define InsertReturnValue               ValueType
+#define GetInsertReturnValue(entry,new) EntryGetValue(entry)
 #endif
 
 #ifndef KeyType
@@ -214,7 +214,7 @@ InsertReturnValue insert_nogrow(HashSet *this, KeyType key)
 			InitData(this, EntryGetValue(*nentry), key);
 			EntrySetHash(*nentry, hash);
 			this->num_elements++;
-			return GetInsertReturnValue(*nentry);
+			return GetInsertReturnValue(*nentry, 1);
 		}
 		if(EntryIsDeleted(*entry)) {
 			if(insert_pos == ILLEGAL_POS)
@@ -222,7 +222,7 @@ InsertReturnValue insert_nogrow(HashSet *this, KeyType key)
 		} else if(EntryGetHash(this, *entry) == hash) {
 			if(KeysEqual(this, GetKey(EntryGetValue(*entry)), key)) {
 				// Value already in the set, return it
-				return GetInsertReturnValue(*entry);
+				return GetInsertReturnValue(*entry, 0);
 			}
 		}
 

@@ -46,8 +46,9 @@ void pset_destroy(pset_t *pset);
  *
  * @param pset   Pointer to the pset
  * @param ptr    Pointer to insert into the pset
+ * @returns      1 if the pointer was inserted, 0 if it was already there
  */
-void pset_insert(pset_t *pset, void *ptr);
+int pset_insert(pset_t *pset, void *ptr);
 
 /**
  * Removes an element from a pset. Does nothing if the pset doesn't contain the
