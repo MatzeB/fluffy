@@ -3,20 +3,15 @@ LFLAGS=
 GOAL=mlang
 FGOAL=ftest
 SOURCES=$(wildcard *.c) $(wildcard adt/*.c)
-FSOURCES=$(wildcard firm/*.c)
 OBJECTS=$(addsuffix .o, $(basename $(SOURCES)))
-FOBJECTS=$(addsuffix .o, $(basename $(FSOURCES)))
 
-all: $(GOAL) $(FGOAL)
+all: $(GOAL)
 
 $(GOAL): $(OBJECTS)
 	gcc -o $(GOAL) $(OBJECTS) $(LFLAGS)
-
-$(FGOAL): $(FOBJECTS)
-	gcc -o $(FGOAL) $(FOBJECTS) $(LFLAGS)
 
 %.o: %.c
 	gcc -c $(CFLAGS) -o $*.o $*.c
 
 clean:
-	rm -rf $(OBJECTS) $(GOAL) $(FOBJECTS) $(FGOAL)
+	rm -rf $(OBJECTS) $(GOAL)
