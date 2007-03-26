@@ -1,11 +1,6 @@
-int jo;
 
-public class Dumpteur {
-	public void somefunc(int blo) {
-		call(1, 22, "aha, ein string");
-		if(blo < 0)
-			return;
-
-		somefunc(12);
-	}
+int main()
+{
+	return 0;
 }
+

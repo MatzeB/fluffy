@@ -54,6 +54,8 @@ token_t lexer_next_token(lexer_t *this)
 	}
 
 	switch(this->c) {
+	case '(':
+	case ')':
 	case '{':
 	case '}':
 	case '[':
@@ -61,6 +63,7 @@ token_t lexer_next_token(lexer_t *this)
 	case '=':
 	case ',':
 	case '.':
+	case ';':
 		token.type = this->c;
 		get_next_char(this);
 		return token;
