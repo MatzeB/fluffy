@@ -5,10 +5,11 @@
 #include "adt/obst.h"
 
 static inline
-void init_symbol_table_entry(symbol_t *entry, const char *symbol)
+void init_symbol_table_entry(symbol_t *entry, const char *string)
 {
 	entry->ID = 0;
-	entry->symbol = symbol;
+	entry->string = string;
+	entry->thing = NULL;
 	/* init additional stuff... */
 }
 
@@ -20,7 +21,7 @@ void init_symbol_table_entry(symbol_t *entry, const char *symbol)
 #define DeletedValue               ((void*)-1)
 #define KeyType                    const char *
 #define ConstKeyType               const char *
-#define GetKey(value)              (value)->symbol
+#define GetKey(value)              (value)->string
 #define InitData(this,value,key)   { (value) = (ValueType) obstack_alloc(&this->obst, sizeof(symbol_t)); init_symbol_table_entry((value), key); }
 #define Hash(this, key)            hash_string(key)
 #define KeysEqual(this,key1,key2)  (strcmp(key1, key2) == 0)
@@ -59,7 +60,7 @@ void iter_test(symbol_table_t *this)
 
 	_symbol_table_iterator_init(&iter, this);
 	while ((entry = _symbol_table_iterator_next(&iter)) != NULL) {
-		printf("Entry: '%s'\n", entry->symbol);
+		printf("Entry: '%s'\n", entry->string);
 	}
 }
 	

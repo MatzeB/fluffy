@@ -11,6 +11,8 @@
 
 #include "symbol_table_t.h"
 #include "lexer_t.h"
+#include "known_symbols.h"
+#include "parser.h"
 
 void test_pset()
 {
@@ -97,39 +99,16 @@ void test_strset()
 	obstack_free(&obst, NULL);
 }
 
-void iter_test(symbol_table_t *this);
-
 void test_lexer(const char *fname)
 {
-	symbol_table_t symbol_table;
-	lexer_t lexer;
-	token_t token;
 	FILE *in = fopen(fname, "r");
-	
 	if(in == NULL) {
 		fprintf(stderr, "Couldn't open '%s': %s\n", fname, strerror(errno));
 		exit(1);
 	}
 
-	symbol_table_init(&symbol_table);
-	lexer_init(&lexer, &symbol_table, in);
+	parse(in);
 
-	do {
-		token = lexer_next_token(&lexer);
-		printf("Found Token: %d", token.type);
-		if(token.type == TOKEN_SYMBOL) {
-			printf(" (symbol ID %d string '%s'-%p)", token.symbol->ID, token.symbol->symbol, token.symbol->symbol);
-		}
-		if(token.type < 256) {
-			printf(" '%c'", token.type);
-		}
-		printf("\n");
-	} while(token.type != TOKEN_EOF);
-
-	iter_test(&symbol_table);
-
-	lexer_destroy(&lexer);
-	symbol_table_destroy(&symbol_table);
 	fclose(in);
 }
 

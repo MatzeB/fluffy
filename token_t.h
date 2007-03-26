@@ -1,10 +1,13 @@
 #ifndef _TOKEN_T_H_
 #define _TOKEN_T_H_
 
+#include "symbol.h"
+
 typedef enum {
-	TOKEN_SYMBOL   = 256,
-	TOKEN_INTEGER,
-	TOKEN_EOF
+	T_IDENTIFIER = 256,
+	T_INTEGER,
+	FIRST_KNOWN_SYMBOL,
+	T_EOF      = -1
 } token_type_t;
 
 typedef struct {

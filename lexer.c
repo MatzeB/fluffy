@@ -26,20 +26,27 @@ void get_next_char(lexer_t *this)
 static inline
 void parse_symbol(lexer_t *this, token_t *token)
 {
-	char *symbol;
+	symbol_t *symbol;
+	char *string;
 
 	do {
 		obstack_1grow(this->obst, this->c);
 		get_next_char(this);
 	} while(isalnum(this->c));
 	obstack_1grow(this->obst, '\0');
-	symbol = obstack_finish(this->obst);
+	string = obstack_finish(this->obst);
 
-	token->type = TOKEN_SYMBOL;
-	token->symbol = symbol_table_insert(this->symbol_table, symbol);
+	symbol = symbol_table_insert(this->symbol_table, string);
 
-	if(token->symbol->symbol != symbol) {
-		obstack_free(this->obst, symbol);
+	if(symbol->ID > 0) {
+		token->type = symbol->ID;
+	} else {
+		token->type = T_IDENTIFIER;
+	}
+	token->symbol = symbol;
+
+	if(symbol->string != string) {
+		obstack_free(this->obst, string);
 	}
 }
 
@@ -68,7 +75,7 @@ token_t lexer_next_token(lexer_t *this)
 		get_next_char(this);
 		return token;
 	case EOF:
-		token.type = TOKEN_EOF;
+		token.type = T_EOF;
 		return token;
 	}
 

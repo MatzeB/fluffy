@@ -4,7 +4,7 @@
 #include "ast.h"
 
 typedef struct {
-	const char *symbol;
+	const char *string;
 	unsigned ID;
 	/* additional stuff */
 	environment_entry_t *thing;

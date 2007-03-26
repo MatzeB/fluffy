@@ -4,11 +4,29 @@
 #include "ast.h"
 #include "symbol.h"
 
+typedef enum {
+	TYPE_ATOMIC,
+	TYPE_STRUCT
+} type_type_t;
+
+typedef enum {
+	ATOMIC_TYPE_INT,
+	ATOMIC_TYPE_FLOAT,
+	ATOMIC_TYPE_POINTER
+} atomic_type_t;
+
 struct type_t {
+	type_type_t *type;
+};
+
+struct atomic_type_t {
+	type_t        type;
+	atomic_type_t atype;
+	unsigned bits;
+	unsigned has_sign : 1;
 };
 
 struct statement_t {
-
 };
 
 struct compilation_unit_t {
