@@ -2,8 +2,9 @@
 #define _PARSER_H_
 
 #include <stdio.h>
+#include "ast.h"
 
-void parse(FILE *in);
+compilation_unit_t *parse(FILE *in);
 
 #endif
 

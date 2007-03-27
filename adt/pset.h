@@ -8,6 +8,9 @@
 #ifndef _FIRM_PSET_H_
 #define _FIRM_PSET_H_
 
+/* collides with libfirm... */
+#if 0
+
 #define HashSet          pset_t
 #define HashSetIterator  pset_iterator_t
 #define ValueType        void*
@@ -103,6 +106,7 @@ void* pset_iterator_next(pset_iterator_t *iterator);
  * @param iterator  Pointer to the iterator
  */
 void pset_remove_iterator(pset_t *pset, const pset_iterator_t *iterator);
+#endif
 
 #endif
 

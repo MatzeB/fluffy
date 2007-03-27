@@ -1,3 +1,6 @@
+/* collides with libfirm */
+#if 0
+
 #include <config.h>
 
 #include "pset.h"
@@ -29,4 +32,6 @@ int pset_contains(const pset_t *pset, const ValueType val)
 {
 	return pset_find(pset, val) != NullValue;
 }
+
+#endif
 

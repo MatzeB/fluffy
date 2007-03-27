@@ -1,6 +1,7 @@
+short a;
+unsigned char blup;
+signed long long long_variable;
 
-int main()
-{
+int main() {
 	return 0;
 }
-
