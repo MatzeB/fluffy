@@ -376,10 +376,9 @@ compilation_unit_t *parse(FILE *in)
 	compilation_unit_t *unit = parse_compilation_unit(&env);
 
 	lexer_destroy(&env.lexer);
+	/* FIXME: make these global somehow
 	symbol_table_destroy(&env.symbol_table);
-
-	/* FIXME */
-	/* obstack_free(&env.obst, NULL); */
+	obstack_free(&env.obst, NULL); */
 
 	if(env.error) {
 		fprintf(stderr, "Errors happened...\n");

@@ -3,15 +3,23 @@ LFLAGS=-Llib -lfirm -lcore -llpp -lm -ldl
 GOAL=mlang
 FGOAL=ftest
 SOURCES=$(wildcard *.c) $(wildcard adt/*.c)
-OBJECTS=$(addsuffix .o, $(basename $(SOURCES)))
+OBJECTS=$(addprefix build/, $(addsuffix .o, $(basename $(SOURCES))))
+
+.PHONY : all clean
 
 all: $(GOAL)
 
-$(GOAL): $(OBJECTS)
+$(GOAL): build build/adt $(OBJECTS)
 	gcc -o $(GOAL) $(OBJECTS) $(LFLAGS)
 
-%.o: %.c
-	gcc -c $(CFLAGS) -o $*.o $*.c
+build:
+	mkdir -p build
+
+build/adt:
+	mkdir -p build/adt
+
+build/%.o: %.c
+	gcc -c $(CFLAGS) -o $@ $<
 
 clean:
 	rm -rf $(OBJECTS) $(GOAL)
