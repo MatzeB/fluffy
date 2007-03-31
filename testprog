@@ -2,10 +2,6 @@ short a;
 unsigned char blup;
 signed long long long_variable;
 
-int bla() {
-	return 13;
-}
-
-unsigned short blup() {
-	return 42;
+int main() {
+	return 5;
 }

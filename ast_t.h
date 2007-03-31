@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "symbol.h"
+#include "firm/tr/type.h"
 
 typedef enum {
 	TYPE_INVALID,
@@ -19,7 +20,8 @@ typedef enum {
 } atomic_type_type_t;
 
 struct type_t {
-	type_type_t type;
+	type_type_t  type;
+	ir_type     *firm_type;
 };
 
 struct atomic_type_t {
@@ -31,16 +33,23 @@ struct atomic_type_t {
 
 typedef enum {
 	EXPR_INVALID,
-	EXPR_INT_ATOM
+	EXPR_INT_CONST,
+	EXPR_CAST,
 } expresion_type_t;
 
 struct expression_t {
-	expresion_type_t type;
+	expresion_type_t  type;
+	const type_t     *datatype;
 };
 
-struct int_atom_t {
+struct int_const_t {
 	expression_t expression;
 	int value;
+};
+
+struct cast_expression_t {
+	expression_t expression;
+	expression_t *value;
 };
 
 typedef enum {

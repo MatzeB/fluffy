@@ -5,7 +5,8 @@ typedef struct type_t                   type_t;
 typedef struct atomic_type_t            atomic_type_t;
 
 typedef struct expression_t             expression_t;
-typedef struct int_atom_t               int_atom_t;
+typedef struct int_const_t              int_const_t;
+typedef struct cast_expression_t        cast_expression_t;
 
 typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;

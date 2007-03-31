@@ -188,22 +188,35 @@ void eat_until_semi(parser_env_t *env)
 	next_token(env);
 
 static
-expression_t *parse_int_atom(parser_env_t *env)
+expression_t *parse_int_const(parser_env_t *env)
 {
-	int_atom_t *atom = obstack_alloc(&env->obst, sizeof(atom[0]));
-	atom->expression.type = EXPR_INT_ATOM;
-	atom->value = env->token.intvalue;
+	int_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
+	cnst->expression.type = EXPR_INT_CONST;
+	cnst->value = env->token.intvalue;
 
 	next_token(env);
 
-	return (expression_t*) atom;
+	return (expression_t*) cnst;
+}
+
+static inline
+int is_expression_start(token_t token)
+{
+	switch(token.type) {
+	case T_INTEGER:
+	case '(':
+	case '-':
+	case T_IDENTIFIER:
+		return 1;
+	}
+	return 0;
 }
 
 static
 expression_t *parse_expression(parser_env_t *env)
 {
 	if(env->token.type == T_INTEGER) {
-		return parse_int_atom(env);	
+		return parse_int_const(env);	
 	}
 
 	parse_error(env, "Couldn't parse expression");
@@ -220,7 +233,9 @@ statement_t *parse_return_statement(parser_env_t *env)
 	return_statement->statement.type = STATEMENT_RETURN;
 	
 	next_token(env);
-	return_statement->return_value = parse_expression(env);
+	if(is_expression_start(env->token)) {
+		return_statement->return_value = parse_expression(env);
+	}
 
 	return (statement_t*) return_statement;
 }
