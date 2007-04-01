@@ -9,7 +9,7 @@ void init_symbol_table_entry(symbol_t *entry, const char *string)
 {
 	entry->ID = 0;
 	entry->string = string;
-	entry->thing = NULL;
+	/* entry->thing = NULL; */
 	/* init additional stuff... */
 }
 

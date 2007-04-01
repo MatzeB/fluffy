@@ -3,7 +3,7 @@
 
 #include "ast.h"
 
-void check_static_semantic(compilation_unit_t *unit);
+void check_static_semantic(namespace_t *namespace);
 
 #endif
 

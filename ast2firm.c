@@ -189,40 +189,54 @@ void statement_to_firm(const statement_t *statement)
 	}
 }
 
+static
+void create_function(const function_t *function)
+{
+	/* first create an entity */
+	ir_type *glob_type = get_glob_type();
+	ident *id = new_id_from_str(function->symbol->string);
+	ir_type *methodtype = new_type_method(id, 0, 1);
+	set_method_res_type(methodtype, 0, get_ir_type(function->return_type));
+	/*TODO
+	 * set_method_res_type(methodtype, 0, int_type); */
+	ir_entity *entity = new_entity(glob_type, id, methodtype);
+	set_entity_ld_ident(entity, id);
+	set_entity_visibility(entity, visibility_external_visible);
+
+	ir_graph *irg = new_ir_graph(entity, 0);
+
+	statement_to_firm(function->statement);
+
+	mature_immBlock(get_irg_current_block(irg));
+	mature_immBlock(get_irg_end_block(irg));
+
+	irg_finalize_cons(irg);
+
+	irg_vrfy(irg);
+
+	dump_ir_block_graph(irg, "-test");
+}
+
 /**
  * Build a firm representation of an AST programm
  */
-void ast2firm(compilation_unit_t *unit)
+void ast2firm(namespace_t *namespace)
 {
 	/* scan compilation unit for functions */
-	environment_entry_t *entry = unit->environment.entries;
-	for( ; entry != NULL; entry = entry->next) {
-		if(entry->type == ENTRY_FUNCTION) {
-			function_t *func = entry->function;
-			/* first create an entity */
-			ir_type *glob_type = get_glob_type();
-			ident *id = new_id_from_str(entry->symbol->string);
-			ir_type *methodtype = new_type_method(id, 0, 1);
-			set_method_res_type(methodtype, 0, get_ir_type(func->return_type));
-			/*TODO
-			 * set_method_res_type(methodtype, 0, int_type); */
-			ir_entity *entity = new_entity(glob_type, id, methodtype);
-			set_entity_ld_ident(entity, id);
-			set_entity_visibility(entity, visibility_external_visible);
-
-			ir_graph *irg = new_ir_graph(entity, 0);
-
-			statement_to_firm(func->statement);
-
-			mature_immBlock(get_irg_current_block(irg));
-			mature_immBlock(get_irg_end_block(irg));
-
-			irg_finalize_cons(irg);
-
-			irg_vrfy(irg);
-
-			dump_ir_block_graph(irg, "-test");
+	namespace_entry_t *entry = namespace->first_entry;
+	while(entry != NULL) {
+		switch(entry->type) {
+		case NAMESPACE_ENTRY_FUNCTION:
+			create_function((function_t*) entry);
+			break;
+		case NAMESPACE_ENTRY_VARIABLE:
+			fprintf(stderr, "Global vars not handled yet\n");
+			break;
+		default:
+			panic("Unknown namespace entry type found");
 		}
+
+		entry = entry->next;
 	}
 }
 

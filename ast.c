@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#if 0
 static environment_t *top_environment = NULL;
 
 void push_environment(environment_t *environment)
@@ -62,3 +63,4 @@ void pop_environment(environment_t *environment)
 	environment->on_stack = 0;
 }
 
+#endif

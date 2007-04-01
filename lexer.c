@@ -68,7 +68,7 @@ void parse_number(lexer_t *this, token_t *token)
 }
 
 static inline
-void skip_mutiline_comment(lexer_t *this)
+void skip_multiline_comment(lexer_t *this)
 {
 	while(1) {
 		if(this->c == '*') {
@@ -80,8 +80,11 @@ void skip_mutiline_comment(lexer_t *this)
 		} else if(this->c == EOF) {
 			fprintf(stderr, "Parse error: Comment starting at line 'TODO' not closed\n");
 			return;
-		} else if(this->c == '\n') {
-			this->linenr++;
+		} else {
+			if(this->c == '\n') {
+				this->linenr++;
+			}
+			next_char(this);
 		}
 	}
 }
@@ -126,7 +129,7 @@ token_t lexer_next_token(lexer_t *this)
 		next_char(this);
 		if(this->c == '*') {
 			next_char(this);
-			skip_mutiline_comment(this);
+			skip_multiline_comment(this);
 			return lexer_next_token(this);
 		} else if(this->c == '/') {
 			next_char(this);

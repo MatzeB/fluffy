@@ -19,14 +19,15 @@ void test_parser(const char *fname)
 		exit(1);
 	}
 
-	compilation_unit_t *unit = parse(in, fname);
+	namespace_t *namespace = parse(in, fname);
 	fclose(in);
 
-	if(unit == NULL)
-		return;
+	if(namespace == NULL) {
+		exit(1);
+	}
 
-	check_static_semantic(unit);
-	ast2firm(unit);
+	check_static_semantic(namespace);
+	ast2firm(namespace);
 
 	const char* outfname = "out.s";
 	FILE *out = fopen(outfname, "w");

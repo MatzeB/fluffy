@@ -3,7 +3,13 @@ unsigned byte blup;
 signed long long long_variable;
 
 int main() {
-	int blo = somefunc(2);
+	// int blo = 42;
+	// jo /**
+	/* int blo = somefunc(2); */
+	{
+		{
+		}
+	}
 
-	return 5;
+	return 42;
 }

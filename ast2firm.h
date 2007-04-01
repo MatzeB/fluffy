@@ -3,7 +3,7 @@
 
 #include "ast.h"
 
-void ast2firm(compilation_unit_t *unit);
+void ast2firm(namespace_t *unit);
 
 void initialize_firm(void);
 void exit_firm(void);

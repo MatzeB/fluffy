@@ -49,6 +49,7 @@ typedef enum {
 	EXPR_INVALID,
 	EXPR_INT_CONST,
 	EXPR_CAST,
+	EXPR_VARIABLE_REFERENCE
 } expresion_type_t;
 
 struct expression_t {
@@ -57,13 +58,24 @@ struct expression_t {
 };
 
 struct int_const_t {
-	expression_t expression;
-	int value;
+	expression_t  expression;
+	int           value;
 };
 
 struct cast_expression_t {
-	expression_t expression;
+	expression_t  expression;
 	expression_t *value;
+};
+
+struct variable_reference_expression_t {
+	expression_t    expression;
+	symbol_t       *symbol;
+	variable_declaration_statement_t *declaration;
+};
+
+struct call_expression_t {
+	expression_t  expression;
+	/* TODO arguments */
 };
 
 typedef enum {
@@ -71,6 +83,8 @@ typedef enum {
 	STATEMENT_BLOCK,
 	STATEMENT_RETURN,
 	STATEMENT_VARIABLE_DECLARATION,
+	STATEMENT_IF,
+	STATEMENT_EXPRESSION
 } statement_type_t;
 
 struct statement_t {
@@ -89,55 +103,49 @@ struct block_statement_t {
 };
 
 struct variable_declaration_statement_t {
-	statement_t  statmenet;
-	type_t       type;
-	symbol_t     name;
+	statement_t  statement;
+	type_t      *type;
+	symbol_t    *symbol;
 };
 
-enum environment_entry_type_t {
-	ENTRY_FUNCTION,
-	ENTRY_VARIABLE,
-	ENTRY_ARGUMENT
+struct if_statement_t {
+	statement_t   statement;
+	expression_t *condition;
+	statement_t  *true_statement;
+	statement_t  *false_statement;
 };
 
-struct environment_entry_t {
-	environment_entry_t      *next;
-	symbol_t                 *symbol;
-	environment_entry_type_t  type;
-	environment_entry_t      *up;
-	environment_entry_t      *down;
-
-	union {
-		compilation_unit_t *compunit;
-		function_t *function;
-		variable_t *variable;
-	};
+struct expression_statement_t {
+	statement_t   statement;
+	expression_t *expression;
 };
 
-struct environment_t {
-	environment_entry_t *entries;
-	int                  entry_count;
-	environment_t       *up;
-	environment_t       *down;
-	unsigned             on_stack : 1;
+enum namespace_entry_type_t {
+	NAMESPACE_ENTRY_FUNCTION,
+	NAMESPACE_ENTRY_VARIABLE
 };
 
-struct compilation_unit_t {
-	environment_t environment;
+struct namespace_entry_t {
+	namespace_entry_type_t  type;
+	namespace_entry_t      *next;
 };
 
 struct function_t {
-	type_t        *return_type;
-	statement_t   *statement;
-	environment_t *arguments;
+	namespace_entry_t  namespace_entry;
+	symbol_t          *symbol;
+	type_t            *return_type;
+	statement_t       *statement;
+	/* TODO arguments */
 };
 
 struct variable_t {
-	type_t *type;
+	namespace_entry_t  namespace_entry;
+	symbol_t          *symbol;
+	type_t            *type;
 };
 
-struct argument_t {
-	type_t *type;
+struct namespace_t {
+	namespace_entry_t *first_entry;
 };
 
 #endif

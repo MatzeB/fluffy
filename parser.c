@@ -14,11 +14,11 @@
 #include "adt/util.h"
 
 typedef struct {
-	struct obstack obst;
-	token_t token;
-	lexer_t lexer;
-	symbol_table_t symbol_table;
-	int error;
+	struct obstack  obst;
+	token_t         token;
+	lexer_t         lexer;
+	symbol_table_t  symbol_table;
+	int             error;
 } parser_env_t;
 
 static inline
@@ -58,7 +58,6 @@ static
 void parse_error_expected(parser_env_t *env, const char *message, ...)
 {
 	va_list args;
-	int token;
 	int first = 1;
 
 	if(message != NULL) {
@@ -66,24 +65,23 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 		fprintf(stderr, "%s\n", message);
 	}
 	print_error_prefix(env, ERR_ERROR);
-	if(env->token.type < 256) {
-		fprintf(stderr, "Parse error: got '%c', expected '", env->token.type);
-	} else {
-		fprintf(stderr, "Parse error: got '%d', expected '", env->token.type);
-	}
+	fputs("Parse error: got ", stderr);
+	print_token(stderr, &env->token);
+	fputs(", expected ", stderr);
+
 	va_start(args, message);
-	token = va_arg(args, int);
-	while(token != 0) {
+	token_type_t token_type = va_arg(args, token_type_t);
+	while(token_type != 0) {
 		if(first == 1) {
 			first = 0;
 		} else {
 			fprintf(stderr, ", ");
 		}
-		fprintf(stderr, "%d", token);
-		token = va_arg(args, int);
+		print_token_type(stderr, token_type);
+		token_type = va_arg(args, token_type_t);
 	}
 	va_end(args);
-	fprintf(stderr, "'\n");
+	fprintf(stderr, "\n");
 }
 
 static
@@ -277,22 +275,60 @@ statement_t *parse_return_statement(parser_env_t *env)
 }
 
 static
+statement_t *parse_variable_declaration(parser_env_t *env, type_t *type)
+{
+	statement_t *last_statement = NULL;
+	variable_declaration_statement_t *decl;
+	
+	while(1) {
+		decl = obstack_alloc(&env->obst, sizeof(decl[0]));
+		memset(decl, 0, sizeof(decl[0]));
+		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
+		decl->type = type;
+		decl->symbol = env->token.symbol;
+
+		/* append multiple variable declarations */
+		if(last_statement != NULL) {
+			last_statement->next = (statement_t*) decl;
+		}
+		last_statement = (statement_t*) decl;
+
+		/* check if we have more declared symbols separated by ',' */
+		next_token(env);
+		if(env->token.type != ',')
+			break;
+
+		next_token(env);
+		if(env->token.type != T_IDENTIFIER) {
+			parse_error_expected(env, "Problem parsing variable declaration",
+			                     T_IDENTIFIER, 0);
+			eat_until_semi(env);
+			return NULL;
+		}
+	}
+
+	return last_statement;
+}
+
+static
 statement_t *parse_block(parser_env_t *env);
 
 static
 statement_t *parse_statement(parser_env_t *env)
 {
 	symbol_t *symbol;
-	statement_t *res;
+	statement_t *statement;
 	type_t *type;
 
 	switch(env->token.type) {
 	case T_return:
-		return parse_return_statement(env);
+		statement = parse_return_statement(env);
+		break;
 	case '{':
-		res = parse_block(env);
+		next_token(env);
+		statement = parse_block(env);
 		expect(env, '}');
-		return res;
+		return statement;
 	case T_unsigned:
 	case T_signed:
 	case T_byte:
@@ -300,6 +336,7 @@ statement_t *parse_statement(parser_env_t *env)
 	case T_int:
 	case T_long:
 		type = parse_type(env);
+		statement = parse_variable_declaration(env, type);
 		break;
 	case T_IDENTIFIER:
 		symbol = env->token.symbol;
@@ -307,16 +344,19 @@ statement_t *parse_statement(parser_env_t *env)
 		if(env->token.type == T_IDENTIFIER) {
 			/* must be a variable declaration */
 			type = parse_type_ref_sym(env, symbol);
+			statement = parse_variable_declaration(env, type);
 		}
 		break;
+	default:
+		parse_error(env, "Expected statement");
+		eat_until_semi(env);
+		statement = obstack_alloc(&env->obst, sizeof(statement[0]));
+		memset(statement, 0, sizeof(statement[0]));
+		statement->type = STATEMENT_INVALID;
+		return statement;
 	}
 
-	parse_error(env, "Expected statement");
-	eat_until_semi(env);
-	statement_t *statement =
-		obstack_alloc(&env->obst, sizeof(statement[0]));
-	memset(statement, 0, sizeof(statement[0]));
-	statement->type = STATEMENT_INVALID;
+	expect(env, ';');
 	return statement;
 }
 
@@ -329,51 +369,51 @@ statement_t *parse_block(parser_env_t *env)
 
 	block->statement.type = STATEMENT_BLOCK;
 
-	while(env->token.type != '}' && env->token.type != T_EOF) {
-		if(env->token.type != ';') {
-			statement_t *statement = parse_statement(env);
-			if(last != NULL) {
-				last->next = statement;
-			} else {
-				block->first_statement = statement;
-			}
-			last = statement;
+	while(env->token.type != '}') {
+		/* eat the empty statement */
+		if(env->token.type == ';') {
+			next_token(env);
+			continue;
 		}
-		expect(env, ';');
+
+		/* parse statement */
+		statement_t *statement = parse_statement(env);
+		if(last != NULL) {
+			last->next = statement;
+		} else {
+			block->first_statement = statement;
+		}
+		last = statement;
+		/* the parse rule might have produced multiple statements */
+		while(last->next != NULL)
+			last = last->next;
 	}
 
 	return (statement_t*) block;
 }
 
 static
-environment_entry_t *parse_function_or_var(parser_env_t *env)
+namespace_entry_t *parse_function_or_var(parser_env_t *env)
 {
 	type_t *type = parse_type(env);
-	symbol_t *identifier;
+	symbol_t *symbol;
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, NULL, T_IDENTIFIER, 0);
 		eat_until_semi(env);
 		return NULL;
 	}
-	identifier = env->token.symbol;
+	symbol = env->token.symbol;
 	next_token(env);
 
 	/* is it a function? */
 	if(env->token.type == '(') {
-		environment_entry_t *entry =
-			obstack_alloc(&env->obst, sizeof(entry[0]));
-		memset(entry, 0, sizeof(entry[0]));
-		entry->symbol = identifier;
-		entry->type = ENTRY_FUNCTION;
-
-		function_t *function =
-			obstack_alloc(&env->obst, sizeof(function[0]));
+		function_t *function = obstack_alloc(&env->obst, sizeof(function[0]));
 		memset(function, 0, sizeof(function[0]));
-		entry->function = function;
 
-		function->arguments = NULL;
-		function->return_type = type;
+		function->namespace_entry.type = NAMESPACE_ENTRY_FUNCTION;
+		function->symbol               = symbol;
+		function->return_type          = type;
 
 		/* TODO: free memory in case of error... */
 
@@ -383,34 +423,27 @@ environment_entry_t *parse_function_or_var(parser_env_t *env)
 		function->statement = parse_block(env);
 		expect(env, '}');
 
-		return entry;
+		return (namespace_entry_t*) function;
 	} else {
 		/* must be a variable */
 		expect(env, ';');
 
-		environment_entry_t *entry =
-			obstack_alloc(&env->obst, sizeof(entry[0]));
-		memset(entry, 0, sizeof(entry[0]));
-		entry->symbol = identifier;
-		entry->type = ENTRY_VARIABLE;
-
-		variable_t *variable =
-			obstack_alloc(&env->obst, sizeof(variable[0]));
+		variable_t *variable = obstack_alloc(&env->obst, sizeof(variable[0]));
 		memset(variable, 0, sizeof(variable[0]));
-		entry->variable = variable;
 
-		variable->type = type;
+		variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
+		variable->symbol               = symbol;
+		variable->type                 = type;
 
-		return entry;
+		return (namespace_entry_t*) variable;
 	}
 }
 
 static
-compilation_unit_t *parse_compilation_unit(parser_env_t *env)
+namespace_t *parse_namespace(parser_env_t *env)
 {
-	compilation_unit_t *unit = obstack_alloc(&env->obst, sizeof(unit[0]));
-	environment_t *environment = & unit->environment;
-	memset(unit, 0, sizeof(unit[0]));
+	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
+	memset(namespace, 0, sizeof(namespace[0]));
 
 	while(1) {
 		switch(env->token.type) {
@@ -421,24 +454,28 @@ compilation_unit_t *parse_compilation_unit(parser_env_t *env)
 		case T_short:
 		case T_float:
 		case T_double: {
-			environment_entry_t *entry = parse_function_or_var(env);
+			namespace_entry_t *entry = parse_function_or_var(env);
 
 			if(entry != NULL) {
-				entry->next = environment->entries;
-				environment->entries = entry;
+				entry->next = namespace->first_entry;
+				namespace->first_entry = entry;
 			}
-			break;
+			continue;
 		}
 
 		case ';':
 			break;
 		case T_EOF:
-			return unit;
+			return namespace;
+		default:
+			parse_error(env, "Couldn't parse compilation unit entry");
+			break;
 		}
+		next_token(env);
 	}
 }
 
-compilation_unit_t *parse(FILE *in, const char *input_name)
+namespace_t *parse(FILE *in, const char *input_name)
 {
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
@@ -451,7 +488,7 @@ compilation_unit_t *parse(FILE *in, const char *input_name)
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
 	next_token(&env);
 
-	compilation_unit_t *unit = parse_compilation_unit(&env);
+	namespace_t *unit = parse_namespace(&env);
 
 	lexer_destroy(&env.lexer);
 	/* FIXME: make these global somehow
@@ -461,14 +498,6 @@ compilation_unit_t *parse(FILE *in, const char *input_name)
 	if(env.error) {
 		fprintf(stderr, "Errors happened...\n");
 		return NULL;
-	} else {
-		environment_entry_t *entry = unit->environment.entries;
-		while(entry != NULL) {
-			printf("Entry: '%s', is a %s\n",
-					entry->symbol->string,
-					entry->type == ENTRY_FUNCTION ? "function" : "variable");
-			entry = entry->next;
-		}
 	}
 
 	return unit;

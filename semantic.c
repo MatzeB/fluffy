@@ -4,6 +4,36 @@
 #include "ast_t.h"
 #include "adt/error.h"
 
+#if 0
+enum environment_entry_type_t {
+	ENTRY_FUNCTION,
+	ENTRY_VARIABLE,
+	ENTRY_ARGUMENT
+};
+
+struct environment_entry_t {
+	environment_entry_t      *next;
+	symbol_t                 *symbol;
+	environment_entry_type_t  type;
+	environment_entry_t      *up;
+	environment_entry_t      *down;
+
+	union {
+		compilation_unit_t *compunit;
+		function_t *function;
+		variable_t *variable;
+	};
+};
+
+struct environment_t {
+	environment_entry_t *entries;
+	int                  entry_count;
+	environment_t       *up;
+	environment_t       *down;
+	unsigned             on_stack : 1;
+};
+#endif
+
 static atomic_type_t default_int_type_ 
 	= { { TYPE_ATOMIC, NULL }, ATOMIC_TYPE_INT };
 static type_t *default_int_type = (type_t*) &default_int_type_;
@@ -72,6 +102,13 @@ void check_statement(statement_t *statement)
 	case STATEMENT_RETURN:
 		check_return_statement((return_statement_t*) statement);
 		break;
+	case STATEMENT_VARIABLE_DECLARATION:
+		fprintf(stderr, "Warning: Varible declaration not implemented yet.\n");
+		break;
+	case STATEMENT_EXPRESSION:
+	case STATEMENT_IF:
+		panic("envountered unknown statement");
+		break;
 	}
 }
 
@@ -83,13 +120,13 @@ void check_function(function_t *function)
 	check_statement(function->statement);
 }
 
-void check_static_semantic(compilation_unit_t *unit)
+void check_static_semantic(namespace_t *namespace)
 {
-	environment_entry_t *entry = unit->environment.entries;
+	namespace_entry_t *entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
-		case ENTRY_FUNCTION:
-			check_function(entry->function);
+		case NAMESPACE_ENTRY_FUNCTION:
+			check_function((function_t*) entry);
 			break;
 		default:
 			break;

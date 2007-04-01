@@ -1,6 +1,7 @@
 #ifndef _TOKEN_T_H_
 #define _TOKEN_T_H_
 
+#include <stdio.h>
 #include "symbol.h"
 
 typedef enum {
@@ -19,6 +20,9 @@ typedef struct {
 		int intvalue;
 	};
 } token_t;
+
+void print_token_type(FILE *out, token_type_t token_type);
+void print_token(FILE *out, const token_t *token);
 
 #endif
 
