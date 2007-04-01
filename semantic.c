@@ -4,20 +4,24 @@
 #include "ast_t.h"
 #include "adt/error.h"
 
-static const atomic_type_t default_int_type 
-	= { { TYPE_ATOMIC }, ATOMIC_TYPE_INT, 32, 1 };
+static atomic_type_t default_int_type_ 
+	= { { TYPE_ATOMIC, NULL }, ATOMIC_TYPE_INT };
+static type_t *default_int_type = (type_t*) &default_int_type_;
 
 static
 void check_expression(expression_t *expression)
 {
 	switch(expression->type) {
 	case EXPR_INT_CONST:
-		expression->datatype = &default_int_type;
+		expression->datatype = default_int_type;
 		break;
 	case EXPR_CAST:
 		if(expression->datatype == NULL) {
 			panic("Cast expression needs a datatype!");
 		}
+		break;
+	default:
+		panic("Invalid expression encountered");
 	}
 }
 

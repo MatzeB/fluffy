@@ -3,6 +3,7 @@
 
 typedef struct type_t                   type_t;
 typedef struct atomic_type_t            atomic_type_t;
+typedef struct ref_type_t               ref_type_t;
 
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;

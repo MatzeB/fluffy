@@ -80,6 +80,8 @@ void skip_mutiline_comment(lexer_t *this)
 		} else if(this->c == EOF) {
 			fprintf(stderr, "Parse error: Comment starting at line 'TODO' not closed\n");
 			return;
+		} else if(this->c == '\n') {
+			this->linenr++;
 		}
 	}
 }
@@ -95,12 +97,16 @@ void skip_line_comment(lexer_t *this)
 token_t lexer_next_token(lexer_t *this)
 {
 	token_t token;
-	token.sourcefile = "TODO";
-	token.linenr = 666;
 
 	while(isspace(this->c)) {
+		if(this->c == '\n')
+			this->linenr++;
+
 		next_char(this);
 	}
+
+	token.sourcefile = this->input_name;
+	token.linenr = this->linenr;
 
 	switch(this->c) {
 	case '(':
@@ -150,7 +156,7 @@ token_t lexer_next_token(lexer_t *this)
 }
 
 void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
-                FILE *stream)
+                FILE *stream, const char *input_name)
 {
 	this->input = stream;
 	this->bufpos = NULL;
@@ -159,6 +165,8 @@ void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
 
 	this->symbol_table = symbol_table;
 	this->obst = & symbol_table->obst;
+	this->linenr = 1;
+	this->input_name = input_name;
 }
 
 void lexer_destroy(lexer_t *this)

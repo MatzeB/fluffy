@@ -1,7 +1,9 @@
 short a;
-unsigned char blup;
+unsigned byte blup;
 signed long long long_variable;
 
 int main() {
+	int blo = somefunc(2);
+
 	return 5;
 }

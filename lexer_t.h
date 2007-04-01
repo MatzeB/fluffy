@@ -13,6 +13,8 @@ struct lexer_t {
 	int c;
 	symbol_table_t *symbol_table;
 	struct obstack *obst;
+	const char *input_name;
+	unsigned linenr;
 };
 
 #include "lexer.h"

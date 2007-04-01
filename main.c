@@ -8,6 +8,7 @@
 #include <firm/be/be.h>
 
 #include "parser.h"
+#include "semantic.h"
 #include "ast2firm.h"
 
 void test_parser(const char *fname)
@@ -18,12 +19,13 @@ void test_parser(const char *fname)
 		exit(1);
 	}
 
-	compilation_unit_t *unit = parse(in);
+	compilation_unit_t *unit = parse(in, fname);
 	fclose(in);
 
 	if(unit == NULL)
 		return;
 
+	check_static_semantic(unit);
 	ast2firm(unit);
 
 	const char* outfname = "out.s";

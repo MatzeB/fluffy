@@ -46,29 +46,46 @@ void exit_firm(void)
 }
 
 static
-ir_mode *get_atomic_int_mode(const atomic_type_t* atomic_type)
+ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
-	switch(atomic_type->bits) {
-	case 8:
-		return atomic_type->has_sign ? mode_Bs : mode_Bu;
-	case 16:
-		return atomic_type->has_sign ? mode_Hs : mode_Hu;
-	case 32:
-		return atomic_type->has_sign ? mode_Is : mode_Iu;
-	case 64:
-		return atomic_type->has_sign ? mode_Ls : mode_Lu;
+	switch(atomic_type->atype) {
+	case ATOMIC_TYPE_BYTE:
+		return mode_Bs;
+	case ATOMIC_TYPE_UBYTE:
+		return mode_Bu;
+	case ATOMIC_TYPE_SHORT:
+		return mode_Hs;
+	case ATOMIC_TYPE_USHORT:
+		return mode_Hu;
+	case ATOMIC_TYPE_INT:
+		return mode_Is;
+	case ATOMIC_TYPE_UINT:
+		return mode_Iu;
+	case ATOMIC_TYPE_LONG:
+		return mode_Ls;
+	case ATOMIC_TYPE_ULONG:
+		return mode_Lu;
+	case ATOMIC_TYPE_LONGLONG:
+		return mode_LLs;
+	case ATOMIC_TYPE_ULONGLONG:
+		return mode_LLu;
+	case ATOMIC_TYPE_FLOAT:
+		return mode_F;
+	case ATOMIC_TYPE_DOUBLE:
+		return mode_D;
 	default:
-		panic("invalid atomic type");
+		panic("Encountered unknown atomic type");
 	}
-	return NULL;
 }
 
 static
-ir_type *get_atomic_type(const atomic_type_t* atomic_type)
+ir_type *get_atomic_type(const atomic_type_t *type)
 {
-	switch(atomic_type->atype) {
-	case ATOMIC_TYPE_INT:
-	}
+	ir_mode *mode = get_atomic_mode(type);
+	ident *id = get_mode_ident(mode);
+	ir_type *irtype = new_type_primitive(id, mode);
+
+	return irtype;
 }
 
 static

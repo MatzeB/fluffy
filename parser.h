@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "ast.h"
 
-compilation_unit_t *parse(FILE *in);
+compilation_unit_t *parse(FILE *in, const char *input_name);
 
 #endif
 

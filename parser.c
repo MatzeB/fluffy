@@ -59,14 +59,18 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 {
 	va_list args;
 	int token;
-	int first = 0;
+	int first = 1;
 
 	if(message != NULL) {
 		print_error_prefix(env, ERR_ERROR);
 		fprintf(stderr, "%s\n", message);
 	}
 	print_error_prefix(env, ERR_ERROR);
-	fprintf(stderr, "Parse error, got '%d' expected '", env->token.type);
+	if(env->token.type < 256) {
+		fprintf(stderr, "Parse error: got '%c', expected '", env->token.type);
+	} else {
+		fprintf(stderr, "Parse error: got '%d', expected '", env->token.type);
+	}
 	va_start(args, message);
 	token = va_arg(args, int);
 	while(token != 0) {
@@ -83,69 +87,99 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 }
 
 static
+atomic_type_type_t parse_unsigned_atomic_type(parser_env_t *env)
+{
+	switch(env->token.type) {
+	case T_byte:
+		next_token(env);
+		return ATOMIC_TYPE_UBYTE;
+	case T_short:
+		next_token(env);
+		return ATOMIC_TYPE_USHORT;
+	case T_long:
+		next_token(env);
+		if(env->token.type == T_long) {
+			next_token(env);
+			return ATOMIC_TYPE_ULONGLONG;
+		}
+		return ATOMIC_TYPE_ULONG;
+	case T_int:
+		next_token(env);
+		return ATOMIC_TYPE_UINT;
+	default:
+		parse_error_expected(env, "couldn't parse type",
+				T_byte, T_short, T_int, T_long, 0);
+		return ATOMIC_TYPE_INVALID;
+	}
+}
+
+static
+atomic_type_type_t parse_signed_atomic_type(parser_env_t *env)
+{
+	switch(env->token.type) {
+	case T_byte:
+		next_token(env);
+		return ATOMIC_TYPE_BYTE;
+	case T_short:
+		next_token(env);
+		return ATOMIC_TYPE_SHORT;
+	case T_long:
+		next_token(env);
+		if(env->token.type == T_long) {
+			next_token(env);
+			return ATOMIC_TYPE_LONGLONG;
+		}
+		return ATOMIC_TYPE_LONG;
+	case T_int:
+		next_token(env);
+		return ATOMIC_TYPE_INT;
+	default:
+		parse_error_expected(env, "couldn't parse type",
+				T_byte, T_short, T_int, T_long, 0);
+		return ATOMIC_TYPE_INVALID;
+	}
+}
+
+static
 type_t *parse_atomic_type(parser_env_t *env)
 {
-	int had_sign_modifier = 0;
-
 	atomic_type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
 	memset(type, 0, sizeof(type[0]));
 	type->type.type = TYPE_ATOMIC;
-	type_t *res = (type_t*) type;
 
-	while(1) {
-		switch(env->token.type) {
-		case T_unsigned:
-			if(had_sign_modifier) {
-				parse_error(env, "Skipping double sign modifier 'unsigned'");
-			} else {
-				type->has_sign = 0;
-				had_sign_modifier = 1;
-			}
-			break;
-		case T_signed:
-			if(had_sign_modifier) {
-				parse_error(env, "Skipping double sign modifier 'signed'");
-			} else {
-				type->has_sign = 1;
-				had_sign_modifier = 1;
-			}
-			break;
-		case T_long:
-			next_token(env);
-			if(env->token.type == T_long) {
-				type->atype = ATOMIC_TYPE_INT;
-				type->bits  = 64;
-				next_token(env);
-			} else {
-				type->atype = ATOMIC_TYPE_INT;
-				type->bits  = 32;
-			}
-			return res;
-		case T_int:
-			type->atype = ATOMIC_TYPE_INT;
-			type->bits  = 32;
-			next_token(env);
-			return res;
-		case T_short:
-			type->atype = ATOMIC_TYPE_INT;
-			type->bits  = 16;
-			next_token(env);
-			return res;
-		case T_char:
-			type->atype = ATOMIC_TYPE_INT;
-			type->bits  = 8;
-			next_token(env);
-			return res;
-		default:
-			parse_error_expected(env, "couldn't parse type",
-			                     T_unsigned, T_signed, T_long, T_int, T_short,
-								 T_char, 0);
-			/* return the invalid type */
-			type->type.type = TYPE_INVALID;
-			return res;
-		}
+	switch(env->token.type) {
+	case T_unsigned:
 		next_token(env);
+		type->atype = parse_unsigned_atomic_type(env);
+		break;
+	case T_signed:
+		next_token(env);
+		/* fallthrough */
+	default:
+		type->atype = parse_signed_atomic_type(env);
+		break;
 	}
+
+	return (type_t*) type;
+}
+
+static
+type_t *parse_type_ref_sym(parser_env_t *env, symbol_t *symbol)
+{
+	ref_type_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
+	memset(type_ref, 0, sizeof(type_ref[0]));
+
+	type_ref->type.type = TYPE_REF;
+	type_ref->symbol = symbol;
+	return (type_t*) type_ref;
+}
+
+static
+type_t *parse_type_ref(parser_env_t *env)
+{
+	symbol_t *symbol = env->token.symbol;
+	next_token(env);
+	return parse_type_ref_sym(env, symbol);
 }
 
 static
@@ -155,11 +189,13 @@ type_t *parse_type(parser_env_t *env)
 	case T_unsigned:
 	case T_signed:
 	case T_int:
-	case T_char:
+	case T_byte:
 	case T_short:
 	case T_float:
 	case T_double:
 		return parse_atomic_type(env);
+	case T_IDENTIFIER:
+		return parse_type_ref(env);
 	}
 
 	parse_error(env, "Couldn't parse type\n");
@@ -241,11 +277,38 @@ statement_t *parse_return_statement(parser_env_t *env)
 }
 
 static
+statement_t *parse_block(parser_env_t *env);
+
+static
 statement_t *parse_statement(parser_env_t *env)
 {
+	symbol_t *symbol;
+	statement_t *res;
+	type_t *type;
+
 	switch(env->token.type) {
 	case T_return:
 		return parse_return_statement(env);
+	case '{':
+		res = parse_block(env);
+		expect(env, '}');
+		return res;
+	case T_unsigned:
+	case T_signed:
+	case T_byte:
+	case T_short:
+	case T_int:
+	case T_long:
+		type = parse_type(env);
+		break;
+	case T_IDENTIFIER:
+		symbol = env->token.symbol;
+		next_token(env);
+		if(env->token.type == T_IDENTIFIER) {
+			/* must be a variable declaration */
+			type = parse_type_ref_sym(env, symbol);
+		}
+		break;
 	}
 
 	parse_error(env, "Expected statement");
@@ -354,7 +417,7 @@ compilation_unit_t *parse_compilation_unit(parser_env_t *env)
 		case T_unsigned:
 		case T_signed:
 		case T_int:
-		case T_char:
+		case T_byte:
 		case T_short:
 		case T_float:
 		case T_double: {
@@ -375,7 +438,7 @@ compilation_unit_t *parse_compilation_unit(parser_env_t *env)
 	}
 }
 
-compilation_unit_t *parse(FILE *in)
+compilation_unit_t *parse(FILE *in, const char *input_name)
 {
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
@@ -385,7 +448,7 @@ compilation_unit_t *parse(FILE *in)
 	symbol_table_init(&env.symbol_table);
 	put_known_symbols_into_symbol_table(&env.symbol_table);
 
-	lexer_init(&env.lexer, &env.symbol_table, in);
+	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
 	next_token(&env);
 
 	compilation_unit_t *unit = parse_compilation_unit(&env);

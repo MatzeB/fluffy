@@ -1,5 +1,5 @@
 T(void)
-T(char)
+T(byte)
 T(short)
 T(int)
 T(long)

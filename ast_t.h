@@ -8,13 +8,24 @@
 typedef enum {
 	TYPE_INVALID,
 	TYPE_ATOMIC,
-	TYPE_STRUCT
+	TYPE_STRUCT,
+	TYPE_REF,
 } type_type_t;
 
 typedef enum {
 	ATOMIC_TYPE_INVALID,
+	ATOMIC_TYPE_BYTE,
+	ATOMIC_TYPE_UBYTE,
 	ATOMIC_TYPE_INT,
+	ATOMIC_TYPE_UINT,
+	ATOMIC_TYPE_SHORT,
+	ATOMIC_TYPE_USHORT,
+	ATOMIC_TYPE_LONG,
+	ATOMIC_TYPE_ULONG,
+	ATOMIC_TYPE_LONGLONG,
+	ATOMIC_TYPE_ULONGLONG,
 	ATOMIC_TYPE_FLOAT,
+	ATOMIC_TYPE_DOUBLE,
 	ATOMIC_TYPE_VOID,
 	ATOMIC_TYPE_POINTER
 } atomic_type_type_t;
@@ -27,8 +38,11 @@ struct type_t {
 struct atomic_type_t {
 	type_t              type;
 	atomic_type_type_t atype;
-	unsigned            bits;
-	unsigned    has_sign : 1;
+};
+
+struct ref_type_t {
+	type_t     type;
+	symbol_t  *symbol;
 };
 
 typedef enum {
@@ -39,7 +53,7 @@ typedef enum {
 
 struct expression_t {
 	expresion_type_t  type;
-	const type_t     *datatype;
+	type_t           *datatype;
 };
 
 struct int_const_t {
@@ -55,7 +69,8 @@ struct cast_expression_t {
 typedef enum {
 	STATEMENT_INVALID,
 	STATEMENT_BLOCK,
-	STATEMENT_RETURN
+	STATEMENT_RETURN,
+	STATEMENT_VARIABLE_DECLARATION,
 } statement_type_t;
 
 struct statement_t {
@@ -71,6 +86,12 @@ struct return_statement_t {
 struct block_statement_t {
 	statement_t  statement;
 	statement_t *first_statement;
+};
+
+struct variable_declaration_statement_t {
+	statement_t  statmenet;
+	type_t       type;
+	symbol_t     name;
 };
 
 enum environment_entry_type_t {
