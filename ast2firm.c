@@ -5,6 +5,7 @@
 #include <firm/be/be.h>
 
 #include "ast_t.h"
+#include "semantic_t.h"
 #include "adt/error.h"
 
 static
@@ -12,7 +13,8 @@ ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
 	(void) irg;
 	(void) pos;
-	/* TODO generate warning */
+
+	fprintf(stderr, "Warning: varible (TODO) might be used uninitialized\n");
 	return new_Unknown(mode);
 }
 
@@ -124,6 +126,9 @@ ir_mode *get_ir_mode(type_t *type)
 }
 
 static
+ir_node *expression_to_firm(const expression_t *expression);
+
+static
 ir_node *int_const_to_firm(const int_const_t *cnst)
 {
 	ir_mode *mode = get_ir_mode(cnst->expression.datatype);
@@ -133,11 +138,44 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 }
 
 static
+ir_node *variable_reference_to_firm(const variable_reference_expression_t *ref)
+{
+	entity_t *entity = ref->entity;
+	ir_mode  *mode   = get_ir_mode(entity->type);
+	
+	return get_value(entity->valnum, mode);
+}
+
+static
+ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
+{
+	const expression_t *left  = assign->left;
+	const expression_t *right = assign->right;
+
+	assert(left->type == EXPR_VARIABLE_REFERENCE);
+	const variable_reference_expression_t *ref 
+		= (const variable_reference_expression_t*) left;
+	entity_t *entity = ref->entity;
+
+	ir_node *val = expression_to_firm(right);
+	
+	set_value(entity->valnum, val);
+
+	return val;
+}
+
+static
 ir_node *expression_to_firm(const expression_t *expression)
 {
 	switch(expression->type) {
 	case EXPR_INT_CONST:
-		return int_const_to_firm((int_const_t*) expression);
+		return int_const_to_firm((const int_const_t*) expression);
+	case EXPR_VARIABLE_REFERENCE:
+		return variable_reference_to_firm(
+				(const variable_reference_expression_t*) expression);
+	case EXPR_ASSIGN:
+		return asssign_expression_to_firm(
+				(const assign_expression_t*) expression);
 	default:
 		assert(0);
 	}
@@ -159,6 +197,12 @@ void return_statement_to_firm(const return_statement_t *statement)
 	}
 	ir_node *end_block = get_irg_end_block(current_ir_graph);
 	add_immBlock_pred(end_block, ret);
+}
+
+static
+void expression_statement_to_firm(const expression_statement_t *statement)
+{
+	expression_to_firm(statement->expression);
 }
 
 static
@@ -184,6 +228,12 @@ void statement_to_firm(const statement_t *statement)
 	case STATEMENT_RETURN:
 		return_statement_to_firm((const return_statement_t*) statement);
 		return;
+	case STATEMENT_VARIABLE_DECLARATION:
+		/* nothing to do */
+		break;
+	case STATEMENT_EXPRESSION:
+		expression_statement_to_firm((const expression_statement_t*) statement);
+		break;
 	default:
 		assert(0);
 	}
@@ -203,7 +253,7 @@ void create_function(const function_t *function)
 	set_entity_ld_ident(entity, id);
 	set_entity_visibility(entity, visibility_external_visible);
 
-	ir_graph *irg = new_ir_graph(entity, 0);
+	ir_graph *irg = new_ir_graph(entity, function->n_local_vars);
 
 	statement_to_firm(function->statement);
 

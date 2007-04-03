@@ -1,15 +1,17 @@
-#ifndef _AST_T_H_
-#define _AST_T_H_
+#ifndef AST_T_H
+#define AST_T_H
 
 #include "ast.h"
 #include "symbol.h"
+#include "semantic.h"
 #include "firm/tr/type.h"
 
 typedef enum {
 	TYPE_INVALID,
+	TYPE_VOID,
 	TYPE_ATOMIC,
 	TYPE_STRUCT,
-	TYPE_REF,
+	TYPE_REF
 } type_type_t;
 
 typedef enum {
@@ -37,19 +39,21 @@ struct type_t {
 
 struct atomic_type_t {
 	type_t              type;
-	atomic_type_type_t atype;
+	atomic_type_type_t  atype;
 };
 
 struct ref_type_t {
-	type_t     type;
-	symbol_t  *symbol;
+	type_t    type;
+	symbol_t *symbol;
 };
 
 typedef enum {
 	EXPR_INVALID,
 	EXPR_INT_CONST,
 	EXPR_CAST,
-	EXPR_VARIABLE_REFERENCE
+	EXPR_VARIABLE_REFERENCE,
+	EXPR_CALL,
+	EXPR_ASSIGN
 } expresion_type_t;
 
 struct expression_t {
@@ -68,14 +72,20 @@ struct cast_expression_t {
 };
 
 struct variable_reference_expression_t {
-	expression_t    expression;
-	symbol_t       *symbol;
-	variable_declaration_statement_t *declaration;
+	expression_t  expression;
+	symbol_t     *symbol;
+	entity_t     *entity; /* filled in by semantic analysis */
 };
 
 struct call_expression_t {
 	expression_t  expression;
 	/* TODO arguments */
+};
+
+struct assign_expression_t {
+	expression_t  expression;
+	expression_t *left;
+	expression_t *right;
 };
 
 typedef enum {
@@ -136,6 +146,8 @@ struct function_t {
 	type_t            *return_type;
 	statement_t       *statement;
 	/* TODO arguments */
+
+	int                n_local_vars;
 };
 
 struct variable_t {

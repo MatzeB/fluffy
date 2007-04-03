@@ -26,7 +26,10 @@ void test_parser(const char *fname)
 		exit(1);
 	}
 
-	check_static_semantic(namespace);
+	if(!check_static_semantic(namespace)) {
+		fprintf(stderr, "Semantic errors found\n");
+		exit(1);
+	}
 	ast2firm(namespace);
 
 	const char* outfname = "out.s";

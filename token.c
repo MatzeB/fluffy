@@ -14,6 +14,12 @@ void print_token_type(FILE *f, token_type_t token_type)
 	} 
 
 	switch(token_type) {
+	case T_EQUALEQUAL:
+		fputs("'=='", f);
+		break;
+	case T_EXCLAMATIONEQUAL:
+		fputs("'!='", f);
+		break;
 	case T_IDENTIFIER:
 		fprintf(f, "identifier");
 		break;

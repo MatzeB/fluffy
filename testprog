@@ -1,9 +1,11 @@
-short a;
+/*short a;
 unsigned byte blup;
-signed long long long_variable;
+signed long long long_variable;*/
 
 int main() {
-	// int blo = 42;
+	int blo = 11;
+	int bla;
+	int blup = bla;
 	// jo /**
 	/* int blo = somefunc(2); */
 	{
@@ -11,5 +13,7 @@ int main() {
 		}
 	}
 
-	return 42;
+	blo = blo;
+
+	return blo;
 }

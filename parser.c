@@ -2,6 +2,7 @@
 
 #include "parser.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -13,9 +14,13 @@
 #include "adt/obst.h"
 #include "adt/util.h"
 
+#define ABORT_ON_ERROR
+#define LOOKAHEAD	1
+
 typedef struct {
 	struct obstack  obst;
 	token_t         token;
+	token_t         lookahead[LOOKAHEAD];
 	lexer_t         lexer;
 	symbol_table_t  symbol_table;
 	int             error;
@@ -24,13 +29,34 @@ typedef struct {
 static inline
 void next_token(parser_env_t *env)
 {
-	env->token = lexer_next_token(&env->lexer);
+	env->token = env->lookahead[0];
+	memmove(env->lookahead, env->lookahead + 1,
+	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
+	env->lookahead[LOOKAHEAD - 1] = lexer_next_token(&env->lexer);
+}
+
+/** look ahead some symbols */
+static inline
+const token_t* la(parser_env_t *env, int i)
+{
+	assert(i >= 1);
+	assert(i <= LOOKAHEAD);
+	return & env->lookahead[i - 1];
 }
 
 typedef enum {
 	ERR_WARNING,
 	ERR_ERROR
 } error_type_t;
+
+static inline
+void parser_found_error(parser_env_t *env)
+{
+	env->error = 1;
+#ifdef ABORT_ON_ERROR
+	abort();
+#endif
+}
 
 static
 void print_error_prefix(parser_env_t *env, error_type_t error_type)
@@ -43,7 +69,6 @@ void print_error_prefix(parser_env_t *env, error_type_t error_type)
 	} else {
 		fputs(": error: ", stderr);
 	}
-	env->error = 1;
 }
 
 static
@@ -51,7 +76,7 @@ void parse_error(parser_env_t *env, const char *message)
 {
 	print_error_prefix(env, ERR_ERROR);
 	fprintf(stderr, "Parse error: %s\n", message);
-	env->error = 1;
+	parser_found_error(env);
 }
 
 static
@@ -82,6 +107,7 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 	}
 	va_end(args);
 	fprintf(stderr, "\n");
+	parser_found_error(env);
 }
 
 static
@@ -168,7 +194,7 @@ type_t *parse_type_ref_sym(parser_env_t *env, symbol_t *symbol)
 	memset(type_ref, 0, sizeof(type_ref[0]));
 
 	type_ref->type.type = TYPE_REF;
-	type_ref->symbol = symbol;
+	type_ref->symbol    = symbol;
 	return (type_t*) type_ref;
 }
 
@@ -225,38 +251,158 @@ static
 expression_t *parse_int_const(parser_env_t *env)
 {
 	int_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
+	memset(cnst, 0, sizeof(cnst));
+
 	cnst->expression.type = EXPR_INT_CONST;
-	cnst->value = env->token.intvalue;
+	cnst->value           = env->token.intvalue;
 
 	next_token(env);
 
 	return (expression_t*) cnst;
 }
 
-static inline
-int is_expression_start(token_t token)
+static
+expression_t *parse_variable_reference(parser_env_t *env)
 {
-	switch(token.type) {
+	variable_reference_expression_t *ref = 
+		obstack_alloc(&env->obst, sizeof(ref[0]));
+	memset(ref, 0, sizeof(ref[0]));
+
+	ref->expression.type = EXPR_VARIABLE_REFERENCE;
+	ref->symbol          = env->token.symbol;
+
+	next_token(env);
+
+	return (expression_t*) ref;
+}
+
+static
+expression_t *parse_expression(parser_env_t *env);
+
+static
+expression_t *parse_primary_expression(parser_env_t *env)
+{
+	expression_t *expression;
+
+	switch(env->token.type) {
 	case T_INTEGER:
-	case '(':
-	case '-':
+		return parse_int_const(env);
 	case T_IDENTIFIER:
-		return 1;
+		return parse_variable_reference(env);
+	case '(':
+		next_token(env);
+		expression = parse_expression(env);
+		expect(env, ')');
+		break;
+	default:
+		parse_error_expected(env, "Expected expression", 0);
+		expression = obstack_alloc(&env->obst, sizeof(expression[0]));
+		memset(expression, 0, sizeof(expression[0]));
+		expression->type = EXPR_INVALID;
+		break;
 	}
-	return 0;
+
+	return expression;
+}
+
+static
+expression_t *parse_postfix_expression(parser_env_t *env)
+{
+	return parse_primary_expression(env);
+}
+
+static
+expression_t *parse_unary_expression(parser_env_t *env)
+{
+	return parse_postfix_expression(env);
+}
+
+static
+expression_t *parse_multiplicative_expression(parser_env_t *env)
+{
+	expression_t *left = parse_unary_expression(env);
+
+	while(1) {
+		if(env->token.type == '*') {
+			next_token(env);
+			left = parse_unary_expression(env); /* TODO */
+		} else if(env->token.type == '/') {
+			next_token(env);
+			left = parse_unary_expression(env); /* TODO */
+		} else {
+			break;
+		}
+	}
+
+	return left;
+}
+
+static
+expression_t *parse_additive_expression(parser_env_t *env)
+{
+	expression_t *left = parse_multiplicative_expression(env);
+
+	while(1) {
+		if(env->token.type == '+') {
+			next_token(env);
+			left = parse_multiplicative_expression(env); /* TODO */
+		} else if(env->token.type == '-') {
+			next_token(env);
+			left = parse_multiplicative_expression(env); /* TODO */
+		} else {
+			break;
+		}
+	}
+
+	return left;
+}
+
+static
+expression_t *parse_equality_expression(parser_env_t *env)
+{
+	expression_t *left = parse_additive_expression(env);
+
+	while(1) {
+		if(env->token.type == T_EQUALEQUAL) {
+			next_token(env);
+			left = parse_additive_expression(env); /* TODO */
+		} else if(env->token.type == T_EXCLAMATIONEQUAL) {
+			next_token(env);
+			left = parse_additive_expression(env); /* TODO */
+		} else {
+			break;
+		}
+	}
+
+	return left;
+}
+
+static
+expression_t *parse_assign_expression(parser_env_t *env)
+{
+	expression_t *left = parse_equality_expression(env);
+
+	while(env->token.type == '=') {
+		next_token(env);
+
+		assign_expression_t *assign 
+			= obstack_alloc(&env->obst, sizeof(assign[0]));
+		memset(assign, 0, sizeof(assign[0]));
+		
+		assign->expression.type = EXPR_ASSIGN;
+		assign->left            = left;
+		assign->right           = parse_equality_expression(env);
+		
+		left = (expression_t*) assign;
+	}
+
+	return left;
 }
 
 static
 expression_t *parse_expression(parser_env_t *env)
 {
-	if(env->token.type == T_INTEGER) {
-		return parse_int_const(env);	
-	}
-
-	parse_error(env, "Couldn't parse expression");
-	expression_t *expr = obstack_alloc(&env->obst, sizeof(expr[0]));
-	expr->type = EXPR_INVALID;
-	return expr;
+	return parse_assign_expression(env);
 }
 
 static
@@ -264,10 +410,12 @@ statement_t *parse_return_statement(parser_env_t *env)
 {
 	return_statement_t *return_statement =
 		obstack_alloc(&env->obst, sizeof(return_statement[0]));
-	return_statement->statement.type = STATEMENT_RETURN;
-	
+	memset(return_statement, 0, sizeof(return_statement[0]));
+
+	return_statement->statement.type = STATEMENT_RETURN;	
 	next_token(env);
-	if(is_expression_start(env->token)) {
+
+	if(env->token.type != ';') {
 		return_statement->return_value = parse_expression(env);
 	}
 
@@ -275,30 +423,71 @@ statement_t *parse_return_statement(parser_env_t *env)
 }
 
 static
-statement_t *parse_variable_declaration(parser_env_t *env, type_t *type)
+statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 {
-	statement_t *last_statement = NULL;
+	variable_reference_expression_t *ref 
+		= obstack_alloc(&env->obst, sizeof(ref[0]));
+	ref->expression.type = EXPR_VARIABLE_REFERENCE;
+	ref->symbol          = symbol;
+
+	assign_expression_t *assign 
+		= obstack_alloc(&env->obst, sizeof(assign[0]));
+	memset(assign, 0, sizeof(assign[0]));
+
+	assign->expression.type = EXPR_ASSIGN;
+	assign->left  = (expression_t*) ref;
+	assign->right = parse_expression(env);
+
+	expression_statement_t *expr_statement
+		= obstack_alloc(&env->obst, sizeof(expr_statement[0]));
+	memset(expr_statement, 0, sizeof(expr_statement[0]));
+
+	expr_statement->statement.type = STATEMENT_EXPRESSION;
+	expr_statement->expression     = (expression_t*) assign;
+
+	return (statement_t*) expr_statement;
+}
+
+static
+statement_t *parse_variable_declaration(parser_env_t *env)
+{
+	statement_t                      *first_statement = NULL;
+	statement_t                      *last_statement  = NULL;
 	variable_declaration_statement_t *decl;
+
+	type_t                           *type = parse_type(env);
 	
 	while(1) {
 		decl = obstack_alloc(&env->obst, sizeof(decl[0]));
 		memset(decl, 0, sizeof(decl[0]));
 		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
-		decl->type = type;
-		decl->symbol = env->token.symbol;
+		decl->type           = type;
+		decl->symbol         = env->token.symbol;
 
 		/* append multiple variable declarations */
 		if(last_statement != NULL) {
 			last_statement->next = (statement_t*) decl;
+		} else {
+			first_statement = (statement_t*) decl;
 		}
 		last_statement = (statement_t*) decl;
+		next_token(env);
+
+		/* do we have an assignment expression? */
+		if(env->token.type == '=') {
+			next_token(env);
+			statement_t *assign = parse_initial_assignment(env, decl->symbol);
+
+			last_statement->next = assign;
+			last_statement = assign;
+		}
 
 		/* check if we have more declared symbols separated by ',' */
-		next_token(env);
 		if(env->token.type != ',')
 			break;
-
 		next_token(env);
+
+		/* there must be another identifier after the comma */
 		if(env->token.type != T_IDENTIFIER) {
 			parse_error_expected(env, "Problem parsing variable declaration",
 			                     T_IDENTIFIER, 0);
@@ -307,7 +496,7 @@ statement_t *parse_variable_declaration(parser_env_t *env, type_t *type)
 		}
 	}
 
-	return last_statement;
+	return first_statement;
 }
 
 static
@@ -316,9 +505,7 @@ statement_t *parse_block(parser_env_t *env);
 static
 statement_t *parse_statement(parser_env_t *env)
 {
-	symbol_t *symbol;
 	statement_t *statement;
-	type_t *type;
 
 	switch(env->token.type) {
 	case T_return:
@@ -335,17 +522,23 @@ statement_t *parse_statement(parser_env_t *env)
 	case T_short:
 	case T_int:
 	case T_long:
-		type = parse_type(env);
-		statement = parse_variable_declaration(env, type);
+		statement = parse_variable_declaration(env);
 		break;
 	case T_IDENTIFIER:
-		symbol = env->token.symbol;
-		next_token(env);
-		if(env->token.type == T_IDENTIFIER) {
+		if(la(env, 1)->type == T_IDENTIFIER) {
 			/* must be a variable declaration */
-			type = parse_type_ref_sym(env, symbol);
-			statement = parse_variable_declaration(env, type);
+			statement = parse_variable_declaration(env);
+			break;
 		}
+		
+		/* must be some expression starting with a variable reference */
+		expression_statement_t *expression_statement
+			= obstack_alloc(&env->obst, sizeof(expression_statement[0]));
+		memset(expression_statement, 0, sizeof(expression_statement[0]));
+
+		expression_statement->statement.type = STATEMENT_EXPRESSION;
+		expression_statement->expression     = parse_expression(env);
+		statement = (statement_t*) expression_statement;
 		break;
 	default:
 		parse_error(env, "Expected statement");
@@ -395,7 +588,7 @@ statement_t *parse_block(parser_env_t *env)
 static
 namespace_entry_t *parse_function_or_var(parser_env_t *env)
 {
-	type_t *type = parse_type(env);
+	type_t   *type   = parse_type(env);
 	symbol_t *symbol;
 
 	if(env->token.type != T_IDENTIFIER) {
@@ -477,6 +670,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
+	int i;
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
 
@@ -486,7 +680,9 @@ namespace_t *parse(FILE *in, const char *input_name)
 	put_known_symbols_into_symbol_table(&env.symbol_table);
 
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
-	next_token(&env);
+	for(i = 0; i < LOOKAHEAD + 1; ++i) {
+		next_token(&env);
+	}
 
 	namespace_t *unit = parse_namespace(&env);
 

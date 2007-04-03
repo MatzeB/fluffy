@@ -118,12 +118,32 @@ token_t lexer_next_token(lexer_t *this)
 	case '}':
 	case '[':
 	case ']':
-	case '=':
 	case ',':
 	case '.':
 	case ';':
+	case '+':
+	case '-':
+	case '*':
 		token.type = this->c;
 		next_char(this);
+		return token;
+	case '=':
+		next_char(this);
+		if(this->c == '=') {
+			next_char(this);
+			token.type = T_EQUALEQUAL;
+		} else {
+			token.type = '=';
+		}
+		return token;
+	case '!':
+		next_char(this);
+		if(this->c == '=') {
+			next_char(this);
+			token.type = T_EXCLAMATIONEQUAL;
+		} else {
+			token.type = '!';
+		}
 		return token;
 	case '/':
 		next_char(this);

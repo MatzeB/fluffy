@@ -5,8 +5,11 @@
 #include "symbol.h"
 
 typedef enum {
-	T_IDENTIFIER = 256,
+	T_EQUALEQUAL = 256,
+	T_EXCLAMATIONEQUAL,
+	T_IDENTIFIER,
 	T_INTEGER,
+	T_STRING_LITERAL,
 	FIRST_KNOWN_SYMBOL,
 	T_EOF      = -1
 } token_type_t;
