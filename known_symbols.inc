@@ -1,4 +1,5 @@
 T(void)
+T(extern)
 T(byte)
 T(short)
 T(int)

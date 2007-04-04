@@ -2,6 +2,8 @@
 unsigned byte blup;
 signed long long long_variable;*/
 
+extern "cdecl" void print_int(int param1, int param2);
+
 int main() {
 	int blo = 11;
 	int bla;

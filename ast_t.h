@@ -72,9 +72,9 @@ struct cast_expression_t {
 };
 
 struct variable_reference_expression_t {
-	expression_t  expression;
-	symbol_t     *symbol;
-	entity_t     *entity; /* filled in by semantic analysis */
+	expression_t                      expression;
+	symbol_t                         *symbol;
+	variable_declaration_statement_t *variable;
 };
 
 struct call_expression_t {
@@ -116,6 +116,9 @@ struct variable_declaration_statement_t {
 	statement_t  statement;
 	type_t      *type;
 	symbol_t    *symbol;
+
+	int          value_number; /**< filled in by semantic phase */
+	int          refs;
 };
 
 struct if_statement_t {
@@ -132,7 +135,8 @@ struct expression_statement_t {
 
 enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_FUNCTION,
-	NAMESPACE_ENTRY_VARIABLE
+	NAMESPACE_ENTRY_VARIABLE,
+	NAMESPACE_ENTRY_EXTERN_FUNCTION
 };
 
 struct namespace_entry_t {
@@ -148,6 +152,14 @@ struct function_t {
 	/* TODO arguments */
 
 	int                n_local_vars;
+};
+
+struct extern_function_t {
+	namespace_entry_t  namespace_entry;
+	const char        *abi_style;
+	symbol_t          *symbol;
+	type_t            *return_type;
+	/* TODO arguments */
 };
 
 struct variable_t {

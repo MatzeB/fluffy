@@ -1,6 +1,6 @@
 #include <config.h>
 
-#include "semantic_t.h"
+#include "semantic.h"
 
 #include "ast_t.h"
 #include "adt/obst.h"
@@ -13,7 +13,8 @@ typedef struct semantic_env_t           semantic_env_t;
 enum environment_entry_type_t {
 	ENTRY_LOCAL_VARIABLE,
 	ENTRY_GLOBAL_VARIABLE,
-	ENTRY_FUNCTION
+	ENTRY_FUNCTION,
+	ENTRY_EXTERN_FUNCTION
 };
 
 struct environment_entry_t {
@@ -21,8 +22,10 @@ struct environment_entry_t {
 	symbol_t                 *symbol;
 	environment_entry_t      *up;
 	union {
-		function_t *function;
-		entity_t   *entity;
+		function_t                       *function;
+		variable_t                       *variable;
+		extern_function_t                *extern_function;
+		variable_declaration_statement_t *variable_declaration;
 	};
 };
 
@@ -72,7 +75,7 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 		symbol_t            *symbol = entry->symbol;
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
-				&& entry->entity->refs == 0) {
+				&& entry->variable_declaration->refs == 0) {
 			fprintf(stderr, "Warning: Variable '%s' was declared but never read\n", symbol->string);
 		}
 
@@ -105,9 +108,9 @@ static
 void check_variable_reference_expression(semantic_env_t *env,
                                          variable_reference_expression_t *ref)
 {
+	variable_declaration_statement_t *variable;
 	symbol_t            *symbol = ref->symbol;
 	environment_entry_t *entry  = symbol->thing;
-	entity_t            *entity;
 	
 	if(entry == NULL) {
 		fprintf(stderr, "Error: No known definition for '%s'\n", symbol->string);
@@ -121,10 +124,10 @@ void check_variable_reference_expression(semantic_env_t *env,
 		env->found_errors = 1;
 		return;
 	}
-	entity                   = entry->entity;
-	ref->entity              = entity;
-	ref->expression.datatype = ref->entity->type;
-	entity->refs++;
+	variable                 = entry->variable_declaration;
+	ref->variable            = variable;
+	ref->expression.datatype = variable->type;
+	variable->refs++;
 }
 
 static
@@ -150,7 +153,7 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 	/* assignment is not reading the value */
 	variable_reference_expression_t *ref
 		= (variable_reference_expression_t*) left;
-	ref->entity->refs--;
+	ref->variable->refs--;
 
 	/* TODO 
 	if(left->datatype != right->datatype) {
@@ -227,18 +230,14 @@ static
 void check_variable_declaration(semantic_env_t *env,
                                 variable_declaration_statement_t *statement)
 {
-	/* create an entity... */
-	entity_t *entity = obstack_alloc(env->obst, sizeof(entity[0]));
-	memset(entity, 0, sizeof(entity[0]));
-	entity->type   = statement->type;
-	entity->valnum = env->next_valnum;
+	statement->value_number = env->next_valnum;
+	statement->refs         = 0;
 	env->next_valnum++;
-	/* TODO remember entity in function somehow? */
 
 	/* push the variable declaration on the environment stack */
-	environment_entry_t *entry = environment_push(env, statement->symbol);
-	entry->type                = ENTRY_LOCAL_VARIABLE;
-	entry->entity              = entity;
+	environment_entry_t *entry  = environment_push(env, statement->symbol);
+	entry->type                 = ENTRY_LOCAL_VARIABLE;
+	entry->variable_declaration = statement;
 
 	if(env->current_function != NULL) {
 		env->current_function->n_local_vars++;
@@ -299,9 +298,42 @@ void check_function(semantic_env_t *env, function_t *function)
 static
 void check_namespace(semantic_env_t *env, namespace_t *namespace)
 {
-	/* TODO step1: record functions into environment */
+	variable_t          *variable;
+	function_t          *function;
+	extern_function_t   *extern_function;
+	environment_entry_t *env_entry;
 
+	/* record namespace entries in environment */
 	namespace_entry_t *entry = namespace->first_entry;
+	while(entry != NULL) {
+		switch(entry->type) {
+		case NAMESPACE_ENTRY_VARIABLE:
+			variable            = (variable_t*) entry;
+			env_entry           = environment_push(env, variable->symbol);
+			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
+			env_entry->variable = variable;
+			break;
+		case NAMESPACE_ENTRY_EXTERN_FUNCTION:
+			extern_function = (extern_function_t*) entry;
+			env_entry       = environment_push(env, extern_function->symbol);
+			env_entry->type = ENTRY_EXTERN_FUNCTION;
+			env_entry->extern_function = extern_function;
+			break;
+		case NAMESPACE_ENTRY_FUNCTION:
+			function            = (function_t*) entry;
+			env_entry           = environment_push(env, function->symbol);
+			env_entry->type     = ENTRY_FUNCTION;
+			env_entry->function = function;
+			break;
+		default:
+			panic("Unknown thing in namespace");
+			break;
+		}
+		entry = entry->next;
+	}
+
+	/* check semantics in functions */
+	entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_FUNCTION:

@@ -1,13 +1,15 @@
-#ifndef _SYMBOL_H_
-#define _SYMBOL_H_
+#ifndef SYMBOL_H
+#define SYMBOL_H
 
 #include "ast.h"
 #include "semantic.h"
 
-typedef struct {
-	const char *string;
-	unsigned ID;
+typedef struct symbol_t symbol_t;
+
+struct symbol_t {
+	const char          *string;
+	unsigned             ID;
 	environment_entry_t *thing;
-} symbol_t;
+};
 
 #endif

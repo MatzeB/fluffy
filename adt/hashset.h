@@ -21,7 +21,12 @@ typedef struct HashSetEntry {
 } HashSetEntry;
 #endif
 
-typedef struct HashSet {
+#ifndef NO_TYPEDEFS
+typedef struct HashSet         HashSet;
+typedef struct HashSetIterator HashSetIterator;
+#endif
+
+struct HashSet {
 	HashSetEntry *entries;
 	size_t num_buckets;
 	size_t enlarge_threshold;
@@ -35,16 +40,16 @@ typedef struct HashSet {
 #ifdef ADDITIONAL_DATA
 	ADDITIONAL_DATA;
 #endif
-} HashSet;
+};
 
-typedef struct HashSetIterator {
+struct HashSetIterator {
 	HashSetEntry *current_bucket;
 	HashSetEntry *end;
 #ifndef NDEBUG
 	const HashSet *set;
 	unsigned entries_version;
 #endif
-} HashSetIterator;
+};
 
 #ifdef DO_REHASH
 #undef HashSetEntry

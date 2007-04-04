@@ -7,20 +7,24 @@
 typedef enum {
 	T_EQUALEQUAL = 256,
 	T_EXCLAMATIONEQUAL,
+	T_DOTDOT,
+	T_DOTDOTDOT,
 	T_IDENTIFIER,
 	T_INTEGER,
 	T_STRING_LITERAL,
 	FIRST_KNOWN_SYMBOL,
-	T_EOF      = -1
+	T_EOF      = -1,
+	T_ERROR    = -2
 } token_type_t;
 
 typedef struct {
 	int type;
 	const char *sourcefile;
-	unsigned linenr;
+	unsigned    linenr;
 	union {
-		symbol_t *symbol;
-		int intvalue;
+		symbol_t   *symbol;
+		int         intvalue;
+		const char *string;
 	};
 } token_t;
 

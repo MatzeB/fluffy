@@ -8,7 +8,7 @@
 
 void print_token_type(FILE *f, token_type_t token_type)
 {
-	if(token_type < 256) {
+	if(token_type >= 0 && token_type < 256) {
 		fprintf(f, "'%c'", token_type);
 		return;
 	} 
@@ -26,8 +26,14 @@ void print_token_type(FILE *f, token_type_t token_type)
 	case T_INTEGER:
 		fprintf(f, "integer number");
 		break;
+	case T_STRING_LITERAL:
+		fprintf(f, "string literal");
+		break;
 	case T_EOF:
 		fprintf(f, "end of file");
+		break;
+	case T_ERROR:
+		fprintf(f, "malformed token");
 		break;
 #define T(x)                                  \
 	case T_##x:                               \
@@ -43,14 +49,18 @@ void print_token_type(FILE *f, token_type_t token_type)
 
 void print_token(FILE *f, const token_t *token)
 {
-	if(token->type == T_IDENTIFIER) {
+	switch(token->type) {
+	case T_IDENTIFIER:
 		fprintf(f, "symbol '%s'", token->symbol->string);
-		return;
-	}
-	if(token->type == T_INTEGER) {
+		break;
+	case T_INTEGER:
 		fprintf(f, "integer number %d", token->intvalue);
-		return;
+		break;
+	case T_STRING_LITERAL:
+		fprintf(f, "string '%s'", token->string);
+		break;
+	default:
+		print_token_type(f, token->type);
+		break;
 	}
-
-	print_token_type(f, token->type);
 }

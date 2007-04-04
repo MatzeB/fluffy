@@ -5,7 +5,7 @@
 #include <firm/be/be.h>
 
 #include "ast_t.h"
-#include "semantic_t.h"
+#include "semantic.h"
 #include "adt/error.h"
 
 static
@@ -14,7 +14,8 @@ ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 	(void) irg;
 	(void) pos;
 
-	fprintf(stderr, "Warning: varible (TODO) might be used uninitialized\n");
+	fprintf(stderr, "Warning: variable with value number %d might be used "
+			"uninitialized\n", pos);
 	return new_Unknown(mode);
 }
 
@@ -140,10 +141,10 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 static
 ir_node *variable_reference_to_firm(const variable_reference_expression_t *ref)
 {
-	entity_t *entity = ref->entity;
-	ir_mode  *mode   = get_ir_mode(entity->type);
+	variable_declaration_statement_t *variable = ref->variable;
+	ir_mode                          *mode     = get_ir_mode(variable->type);
 	
-	return get_value(entity->valnum, mode);
+	return get_value(variable->value_number, mode);
 }
 
 static
@@ -155,11 +156,11 @@ ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
 	assert(left->type == EXPR_VARIABLE_REFERENCE);
 	const variable_reference_expression_t *ref 
 		= (const variable_reference_expression_t*) left;
-	entity_t *entity = ref->entity;
+	variable_declaration_statement_t *variable = ref->variable;
 
 	ir_node *val = expression_to_firm(right);
 	
-	set_value(entity->valnum, val);
+	set_value(variable->value_number, val);
 
 	return val;
 }

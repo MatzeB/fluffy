@@ -23,5 +23,6 @@ typedef struct namespace_entry_t        namespace_entry_t;
 typedef struct namespace_t              namespace_t;
 typedef struct function_t               function_t;
 typedef struct variable_t               variable_t;
+typedef struct extern_function_t        extern_function_t;
 
 #endif

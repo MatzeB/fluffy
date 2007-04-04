@@ -207,6 +207,18 @@ type_t *parse_type_ref(parser_env_t *env)
 }
 
 static
+type_t *parse_void(parser_env_t *env)
+{
+	type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+
+	type->type = TYPE_VOID;
+
+	next_token(env);
+	return type;
+}
+
+static
 type_t *parse_type(parser_env_t *env)
 {
 	switch(env->token.type) {
@@ -220,6 +232,8 @@ type_t *parse_type(parser_env_t *env)
 		return parse_atomic_type(env);
 	case T_IDENTIFIER:
 		return parse_type_ref(env);
+	case T_void:
+		return parse_void(env);	
 	}
 
 	parse_error(env, "Couldn't parse type\n");
@@ -586,6 +600,42 @@ statement_t *parse_block(parser_env_t *env)
 }
 
 static
+void parse_parameter_declaration(parser_env_t *env)
+{
+	while(1) {
+		type_t *type;
+
+		switch(env->token.type) {
+		case T_unsigned:
+		case T_signed:
+		case T_int:
+		case T_byte:
+		case T_short:
+		case T_float:
+		case T_double:
+		case T_void:
+		case T_IDENTIFIER:
+			type = parse_type(env);
+
+			if(env->token.type == T_IDENTIFIER) {
+				/* parameter name... */
+				next_token(env);
+			}
+			break;
+		case T_DOTDOTDOT:
+			next_token(env);
+			break;
+		default:
+			parse_error(env, "Problem while parsing parameter: Expected type");
+		}
+
+		if(env->token.type != ',')
+			break;
+		next_token(env);
+	}
+}
+
+static
 namespace_entry_t *parse_function_or_var(parser_env_t *env)
 {
 	type_t   *type   = parse_type(env);
@@ -633,8 +683,46 @@ namespace_entry_t *parse_function_or_var(parser_env_t *env)
 }
 
 static
+namespace_entry_t *parse_extern_function(parser_env_t *env)
+{
+	extern_function_t *extern_function 
+		= obstack_alloc(&env->obst, sizeof(extern_function[0]));
+	memset(extern_function, 0, sizeof(extern_function[0]));
+
+	extern_function->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_FUNCTION;
+
+	/* skip the "extern" */
+	assert(env->token.type == T_extern);
+	next_token(env);
+
+	if(env->token.type == T_STRING_LITERAL) {
+		extern_function->abi_style = env->token.string;
+		next_token(env);
+	}
+
+	extern_function->return_type = parse_type(env);
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing extern declaration",
+		                     T_IDENTIFIER, 0);
+		eat_until_semi(env);
+		return NULL;
+	}
+	extern_function->symbol = env->token.symbol;
+	next_token(env);
+
+	expect(env, '(');
+	parse_parameter_declaration(env);
+	expect(env, ')');
+	expect(env, ';');
+
+	return (namespace_entry_t*) extern_function;
+}
+
+static
 namespace_t *parse_namespace(parser_env_t *env)
 {
+	namespace_entry_t *entry;
 	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
 	memset(namespace, 0, sizeof(namespace[0]));
 
@@ -646,16 +734,18 @@ namespace_t *parse_namespace(parser_env_t *env)
 		case T_byte:
 		case T_short:
 		case T_float:
-		case T_double: {
-			namespace_entry_t *entry = parse_function_or_var(env);
+		case T_double:
+		case T_IDENTIFIER:
+			entry = parse_function_or_var(env);
 
 			if(entry != NULL) {
 				entry->next = namespace->first_entry;
 				namespace->first_entry = entry;
 			}
 			continue;
-		}
-
+		case T_extern:
+			entry = parse_extern_function(env);
+			continue;
 		case ';':
 			break;
 		case T_EOF:
