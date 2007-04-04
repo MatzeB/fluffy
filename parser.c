@@ -320,9 +320,40 @@ expression_t *parse_primary_expression(parser_env_t *env)
 }
 
 static
+expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
+{
+	call_expression_t *call = obstack_alloc(&env->obst, sizeof(call[0]));
+	memset(call, 0, sizeof(call[0]));
+
+	call->expression.type = EXPR_CALL;
+	call->function        = expression;
+
+	/* parse arguments */
+	assert(env->token.type == '(');
+	next_token(env);
+
+	while(1) {
+		parse_expression(env);
+		if(env->token.type != ',')
+			break;
+
+		next_token(env);
+	}
+	expect(env, ')');
+
+	return (expression_t*) call;
+}
+
+static
 expression_t *parse_postfix_expression(parser_env_t *env)
 {
-	return parse_primary_expression(env);
+	expression_t *expression = parse_primary_expression(env);
+
+	if(env->token.type == '(') {
+		return parse_call_expression(env, expression);
+	}
+
+	return expression;
 }
 
 static
@@ -346,6 +377,43 @@ expression_t *parse_multiplicative_expression(parser_env_t *env)
 		} else {
 			break;
 		}
+	}
+
+	return left;
+}
+
+static
+unsigned get_level(int c)
+{
+	switch(c) {
+	case '*':
+		return 10;
+	case '+':
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static
+expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
+{
+	expression_t *left = parse_postfix_expression(env);
+
+	while(1) {
+		unsigned op_level = get_level(env->token.type);
+		if(op_level < level)
+			return left;
+
+		expression_t *right = parse_expression_prec(env, op_level + 1);
+
+		printf("Create AST node '%c'\n", env->token.type);
+		/* make ast node */
+		/* node->type = op;
+		   node->left = expression;
+		   node->right->right;
+		   expression = left; */
+		left = right;
 	}
 
 	return left;

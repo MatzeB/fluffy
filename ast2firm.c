@@ -7,16 +7,16 @@
 #include "ast_t.h"
 #include "semantic.h"
 #include "adt/error.h"
+#include "adt/xmalloc.h"
+
+static variable_declaration_statement_t **value_numbers = NULL;
 
 static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
-	(void) irg;
-	(void) pos;
-
-	fprintf(stderr, "Warning: variable with value number %d might be used "
-			"uninitialized\n", pos);
-	return new_Unknown(mode);
+	fprintf(stderr, "Warning: variable '%s' might be used uninitialized\n",
+			value_numbers[pos]->symbol->string);
+	return new_r_Unknown(irg, mode);
 }
 
 void initialize_firm(void)
@@ -143,6 +143,8 @@ ir_node *variable_reference_to_firm(const variable_reference_expression_t *ref)
 {
 	variable_declaration_statement_t *variable = ref->variable;
 	ir_mode                          *mode     = get_ir_mode(variable->type);
+
+	value_numbers[variable->value_number] = variable;
 	
 	return get_value(variable->value_number, mode);
 }
@@ -157,6 +159,8 @@ ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
 	const variable_reference_expression_t *ref 
 		= (const variable_reference_expression_t*) left;
 	variable_declaration_statement_t *variable = ref->variable;
+
+	value_numbers[variable->value_number] = variable;
 
 	ir_node *val = expression_to_firm(right);
 	
@@ -256,6 +260,9 @@ void create_function(const function_t *function)
 
 	ir_graph *irg = new_ir_graph(entity, function->n_local_vars);
 
+	assert(value_numbers == NULL);
+	value_numbers = xmalloc(function->n_local_vars * sizeof(value_numbers[0]));
+
 	statement_to_firm(function->statement);
 
 	mature_immBlock(get_irg_current_block(irg));
@@ -264,6 +271,9 @@ void create_function(const function_t *function)
 	irg_finalize_cons(irg);
 
 	irg_vrfy(irg);
+
+	free(value_numbers);
+	value_numbers = NULL;
 
 	dump_ir_block_graph(irg, "-test");
 }

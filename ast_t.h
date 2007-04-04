@@ -79,6 +79,7 @@ struct variable_reference_expression_t {
 
 struct call_expression_t {
 	expression_t  expression;
+	expression_t *function;
 	/* TODO arguments */
 };
 

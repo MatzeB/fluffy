@@ -164,6 +164,14 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 }
 
 static
+void check_call_expression(semantic_env_t *env, call_expression_t *call)
+{
+	(void) env;
+	(void) call;
+	/* TODO... */
+}
+
+static
 void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
@@ -181,6 +189,9 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		break;
 	case EXPR_ASSIGN:
 		check_assign_expression(env, (assign_expression_t*) expression);
+		break;
+	case EXPR_CALL:
+		check_call_expression(env, (call_expression_t*) expression);
 		break;
 	default:
 		panic("Invalid expression encountered");
