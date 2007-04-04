@@ -11,6 +11,7 @@ typedef enum {
 	TYPE_VOID,
 	TYPE_ATOMIC,
 	TYPE_STRUCT,
+	TYPE_METHOD,
 	TYPE_REF
 } type_type_t;
 
@@ -47,11 +48,27 @@ struct ref_type_t {
 	symbol_t *symbol;
 };
 
+struct method_parameter_type_t {
+	type_t                  *type;
+	method_parameter_type_t *next;
+};
+
+struct method_type_t {
+	type_t                   type;
+	type_t                  *result_type;
+	method_parameter_type_t *parameter_types;
+	const char              *abi_style;
+};
+
 typedef enum {
 	EXPR_INVALID,
 	EXPR_INT_CONST,
 	EXPR_CAST,
-	EXPR_VARIABLE_REFERENCE,
+	EXPR_REFERENCE,
+	EXPR_REFERENCE_VARIABLE,
+	EXPR_REFERENCE_METHOD,
+	EXPR_REFERENCE_EXTERN_METHOD,
+	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
 	EXPR_ASSIGN
 } expresion_type_t;
@@ -71,15 +88,20 @@ struct cast_expression_t {
 	expression_t *value;
 };
 
-struct variable_reference_expression_t {
+struct reference_expression_t {
 	expression_t                      expression;
 	symbol_t                         *symbol;
-	variable_declaration_statement_t *variable;
+	union {
+		variable_declaration_statement_t *variable;
+		method_t                         *method;
+		extern_method_t                  *extern_method;
+		variable_t                       *global_variable;
+	};
 };
 
 struct call_expression_t {
 	expression_t  expression;
-	expression_t *function;
+	expression_t *method;
 	/* TODO arguments */
 };
 
@@ -135,7 +157,7 @@ struct expression_statement_t {
 };
 
 enum namespace_entry_type_t {
-	NAMESPACE_ENTRY_FUNCTION,
+	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
 	NAMESPACE_ENTRY_EXTERN_FUNCTION
 };
@@ -145,21 +167,21 @@ struct namespace_entry_t {
 	namespace_entry_t      *next;
 };
 
-struct function_t {
+struct method_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
-	type_t            *return_type;
+	method_type_t     *type;
 	statement_t       *statement;
 	/* TODO arguments */
 
 	int                n_local_vars;
 };
 
-struct extern_function_t {
+struct extern_method_t {
 	namespace_entry_t  namespace_entry;
 	const char        *abi_style;
 	symbol_t          *symbol;
-	type_t            *return_type;
+	method_type_t     *type;
 	/* TODO arguments */
 };
 

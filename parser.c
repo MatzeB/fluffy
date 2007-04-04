@@ -276,13 +276,12 @@ expression_t *parse_int_const(parser_env_t *env)
 }
 
 static
-expression_t *parse_variable_reference(parser_env_t *env)
+expression_t *parse_reference(parser_env_t *env)
 {
-	variable_reference_expression_t *ref = 
-		obstack_alloc(&env->obst, sizeof(ref[0]));
+	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
 	memset(ref, 0, sizeof(ref[0]));
 
-	ref->expression.type = EXPR_VARIABLE_REFERENCE;
+	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = env->token.symbol;
 
 	next_token(env);
@@ -302,7 +301,7 @@ expression_t *parse_primary_expression(parser_env_t *env)
 	case T_INTEGER:
 		return parse_int_const(env);
 	case T_IDENTIFIER:
-		return parse_variable_reference(env);
+		return parse_reference(env);
 	case '(':
 		next_token(env);
 		expression = parse_expression(env);
@@ -326,7 +325,7 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 	memset(call, 0, sizeof(call[0]));
 
 	call->expression.type = EXPR_CALL;
-	call->function        = expression;
+	call->method          = expression;
 
 	/* parse arguments */
 	assert(env->token.type == '(');
@@ -507,13 +506,11 @@ statement_t *parse_return_statement(parser_env_t *env)
 static
 statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 {
-	variable_reference_expression_t *ref 
-		= obstack_alloc(&env->obst, sizeof(ref[0]));
-	ref->expression.type = EXPR_VARIABLE_REFERENCE;
+	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
+	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = symbol;
 
-	assign_expression_t *assign 
-		= obstack_alloc(&env->obst, sizeof(assign[0]));
+	assign_expression_t *assign = obstack_alloc(&env->obst, sizeof(assign[0]));
 	memset(assign, 0, sizeof(assign[0]));
 
 	assign->expression.type = EXPR_ASSIGN;
@@ -704,7 +701,7 @@ void parse_parameter_declaration(parser_env_t *env)
 }
 
 static
-namespace_entry_t *parse_function_or_var(parser_env_t *env)
+namespace_entry_t *parse_method_or_var(parser_env_t *env)
 {
 	type_t   *type   = parse_type(env);
 	symbol_t *symbol;
@@ -717,24 +714,29 @@ namespace_entry_t *parse_function_or_var(parser_env_t *env)
 	symbol = env->token.symbol;
 	next_token(env);
 
-	/* is it a function? */
+	/* is it a method? */
 	if(env->token.type == '(') {
-		function_t *function = obstack_alloc(&env->obst, sizeof(function[0]));
-		memset(function, 0, sizeof(function[0]));
+		method_type_t *method_type 
+			= obstack_alloc(&env->obst, sizeof(method_type[0]));
+		memset(method_type, 0, sizeof(method_type[0]));
 
-		function->namespace_entry.type = NAMESPACE_ENTRY_FUNCTION;
-		function->symbol               = symbol;
-		function->return_type          = type;
+		method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+		memset(method, 0, sizeof(method[0]));
+		
+		method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
+		method->symbol               = symbol;
+		method->type                 = method_type;
 
-		/* TODO: free memory in case of error... */
+		method_type->type.type       = TYPE_METHOD;
+		method_type->result_type     = type;
 
 		next_token(env);
 		expect(env, ')');
 		expect(env, '{');
-		function->statement = parse_block(env);
+		method->statement = parse_block(env);
 		expect(env, '}');
 
-		return (namespace_entry_t*) function;
+		return (namespace_entry_t*) method;
 	} else {
 		/* must be a variable */
 		expect(env, ';');
@@ -751,24 +753,31 @@ namespace_entry_t *parse_function_or_var(parser_env_t *env)
 }
 
 static
-namespace_entry_t *parse_extern_function(parser_env_t *env)
+namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
-	extern_function_t *extern_function 
-		= obstack_alloc(&env->obst, sizeof(extern_function[0]));
-	memset(extern_function, 0, sizeof(extern_function[0]));
+	method_type_t *method_type 
+		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
 
-	extern_function->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_FUNCTION;
+	method_type->type.type              = TYPE_METHOD;
+
+	extern_method_t *extern_method 
+		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
+	memset(extern_method, 0, sizeof(extern_method[0]));
+
+	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_FUNCTION;
+	extern_method->type                 = method_type;
 
 	/* skip the "extern" */
 	assert(env->token.type == T_extern);
 	next_token(env);
 
 	if(env->token.type == T_STRING_LITERAL) {
-		extern_function->abi_style = env->token.string;
+		method_type->abi_style = env->token.string;
 		next_token(env);
 	}
 
-	extern_function->return_type = parse_type(env);
+	method_type->result_type = parse_type(env);
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing extern declaration",
@@ -776,7 +785,7 @@ namespace_entry_t *parse_extern_function(parser_env_t *env)
 		eat_until_semi(env);
 		return NULL;
 	}
-	extern_function->symbol = env->token.symbol;
+	extern_method->symbol = env->token.symbol;
 	next_token(env);
 
 	expect(env, '(');
@@ -784,7 +793,7 @@ namespace_entry_t *parse_extern_function(parser_env_t *env)
 	expect(env, ')');
 	expect(env, ';');
 
-	return (namespace_entry_t*) extern_function;
+	return (namespace_entry_t*) extern_method;
 }
 
 static
@@ -804,7 +813,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 		case T_float:
 		case T_double:
 		case T_IDENTIFIER:
-			entry = parse_function_or_var(env);
+			entry = parse_method_or_var(env);
 
 			if(entry != NULL) {
 				entry->next = namespace->first_entry;
@@ -812,7 +821,11 @@ namespace_t *parse_namespace(parser_env_t *env)
 			}
 			continue;
 		case T_extern:
-			entry = parse_extern_function(env);
+			entry = parse_extern_method(env);
+			if(entry != NULL) {
+				entry->next = namespace->first_entry;
+				namespace->first_entry = entry;
+			}
 			continue;
 		case ';':
 			break;

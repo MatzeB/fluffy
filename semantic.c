@@ -13,8 +13,8 @@ typedef struct semantic_env_t           semantic_env_t;
 enum environment_entry_type_t {
 	ENTRY_LOCAL_VARIABLE,
 	ENTRY_GLOBAL_VARIABLE,
-	ENTRY_FUNCTION,
-	ENTRY_EXTERN_FUNCTION
+	ENTRY_METHOD,
+	ENTRY_EXTERN_METHOD
 };
 
 struct environment_entry_t {
@@ -22,10 +22,10 @@ struct environment_entry_t {
 	symbol_t                 *symbol;
 	environment_entry_t      *up;
 	union {
-		function_t                       *function;
-		variable_t                       *variable;
-		extern_function_t                *extern_function;
-		variable_declaration_statement_t *variable_declaration;
+		method_t                         *method;
+		variable_t                       *global_variable;
+		extern_method_t                  *extern_method;
+		variable_declaration_statement_t *variable;
 	};
 };
 
@@ -35,7 +35,7 @@ struct semantic_env_t {
 	int                   next_valnum;
 	int                   found_errors;
 
-	function_t           *current_function;
+	method_t             *current_method;
 };
 
 /**
@@ -48,6 +48,8 @@ environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 	int top = ARR_LEN(env->symbol_stack);
 	ARR_RESIZE(environment_entry_t, env->symbol_stack, top + 1);
 	environment_entry_t *entry = & env->symbol_stack[top];
+
+	printf("Push %s\n", symbol->string);
 
 	entry->up     = symbol->thing;
 	entry->symbol = symbol;
@@ -75,7 +77,7 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 		symbol_t            *symbol = entry->symbol;
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
-				&& entry->variable_declaration->refs == 0) {
+				&& entry->variable->refs == 0) {
 			fprintf(stderr, "Warning: Variable '%s' was declared but never read\n", symbol->string);
 		}
 
@@ -105,29 +107,52 @@ static
 void check_expression(semantic_env_t *env, expression_t *expression);
 
 static
-void check_variable_reference_expression(semantic_env_t *env,
-                                         variable_reference_expression_t *ref)
+void check_reference_expression(semantic_env_t *env,
+                                reference_expression_t *ref)
 {
 	variable_declaration_statement_t *variable;
-	symbol_t            *symbol = ref->symbol;
-	environment_entry_t *entry  = symbol->thing;
+	method_t                         *method;
+	extern_method_t                  *extern_method;
+	variable_t                       *global_variable;
+	symbol_t                         *symbol = ref->symbol;
+	environment_entry_t              *entry  = symbol->thing;
 	
 	if(entry == NULL) {
 		fprintf(stderr, "Error: No known definition for '%s'\n", symbol->string);
 		env->found_errors = 1;
 		return;
 	}
-	if(entry->type != ENTRY_LOCAL_VARIABLE) {
-		fprintf(stderr,
-		        "NIY: Only local variable references supported at the moment '%s'\n",
-				symbol->string);
-		env->found_errors = 1;
-		return;
+
+	switch(entry->type) {
+	case ENTRY_LOCAL_VARIABLE:
+		variable                 = entry->variable;
+		ref->variable            = variable;
+		ref->expression.type     = EXPR_REFERENCE_VARIABLE;
+		ref->expression.datatype = variable->type;
+		variable->refs++;
+		break;
+	case ENTRY_METHOD:
+		method                   = entry->method;
+		ref->method              = method;
+		ref->expression.type     = EXPR_REFERENCE_METHOD;
+		ref->expression.datatype = (type_t*) method->type;
+		break;
+	case ENTRY_EXTERN_METHOD:
+		extern_method            = entry->extern_method;
+		ref->extern_method       = extern_method;
+		ref->expression.type     = EXPR_REFERENCE_EXTERN_METHOD;
+		ref->expression.datatype = (type_t*) extern_method->type;
+		break;
+	case ENTRY_GLOBAL_VARIABLE:
+		global_variable          = entry->global_variable;
+		ref->global_variable     = global_variable;
+		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
+		ref->expression.datatype = global_variable->type;
+		break;
+	default:
+		panic("Unknown reference type encountered");
+		break;
 	}
-	variable                 = entry->variable_declaration;
-	ref->variable            = variable;
-	ref->expression.datatype = variable->type;
-	variable->refs++;
 }
 
 static
@@ -139,7 +164,7 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 	check_expression(env, left);
 	check_expression(env, right);
 
-	if(left->type != EXPR_VARIABLE_REFERENCE) {
+	if(left->type != EXPR_REFERENCE_VARIABLE) {
 		fprintf(stderr, "Error: Left side of assign is not an lvalue.\n");
 		env->found_errors = 1;
 		return;
@@ -151,8 +176,7 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 	}
 
 	/* assignment is not reading the value */
-	variable_reference_expression_t *ref
-		= (variable_reference_expression_t*) left;
+	reference_expression_t *ref = (reference_expression_t*) left;
 	ref->variable->refs--;
 
 	/* TODO 
@@ -166,9 +190,23 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 static
 void check_call_expression(semantic_env_t *env, call_expression_t *call)
 {
-	(void) env;
-	(void) call;
-	/* TODO... */
+	expression_t  *method = call->method;
+
+	check_expression(env, method);
+	type_t *type          = method->datatype;
+
+	/* can happen if we had a deeper semantic error */
+	if(type == NULL)
+		return;
+
+	if(type->type != TYPE_METHOD) {
+		fprintf(stderr, "Trying to call something which is not a method\n");
+		env->found_errors = 1;
+		return;
+	}
+
+	method_type_t *method_type = (method_type_t*) type;
+	call->expression.datatype  = method_type->result_type;
 }
 
 static
@@ -183,9 +221,8 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 			panic("Cast expression needs a datatype!");
 		}
 		break;
-	case EXPR_VARIABLE_REFERENCE:
-		check_variable_reference_expression(env,
-		        (variable_reference_expression_t*) expression);
+	case EXPR_REFERENCE:
+		check_reference_expression(env, (reference_expression_t*) expression);
 		break;
 	case EXPR_ASSIGN:
 		check_assign_expression(env, (assign_expression_t*) expression);
@@ -246,12 +283,12 @@ void check_variable_declaration(semantic_env_t *env,
 	env->next_valnum++;
 
 	/* push the variable declaration on the environment stack */
-	environment_entry_t *entry  = environment_push(env, statement->symbol);
-	entry->type                 = ENTRY_LOCAL_VARIABLE;
-	entry->variable_declaration = statement;
+	environment_entry_t *entry = environment_push(env, statement->symbol);
+	entry->type                = ENTRY_LOCAL_VARIABLE;
+	entry->variable            = statement;
 
-	if(env->current_function != NULL) {
-		env->current_function->n_local_vars++;
+	if(env->current_method != NULL) {
+		env->current_method->n_local_vars++;
 	}
 }
 
@@ -262,6 +299,11 @@ void check_expression_statement(semantic_env_t *env,
 	expression_t *expression = statement->expression;
 
 	check_expression(env, expression);
+
+	/* can happen on semantic errors */
+	if(expression->datatype == NULL)
+		return;
+
 	if(expression->type != EXPR_ASSIGN
 			&& expression->datatype->type != TYPE_VOID) {
 		fprintf(stderr, "Warning: result of expression is unused\n");
@@ -295,14 +337,14 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 }
 
 static
-void check_function(semantic_env_t *env, function_t *function)
+void check_method(semantic_env_t *env, method_t *method)
 {
-	int old_top           = environment_top(env);
-	env->current_function = function;
+	int old_top         = environment_top(env);
+	env->current_method = method;
 
-	check_statement(env, function->statement);
+	check_statement(env, method->statement);
 
-	env->current_function = NULL;
+	env->current_method = NULL;
 	environment_pop_to(env, old_top);
 }
 
@@ -310,8 +352,8 @@ static
 void check_namespace(semantic_env_t *env, namespace_t *namespace)
 {
 	variable_t          *variable;
-	function_t          *function;
-	extern_function_t   *extern_function;
+	method_t            *method;
+	extern_method_t     *extern_method;
 	environment_entry_t *env_entry;
 
 	/* record namespace entries in environment */
@@ -322,19 +364,19 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			variable            = (variable_t*) entry;
 			env_entry           = environment_push(env, variable->symbol);
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
-			env_entry->variable = variable;
+			env_entry->global_variable = variable;
 			break;
 		case NAMESPACE_ENTRY_EXTERN_FUNCTION:
-			extern_function = (extern_function_t*) entry;
-			env_entry       = environment_push(env, extern_function->symbol);
-			env_entry->type = ENTRY_EXTERN_FUNCTION;
-			env_entry->extern_function = extern_function;
+			extern_method       = (extern_method_t*) entry;
+			env_entry           = environment_push(env, extern_method->symbol);
+			env_entry->type     = ENTRY_EXTERN_METHOD;
+			env_entry->extern_method = extern_method;
 			break;
-		case NAMESPACE_ENTRY_FUNCTION:
-			function            = (function_t*) entry;
-			env_entry           = environment_push(env, function->symbol);
-			env_entry->type     = ENTRY_FUNCTION;
-			env_entry->function = function;
+		case NAMESPACE_ENTRY_METHOD:
+			method              = (method_t*) entry;
+			env_entry           = environment_push(env, method->symbol);
+			env_entry->type     = ENTRY_METHOD;
+			env_entry->method   = method;
 			break;
 		default:
 			panic("Unknown thing in namespace");
@@ -343,12 +385,12 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		entry = entry->next;
 	}
 
-	/* check semantics in functions */
+	/* check semantics in methods */
 	entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
-		case NAMESPACE_ENTRY_FUNCTION:
-			check_function(env, (function_t*) entry);
+		case NAMESPACE_ENTRY_METHOD:
+			check_method(env, (method_t*) entry);
 			break;
 		default:
 			break;

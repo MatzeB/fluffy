@@ -49,6 +49,20 @@ void exit_firm(void)
 }
 
 static
+ident *unique_id(const char *tag)
+{
+	static unsigned id = 0;
+	char            buf[256];
+
+	snprintf(buf, sizeof(buf), tag, id);
+	id++;
+	return new_id_from_str(buf);
+}
+
+static
+ir_type *get_ir_type(type_t *type);
+
+static
 ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
 	switch(atomic_type->atype) {
@@ -84,9 +98,27 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 static
 ir_type *get_atomic_type(const atomic_type_t *type)
 {
-	ir_mode *mode = get_atomic_mode(type);
-	ident *id = get_mode_ident(mode);
+	ir_mode *mode   = get_atomic_mode(type);
+	ident *id       = get_mode_ident(mode);
 	ir_type *irtype = new_type_primitive(id, mode);
+
+	return irtype;
+}
+
+static
+ir_type *get_method_type(const method_type_t *method_type)
+{
+	type_t  *result_type  = method_type->result_type;
+
+	ident   *id           = unique_id("methodtype");
+	int      n_parameters = 0;
+	int      n_results    = result_type->type == TYPE_VOID ? 0 : 1;
+	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
+
+	if(result_type->type != TYPE_VOID) {
+		ir_type *restype = get_ir_type(result_type);
+		set_method_res_type(irtype, 0, restype);
+	}
 
 	return irtype;
 }
@@ -105,6 +137,9 @@ ir_type *get_ir_type(type_t *type)
 	case TYPE_ATOMIC:
 		firm_type = get_atomic_type((const atomic_type_t*) type);
 		break;
+	case TYPE_METHOD:
+		firm_type = get_method_type((const method_type_t*) type);
+		break;
 	default:
 		panic("unknown type");
 	}
@@ -121,7 +156,7 @@ ir_mode *get_ir_mode(type_t *type)
 		return mode_Is;
 
 	ir_type *irtype = get_ir_type(type);
-	ir_mode *mode = get_type_mode(irtype);
+	ir_mode *mode   = get_type_mode(irtype);
 	assert(mode != NULL);
 	return mode;
 }
@@ -133,13 +168,13 @@ static
 ir_node *int_const_to_firm(const int_const_t *cnst)
 {
 	ir_mode *mode = get_ir_mode(cnst->expression.datatype);
-	tarval *tv = new_tarval_from_long(cnst->value, mode);
+	tarval *tv    = new_tarval_from_long(cnst->value, mode);
 
 	return new_Const(mode, tv);
 }
 
 static
-ir_node *variable_reference_to_firm(const variable_reference_expression_t *ref)
+ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 {
 	variable_declaration_statement_t *variable = ref->variable;
 	ir_mode                          *mode     = get_ir_mode(variable->type);
@@ -155,9 +190,8 @@ ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
 	const expression_t *left  = assign->left;
 	const expression_t *right = assign->right;
 
-	assert(left->type == EXPR_VARIABLE_REFERENCE);
-	const variable_reference_expression_t *ref 
-		= (const variable_reference_expression_t*) left;
+	assert(left->type == EXPR_REFERENCE_VARIABLE);
+	const reference_expression_t *ref = (const reference_expression_t*) left;
 	variable_declaration_statement_t *variable = ref->variable;
 
 	value_numbers[variable->value_number] = variable;
@@ -175,9 +209,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		return int_const_to_firm((const int_const_t*) expression);
-	case EXPR_VARIABLE_REFERENCE:
+	case EXPR_REFERENCE_VARIABLE:
 		return variable_reference_to_firm(
-				(const variable_reference_expression_t*) expression);
+				(const reference_expression_t*) expression);
 	case EXPR_ASSIGN:
 		return asssign_expression_to_firm(
 				(const assign_expression_t*) expression);
@@ -245,25 +279,25 @@ void statement_to_firm(const statement_t *statement)
 }
 
 static
-void create_function(const function_t *function)
+void create_method(const method_t *method)
 {
+	type_t  *method_type    = (type_t*) method->type;
+
 	/* first create an entity */
-	ir_type *glob_type = get_glob_type();
-	ident *id = new_id_from_str(function->symbol->string);
-	ir_type *methodtype = new_type_method(id, 0, 1);
-	set_method_res_type(methodtype, 0, get_ir_type(function->return_type));
-	/*TODO
-	 * set_method_res_type(methodtype, 0, int_type); */
-	ir_entity *entity = new_entity(glob_type, id, methodtype);
+	ir_type *global_type    = get_glob_type();
+	ident   *id             = new_id_from_str(method->symbol->string);
+	ir_type *ir_method_type = get_ir_type(method_type);
+
+	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
 	set_entity_visibility(entity, visibility_external_visible);
 
-	ir_graph *irg = new_ir_graph(entity, function->n_local_vars);
+	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
 	assert(value_numbers == NULL);
-	value_numbers = xmalloc(function->n_local_vars * sizeof(value_numbers[0]));
+	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
 
-	statement_to_firm(function->statement);
+	statement_to_firm(method->statement);
 
 	mature_immBlock(get_irg_current_block(irg));
 	mature_immBlock(get_irg_end_block(irg));
@@ -287,8 +321,8 @@ void ast2firm(namespace_t *namespace)
 	namespace_entry_t *entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
-		case NAMESPACE_ENTRY_FUNCTION:
-			create_function((function_t*) entry);
+		case NAMESPACE_ENTRY_METHOD:
+			create_method((method_t*) entry);
 			break;
 		case NAMESPACE_ENTRY_VARIABLE:
 			fprintf(stderr, "Global vars not handled yet\n");
