@@ -32,8 +32,10 @@ static inline
 void next_token(parser_env_t *env)
 {
 	env->token = env->lookahead[0];
+#if LOOKAHEAD > 1
 	memmove(env->lookahead, env->lookahead + 1,
 	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
+#endif
 	env->lookahead[LOOKAHEAD - 1] = lexer_next_token(&env->lexer);
 }
 
