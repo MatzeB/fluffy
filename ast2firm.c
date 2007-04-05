@@ -498,6 +498,8 @@ void return_statement_to_firm(const return_statement_t *statement)
 	}
 	ir_node *end_block = get_irg_end_block(current_ir_graph);
 	add_immBlock_pred(end_block, ret);
+
+	set_cur_block(NULL);
 }
 
 static
@@ -519,9 +521,10 @@ void if_statement_to_firm(const if_statement_t *statement)
 
 	set_cur_block(true_block);
 	statement_to_firm(statement->true_statement);
-	ir_node *jmp = new_Jmp();
-
-	add_immBlock_pred(fallthrough_block, jmp);
+	if(get_irg_current_block(current_ir_graph) != NULL) {
+		ir_node *jmp = new_Jmp();
+		add_immBlock_pred(fallthrough_block, jmp);
+	}
 
 	/* the false (blocks) */
 	if(statement->false_statement != NULL) {
@@ -531,9 +534,10 @@ void if_statement_to_firm(const if_statement_t *statement)
 
 		set_cur_block(false_block);
 		statement_to_firm(statement->false_statement);
-		ir_node *jmp = new_Jmp();
-
-		add_immBlock_pred(fallthrough_block, jmp);
+		if(get_irg_current_block(current_ir_graph) != NULL) {
+			ir_node *jmp = new_Jmp();
+			add_immBlock_pred(fallthrough_block, jmp);
+		}
 	} else {
 		add_immBlock_pred(fallthrough_block, false_proj);
 	}
@@ -553,6 +557,8 @@ void block_statement_to_firm(const block_statement_t *block)
 {
 	const statement_t *statement = block->first_statement;
 	while(statement != NULL) {
+		assert(get_irg_current_block(current_ir_graph) != NULL);
+
 		statement_to_firm(statement);
 		statement = statement->next;
 	}
