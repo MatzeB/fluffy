@@ -275,6 +275,10 @@ token_t lexer_next_token(lexer_t *this)
 			next_char(this);
 			token.type = T_GREATEREQUAL;
 			return token;
+		} else if(this->c == '>') {
+			next_char(this);
+			token.type = T_GREATERGREATER;
+			return token;
 		}
 		token.type = '>';
 		return token;
