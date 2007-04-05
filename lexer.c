@@ -51,20 +51,113 @@ void parse_symbol(lexer_t *this, token_t *token)
 }
 
 static
+void parse_number_bin(lexer_t *this, token_t *token)
+{
+	next_char(this);
+	if (this->c != '0' && this->c != '1') {
+		fprintf(stderr,
+			"Premature end of binary number literal at %s:%d\n",
+			this->input_name, this->linenr);
+		token->type = T_ERROR;
+		return;
+	}
+
+	int value = 0;
+	for(;;) {
+		switch (this->c) {
+			case '0': value = 2 * value;     break;
+			case '1': value = 2 * value + 1; break;
+
+			default:
+				token->type     = T_INTEGER;
+				token->intvalue = value;
+				return;
+		}
+		next_char(this);
+	}
+}
+
+static
+void parse_number_hex(lexer_t *this, token_t *token)
+{
+	next_char(this);
+	if (!isdigit(this->c) &&
+		!('A' <= this->c && this->c <= 'F') &&
+		!('a' <= this->c && this->c <= 'f')) {
+		fprintf(stderr,
+			"Premature end of hex number literal at %s:%d\n",
+			this->input_name, this->linenr);
+		token->type = T_ERROR;
+		return;
+	}
+
+	int value = 0;
+	for(;;) {
+		if (isdigit(this->c)) {
+			value = 16 * value + this->c - '0';
+		} else if ('A' <= this->c && this->c <= 'F') {
+			value = 16 * value + this->c - 'A' + 10;
+		} else if ('a' <= this->c && this->c <= 'f') {
+			value = 16 * value + this->c - 'f' + 10;
+		} else {
+			token->type     = T_INTEGER;
+			token->intvalue = value;
+			return;
+		}
+		next_char(this);
+	}
+}
+
+static 
+void parse_number_oct(lexer_t *this, token_t *token)
+{
+	int value = 0;
+	for(;;) {
+		next_char(this);
+		if ('0' <= this->c && this->c <= '7') {
+			value = 8 * value + this->c - '0';
+		} else {
+			token->type     = T_INTEGER;
+			token->intvalue = value;
+			return;
+		}
+	}
+}
+
+static 
+void parse_number_dec(lexer_t *this, token_t *token)
+{
+	int value = 0;
+	for(;;) {
+		if (isdigit(this->c)) {
+			value = 10 * value + this->c - '0';
+		} else {
+			token->type     = T_INTEGER;
+			token->intvalue = value;
+			return;
+		}
+		next_char(this);
+	}
+}
+
+static
 void parse_number(lexer_t *this, token_t *token)
 {
-	char *string;
+	// TODO check for overflow
+	// TODO check for various invalid inputs sequences
 
-	do {
-		obstack_1grow(this->obst, this->c);
+	if (this->c == '0') {
 		next_char(this);
-	} while(isdigit(this->c));
-	obstack_1grow(this->obst, '\0');
-	string = obstack_finish(this->obst);
-
-	token->type     = T_INTEGER;
-	token->intvalue = atoi(string);
-	obstack_free(this->obst, string);
+		if (this->c == 'b') { // binary number literal
+			parse_number_bin(this, token);
+		} else if (this->c == 'x' || this->c == 'X') { // hex number literal
+			parse_number_hex(this, token);
+		} else { // octal number literal
+			parse_number_oct(this, token);
+		}
+	} else {
+		parse_number_dec(this, token);
+	}
 }
 
 static
