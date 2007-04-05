@@ -91,6 +91,8 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 		return mode_F;
 	case ATOMIC_TYPE_DOUBLE:
 		return mode_D;
+	case ATOMIC_TYPE_BOOL:
+		return mode_b;
 	default:
 		panic("Encountered unknown atomic type");
 	}
@@ -278,31 +280,63 @@ ir_op *binexpr_type_to_op(binexpr_type_t type)
 }
 
 static
+long binexpr_type_to_cmp_pn(binexpr_type_t type)
+{
+	switch(type) {
+	case BINEXPR_EQUAL:
+		return pn_Cmp_Eq;
+	case BINEXPR_NOTEQUAL:
+		return pn_Cmp_Leg;
+	case BINEXPR_LESS:
+		return pn_Cmp_Lt;
+	case BINEXPR_LESSEQUAL:
+		return pn_Cmp_Le;
+	case BINEXPR_GREATER:
+		return pn_Cmp_Gt;
+	case BINEXPR_GREATEREQUAL:
+		return pn_Cmp_Ge;
+	default:
+		return 0;
+	}
+}
+
+static
 ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
 {
-	ir_op   *irop;
-
 	switch(binexpr->binexpr_type) {
 	case BINEXPR_ASSIGN:
 		return assign_expression_to_firm(binexpr);
 	/* TODO construct Div,Mod nodes (they need special treatment with memory
 	 * edges */
 	default:
-		irop = binexpr_type_to_op(binexpr->binexpr_type);
-		if(irop != NULL) {
-			ir_node *in[2] = {
-				expression_to_firm(binexpr->left),
-				expression_to_firm(binexpr->right)
-			};
-			ir_mode *mode  = get_ir_mode(binexpr->expression.datatype);
-			ir_node *block = get_irg_current_block(current_ir_graph);
-			ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
-			                             irop, mode, 2, in);
-			return node;
-		}
+		break;
 	}
 
-	return NULL;
+	/* an arithmetic binexpressions? */
+	ir_op *irop = binexpr_type_to_op(binexpr->binexpr_type);
+	if(irop != NULL) {
+		ir_node *in[2] = {
+			expression_to_firm(binexpr->left),
+			expression_to_firm(binexpr->right)
+		};
+		ir_mode *mode  = get_ir_mode(binexpr->expression.datatype);
+		ir_node *block = get_irg_current_block(current_ir_graph);
+		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
+				irop, mode, 2, in);
+		return node;
+	}
+
+	/* a comparison expression? */
+	long compare_pn = binexpr_type_to_cmp_pn(binexpr->binexpr_type);
+	if(compare_pn != 0) {
+		ir_node *left  = expression_to_firm(binexpr->left);
+		ir_node *right = expression_to_firm(binexpr->right);
+		ir_node *cmp   = new_Cmp(left, right);
+		ir_node *proj  = new_Proj(cmp, mode_b, compare_pn);
+		return proj;
+	}
+
+	abort();
 }
 
 static
@@ -353,7 +387,7 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
 	set_store(mem);
 
-	type_t        *result_type    = method_type->result_type;
+	type_t *result_type = method_type->result_type;
 	if(result_type->type != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
@@ -392,6 +426,12 @@ ir_node *expression_to_firm(const expression_t *expression)
 	return NULL;
 }
 
+
+
+
+static
+void statement_to_firm(const statement_t *statement);
+
 static
 void return_statement_to_firm(const return_statement_t *statement)
 {
@@ -410,13 +450,52 @@ void return_statement_to_firm(const return_statement_t *statement)
 }
 
 static
+void if_statement_to_firm(const if_statement_t *statement)
+{
+	ir_node *condition = expression_to_firm(statement->condition);
+	assert(condition != NULL);
+
+	ir_node *cond       = new_Cond(condition);
+	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
+	ir_node *false_proj = new_Proj(cond, mode_X, pn_Cond_false);
+
+	ir_node *fallthrough_block = new_immBlock();
+
+	/* the true (blocks) */
+	ir_node *true_block = new_immBlock();
+	add_immBlock_pred(true_block, true_proj);
+	mature_immBlock(true_block);
+
+	set_cur_block(true_block);
+	statement_to_firm(statement->true_statement);
+	ir_node *jmp = new_Jmp();
+
+	add_immBlock_pred(fallthrough_block, jmp);
+
+	/* the false (blocks) */
+	if(statement->false_statement != NULL) {
+		ir_node *false_block = new_immBlock();
+		add_immBlock_pred(false_block, false_proj);
+		mature_immBlock(false_block);
+
+		set_cur_block(false_block);
+		statement_to_firm(statement->false_statement);
+		ir_node *jmp = new_Jmp();
+
+		add_immBlock_pred(fallthrough_block, jmp);
+	} else {
+		add_immBlock_pred(fallthrough_block, false_proj);
+	}
+	mature_immBlock(fallthrough_block);
+
+	set_cur_block(fallthrough_block);
+}
+
+static
 void expression_statement_to_firm(const expression_statement_t *statement)
 {
 	expression_to_firm(statement->expression);
 }
-
-static
-void statement_to_firm(const statement_t *statement);
 
 static
 void block_statement_to_firm(const block_statement_t *block)
@@ -437,6 +516,9 @@ void statement_to_firm(const statement_t *statement)
 		return;
 	case STATEMENT_RETURN:
 		return_statement_to_firm((const return_statement_t*) statement);
+		return;
+	case STATEMENT_IF:
+		if_statement_to_firm((const if_statement_t*) statement);
 		return;
 	case STATEMENT_VARIABLE_DECLARATION:
 		/* nothing to do */
@@ -462,12 +544,15 @@ void create_method(method_t *method)
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
 
+	ir_node *firstblock = get_irg_current_block(irg);
+
 	statement_to_firm(method->statement);
 
-	mature_immBlock(get_irg_current_block(irg));
+	mature_immBlock(firstblock);
 	mature_immBlock(get_irg_end_block(irg));
 
 	irg_finalize_cons(irg);
+	set_type_state(get_irg_frame_type(irg), layout_fixed);
 
 	irg_vrfy(irg);
 
@@ -475,6 +560,13 @@ void create_method(method_t *method)
 	value_numbers = NULL;
 
 	dump_ir_block_graph(irg, "-test");
+
+	/* do some simple optimisations... */
+	place_code(irg);
+	optimize_graph_df(irg);
+	dead_node_elimination(irg);
+
+	dump_ir_block_graph(irg, "-opt");
 }
 
 /**

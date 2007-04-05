@@ -18,6 +18,7 @@ typedef struct binary_expression_t      binary_expression_t;
 typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;
 typedef struct return_statement_t       return_statement_t;
+typedef struct if_statement_t           if_statement_t;
 typedef struct variable_declaration_statement_t variable_declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
 

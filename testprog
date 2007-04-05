@@ -21,8 +21,13 @@ int main() {
 		}
 	}
 
+	if(anotherfunc() = 42) {
+		jodel();
+	} else {
+		blo <- 14;
+	}
+
 	jodel();
-	blo <- anotherfunc();
 
 	return blo;
 }

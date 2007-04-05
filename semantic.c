@@ -39,6 +39,7 @@ struct semantic_env_t {
 
 	method_t             *current_method;
 	type_t               *type_bool;
+	type_t               *type_int;
 };
 
 /**
@@ -109,10 +110,6 @@ size_t environment_top(semantic_env_t *env)
 {
 	return ARR_LEN(env->symbol_stack);
 }
-
-static atomic_type_t default_int_type_ 
-	= { { TYPE_ATOMIC, NULL }, ATOMIC_TYPE_INT };
-static type_t *default_int_type = (type_t*) &default_int_type_;
 
 static
 void check_expression(semantic_env_t *env, expression_t *expression);
@@ -268,10 +265,10 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 		abort();
 	}
 
-	if(left->datatype != exprtype) {
+	if(left->datatype != lefttype) {
 		binexpr->left  = make_cast(env, left, exprtype);
 	}
-	if(right->datatype != exprtype) {
+	if(right->datatype != righttype) {
 		binexpr->right = make_cast(env, right, exprtype);
 	}
 	binexpr->expression.datatype = exprtype;
@@ -314,7 +311,7 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
 	case EXPR_INT_CONST:
-		expression->datatype = default_int_type;
+		expression->datatype = env->type_int;
 		break;
 	case EXPR_CAST:
 		check_cast_expression(env, (cast_expression_t*) expression);
@@ -332,6 +329,12 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		panic("Invalid expression encountered");
 	}
 }
+
+
+
+
+static
+void check_statement(semantic_env_t *env, statement_t *statement);
 
 static
 void check_return_statement(semantic_env_t *env, return_statement_t *statement)
@@ -356,7 +359,21 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 }
 
 static
-void check_statement(semantic_env_t *env, statement_t *statement);
+void check_if_statement(semantic_env_t *env, if_statement_t *statement)
+{
+	expression_t *condition = statement->condition;
+
+	check_expression(env, condition);
+	if(condition->datatype != env->type_bool) {
+		fprintf(stderr, "Error: if condition needs to be of boolean type\n");
+		env->found_errors = 1;
+		return;
+	}
+
+	check_statement(env, statement->true_statement);
+	if(statement->false_statement != NULL)
+		check_statement(env, statement->false_statement);
+}
 
 static
 void check_block_statement(semantic_env_t *env, block_statement_t *block)
@@ -425,6 +442,9 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 	case STATEMENT_RETURN:
 		check_return_statement(env, (return_statement_t*) statement);
 		break;
+	case STATEMENT_IF:
+		check_if_statement(env, (if_statement_t*) statement);
+		break;
 	case STATEMENT_VARIABLE_DECLARATION:
 		check_variable_declaration(env, (variable_declaration_statement_t*)
 		                                statement);
@@ -432,8 +452,8 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 	case STATEMENT_EXPRESSION:
 		check_expression_statement(env, (expression_statement_t*) statement);
 		break;
-	case STATEMENT_IF:
-		panic("envountered unimplemented statement");
+	default:
+		panic("Unknown statement found");
 		break;
 	}
 }
@@ -506,16 +526,16 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 }
 
 static
-type_t* make_bool_type(struct obstack *obst)
+type_t* make_atomic_type(struct obstack *obst, atomic_type_type_t atype)
 {
-	atomic_type_t *booltype = obstack_alloc(obst, sizeof(booltype[0]));
-	memset(booltype, 0, sizeof(booltype[0]));
-	booltype->type.type     = TYPE_ATOMIC;
-	booltype->atype         = ATOMIC_TYPE_BOOL;
+	atomic_type_t *type = obstack_alloc(obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_ATOMIC;
+	type->atype     = atype;
 
-	type_t *normalized_type = typehash_insert((type_t*) booltype);
-	if(normalized_type != (type_t*) booltype) {
-		obstack_free(obst, booltype);
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(obst, type);
 	}
 
 	return normalized_type;
@@ -532,7 +552,8 @@ int check_static_semantic(namespace_t *namespace)
 	obstack_init(&env.symbol_obstack);
 	env.next_valnum  = 0;
 	env.found_errors = 0;
-	env.type_bool    = make_bool_type(&obst);
+	env.type_bool    = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
+	env.type_int     = make_atomic_type(&obst, ATOMIC_TYPE_INT);
 
 	check_namespace(&env, namespace);
 

@@ -487,6 +487,9 @@ expression_t *parse_expression(parser_env_t *env)
 }
 
 static
+statement_t *parse_statement(parser_env_t *env);
+
+static
 statement_t *parse_return_statement(parser_env_t *env)
 {
 	return_statement_t *return_statement =
@@ -500,7 +503,41 @@ statement_t *parse_return_statement(parser_env_t *env)
 		return_statement->return_value = parse_expression(env);
 	}
 
+	expect(env, ';');
+
 	return (statement_t*) return_statement;
+}
+
+static
+statement_t *parse_if_statement(parser_env_t *env)
+{
+	expression_t *condition;
+	statement_t  *true_statement;
+	statement_t  *false_statement = NULL;
+
+	assert(env->token.type == T_if);
+	next_token(env);
+
+	expect(env, '(');
+	condition = parse_expression(env);
+	expect(env, ')');
+
+	true_statement = parse_statement(env);
+	if(env->token.type == T_else) {
+		next_token(env);
+		false_statement = parse_statement(env);
+	}
+
+	if_statement_t *if_statement
+		= obstack_alloc(&env->obst, sizeof(if_statement[0]));
+	memset(if_statement, 0, sizeof(if_statement[0]));
+
+	if_statement->statement.type  = STATEMENT_IF;
+	if_statement->condition       = condition;
+	if_statement->true_statement  = true_statement;
+	if_statement->false_statement = false_statement;
+
+	return (statement_t*) if_statement;
 }
 
 static
@@ -592,6 +629,10 @@ statement_t *parse_statement(parser_env_t *env)
 		statement = parse_return_statement(env);
 		break;
 
+	case T_if:
+		statement = parse_if_statement(env);
+		break;
+
 	case '{':
 		next_token(env);
 		statement = parse_block(env);
@@ -605,6 +646,7 @@ statement_t *parse_statement(parser_env_t *env)
 	case T_int:
 	case T_long:
 		statement = parse_variable_declaration(env);
+		expect(env, ';');
 		break;
 
 	case T_IDENTIFIER:
@@ -622,6 +664,7 @@ statement_t *parse_statement(parser_env_t *env)
 		expression_statement->statement.type = STATEMENT_EXPRESSION;
 		expression_statement->expression     = parse_expression(env);
 		statement = (statement_t*) expression_statement;
+		expect(env, ';');
 		break;
 
 	default:
@@ -633,7 +676,6 @@ statement_t *parse_statement(parser_env_t *env)
 		return statement;
 	}
 
-	expect(env, ';');
 	return statement;
 }
 
