@@ -50,10 +50,10 @@ Q = @
 all: $(GOAL)
 
 ifeq ($(findstring $(MAKECMDGOALS), clean depend),)
--include depend
+-include .depend
 endif
 
-depend: $(SOURCES)
+.depend: $(SOURCES)
 	@echo "===> DEPEND"
 	@rm -f $@ && touch $@ && makedepend -p "$@ build/" -Y -f $@ -- $(CFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
 
@@ -71,4 +71,4 @@ build/%.o: %.c
 
 clean:
 	@echo '===> CLEAN'
-	$(Q)rm -rf build $(GOAL) depend
+	$(Q)rm -rf build $(GOAL) .depend
