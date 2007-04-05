@@ -109,18 +109,42 @@ ir_type *get_atomic_type(const atomic_type_t *type)
 }
 
 static
+int count_parameters(const method_type_t *method_type)
+{
+	int count = 0;
+
+	method_parameter_type_t *param_type = method_type->parameter_types;
+	while(param_type != NULL) {
+		param_type = param_type->next;
+		count++;
+	}
+
+	return count;
+}
+
+static
 ir_type *get_method_type(const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
 
 	ident   *id           = unique_id("methodtype");
-	int      n_parameters = 0;
+	int      n_parameters = count_parameters(method_type);
 	int      n_results    = result_type->type == TYPE_VOID ? 0 : 1;
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
 	if(result_type->type != TYPE_VOID) {
 		ir_type *restype = get_ir_type(result_type);
 		set_method_res_type(irtype, 0, restype);
+	}
+
+	method_parameter_type_t *param_type = method_type->parameter_types;
+	int n = 0;
+	while(param_type != NULL) {
+		ir_type *p_irtype = get_ir_type(param_type->type);
+		set_method_param_type(irtype, n, p_irtype);
+
+		param_type = param_type->next;
+		n++;
 	}
 
 	return irtype;
@@ -370,6 +394,18 @@ ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
+ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
+{
+	ir_node *args  = get_irg_args(current_ir_graph);
+	ir_mode *mode  = get_ir_mode(ref->method_parameter->type);
+	ir_node *block = get_irg_start_block(current_ir_graph);
+	long     pn    = ref->method_parameter->num;
+	ir_node *proj  = new_r_Proj(current_ir_graph, block, args, mode, pn);
+
+	return proj;
+}
+
+static
 ir_node *call_expression_to_firm(const call_expression_t *call)
 {
 	ir_node       *result         = NULL;
@@ -379,10 +415,22 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
 	
 	ir_node       *callee         = expression_to_firm(method);
-	int            n_parameters   = 0;
+	int            n_parameters   = get_method_n_params(ir_method_type);
+	ir_node       *in[n_parameters];
+
+	call_argument_t *argument     = call->arguments;
+	int n = 0;
+	while(argument != NULL) {
+		assert(n < n_parameters);
+		in[n] = expression_to_firm(argument->expression);
+
+		argument = argument->next;
+		n++;
+	}
+	assert(n == n_parameters);
 
 	ir_node *store = get_store();
-	ir_node *node  = new_Call(store, callee, n_parameters, NULL,
+	ir_node *node  = new_Call(store, callee, n_parameters, in,
 	                          ir_method_type);
 	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
 	set_store(mem);
@@ -412,6 +460,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_REFERENCE_EXTERN_METHOD:
 		return extern_method_reference_to_firm(
 		        (const reference_expression_t*) expression);
+	case EXPR_REFERENCE_METHOD_PARAMETER:
+		return method_parameter_reference_to_firm(
+				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
@@ -538,9 +589,6 @@ void create_method(method_t *method)
 
 	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
-	/* we have to initialize the frame type */
-	set_type_size_bytes(get_irg_frame_type(irg), 0);
-
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
 
@@ -552,6 +600,9 @@ void create_method(method_t *method)
 	mature_immBlock(get_irg_end_block(irg));
 
 	irg_finalize_cons(irg);
+
+	ir_type *frame_type = get_irg_frame_type(irg);
+	set_type_size_bytes(frame_type, 4);
 	set_type_state(get_irg_frame_type(irg), layout_fixed);
 
 	irg_vrfy(irg);

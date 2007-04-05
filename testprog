@@ -2,32 +2,28 @@
 unsigned byte blup;
 signed long long long_variable;*/
 
-extern "cdecl" void print_int(int param1, int param2);
+extern "cdecl" int get_int();
+extern "cdecl" void print_int(int someint);
 extern void jodel();
 
-int anotherfunc() {
-	jodel();
-	return 42 + 5;
+/*
+int fib(int n) {
+	if(n = 0)
+		return 0;
+	if(n = 1) {
+		return 1;
+	}
+	return fib(n-1) + fib(n-2);
 }
+*/
 
 int main() {
-	int blo <- 11;
-	int bla;
-	int blup <- bla;
-	// jo /**
-	/* int blo = somefunc(2); */
-	{
-		{
-		}
-	}
+	int number <- get_int();
 
-	if(anotherfunc() = 42) {
-		jodel();
-	} else {
-		blo <- 14;
-	}
+	//int result <- fib(number);
+	int result <- number;
 
-	jodel();
+	print_int(result);
 
-	return blo;
+	return 0;
 }

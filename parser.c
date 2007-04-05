@@ -18,6 +18,7 @@
 
 #define ABORT_ON_ERROR
 #define LOOKAHEAD	1
+#define PRINT_TOKENS
 
 typedef struct {
 	struct obstack  obst;
@@ -37,6 +38,11 @@ void next_token(parser_env_t *env)
 	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
 #endif
 	env->lookahead[LOOKAHEAD - 1] = lexer_next_token(&env->lexer);
+
+#ifdef PRINT_TOKENS
+	print_token(stderr, & env->lookahead[LOOKAHEAD - 1]);
+	fprintf(stderr, "\n");
+#endif
 }
 
 /** look ahead some symbols */
@@ -336,13 +342,25 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 	next_token(env);
 
 	if(env->token.type != ')') {
+		call_argument_t *last_argument = NULL;
+
 		while(1) {
-			parse_expression(env);
+			call_argument_t *argument 
+				= obstack_alloc(&env->obst, sizeof(argument[0]));
+			memset(argument, 0, sizeof(argument[0]));
+
+			argument->expression = parse_expression(env);
+			if(last_argument == NULL) {
+				call->arguments = argument;
+			} else {
+				last_argument->next = argument;
+			}
+			last_argument = argument;
+
 			if(env->token.type != ',')
 				break;
-
 			next_token(env);
-		} while(1);
+		}
 	}
 	expect(env, ')');
 
@@ -712,10 +730,19 @@ statement_t *parse_block(parser_env_t *env)
 }
 
 static
-void parse_parameter_declaration(parser_env_t *env)
+void parse_parameter_declaration(parser_env_t *env,
+                                 method_parameter_type_t **parameter_types,
+                                 method_parameter_t **parameters)
 {
 	if(env->token.type == ')')
 		return;
+
+	method_parameter_type_t *last_type = NULL;
+	method_parameter_t      *last_param = NULL;
+	if(parameter_types != NULL)
+		*parameter_types = NULL;
+	if(parameters != NULL)
+		*parameters = NULL;
 
 	while(1) {
 		type_t *type;
@@ -732,12 +759,44 @@ void parse_parameter_declaration(parser_env_t *env)
 		case T_IDENTIFIER:
 			type = parse_type(env);
 
+			if(parameter_types != NULL) {
+				method_parameter_type_t *param_type 
+					= obstack_alloc(&env->obst, sizeof(param_type[0]));
+				memset(param_type, 0, sizeof(param_type[0]));
+				param_type->type = type;
+
+				if(last_type != NULL) {
+					last_type->next = param_type;
+				} else {
+					*parameter_types = param_type;
+				}
+				last_type = param_type;
+			}
+
+			symbol_t *symbol = NULL;
 			if(env->token.type == T_IDENTIFIER) {
-				/* parameter name... */
+				symbol = env->token.symbol;
 				next_token(env);
 			}
+
+			if(parameters != NULL) {
+				method_parameter_t *method_param
+					= obstack_alloc(&env->obst, sizeof(method_param[0]));
+				memset(method_param, 0, sizeof(method_param[0]));
+				method_param->symbol = symbol;
+				method_param->type   = type;
+
+				if(last_param != NULL) {
+					last_param->next = method_param;
+				} else {
+					*parameters = method_param;
+				}
+				last_param = method_param;
+			}
 			break;
+
 		case T_DOTDOTDOT:
+			panic("Variadic functions not implemented yet");
 			next_token(env);
 			break;
 		default:
@@ -766,6 +825,8 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 
 	/* is it a method? */
 	if(env->token.type == '(') {
+		next_token(env);
+
 		method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
 		memset(method, 0, sizeof(method[0]));
 		
@@ -779,14 +840,20 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 		method_type->type.type       = TYPE_METHOD;
 		method_type->result_type     = type;
 
+		/* parse parameters */
+		parse_parameter_declaration(env, &method_type->parameter_types,
+		                            &method->parameters);
+
 		type_t *normalized_type      = typehash_insert((type_t*) method_type);
+#if 0
+		/* Matze: for now so we don't remove the parameter names... */
 		if(normalized_type != (type_t*) method_type) {
 			obstack_free(&env->obst, method_type);
 		}
+#endif
 
 		method->type                 = (method_type_t*) normalized_type;
 
-		next_token(env);
 		expect(env, ')');
 		expect(env, '{');
 		method->statement = parse_block(env);
@@ -811,8 +878,8 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 static
 namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
-	const char *abi_style   = NULL;
-	type_t     *result_type;
+	const char              *abi_style   = NULL;
+	type_t                  *result_type;
 
 	extern_method_t *extern_method 
 		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
@@ -840,21 +907,22 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	extern_method->symbol = env->token.symbol;
 	next_token(env);
 
-	expect(env, '(');
-	parse_parameter_declaration(env);
-	expect(env, ')');
-	expect(env, ';');
-
 	method_type_t *method_type 
 		= obstack_alloc(&env->obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 
-	method_type->type.type   = TYPE_METHOD;
-	method_type->abi_style   = abi_style;
-	method_type->result_type = result_type;
+	method_type->type.type       = TYPE_METHOD;
+	method_type->abi_style       = abi_style;
+	method_type->result_type     = result_type;
+
+	expect(env, '(');
+	parse_parameter_declaration(env, &method_type->parameter_types, NULL);
+	expect(env, ')');
+	expect(env, ';');
 
 	type_t *normalized_type  = typehash_insert((type_t*) method_type);
 	if(normalized_type != (type_t*) method_type) {
+		/* remove method_type and all the parameter_type_t from obstack */
 		obstack_free(&env->obst, method_type);
 	}
 

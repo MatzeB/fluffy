@@ -14,6 +14,7 @@ typedef struct semantic_env_t           semantic_env_t;
 enum environment_entry_type_t {
 	ENTRY_LOCAL_VARIABLE,
 	ENTRY_GLOBAL_VARIABLE,
+	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
 	ENTRY_EXTERN_METHOD
 };
@@ -25,6 +26,7 @@ struct environment_entry_t {
 	union {
 		method_t                         *method;
 		variable_t                       *global_variable;
+		method_parameter_t               *method_parameter;
 		extern_method_t                  *extern_method;
 		variable_declaration_statement_t *variable;
 	};
@@ -120,6 +122,7 @@ void check_reference_expression(semantic_env_t *env,
 {
 	variable_declaration_statement_t *variable;
 	method_t                         *method;
+	method_parameter_t               *method_parameter;
 	extern_method_t                  *extern_method;
 	variable_t                       *global_variable;
 	symbol_t                         *symbol = ref->symbol;
@@ -156,6 +159,12 @@ void check_reference_expression(semantic_env_t *env,
 		ref->global_variable     = global_variable;
 		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
 		ref->expression.datatype = global_variable->type;
+		break;
+	case ENTRY_METHOD_PARAMETER:
+		method_parameter         = entry->method_parameter;
+		ref->method_parameter    = method_parameter;
+		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
+		ref->expression.datatype = method_parameter->type;
 		break;
 	default:
 		panic("Unknown reference type encountered");
@@ -294,6 +303,31 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 
 	method_type_t *method_type = (method_type_t*) type;
 	call->expression.datatype  = method_type->result_type;
+
+	call_argument_t *argument           = call->arguments;
+	method_parameter_type_t *param_type = method_type->parameter_types;
+	while(argument != NULL) {
+		if(param_type == NULL) {
+			fprintf(stderr, "Too few arguments for method call\n");
+			env->found_errors = 1;
+			break;
+		}
+
+		expression_t *expression  = argument->expression;
+		type_t       *wanted_type = param_type->type;
+		check_expression(env, expression);
+		if(expression->datatype != wanted_type) {
+			expression = make_cast(env, expression, wanted_type);
+		}
+		argument->expression = expression;
+
+		argument   = argument->next;
+		param_type = param_type->next;
+	}
+	if(param_type != NULL) {
+		fprintf(stderr, "Too much argumentss for method call\n");
+		env->found_errors = 1;
+	}
 }
 
 static
@@ -463,6 +497,19 @@ void check_method(semantic_env_t *env, method_t *method)
 {
 	int old_top         = environment_top(env);
 	env->current_method = method;
+
+	/* push method parameters */
+	method_parameter_t *parameter = method->parameters;
+	int n = 0;
+	while(parameter != NULL) {
+		environment_entry_t *entry = environment_push(env, parameter->symbol);
+		entry->type                = ENTRY_METHOD_PARAMETER;
+		entry->method_parameter    = parameter;
+		parameter->num             = n;
+		n++;
+
+		parameter = parameter->next;
+	}
 
 	check_statement(env, method->statement);
 

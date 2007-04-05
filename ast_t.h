@@ -67,6 +67,7 @@ typedef enum {
 	EXPR_REFERENCE,
 	EXPR_REFERENCE_VARIABLE,
 	EXPR_REFERENCE_METHOD,
+	EXPR_REFERENCE_METHOD_PARAMETER,
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
@@ -96,13 +97,19 @@ struct reference_expression_t {
 		method_t                         *method;
 		extern_method_t                  *extern_method;
 		variable_t                       *global_variable;
+		method_parameter_t               *method_parameter;
 	};
 };
 
+struct call_argument_t {
+	call_argument_t *next;
+	expression_t    *expression;
+};
+
 struct call_expression_t {
-	expression_t  expression;
-	expression_t *method;
-	/* TODO arguments */
+	expression_t     expression;
+	expression_t    *method;
+	call_argument_t *arguments;
 };
 
 typedef enum {
@@ -188,12 +195,19 @@ struct namespace_entry_t {
 	namespace_entry_t      *next;
 };
 
+struct method_parameter_t {
+	method_parameter_t *next;
+	symbol_t           *symbol;
+	type_t             *type;
+	int                 num;
+};
+
 struct method_t {
-	namespace_entry_t  namespace_entry;
-	symbol_t          *symbol;
-	method_type_t     *type;
-	statement_t       *statement;
-	/* TODO arguments */
+	namespace_entry_t   namespace_entry;
+	symbol_t           *symbol;
+	method_type_t      *type;
+	statement_t        *statement;
+	method_parameter_t *parameters;
 
 	int                n_local_vars;
 	ir_entity         *entity;
