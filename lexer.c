@@ -113,7 +113,6 @@ void parse_number_oct(lexer_t *this, token_t *token)
 {
 	int value = 0;
 	for(;;) {
-		next_char(this);
 		if ('0' <= this->c && this->c <= '7') {
 			value = 8 * value + this->c - '0';
 		} else {
@@ -121,6 +120,7 @@ void parse_number_oct(lexer_t *this, token_t *token)
 			token->intvalue = value;
 			return;
 		}
+		next_char(this);
 	}
 }
 
