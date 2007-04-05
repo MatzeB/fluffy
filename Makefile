@@ -55,8 +55,7 @@ endif
 
 depend: $(SOURCES)
 	@echo "===> DEPEND"
-	@rm -f $@ && touch $@ && makedepend -Y -f $@ -- $(CFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
-	@(echo 'g#:#s#^#$@ build/#'; echo wq) | ed -s $@
+	@rm -f $@ && touch $@ && makedepend -p "$@ build/" -Y -f $@ -- $(CFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
 
 $(GOAL): build/adt $(OBJECTS)
 	@echo "===> LD $@"
