@@ -12,7 +12,7 @@ typedef struct int_const_t              int_const_t;
 typedef struct cast_expression_t        cast_expression_t;
 typedef struct reference_expression_t   reference_expression_t;
 typedef struct call_expression_t        call_expression_t;
-typedef struct assign_expression_t      assign_expression_t;
+typedef struct binary_expression_t      binary_expression_t;
 
 typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;

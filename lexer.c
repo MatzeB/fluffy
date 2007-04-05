@@ -231,15 +231,6 @@ token_t lexer_next_token(lexer_t *this)
 			token.type = '.';
 		}
 		return token;
-	case '!':
-		next_char(this);
-		if(this->c == '=') {
-			next_char(this);
-			token.type = T_EXCLAMATIONEQUAL;
-		} else {
-			token.type = '!';
-		}
-		return token;
 	case '/':
 		next_char(this);
 		if(this->c == '*') {
@@ -250,12 +241,42 @@ token_t lexer_next_token(lexer_t *this)
 			next_char(this);
 			skip_line_comment(this);
 			return lexer_next_token(this);
+		} else if(this->c == '=') {
+			next_char(this);
+			token.type = T_SLASHEQUAL;
+			return token;
 		}
 		token.type = this->c;
 		return token;
 	case '"':
 		next_char(this);
 		parse_string_literal(this, &token);
+		return token;
+	case '<':
+		next_char(this);
+		if(this->c == '-') {
+			next_char(this);
+			token.type = T_ASSIGN;
+			return token;
+		} else if(this->c == '=') {
+			next_char(this);
+			token.type = T_LESSEQUAL;
+			return token;
+		} else if(this->c == '<') {
+			next_char(this);
+			token.type = T_LESSLESS;
+			return token;
+		}
+		token.type = '<';
+		return token;
+	case '>':
+		next_char(this);
+		if(this->c == '=') {
+			next_char(this);
+			token.type = T_GREATEREQUAL;
+			return token;
+		}
+		token.type = '>';
 		return token;
 	case EOF:
 		token.type = T_EOF;

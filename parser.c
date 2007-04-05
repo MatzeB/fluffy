@@ -13,6 +13,7 @@
 #include "ast_t.h"
 #include "adt/obst.h"
 #include "adt/util.h"
+#include "adt/error.h"
 
 #define ABORT_ON_ERROR
 #define LOOKAHEAD	1
@@ -331,12 +332,14 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 	assert(env->token.type == '(');
 	next_token(env);
 
-	while(1) {
-		parse_expression(env);
-		if(env->token.type != ',')
-			break;
+	if(env->token.type != ')') {
+		while(1) {
+			parse_expression(env);
+			if(env->token.type != ',')
+				break;
 
-		next_token(env);
+			next_token(env);
+		} while(1);
 	}
 	expect(env, ')');
 
@@ -362,33 +365,85 @@ expression_t *parse_unary_expression(parser_env_t *env)
 }
 
 static
-expression_t *parse_multiplicative_expression(parser_env_t *env)
+binexpr_type_t get_binexpr_type(int c)
 {
-	expression_t *left = parse_unary_expression(env);
-
-	while(1) {
-		if(env->token.type == '*') {
-			next_token(env);
-			left = parse_unary_expression(env); /* TODO */
-		} else if(env->token.type == '/') {
-			next_token(env);
-			left = parse_unary_expression(env); /* TODO */
-		} else {
-			break;
-		}
+	switch(c) {
+	case '*':
+		return BINEXPR_MUL;
+	case '/':
+		return BINEXPR_DIV;
+	case '%':
+		return BINEXPR_MOD;
+	case '+':
+		return BINEXPR_ADD;
+	case '-':
+		return BINEXPR_SUB;
+	case '<':
+		return BINEXPR_LESS;
+	case '>':
+		return BINEXPR_GREATER;
+	case '=':
+		return BINEXPR_EQUAL;
+	case T_ASSIGN:
+		return BINEXPR_ASSIGN;
+	case T_SLASHEQUAL:
+		return BINEXPR_NOTEQUAL;
+	case T_LESSEQUAL:
+		return BINEXPR_LESSEQUAL;
+	case T_GREATEREQUAL:
+		return BINEXPR_GREATEREQUAL;
+	case '&':
+		return BINEXPR_AND;
+	case '|':
+		return BINEXPR_OR;
+	case '^':
+		return BINEXPR_XOR;
+	case T_LESSLESS:
+		return BINEXPR_SHIFTLEFT;
+	case T_GREATERGREATER:
+		return BINEXPR_SHIFTRIGHT;
+	default:
+		panic("Can't convert unknown operator to binexpr_type");
 	}
-
-	return left;
 }
 
 static
 unsigned get_level(int c)
 {
 	switch(c) {
-	case '*':
+	case T_ASSIGN:
+		return 2;
+
+	case '|':
 		return 10;
+
+	case '^':
+		return 11;
+
+	case '&':
+		return 12;
+
+	case '=':
+	case T_SLASHEQUAL:
+		return 13;
+
+	case '<':
+	case '>':
+	case T_LESSEQUAL:
+	case T_GREATEREQUAL:
+		return 14;
+
 	case '+':
-		return 1;
+	case '-':
+		return 15;
+
+	case '*':
+	case '/':
+	case '%':
+	case T_LESSLESS:
+	case T_GREATERGREATER:
+		return 16;
+	
 	default:
 		return 0;
 	}
@@ -397,84 +452,26 @@ unsigned get_level(int c)
 static
 expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 {
-	expression_t *left = parse_postfix_expression(env);
+	expression_t *left = parse_unary_expression(env);
 
 	while(1) {
-		unsigned op_level = get_level(env->token.type);
+		int      op       = env->token.type;
+		unsigned op_level = get_level(op);
 		if(op_level < level)
 			return left;
-
+		
+		next_token(env);
 		expression_t *right = parse_expression_prec(env, op_level + 1);
 
-		printf("Create AST node '%c'\n", env->token.type);
-		/* make ast node */
-		/* node->type = op;
-		   node->left = expression;
-		   node->right->right;
-		   expression = left; */
-		left = right;
-	}
+		binary_expression_t *binexpr 
+			= obstack_alloc(&env->obst, sizeof(binexpr[0]));
+		memset(binexpr, 0, sizeof(binexpr[0]));
+		binexpr->expression.type = EXPR_BINARY;
+		binexpr->binexpr_type    = get_binexpr_type(op);
+		binexpr->left            = left;
+		binexpr->right           = right;
 
-	return left;
-}
-
-static
-expression_t *parse_additive_expression(parser_env_t *env)
-{
-	expression_t *left = parse_multiplicative_expression(env);
-
-	while(1) {
-		if(env->token.type == '+') {
-			next_token(env);
-			left = parse_multiplicative_expression(env); /* TODO */
-		} else if(env->token.type == '-') {
-			next_token(env);
-			left = parse_multiplicative_expression(env); /* TODO */
-		} else {
-			break;
-		}
-	}
-
-	return left;
-}
-
-static
-expression_t *parse_equality_expression(parser_env_t *env)
-{
-	expression_t *left = parse_additive_expression(env);
-
-	while(1) {
-		if(env->token.type == T_EQUALEQUAL) {
-			next_token(env);
-			left = parse_additive_expression(env); /* TODO */
-		} else if(env->token.type == T_EXCLAMATIONEQUAL) {
-			next_token(env);
-			left = parse_additive_expression(env); /* TODO */
-		} else {
-			break;
-		}
-	}
-
-	return left;
-}
-
-static
-expression_t *parse_assign_expression(parser_env_t *env)
-{
-	expression_t *left = parse_equality_expression(env);
-
-	while(env->token.type == '=') {
-		next_token(env);
-
-		assign_expression_t *assign 
-			= obstack_alloc(&env->obst, sizeof(assign[0]));
-		memset(assign, 0, sizeof(assign[0]));
-		
-		assign->expression.type = EXPR_ASSIGN;
-		assign->left            = left;
-		assign->right           = parse_equality_expression(env);
-		
-		left = (expression_t*) assign;
+		left = (expression_t*) binexpr;
 	}
 
 	return left;
@@ -483,7 +480,7 @@ expression_t *parse_assign_expression(parser_env_t *env)
 static
 expression_t *parse_expression(parser_env_t *env)
 {
-	return parse_assign_expression(env);
+	return parse_expression_prec(env, 1);
 }
 
 static
@@ -510,12 +507,13 @@ statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = symbol;
 
-	assign_expression_t *assign = obstack_alloc(&env->obst, sizeof(assign[0]));
+	binary_expression_t *assign = obstack_alloc(&env->obst, sizeof(assign[0]));
 	memset(assign, 0, sizeof(assign[0]));
 
-	assign->expression.type = EXPR_ASSIGN;
-	assign->left  = (expression_t*) ref;
-	assign->right = parse_expression(env);
+	assign->expression.type = EXPR_BINARY;
+	assign->binexpr_type    = BINEXPR_ASSIGN;
+	assign->left            = (expression_t*) ref;
+	assign->right           = parse_expression(env);
 
 	expression_statement_t *expr_statement
 		= obstack_alloc(&env->obst, sizeof(expr_statement[0]));
@@ -553,7 +551,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 		next_token(env);
 
 		/* do we have an assignment expression? */
-		if(env->token.type == '=') {
+		if(env->token.type == T_ASSIGN) {
 			next_token(env);
 			statement_t *assign = parse_initial_assignment(env, decl->symbol);
 
@@ -590,11 +588,13 @@ statement_t *parse_statement(parser_env_t *env)
 	case T_return:
 		statement = parse_return_statement(env);
 		break;
+
 	case '{':
 		next_token(env);
 		statement = parse_block(env);
 		expect(env, '}');
 		return statement;
+
 	case T_unsigned:
 	case T_signed:
 	case T_byte:
@@ -603,6 +603,7 @@ statement_t *parse_statement(parser_env_t *env)
 	case T_long:
 		statement = parse_variable_declaration(env);
 		break;
+
 	case T_IDENTIFIER:
 		if(la(env, 1)->type == T_IDENTIFIER) {
 			/* must be a variable declaration */
@@ -619,6 +620,7 @@ statement_t *parse_statement(parser_env_t *env)
 		expression_statement->expression     = parse_expression(env);
 		statement = (statement_t*) expression_statement;
 		break;
+
 	default:
 		parse_error(env, "Expected statement");
 		eat_until_semi(env);
@@ -667,6 +669,9 @@ statement_t *parse_block(parser_env_t *env)
 static
 void parse_parameter_declaration(parser_env_t *env)
 {
+	if(env->token.type == ')')
+		return;
+
 	while(1) {
 		type_t *type;
 
@@ -765,7 +770,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
 	memset(extern_method, 0, sizeof(extern_method[0]));
 
-	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_FUNCTION;
+	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_METHOD;
 	extern_method->type                 = method_type;
 
 	/* skip the "extern" */
@@ -812,6 +817,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 		case T_short:
 		case T_float:
 		case T_double:
+		case T_void:
 		case T_IDENTIFIER:
 			entry = parse_method_or_var(env);
 

@@ -76,6 +76,8 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 		environment_entry_t *entry  = & env->symbol_stack[i - 1];
 		symbol_t            *symbol = entry->symbol;
 
+		printf("Pop %s\n", symbol->string);
+
 		if(entry->type == ENTRY_LOCAL_VARIABLE
 				&& entry->variable->refs == 0) {
 			fprintf(stderr, "Warning: Variable '%s' was declared but never read\n", symbol->string);
@@ -156,13 +158,9 @@ void check_reference_expression(semantic_env_t *env,
 }
 
 static
-void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
+void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
-	expression_t *right = assign->right;
-
-	check_expression(env, left);
-	check_expression(env, right);
 
 	if(left->type != EXPR_REFERENCE_VARIABLE) {
 		fprintf(stderr, "Error: Left side of assign is not an lvalue.\n");
@@ -179,12 +177,49 @@ void check_assign_expression(semantic_env_t *env, assign_expression_t *assign)
 	reference_expression_t *ref = (reference_expression_t*) left;
 	ref->variable->refs--;
 
-	/* TODO 
-	if(left->datatype != right->datatype) {
-		// need a cast on right side...
-	}
-	*/
 	assign->expression.datatype = left->datatype;
+}
+
+static
+expression_t *make_cast(semantic_env_t *env, expression_t *from,
+                        type_t *destination_type)
+{
+	assert(from->datatype != destination_type);
+
+	cast_expression_t *cast = obstack_alloc(env->obst, sizeof(cast[0]));
+	memset(cast, 0, sizeof(cast[0]));
+	cast->expression.type     = EXPR_CAST;
+	cast->expression.datatype = destination_type;
+	cast->value               = from;
+
+	return (expression_t*) cast;
+}
+
+static
+void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
+{
+	expression_t *left  = binexpr->left;
+	expression_t *right = binexpr->right;
+
+	check_expression(env, left);
+	check_expression(env, right);
+
+	type_t *exprtype;
+	if(binexpr->binexpr_type == BINEXPR_ASSIGN) {
+		check_assign_expression(env, binexpr);
+		exprtype = left->datatype;
+	} else {
+		/* TODO find out common type... */
+		exprtype = left->datatype;
+	}
+
+	if(left->datatype != exprtype) {
+		binexpr->left  = make_cast(env, left, exprtype);
+	}
+	if(right->datatype != exprtype) {
+		binexpr->right = make_cast(env, right, exprtype);
+	}
+	binexpr->expression.datatype = exprtype;
 }
 
 static
@@ -224,8 +259,8 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 	case EXPR_REFERENCE:
 		check_reference_expression(env, (reference_expression_t*) expression);
 		break;
-	case EXPR_ASSIGN:
-		check_assign_expression(env, (assign_expression_t*) expression);
+	case EXPR_BINARY:
+		check_binary_expression(env, (binary_expression_t*) expression);
 		break;
 	case EXPR_CALL:
 		check_call_expression(env, (call_expression_t*) expression);
@@ -304,8 +339,12 @@ void check_expression_statement(semantic_env_t *env,
 	if(expression->datatype == NULL)
 		return;
 
-	if(expression->type != EXPR_ASSIGN
-			&& expression->datatype->type != TYPE_VOID) {
+	int is_assign = 0;
+	if(expression->type == EXPR_BINARY && 
+			((binary_expression_t*) expression)->binexpr_type == BINEXPR_ASSIGN)
+		is_assign = 1;
+
+	if(expression->datatype->type != TYPE_VOID && !is_assign) {
 		fprintf(stderr, "Warning: result of expression is unused\n");
 		fprintf(stderr, "Note: Cast expression to void to avoid this warning\n");
 	}
@@ -355,6 +394,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	method_t            *method;
 	extern_method_t     *extern_method;
 	environment_entry_t *env_entry;
+	int old_top         = environment_top(env);
 
 	/* record namespace entries in environment */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -366,7 +406,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
 			env_entry->global_variable = variable;
 			break;
-		case NAMESPACE_ENTRY_EXTERN_FUNCTION:
+		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			extern_method       = (extern_method_t*) entry;
 			env_entry           = environment_push(env, extern_method->symbol);
 			env_entry->type     = ENTRY_EXTERN_METHOD;
@@ -398,6 +438,8 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		
 		entry = entry->next;
 	}
+
+	environment_pop_to(env, old_top);
 }
 
 int check_static_semantic(namespace_t *namespace)

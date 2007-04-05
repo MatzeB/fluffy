@@ -1,12 +1,17 @@
-#ifndef _TOKEN_T_H_
-#define _TOKEN_T_H_
+#ifndef TOKEN_T_H
+#define TOKEN_T_H
 
 #include <stdio.h>
 #include "symbol.h"
 
 typedef enum {
 	T_EQUALEQUAL = 256,
-	T_EXCLAMATIONEQUAL,
+	T_ASSIGN,
+	T_SLASHEQUAL,
+	T_LESSEQUAL,
+	T_LESSLESS,
+	T_GREATEREQUAL,
+	T_GREATERGREATER,
 	T_DOTDOT,
 	T_DOTDOTDOT,
 	T_IDENTIFIER,

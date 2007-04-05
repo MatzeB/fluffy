@@ -17,8 +17,26 @@ void print_token_type(FILE *f, token_type_t token_type)
 	case T_EQUALEQUAL:
 		fputs("'=='", f);
 		break;
-	case T_EXCLAMATIONEQUAL:
-		fputs("'!='", f);
+	case T_ASSIGN:
+		fputs("'<-'", f);
+		break;
+	case T_SLASHEQUAL:
+		fputs("'/='", f);
+		break;
+	case T_LESSEQUAL:
+		fputs("'<='", f);
+		break;
+	case T_GREATEREQUAL:
+		fputs("'>='", f);
+		break;
+	case T_GREATERGREATER:
+		fputs("'>>'", f);
+		break;
+	case T_DOTDOT:
+		fputs("'..'", f);
+		break;
+	case T_DOTDOTDOT:
+		fputs("'...'", f);
 		break;
 	case T_IDENTIFIER:
 		fprintf(f, "identifier");

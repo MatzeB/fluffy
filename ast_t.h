@@ -5,6 +5,7 @@
 #include "symbol.h"
 #include "semantic.h"
 #include "firm/tr/type.h"
+#include "firm/tr/entity.h"
 
 typedef enum {
 	TYPE_INVALID,
@@ -70,7 +71,7 @@ typedef enum {
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
-	EXPR_ASSIGN
+	EXPR_BINARY
 } expresion_type_t;
 
 struct expression_t {
@@ -105,10 +106,31 @@ struct call_expression_t {
 	/* TODO arguments */
 };
 
-struct assign_expression_t {
-	expression_t  expression;
-	expression_t *left;
-	expression_t *right;
+typedef enum {
+	BINEXPR_ADD,
+	BINEXPR_SUB,
+	BINEXPR_MUL,
+	BINEXPR_DIV,
+	BINEXPR_MOD,
+	BINEXPR_EQUAL,
+	BINEXPR_NOTEQUAL,
+	BINEXPR_LESS,
+	BINEXPR_LESSEQUAL,
+	BINEXPR_GREATER,
+	BINEXPR_GREATEREQUAL,
+	BINEXPR_AND,
+	BINEXPR_OR,
+	BINEXPR_XOR,
+	BINEXPR_SHIFTLEFT,
+	BINEXPR_SHIFTRIGHT,
+	BINEXPR_ASSIGN
+} binexpr_type_t;
+
+struct binary_expression_t {
+	expression_t    expression;
+	binexpr_type_t  binexpr_type;
+	expression_t   *left;
+	expression_t   *right;
 };
 
 typedef enum {
@@ -159,7 +181,7 @@ struct expression_statement_t {
 enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
-	NAMESPACE_ENTRY_EXTERN_FUNCTION
+	NAMESPACE_ENTRY_EXTERN_METHOD
 };
 
 struct namespace_entry_t {
@@ -175,14 +197,16 @@ struct method_t {
 	/* TODO arguments */
 
 	int                n_local_vars;
+	ir_entity         *entity;
 };
 
 struct extern_method_t {
 	namespace_entry_t  namespace_entry;
-	const char        *abi_style;
 	symbol_t          *symbol;
 	method_type_t     *type;
 	/* TODO arguments */
+
+	ir_entity         *entity;
 };
 
 struct variable_t {

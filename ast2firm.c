@@ -151,14 +151,62 @@ ir_type *get_ir_type(type_t *type)
 static inline
 ir_mode *get_ir_mode(type_t *type)
 {
-	/* TODO FIXME remove me later */
-	if(type == NULL)
-		return mode_Is;
-
 	ir_type *irtype = get_ir_type(type);
 	ir_mode *mode   = get_type_mode(irtype);
 	assert(mode != NULL);
 	return mode;
+}
+
+static
+ir_entity* get_method_entity(method_t *method)
+{
+	if(method->entity != NULL)
+		return method->entity;
+
+	method_type_t  *method_type    = method->type;
+
+	if(method_type->abi_style != NULL) {
+		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
+		        method_type->abi_style);
+	}
+
+	/* first create an entity */
+	ir_type *global_type    = get_glob_type();
+	ident   *id             = new_id_from_str(method->symbol->string);
+	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
+
+	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
+	set_entity_ld_ident(entity, id);
+	set_entity_visibility(entity, visibility_external_visible);
+
+	method->entity = entity;
+	return entity;
+}
+
+static
+ir_entity* get_extern_method_entity(extern_method_t *method)
+{
+	if(method->entity != NULL)
+		return method->entity;
+
+	method_type_t *method_type = method->type;
+
+	if(method_type->abi_style != NULL) {
+		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
+		        method_type->abi_style);
+	}
+
+	/* first create an entity */
+	ir_type *global_type    = get_glob_type();
+	ident   *id             = new_id_from_str(method->symbol->string);
+	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
+
+	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
+	set_entity_ld_ident(entity, id);
+	set_entity_visibility(entity, visibility_external_allocated);
+
+	method->entity = entity;
+	return entity;
 }
 
 static
@@ -185,7 +233,7 @@ ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
-ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
+ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 {
 	const expression_t *left  = assign->left;
 	const expression_t *right = assign->right;
@@ -204,6 +252,117 @@ ir_node *asssign_expression_to_firm(const assign_expression_t *assign)
 }
 
 static
+ir_op *binexpr_type_to_op(binexpr_type_t type)
+{
+	switch(type) {
+	case BINEXPR_ADD:
+		return op_Add;
+	case BINEXPR_SUB:
+		return op_Sub;
+	case BINEXPR_MUL:
+		return op_Mul;
+	case BINEXPR_AND:
+		return op_And;
+	case BINEXPR_OR:
+		return op_Or;
+	case BINEXPR_XOR:
+		return op_Eor;
+	case BINEXPR_SHIFTLEFT:
+		return op_Shl;
+	case BINEXPR_SHIFTRIGHT:
+		return op_Shr;
+	default:
+		return NULL;
+	}
+}
+
+static
+ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
+{
+	ir_op   *irop;
+
+	switch(binexpr->binexpr_type) {
+	case BINEXPR_ASSIGN:
+		return assign_expression_to_firm(binexpr);
+	/* TODO construct Div,Mod nodes (they need special treatment with memory
+	 * edges */
+	default:
+		irop = binexpr_type_to_op(binexpr->binexpr_type);
+		if(irop != NULL) {
+			ir_node *in[2] = {
+				expression_to_firm(binexpr->left),
+				expression_to_firm(binexpr->right)
+			};
+			ir_mode *mode  = get_ir_mode(binexpr->expression.datatype);
+			ir_node *block = get_irg_current_block(current_ir_graph);
+			ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
+			                             irop, mode, 2, in);
+			return node;
+		}
+	}
+
+	return NULL;
+}
+
+static
+ir_node *cast_expression_to_firm(const cast_expression_t *cast)
+{
+	ir_node *node      = expression_to_firm(cast->value);
+	ir_type *dest_type = get_ir_type(cast->expression.datatype);
+	ir_node *cast_node = new_Cast(node, dest_type);
+
+	return cast_node;
+}
+
+static
+ir_node *method_reference_to_firm(const reference_expression_t *ref)
+{
+	ir_entity *entity = get_method_entity(ref->method);
+	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	                                 symconst_addr_ent);
+
+	return symconst;
+}
+
+static
+ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
+{
+	ir_entity *entity = get_extern_method_entity(ref->extern_method);
+	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	                                 symconst_addr_ent);
+
+	return symconst;
+}
+
+static
+ir_node *call_expression_to_firm(const call_expression_t *call)
+{
+	ir_node       *result         = NULL;
+	expression_t  *method         = call->method;
+	assert(method->datatype->type == TYPE_METHOD);
+	method_type_t *method_type    = (method_type_t*) method->datatype;
+	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
+	
+	ir_node       *callee         = expression_to_firm(method);
+	int            n_parameters   = 0;
+
+	ir_node *store = get_store();
+	ir_node *node  = new_Call(store, callee, n_parameters, NULL,
+	                          ir_method_type);
+	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
+	set_store(mem);
+
+	type_t        *result_type    = method_type->result_type;
+	if(result_type->type != TYPE_VOID) {
+		ir_mode *mode    = get_ir_mode(result_type);
+		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
+		         result  = new_Proj(resproj, mode, 0);
+	}
+
+	return result;
+}
+
+static
 ir_node *expression_to_firm(const expression_t *expression)
 {
 	switch(expression->type) {
@@ -212,9 +371,20 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_REFERENCE_VARIABLE:
 		return variable_reference_to_firm(
 				(const reference_expression_t*) expression);
-	case EXPR_ASSIGN:
-		return asssign_expression_to_firm(
-				(const assign_expression_t*) expression);
+	case EXPR_REFERENCE_METHOD:
+		return method_reference_to_firm(
+		        (const reference_expression_t*) expression);
+	case EXPR_REFERENCE_EXTERN_METHOD:
+		return extern_method_reference_to_firm(
+		        (const reference_expression_t*) expression);
+	case EXPR_BINARY:
+		return binary_expression_to_firm(
+				(const binary_expression_t*) expression);
+	case EXPR_CAST:
+		return cast_expression_to_firm(
+				(const cast_expression_t*) expression);
+	case EXPR_CALL:
+		return call_expression_to_firm((const call_expression_t*) expression);
 	default:
 		assert(0);
 	}
@@ -279,18 +449,9 @@ void statement_to_firm(const statement_t *statement)
 }
 
 static
-void create_method(const method_t *method)
+void create_method(method_t *method)
 {
-	type_t  *method_type    = (type_t*) method->type;
-
-	/* first create an entity */
-	ir_type *global_type    = get_glob_type();
-	ident   *id             = new_id_from_str(method->symbol->string);
-	ir_type *ir_method_type = get_ir_type(method_type);
-
-	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
-	set_entity_ld_ident(entity, id);
-	set_entity_visibility(entity, visibility_external_visible);
+	ir_entity *entity = get_method_entity(method);
 
 	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
@@ -326,6 +487,8 @@ void ast2firm(namespace_t *namespace)
 			break;
 		case NAMESPACE_ENTRY_VARIABLE:
 			fprintf(stderr, "Global vars not handled yet\n");
+			break;
+		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			break;
 		default:
 			panic("Unknown namespace entry type found");
