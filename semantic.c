@@ -3,6 +3,7 @@
 #include "semantic.h"
 
 #include "ast_t.h"
+#include "type_hash.h"
 #include "adt/obst.h"
 #include "adt/array.h"
 #include "adt/error.h"
@@ -31,11 +32,13 @@ struct environment_entry_t {
 
 struct semantic_env_t {
 	struct obstack       *obst;
-	environment_entry_t  *symbol_stack;
+	struct obstack        symbol_obstack;
+	environment_entry_t **symbol_stack;
 	int                   next_valnum;
 	int                   found_errors;
 
 	method_t             *current_method;
+	type_t               *type_bool;
 };
 
 /**
@@ -45,9 +48,13 @@ struct semantic_env_t {
 static inline
 environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 {
+	environment_entry_t *entry 
+		= obstack_alloc(&env->symbol_obstack, sizeof(entry[0]));
+	memset(entry, 0, sizeof(entry[0]));
+
 	int top = ARR_LEN(env->symbol_stack);
-	ARR_RESIZE(environment_entry_t, env->symbol_stack, top + 1);
-	environment_entry_t *entry = & env->symbol_stack[top];
+	ARR_RESIZE(environment_entry_t*, env->symbol_stack, top + 1);
+	env->symbol_stack[top] = entry;
 
 	printf("Push %s\n", symbol->string);
 
@@ -64,6 +71,7 @@ environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 static inline
 void environment_pop_to(semantic_env_t *env, size_t new_top)
 {
+	environment_entry_t *entry = NULL;
 	size_t top = ARR_LEN(env->symbol_stack);
 	size_t i;
 
@@ -73,8 +81,8 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 	assert(new_top < top);
 	i = top;
 	do {
-		environment_entry_t *entry  = & env->symbol_stack[i - 1];
-		symbol_t            *symbol = entry->symbol;
+		          entry  = env->symbol_stack[i - 1];
+		symbol_t *symbol = entry->symbol;
 
 		printf("Pop %s\n", symbol->string);
 
@@ -88,6 +96,7 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 
 		--i;
 	} while(i != new_top);
+	obstack_free(&env->symbol_obstack, entry);
 
 	ARR_SHRINKLEN(env->symbol_stack, (int) new_top);
 }
@@ -196,6 +205,38 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 }
 
 static
+int is_arithmetic_op(binexpr_type_t type)
+{
+	switch(type) {
+	case BINEXPR_ADD:
+	case BINEXPR_SUB:
+	case BINEXPR_MUL:
+	case BINEXPR_DIV:
+	case BINEXPR_SHIFTLEFT:
+	case BINEXPR_SHIFTRIGHT:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static
+int is_comparison_op(binexpr_type_t type)
+{
+	switch(type) {
+	case BINEXPR_EQUAL:
+	case BINEXPR_NOTEQUAL:
+	case BINEXPR_LESS:
+	case BINEXPR_LESSEQUAL:
+	case BINEXPR_GREATER:
+	case BINEXPR_GREATEREQUAL:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static
 void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 {
 	expression_t *left  = binexpr->left;
@@ -205,12 +246,26 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 	check_expression(env, right);
 
 	type_t *exprtype;
-	if(binexpr->binexpr_type == BINEXPR_ASSIGN) {
+	type_t *lefttype, *righttype;
+	binexpr_type_t binexpr_type = binexpr->binexpr_type;
+
+	if(binexpr_type == BINEXPR_ASSIGN) {
 		check_assign_expression(env, binexpr);
-		exprtype = left->datatype;
+		exprtype  = left->datatype;
+		lefttype  = exprtype;
+		righttype = exprtype;
+	} else if(is_arithmetic_op(binexpr_type)) {
+		exprtype  = left->datatype;
+		/* TODO find out greatest common type... */
+		lefttype  = exprtype;
+		righttype = exprtype;
+	} else if(is_comparison_op(binexpr_type)) {
+		exprtype  = env->type_bool;
+		/* TODO find out greatest common type... */
+		lefttype  = left->datatype;
+		righttype = left->datatype;
 	} else {
-		/* TODO find out common type... */
-		exprtype = left->datatype;
+		abort();
 	}
 
 	if(left->datatype != exprtype) {
@@ -450,6 +505,22 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	environment_pop_to(env, old_top);
 }
 
+static
+type_t* make_bool_type(struct obstack *obst)
+{
+	atomic_type_t *booltype = obstack_alloc(obst, sizeof(booltype[0]));
+	memset(booltype, 0, sizeof(booltype[0]));
+	booltype->type.type     = TYPE_ATOMIC;
+	booltype->atype         = ATOMIC_TYPE_BOOL;
+
+	type_t *normalized_type = typehash_insert((type_t*) booltype);
+	if(normalized_type != (type_t*) booltype) {
+		obstack_free(obst, booltype);
+	}
+
+	return normalized_type;
+}
+
 int check_static_semantic(namespace_t *namespace)
 {
 	struct obstack obst;
@@ -457,9 +528,11 @@ int check_static_semantic(namespace_t *namespace)
 
 	obstack_init(&obst);
 	env.obst         = &obst;
-	env.symbol_stack = NEW_ARR_F(environment_entry_t, 0);
+	env.symbol_stack = NEW_ARR_F(environment_entry_t*, 0);
+	obstack_init(&env.symbol_obstack);
 	env.next_valnum  = 0;
 	env.found_errors = 0;
+	env.type_bool    = make_bool_type(&obst);
 
 	check_namespace(&env, namespace);
 
@@ -467,6 +540,7 @@ int check_static_semantic(namespace_t *namespace)
 
 	// TODO global obstack...
 	//obstack_free(&obst, NULL);
+	obstack_free(&env.symbol_obstack, NULL);
 
 	return !env.found_errors;
 }

@@ -1,5 +1,8 @@
 T(void)
 T(extern)
+T(bool)
+T(true)
+T(false)
 T(byte)
 T(short)
 T(int)

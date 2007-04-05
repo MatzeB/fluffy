@@ -1,6 +1,7 @@
 #include <config.h>
 
 #include <assert.h>
+#include <string.h>
 #include <firm/common/firm.h>
 #include <firm/be/be.h>
 
