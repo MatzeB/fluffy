@@ -456,6 +456,9 @@ void create_method(method_t *method)
 
 	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
+	/* we have to initialize the frame type */
+	set_type_size_bytes(get_irg_frame_type(irg), 0);
+
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
 
