@@ -1,5 +1,5 @@
-#ifndef _AST2FIRM_H_
-#define _AST2FIRM_H_
+#ifndef AST2FIRM_H
+#define AST2FIRM_H
 
 #include "ast.h"
 
@@ -9,4 +9,3 @@ void initialize_firm(void);
 void exit_firm(void);
 
 #endif
-

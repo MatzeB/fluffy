@@ -1,5 +1,5 @@
-#ifndef _KNOWN_SYMBOLS_H_
-#define _KNOWN_SYMBOLS_H_
+#ifndef KNOWN_SYMBOLS_H
+#define KNOWN_SYMBOLS_H
 
 #include "token_t.h"
 #include "symbol_table.h"
@@ -15,5 +15,3 @@ enum TokenId {
 void put_known_symbols_into_symbol_table(symbol_table_t *symbol_table);
 
 #endif
-
-	

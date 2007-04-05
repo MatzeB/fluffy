@@ -37,4 +37,3 @@ void print_token_type(FILE *out, token_type_t token_type);
 void print_token(FILE *out, const token_t *token);
 
 #endif
-

@@ -40,7 +40,7 @@ void pop_environment(environment_t *environment)
 {
 	assert(top_environment == environment);
 	assert(environment->on_stack);
-	
+
 	/* remove from environment stack */
 	top_environment = environment->up;
 	top_environment->down = NULL;

@@ -177,4 +177,3 @@ type_t *typehash_insert(type_t *type)
 {
 	return _typehash_insert(&typehash, type);
 }
-

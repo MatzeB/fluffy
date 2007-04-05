@@ -233,4 +233,3 @@ struct namespace_t {
 };
 
 #endif
-

@@ -51,7 +51,7 @@ struct semantic_env_t {
 static inline
 environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 {
-	environment_entry_t *entry 
+	environment_entry_t *entry
 		= obstack_alloc(&env->symbol_obstack, sizeof(entry[0]));
 	memset(entry, 0, sizeof(entry[0]));
 
@@ -127,7 +127,7 @@ void check_reference_expression(semantic_env_t *env,
 	variable_t                       *global_variable;
 	symbol_t                         *symbol = ref->symbol;
 	environment_entry_t              *entry  = symbol->thing;
-	
+
 	if(entry == NULL) {
 		fprintf(stderr, "Error: No known definition for '%s'\n", symbol->string);
 		env->found_errors = 1;
@@ -454,7 +454,7 @@ void check_expression_statement(semantic_env_t *env,
 		return;
 
 	int is_assign = 0;
-	if(expression->type == EXPR_BINARY && 
+	if(expression->type == EXPR_BINARY &&
 			((binary_expression_t*) expression)->binexpr_type == BINEXPR_ASSIGN)
 		is_assign = 1;
 
@@ -565,7 +565,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		default:
 			break;
 		}
-		
+
 		entry = entry->next;
 	}
 
@@ -612,4 +612,3 @@ int check_static_semantic(namespace_t *namespace)
 
 	return !env.found_errors;
 }
-

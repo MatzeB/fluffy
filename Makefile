@@ -59,7 +59,7 @@ endif
 
 $(GOAL): build/adt $(OBJECTS)
 	@echo "===> LD $@"
-	$(Q)$(CC) $(OBJECTS) $(LFLAGS) -o $(GOAL) 
+	$(Q)$(CC) $(OBJECTS) $(LFLAGS) -o $(GOAL)
 
 build/adt:
 	@echo "===> MKDIR $@"

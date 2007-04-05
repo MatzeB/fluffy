@@ -1,5 +1,5 @@
-#ifndef _SYMBOL_TABLE_T_H_
-#define _SYMBOL_TABLE_T_H_
+#ifndef SYMBOL_TABLE_T_H
+#define SYMBOL_TABLE_T_H
 
 #include "symbol_table.h"
 #include "adt/obst.h"
@@ -26,4 +26,3 @@ void symbol_table_init(symbol_table_t *symbol_table);
 void symbol_table_destroy(symbol_table_t *symbol_table);
 
 #endif
-

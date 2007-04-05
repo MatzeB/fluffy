@@ -11,7 +11,7 @@ void print_token_type(FILE *f, token_type_t token_type)
 	if(token_type >= 0 && token_type < 256) {
 		fprintf(f, "'%c'", token_type);
 		return;
-	} 
+	}
 
 	switch(token_type) {
 		case T_EQUALEQUAL:     fputs("'=='",            f); break;

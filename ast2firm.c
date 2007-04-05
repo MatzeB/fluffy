@@ -255,7 +255,7 @@ ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 	ir_mode                          *mode     = get_ir_mode(variable->type);
 
 	value_numbers[variable->value_number] = variable;
-	
+
 	return get_value(variable->value_number, mode);
 }
 
@@ -272,7 +272,7 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	value_numbers[variable->value_number] = variable;
 
 	ir_node *val = expression_to_firm(right);
-	
+
 	set_value(variable->value_number, val);
 
 	return val;
@@ -413,7 +413,7 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	assert(method->datatype->type == TYPE_METHOD);
 	method_type_t *method_type    = (method_type_t*) method->datatype;
 	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
-	
+
 	ir_node       *callee         = expression_to_firm(method);
 	int            n_parameters   = get_method_n_params(ir_method_type);
 	ir_node       *in[n_parameters];
@@ -644,4 +644,3 @@ void ast2firm(namespace_t *namespace)
 		entry = entry->next;
 	}
 }
-

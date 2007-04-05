@@ -108,7 +108,7 @@ void parse_number_hex(lexer_t *this, token_t *token)
 	}
 }
 
-static 
+static
 void parse_number_oct(lexer_t *this, token_t *token)
 {
 	int value = 0;
@@ -124,7 +124,7 @@ void parse_number_oct(lexer_t *this, token_t *token)
 	}
 }
 
-static 
+static
 void parse_number_dec(lexer_t *this, token_t *token)
 {
 	int value = 0;
@@ -415,4 +415,3 @@ void lexer_destroy(lexer_t *this)
 {
 	(void) this;
 }
-

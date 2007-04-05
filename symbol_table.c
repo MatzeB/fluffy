@@ -1,4 +1,4 @@
-#include <config.h> 
+#include <config.h>
 
 #include "symbol_table_t.h"
 #include "adt/hash_string.h"
@@ -62,4 +62,3 @@ void iter_test(symbol_table_t *this)
 		printf("Entry: '%s'\n", entry->string);
 	}
 }
-

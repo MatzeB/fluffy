@@ -345,7 +345,7 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 		call_argument_t *last_argument = NULL;
 
 		while(1) {
-			call_argument_t *argument 
+			call_argument_t *argument
 				= obstack_alloc(&env->obst, sizeof(argument[0]));
 			memset(argument, 0, sizeof(argument[0]));
 
@@ -464,7 +464,7 @@ unsigned get_level(int c)
 	case T_LESSLESS:
 	case T_GREATERGREATER:
 		return 16;
-	
+
 	default:
 		return 0;
 	}
@@ -480,11 +480,11 @@ expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 		unsigned op_level = get_level(op);
 		if(op_level < level)
 			return left;
-		
+
 		next_token(env);
 		expression_t *right = parse_expression_prec(env, op_level + 1);
 
-		binary_expression_t *binexpr 
+		binary_expression_t *binexpr
 			= obstack_alloc(&env->obst, sizeof(binexpr[0]));
 		memset(binexpr, 0, sizeof(binexpr[0]));
 		binexpr->expression.type = EXPR_BINARY;
@@ -514,7 +514,7 @@ statement_t *parse_return_statement(parser_env_t *env)
 		obstack_alloc(&env->obst, sizeof(return_statement[0]));
 	memset(return_statement, 0, sizeof(return_statement[0]));
 
-	return_statement->statement.type = STATEMENT_RETURN;	
+	return_statement->statement.type = STATEMENT_RETURN;
 	next_token(env);
 
 	if(env->token.type != ';') {
@@ -591,7 +591,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 	variable_declaration_statement_t *decl;
 
 	type_t                           *type = parse_type(env);
-	
+
 	while(1) {
 		decl = obstack_alloc(&env->obst, sizeof(decl[0]));
 		memset(decl, 0, sizeof(decl[0]));
@@ -673,7 +673,7 @@ statement_t *parse_statement(parser_env_t *env)
 			statement = parse_variable_declaration(env);
 			break;
 		}
-		
+
 		/* must be some expression starting with a variable reference */
 		expression_statement_t *expression_statement
 			= obstack_alloc(&env->obst, sizeof(expression_statement[0]));
@@ -760,7 +760,7 @@ void parse_parameter_declaration(parser_env_t *env,
 			type = parse_type(env);
 
 			if(parameter_types != NULL) {
-				method_parameter_type_t *param_type 
+				method_parameter_type_t *param_type
 					= obstack_alloc(&env->obst, sizeof(param_type[0]));
 				memset(param_type, 0, sizeof(param_type[0]));
 				param_type->type = type;
@@ -829,11 +829,11 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 
 		method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
 		memset(method, 0, sizeof(method[0]));
-		
+
 		method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 		method->symbol               = symbol;
 
-		method_type_t *method_type 
+		method_type_t *method_type
 			= obstack_alloc(&env->obst, sizeof(method_type[0]));
 		memset(method_type, 0, sizeof(method_type[0]));
 
@@ -881,7 +881,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	const char              *abi_style   = NULL;
 	type_t                  *result_type;
 
-	extern_method_t *extern_method 
+	extern_method_t *extern_method
 		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
 	memset(extern_method, 0, sizeof(extern_method[0]));
 
@@ -907,7 +907,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	extern_method->symbol = env->token.symbol;
 	next_token(env);
 
-	method_type_t *method_type 
+	method_type_t *method_type
 		= obstack_alloc(&env->obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 
@@ -1008,4 +1008,3 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	return unit;
 }
-
