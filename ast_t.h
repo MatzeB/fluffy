@@ -50,13 +50,13 @@ struct ref_type_t {
 };
 
 struct method_parameter_type_t {
-	type_t                  *type;
+	const type_t            *type;
 	method_parameter_type_t *next;
 };
 
 struct method_type_t {
 	type_t                   type;
-	type_t                  *result_type;
+	const type_t            *result_type;
 	method_parameter_type_t *parameter_types;
 	const char              *abi_style;
 };

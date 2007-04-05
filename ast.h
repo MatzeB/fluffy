@@ -1,9 +1,10 @@
-#ifndef _AST_H_
-#define _AST_H_
+#ifndef AST_H
+#define AST_H
 
 typedef struct type_t                   type_t;
 typedef struct atomic_type_t            atomic_type_t;
 typedef struct ref_type_t               ref_type_t;
+typedef struct struct_type_t            struct_type_t;
 typedef struct method_parameter_type_t  method_parameter_type_t;
 typedef struct method_type_t            method_type_t;
 
@@ -26,5 +27,8 @@ typedef struct namespace_t              namespace_t;
 typedef struct method_t                 method_t;
 typedef struct variable_t               variable_t;
 typedef struct extern_method_t          extern_method_t;
+
+extern type_t *void_type;
+extern type_t *invalid_type;
 
 #endif

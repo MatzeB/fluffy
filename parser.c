@@ -10,6 +10,7 @@
 #include "known_symbols.h"
 #include "lexer_t.h"
 #include "symbol.h"
+#include "type_hash.h"
 #include "ast_t.h"
 #include "adt/obst.h"
 #include "adt/util.h"
@@ -111,6 +112,12 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 	parser_found_error(env);
 }
 
+
+static type_t void_type_    = { TYPE_VOID, NULL };
+static type_t invalid_type_ = { TYPE_INVALID, NULL };
+type_t *void_type    = &void_type_;
+type_t *invalid_type = &invalid_type_;
+
 static
 atomic_type_type_t parse_unsigned_atomic_type(parser_env_t *env)
 {
@@ -168,24 +175,32 @@ atomic_type_type_t parse_signed_atomic_type(parser_env_t *env)
 static
 type_t *parse_atomic_type(parser_env_t *env)
 {
-	atomic_type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_ATOMIC;
+	atomic_type_type_t atype;
 
 	switch(env->token.type) {
 	case T_unsigned:
 		next_token(env);
-		type->atype = parse_unsigned_atomic_type(env);
+		atype = parse_unsigned_atomic_type(env);
 		break;
 	case T_signed:
 		next_token(env);
 		/* fallthrough */
 	default:
-		type->atype = parse_signed_atomic_type(env);
+		atype = parse_signed_atomic_type(env);
 		break;
 	}
 
-	return (type_t*) type;
+	atomic_type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_ATOMIC;
+	type->atype = atype;
+
+	type_t *result = typehash_insert((type_t*) type);
+	if(result != (type_t*) type) {
+		obstack_free(&env->obst, type);
+	}
+
+	return result;
 }
 
 static
@@ -208,18 +223,6 @@ type_t *parse_type_ref(parser_env_t *env)
 }
 
 static
-type_t *parse_void(parser_env_t *env)
-{
-	type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-
-	type->type = TYPE_VOID;
-
-	next_token(env);
-	return type;
-}
-
-static
 type_t *parse_type(parser_env_t *env)
 {
 	switch(env->token.type) {
@@ -234,13 +237,11 @@ type_t *parse_type(parser_env_t *env)
 	case T_IDENTIFIER:
 		return parse_type_ref(env);
 	case T_void:
-		return parse_void(env);	
+		next_token(env);
+		return void_type;
 	}
 
-	parse_error(env, "Couldn't parse type\n");
-	type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
-	type->type = TYPE_INVALID;
-	return type;
+	return invalid_type;
 }
 
 static
@@ -721,19 +722,25 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 
 	/* is it a method? */
 	if(env->token.type == '(') {
-		method_type_t *method_type 
-			= obstack_alloc(&env->obst, sizeof(method_type[0]));
-		memset(method_type, 0, sizeof(method_type[0]));
-
 		method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
 		memset(method, 0, sizeof(method[0]));
 		
 		method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 		method->symbol               = symbol;
-		method->type                 = method_type;
+
+		method_type_t *method_type 
+			= obstack_alloc(&env->obst, sizeof(method_type[0]));
+		memset(method_type, 0, sizeof(method_type[0]));
 
 		method_type->type.type       = TYPE_METHOD;
 		method_type->result_type     = type;
+
+		type_t *normalized_type      = typehash_insert((type_t*) method_type);
+		if(normalized_type != (type_t*) method_type) {
+			obstack_free(&env->obst, method_type);
+		}
+
+		method->type                 = (method_type_t*) normalized_type;
 
 		next_token(env);
 		expect(env, ')');
@@ -760,29 +767,25 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 static
 namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
-	method_type_t *method_type 
-		= obstack_alloc(&env->obst, sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
-
-	method_type->type.type              = TYPE_METHOD;
+	const char *abi_style   = NULL;
+	type_t     *result_type;
 
 	extern_method_t *extern_method 
 		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
 	memset(extern_method, 0, sizeof(extern_method[0]));
 
 	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_METHOD;
-	extern_method->type                 = method_type;
 
 	/* skip the "extern" */
 	assert(env->token.type == T_extern);
 	next_token(env);
 
 	if(env->token.type == T_STRING_LITERAL) {
-		method_type->abi_style = env->token.string;
+		abi_style = env->token.string;
 		next_token(env);
 	}
 
-	method_type->result_type = parse_type(env);
+	result_type = parse_type(env);
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing extern declaration",
@@ -797,6 +800,21 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	parse_parameter_declaration(env);
 	expect(env, ')');
 	expect(env, ';');
+
+	method_type_t *method_type 
+		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
+
+	method_type->type.type   = TYPE_METHOD;
+	method_type->abi_style   = abi_style;
+	method_type->result_type = result_type;
+
+	type_t *normalized_type  = typehash_insert((type_t*) method_type);
+	if(normalized_type != (type_t*) method_type) {
+		obstack_free(&env->obst, method_type);
+	}
+
+	extern_method->type = (method_type_t*) normalized_type;
 
 	return (namespace_entry_t*) extern_method;
 }
@@ -852,6 +870,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 	memset(&env, 0, sizeof(env));
 
 	obstack_init(&env.obst);
+	typehash_init();
 
 	symbol_table_init(&env.symbol_table);
 	put_known_symbols_into_symbol_table(&env.symbol_table);
@@ -866,7 +885,9 @@ namespace_t *parse(FILE *in, const char *input_name)
 	lexer_destroy(&env.lexer);
 	/* FIXME: make these global somehow
 	symbol_table_destroy(&env.symbol_table);
-	obstack_free(&env.obst, NULL); */
+	obstack_free(&env.obst, NULL);
+	typehash_destroy();
+	*/
 
 	if(env.error) {
 		fprintf(stderr, "Errors happened...\n");

@@ -17,7 +17,7 @@ void init_symbol_table_entry(symbol_t *entry, const char *string)
 #define HashSetEntry               symbol_table_hash_entry_t
 #define ValueType                  symbol_t*
 #define NullValue                  NULL
-#define DeletedValue               ((void*)-1)
+#define DeletedValue               ((symbol_t*)-1)
 #define KeyType                    const char *
 #define ConstKeyType               const char *
 #define GetKey(value)              (value)->string

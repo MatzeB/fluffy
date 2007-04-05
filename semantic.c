@@ -245,6 +245,16 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 }
 
 static
+void check_cast_expression(semantic_env_t *env, cast_expression_t *cast)
+{
+	if(cast->expression.datatype == NULL) {
+		panic("Cast expression needs a datatype!");
+	}
+
+	check_expression(env, cast->value);
+}
+
+static
 void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
@@ -252,9 +262,7 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		expression->datatype = default_int_type;
 		break;
 	case EXPR_CAST:
-		if(expression->datatype == NULL) {
-			panic("Cast expression needs a datatype!");
-		}
+		check_cast_expression(env, (cast_expression_t*) expression);
 		break;
 	case EXPR_REFERENCE:
 		check_reference_expression(env, (reference_expression_t*) expression);
