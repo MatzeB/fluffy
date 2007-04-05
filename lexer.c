@@ -148,12 +148,11 @@ void parse_number(lexer_t *this, token_t *token)
 
 	if (this->c == '0') {
 		next_char(this);
-		if (this->c == 'b') { // binary number literal
-			parse_number_bin(this, token);
-		} else if (this->c == 'x' || this->c == 'X') { // hex number literal
-			parse_number_hex(this, token);
-		} else { // octal number literal
-			parse_number_oct(this, token);
+		switch (this->c) {
+			case 'b': parse_number_bin(this, token); break;
+			case 'X':
+			case 'x': parse_number_hex(this, token); break;
+			default:  parse_number_oct(this, token); break;
 		}
 	} else {
 		parse_number_dec(this, token);
