@@ -14,54 +14,26 @@ void print_token_type(FILE *f, token_type_t token_type)
 	} 
 
 	switch(token_type) {
-	case T_EQUALEQUAL:
-		fputs("'=='", f);
-		break;
-	case T_ASSIGN:
-		fputs("'<-'", f);
-		break;
-	case T_SLASHEQUAL:
-		fputs("'/='", f);
-		break;
-	case T_LESSEQUAL:
-		fputs("'<='", f);
-		break;
-	case T_GREATEREQUAL:
-		fputs("'>='", f);
-		break;
-	case T_GREATERGREATER:
-		fputs("'>>'", f);
-		break;
-	case T_DOTDOT:
-		fputs("'..'", f);
-		break;
-	case T_DOTDOTDOT:
-		fputs("'...'", f);
-		break;
-	case T_IDENTIFIER:
-		fprintf(f, "identifier");
-		break;
-	case T_INTEGER:
-		fprintf(f, "integer number");
-		break;
-	case T_STRING_LITERAL:
-		fprintf(f, "string literal");
-		break;
-	case T_EOF:
-		fprintf(f, "end of file");
-		break;
-	case T_ERROR:
-		fprintf(f, "malformed token");
-		break;
-#define T(x)                                  \
-	case T_##x:                               \
-		fprintf(f, "'" #x "'");               \
-		break;
+		case T_EQUALEQUAL:     fputs("'=='",            f); break;
+		case T_ASSIGN:         fputs("'<-'",            f); break;
+		case T_SLASHEQUAL:     fputs("'/='",            f); break;
+		case T_LESSEQUAL:      fputs("'<='",            f); break;
+		case T_LESSLESS:       fputs("'<<'",            f); break;
+		case T_GREATEREQUAL:   fputs("'>='",            f); break;
+		case T_GREATERGREATER: fputs("'>>'",            f); break;
+		case T_DOTDOT:         fputs("'..'",            f); break;
+		case T_DOTDOTDOT:      fputs("'...'",           f); break;
+		case T_IDENTIFIER:     fputs("identifier",      f); break;
+		case T_INTEGER:        fputs("integer number",  f); break;
+		case T_STRING_LITERAL: fputs("string literal",  f); break;
+		case T_EOF:            fputs("end of file",     f); break;
+		case T_ERROR:          fputs("malformed token", f); break;
+
+#define T(x) case T_##x: fputs("'" #x "'", f); break;
 #include "known_symbols.inc"
 #undef T
-	default:
-		fprintf(f, "unknown token");
-		break;
+
+		default: fputs("unknown token", f); break;
 	}
 }
 
