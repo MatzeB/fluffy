@@ -59,8 +59,6 @@ environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 	ARR_RESIZE(environment_entry_t*, env->symbol_stack, top + 1);
 	env->symbol_stack[top] = entry;
 
-	printf("Push %s\n", symbol->string);
-
 	entry->up     = symbol->thing;
 	entry->symbol = symbol;
 	symbol->thing = entry;
@@ -86,8 +84,6 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 	do {
 		          entry  = env->symbol_stack[i - 1];
 		symbol_t *symbol = entry->symbol;
-
-		printf("Pop %s\n", symbol->string);
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
 				&& entry->variable->refs == 0) {

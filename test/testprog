@@ -6,7 +6,6 @@ extern "cdecl" int get_int();
 extern "cdecl" void print_int(int someint);
 extern void jodel();
 
-/*
 int fib(int n) {
 	if(n = 0)
 		return 0;
@@ -15,13 +14,12 @@ int fib(int n) {
 	}
 	return fib(n-1) + fib(n-2);
 }
-*/
 
 int main() {
 	int number <- get_int();
 
-	//int result <- fib(number);
-	int result <- number;
+	int result <- fib(number);
+	//int result <- number;
 
 	print_int(result);
 
