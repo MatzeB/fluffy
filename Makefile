@@ -1,25 +1,75 @@
-CFLAGS=-Wall -W -Werror -O0 -g3 -I. -DHAVE_CONFIG_H -Iinclude -Iinclude/firm/ir -Iinclude/firm/tr -Iinclude/firm/tv -Iinclude/firm/ident -Iinclude/firm/common -Iinclude/firm/ana -Iinclude/firm/ana2 -Iinclude/firm/debug -Iinclude/firm/opt -Iinclude/firm/lower -Iinclude/firm/arch -Iinclude/firm/stat
-LFLAGS=-Llib -lfirm -lcore -llpp -lm -ldl
-GOAL=mlang
-FGOAL=ftest
-SOURCES=$(wildcard *.c) $(wildcard adt/*.c)
-OBJECTS=$(addprefix build/, $(addsuffix .o, $(basename $(SOURCES))))
+GOAL = mlang
 
-.PHONY : all clean
+CFLAGS += -Wall -W -Werror -O0 -g3
+CFLAGS += -DHAVE_CONFIG_H
+CFLAGS += -I .
+CFLAGS += -I include
+CFLAGS += -I include/firm/ana
+CFLAGS += -I include/firm/ana2
+CFLAGS += -I include/firm/arch
+CFLAGS += -I include/firm/common
+CFLAGS += -I include/firm/debug
+CFLAGS += -I include/firm/ident
+CFLAGS += -I include/firm/ir
+CFLAGS += -I include/firm/lower
+CFLAGS += -I include/firm/opt
+CFLAGS += -I include/firm/stat
+CFLAGS += -I include/firm/tr
+CFLAGS += -I include/firm/tv
+
+LFLAGS = -Llib -lfirm -lcore -llpp -lm
+ifeq ($(OSTYPE), FreeBSD)
+LFLAGS += -lobstack
+else
+LFLAGS += -ldl
+endif
+
+SOURCES :=
+SOURCES += adt/hashset.c
+SOURCES += adt/pset.c
+SOURCES += adt/pset_new.c
+SOURCES += adt/strset.c
+SOURCES += adt/xmalloc.c
+SOURCES += ast.c
+SOURCES += ast2firm.c
+SOURCES += known_symbols.c
+SOURCES += lexer.c
+SOURCES += main.c
+SOURCES += parser.c
+SOURCES += semantic.c
+SOURCES += symbol_table.c
+SOURCES += token.c
+SOURCES += type_hash.c
+
+OBJECTS = $(SOURCES:%.c=build/%.o)
+
+Q = @
+
+.PHONY : all clean dirs
 
 all: $(GOAL)
 
-$(GOAL): build build/adt $(OBJECTS)
-	gcc -o $(GOAL) $(OBJECTS) $(LFLAGS)
+ifeq ($(findstring $(MAKECMDGOALS), clean depend),)
+-include depend
+endif
 
-build:
-	mkdir -p build
+depend: $(SOURCES)
+	@echo "===> DEPEND"
+	@rm -f $@ && touch $@ && makedepend -Y -f $@ -- $(CFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
+	@(echo 'g#:#s#^#$@ build/#'; echo wq) | ed -s $@
+
+$(GOAL): build/adt $(OBJECTS)
+	@echo "===> LD $@"
+	$(Q)$(CC) $(OBJECTS) $(LFLAGS) -o $(GOAL) 
 
 build/adt:
-	mkdir -p build/adt
+	@echo "===> MKDIR $@"
+	$(Q)mkdir -p $@
 
 build/%.o: %.c
-	gcc -c $(CFLAGS) -o $@ $<
+	@echo '===> CC $<'
+	$(Q)$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJECTS) $(GOAL)
+	@echo '===> CLEAN'
+	$(Q)rm -rf build $(GOAL) depend
