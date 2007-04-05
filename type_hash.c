@@ -135,7 +135,7 @@ int types_equal(const type_t *type1, const type_t *type2)
 		return method_types_equal((const method_type_t*) type1,
 		                          (const method_type_t*) type2);
 	default:
-		assert(0);
+		abort();
 	}
 }
 
