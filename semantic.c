@@ -352,7 +352,7 @@ void check_expression_statement(semantic_env_t *env,
 			((binary_expression_t*) expression)->binexpr_type == BINEXPR_ASSIGN)
 		is_assign = 1;
 
-	if(expression->datatype->type != TYPE_VOID && !is_assign) {
+	if(expression->datatype != void_type && !is_assign) {
 		fprintf(stderr, "Warning: result of expression is unused\n");
 		fprintf(stderr, "Note: Cast expression to void to avoid this warning\n");
 	}

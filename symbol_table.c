@@ -62,4 +62,4 @@ void iter_test(symbol_table_t *this)
 		printf("Entry: '%s'\n", entry->string);
 	}
 }
-	
+

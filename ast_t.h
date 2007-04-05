@@ -30,8 +30,6 @@ typedef enum {
 	ATOMIC_TYPE_ULONGLONG,
 	ATOMIC_TYPE_FLOAT,
 	ATOMIC_TYPE_DOUBLE,
-	ATOMIC_TYPE_VOID,
-	ATOMIC_TYPE_POINTER
 } atomic_type_type_t;
 
 struct type_t {
