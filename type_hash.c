@@ -34,7 +34,7 @@ static
 unsigned hash_struct_type(const struct_type_t *type)
 {
 	(void) type;
-	assert(0);
+	abort();
 }
 
 static
@@ -70,7 +70,7 @@ unsigned hash_type(const type_t *type)
 	case TYPE_METHOD:
 		return hash_method_type((const method_type_t*) type);
 	default:
-		assert(0);
+		abort();
 	}
 }
 
@@ -85,7 +85,7 @@ int struct_types_equal(const struct_type_t *type1, const struct_type_t *type2)
 {
 	(void) type1;
 	(void) type2;
-	assert(0);
+	abort();
 	return 0;
 }
 

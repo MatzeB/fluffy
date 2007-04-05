@@ -386,7 +386,7 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
 	default:
-		assert(0);
+		abort();
 	}
 	return NULL;
 }
@@ -444,7 +444,7 @@ void statement_to_firm(const statement_t *statement)
 		expression_statement_to_firm((const expression_statement_t*) statement);
 		break;
 	default:
-		assert(0);
+		abort();
 	}
 }
 
