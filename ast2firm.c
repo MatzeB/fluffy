@@ -151,6 +151,15 @@ ir_type *get_method_type(const method_type_t *method_type)
 }
 
 static
+ir_type *get_pointer_type(const pointer_type_t *type)
+{
+	ir_type *irtype = new_type_pointer(unique_id("pointer"),
+	                                   get_ir_type(type->points_to),
+	                                   mode_P_data);
+	return irtype;
+}
+
+static
 ir_type *get_ir_type(type_t *type)
 {
 	assert(type != NULL);
@@ -166,6 +175,9 @@ ir_type *get_ir_type(type_t *type)
 		break;
 	case TYPE_METHOD:
 		firm_type = get_method_type((const method_type_t*) type);
+		break;
+	case TYPE_POINTER:
+		firm_type = get_pointer_type((const pointer_type_t*) type);
 		break;
 	default:
 		panic("unknown type");
@@ -367,10 +379,10 @@ static
 ir_node *cast_expression_to_firm(const cast_expression_t *cast)
 {
 	ir_node *node      = expression_to_firm(cast->value);
-	ir_type *dest_type = get_ir_type(cast->expression.datatype);
-	ir_node *cast_node = new_Cast(node, dest_type);
+	ir_mode *mode      = get_ir_mode(cast->expression.datatype);
+	ir_node *conv_node = new_Conv(node, mode);
 
-	return cast_node;
+	return conv_node;
 }
 
 static
@@ -602,14 +614,22 @@ void create_method(method_t *method)
 
 	statement_to_firm(method->statement);
 
+	/* no return statement seen yet? */
+	ir_node *end_block     = get_irg_end_block(irg);
+	if(get_irg_current_block(irg) != NULL) {
+		ir_node *ret = new_Return(get_store(), 0, NULL);
+		add_immBlock_pred(end_block, ret);
+	}
+
 	mature_immBlock(firstblock);
-	mature_immBlock(get_irg_end_block(irg));
+	mature_immBlock(end_block);
 
 	irg_finalize_cons(irg);
 
 	ir_type *frame_type = get_irg_frame_type(irg);
-	set_type_size_bytes(frame_type, 4);
-	set_type_state(get_irg_frame_type(irg), layout_fixed);
+	set_type_size_bytes(frame_type, 0);
+	set_type_alignment_bytes(frame_type, 4);
+	set_type_state(frame_type, layout_fixed);
 
 	irg_vrfy(irg);
 
@@ -641,6 +661,7 @@ void ast2firm(namespace_t *namespace)
 		case NAMESPACE_ENTRY_VARIABLE:
 			fprintf(stderr, "Global vars not handled yet\n");
 			break;
+		case NAMESPACE_ENTRY_STRUCT:
 		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			break;
 		default:

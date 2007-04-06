@@ -31,6 +31,12 @@ unsigned hash_atomic_type(const atomic_type_t *type)
 }
 
 static
+unsigned hash_pointer_type(const pointer_type_t *type)
+{
+	return hash_ptr(type->points_to);
+}
+
+static
 unsigned hash_struct_type(const struct_type_t *type)
 {
 	(void) type;
@@ -69,6 +75,8 @@ unsigned hash_type(const type_t *type)
 		return hash_struct_type((const struct_type_t*) type);
 	case TYPE_METHOD:
 		return hash_method_type((const method_type_t*) type);
+	case TYPE_POINTER:
+		return hash_pointer_type((const pointer_type_t*) type);
 	default:
 		abort();
 	}
@@ -113,6 +121,13 @@ int method_types_equal(const method_type_t *type1, const method_type_t *type2)
 }
 
 static
+int pointer_types_equal(const pointer_type_t *type1,
+                        const pointer_type_t *type2)
+{
+	return type1->points_to == type2->points_to;
+}
+
+static
 int types_equal(const type_t *type1, const type_t *type2)
 {
 	if(type1 == type2)
@@ -134,6 +149,9 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_METHOD:
 		return method_types_equal((const method_type_t*) type1,
 		                          (const method_type_t*) type2);
+	case TYPE_POINTER:
+		return pointer_types_equal((const pointer_type_t*) type1,
+		                           (const pointer_type_t*) type2);
 	default:
 		abort();
 	}

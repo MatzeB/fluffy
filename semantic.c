@@ -16,6 +16,7 @@ enum environment_entry_type_t {
 	ENTRY_GLOBAL_VARIABLE,
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
+	ENTRY_STRUCT,
 	ENTRY_EXTERN_METHOD
 };
 
@@ -28,6 +29,7 @@ struct environment_entry_t {
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
 		extern_method_t                  *extern_method;
+		struct_t                         *the_struct;
 		variable_declaration_statement_t *variable;
 	};
 };
@@ -40,6 +42,7 @@ struct semantic_env_t {
 	int                   found_errors;
 
 	method_t             *current_method;
+	int                   last_statement_was_return;
 	type_t               *type_bool;
 	type_t               *type_int;
 };
@@ -178,8 +181,9 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 		env->found_errors = 1;
 		return;
 	}
-	if(left->datatype->type != TYPE_ATOMIC) {
-		fprintf(stderr, "NIY: Only primitive types in assignments supported at the moment\n");
+	if(left->datatype->type != TYPE_ATOMIC &&
+			left->datatype->type != TYPE_POINTER) {
+		fprintf(stderr, "NIY: Only primitive and pointer types in assignments supported at the moment\n");
 		env->found_errors = 1;
 		return;
 	}
@@ -369,22 +373,36 @@ void check_statement(semantic_env_t *env, statement_t *statement);
 static
 void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 {
-	if(statement->return_value != NULL) {
-		check_expression(env, statement->return_value);
+	method_t     *method             = env->current_method;
+	type_t       *method_result_type = method->type->result_type;
+	expression_t *return_value       = statement->return_value;
 
-#if 0
-		ir_type *func_return_type = /* TODO */
-		if(statement->return_value->datatype != func_return_type) {
-			/* test if cast is possible... */
+	env->last_statement_was_return = 1;
 
-			cast_expression_t *cast = obstack_alloc(&env->obst, sizeof(cast[0]);
-			memset(cast, 0, sizeof(cast[0]));
-			cast->expression.type = EXPR_CAST;
-			cast->expression.datatype = func_return_type;
-			cast->value = statement->return_value);
-			statement->return_value = cast;
+	if(return_value != NULL) {
+		check_expression(env, return_value);
+		if(method_result_type == void_type
+				&& return_value->datatype != void_type) {
+			fprintf(stderr, "Error: return with value in void method '%s'\n",
+			        method->symbol->string);
+			env->found_errors = 1;
+			return;
 		}
-#endif
+
+		/* do we need a cast ?*/
+		if(return_value->datatype != method_result_type) {
+			return_value
+				= make_cast(env, return_value, method_result_type);
+
+			statement->return_value = return_value;
+		}
+	} else {
+		if(method_result_type != void_type) {
+			fprintf(stderr, "Error: missing return value in method '%s'\n",
+			        method->symbol->string);
+			env->found_errors = 1;
+			return;
+		}
 	}
 }
 
@@ -413,6 +431,7 @@ void check_block_statement(semantic_env_t *env, block_statement_t *block)
 	statement_t *statement = block->first_statement;
 	while(statement != NULL) {
 		check_statement(env, statement);
+
 		statement = statement->next;
 	}
 
@@ -463,6 +482,7 @@ void check_expression_statement(semantic_env_t *env,
 static
 void check_statement(semantic_env_t *env, statement_t *statement)
 {
+	env->last_statement_was_return = 0;
 	switch(statement->type) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
@@ -509,6 +529,16 @@ void check_method(semantic_env_t *env, method_t *method)
 
 	check_statement(env, method->statement);
 
+	if(!env->last_statement_was_return) {
+		type_t *result_type = method->type->result_type;
+		if(result_type != void_type) {
+			fprintf(stderr, "Error: Missing return statement at end of '%s'\n",
+			        method->symbol->string);
+			env->found_errors = 1;
+			return;
+		}
+	}
+
 	env->current_method = NULL;
 	environment_pop_to(env, old_top);
 }
@@ -520,6 +550,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	method_t            *method;
 	extern_method_t     *extern_method;
 	environment_entry_t *env_entry;
+	struct_t            *the_struct;
 	int old_top         = environment_top(env);
 
 	/* record namespace entries in environment */
@@ -543,6 +574,12 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry           = environment_push(env, method->symbol);
 			env_entry->type     = ENTRY_METHOD;
 			env_entry->method   = method;
+			break;
+		case NAMESPACE_ENTRY_STRUCT:
+			the_struct            = (struct_t*) entry;
+			env_entry             = environment_push(env, the_struct->symbol);
+			env_entry->type       = ENTRY_STRUCT;
+			env_entry->the_struct = the_struct;
 			break;
 		default:
 			panic("Unknown thing in namespace");

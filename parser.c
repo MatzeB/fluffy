@@ -173,9 +173,15 @@ atomic_type_type_t parse_signed_atomic_type(parser_env_t *env)
 	case T_int:
 		next_token(env);
 		return ATOMIC_TYPE_INT;
+	case T_float:
+		next_token(env);
+		return ATOMIC_TYPE_FLOAT;
+	case T_double:
+		next_token(env);
+		return ATOMIC_TYPE_DOUBLE;
 	default:
 		parse_error_expected(env, "couldn't parse type",
-				T_byte, T_short, T_int, T_long, 0);
+				T_byte, T_short, T_int, T_long, T_float, T_double, 0);
 		return ATOMIC_TYPE_INVALID;
 	}
 }
@@ -233,6 +239,8 @@ type_t *parse_type_ref(parser_env_t *env)
 static
 type_t *parse_type(parser_env_t *env)
 {
+	type_t *type;
+
 	switch(env->token.type) {
 	case T_unsigned:
 	case T_signed:
@@ -241,15 +249,35 @@ type_t *parse_type(parser_env_t *env)
 	case T_short:
 	case T_float:
 	case T_double:
-		return parse_atomic_type(env);
+		type = parse_atomic_type(env);
+		break;
 	case T_IDENTIFIER:
-		return parse_type_ref(env);
+		type = parse_type_ref(env);
+		break;
 	case T_void:
+		type = void_type;
 		next_token(env);
-		return void_type;
+		break;
+	default:
+		parse_error(env, "Invalid type");
+		type = invalid_type;
+		break;
 	}
 
-	return invalid_type;
+	while(env->token.type == '*') {
+		next_token(env);
+
+		pointer_type_t *pointer_type 
+			= obstack_alloc(&env->obst, sizeof(pointer_type[0]));
+		memset(pointer_type, 0, sizeof(pointer_type[0]));
+
+		pointer_type->type.type = TYPE_POINTER;
+		pointer_type->points_to = type;
+
+		type = (type_t*) pointer_type;
+	}
+
+	return type;
 }
 
 static
@@ -932,6 +960,62 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 }
 
 static
+namespace_entry_t *parse_struct(parser_env_t *env)
+{
+	struct_t *struct_ = obstack_alloc(&env->obst, sizeof(struct_[0]));
+	memset(struct_, 0, sizeof(struct_[0]));
+
+	assert(env->token.type == T_struct);
+	next_token(env);
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing struct",
+		                     T_IDENTIFIER, 0);
+		eat_until_semi(env);
+		return NULL;
+	}
+	next_token(env);
+
+	struct_->namespace_entry.type = NAMESPACE_ENTRY_STRUCT;
+	struct_->symbol               = env->token.symbol;
+
+	expect(env, '{');
+
+	struct_type_t *struct_type 
+		= obstack_alloc(&env->obst, sizeof(struct_type[0]));
+	memset(struct_type, 0, sizeof(struct_type[0]));
+
+	struct_type->type.type     = TYPE_STRUCT;
+	struct_entry_t *last_entry = NULL;
+	while(env->token.type != '}') {
+		struct_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
+		memset(entry, 0, sizeof(entry[0]));
+
+		entry->type = parse_type(env);
+		if(env->token.type != T_IDENTIFIER) {
+			parse_error_expected(env, "Problem while parsing struct entry",
+			                     T_IDENTIFIER, 0);
+			return NULL;
+		}
+		entry->symbol = env->token.symbol;
+		next_token(env);
+
+		if(last_entry == NULL) {
+			struct_type->entries = entry;
+		} else {
+			last_entry->next     = entry;
+		}
+		last_entry = entry;
+
+		expect(env, ';');
+	}
+
+	expect(env, '}');
+
+	return (namespace_entry_t*) struct_;
+}
+
+static
 namespace_t *parse_namespace(parser_env_t *env)
 {
 	namespace_entry_t *entry;
@@ -950,28 +1034,33 @@ namespace_t *parse_namespace(parser_env_t *env)
 		case T_void:
 		case T_IDENTIFIER:
 			entry = parse_method_or_var(env);
+			break;
 
-			if(entry != NULL) {
-				entry->next = namespace->first_entry;
-				namespace->first_entry = entry;
-			}
-			continue;
 		case T_extern:
 			entry = parse_extern_method(env);
-			if(entry != NULL) {
-				entry->next = namespace->first_entry;
-				namespace->first_entry = entry;
-			}
-			continue;
-		case ';':
 			break;
+
+		case T_struct:
+			entry = parse_struct(env);
+			break;
+
+		case ';':
+			next_token(env);
+			break;
+
 		case T_EOF:
 			return namespace;
+
 		default:
 			parse_error(env, "Couldn't parse compilation unit entry");
+			next_token(env);
 			break;
 		}
-		next_token(env);
+
+		if(entry != NULL) {
+			entry->next = namespace->first_entry;
+			namespace->first_entry = entry;
+		}
 	}
 }
 

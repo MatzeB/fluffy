@@ -13,6 +13,7 @@ typedef enum {
 	TYPE_ATOMIC,
 	TYPE_STRUCT,
 	TYPE_METHOD,
+	TYPE_POINTER,
 	TYPE_REF
 } type_type_t;
 
@@ -43,6 +44,11 @@ struct atomic_type_t {
 	atomic_type_type_t  atype;
 };
 
+struct pointer_type_t {
+	type_t   type;
+	type_t  *points_to;
+};
+
 struct ref_type_t {
 	type_t    type;
 	symbol_t *symbol;
@@ -58,6 +64,17 @@ struct method_type_t {
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
 	const char              *abi_style;
+};
+
+struct struct_entry_t {
+	type_t         *type;
+	symbol_t       *symbol;
+	struct_entry_t *next;
+};
+
+struct struct_type_t {
+	type_t          type;
+	struct_entry_t *entries;
 };
 
 typedef enum {
@@ -187,7 +204,8 @@ struct expression_statement_t {
 enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
-	NAMESPACE_ENTRY_EXTERN_METHOD
+	NAMESPACE_ENTRY_EXTERN_METHOD,
+	NAMESPACE_ENTRY_STRUCT
 };
 
 struct namespace_entry_t {
@@ -226,6 +244,12 @@ struct variable_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
 	type_t            *type;
+};
+
+struct struct_t {
+	namespace_entry_t  namespace_entry;
+	symbol_t          *symbol;
+	struct_type_t     *type;
 };
 
 struct namespace_t {
