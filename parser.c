@@ -274,12 +274,7 @@ type_t *parse_type(parser_env_t *env)
 		pointer_type->type.type = TYPE_POINTER;
 		pointer_type->points_to = type;
 
-		type_t *normalized_type = typehash_insert((type_t*) pointer_type);
-		if(normalized_type != (type_t*) pointer_type) {
-			obstack_free(&env->obst, pointer_type);
-		}
-
-		type = normalized_type;
+		type = (type_t*) pointer_type;
 	}
 
 	return type;
@@ -622,8 +617,15 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 	statement_t                      *first_statement = NULL;
 	statement_t                      *last_statement  = NULL;
 	variable_declaration_statement_t *decl;
+	type_t                           *type            = NULL;
 
-	type_t                           *type = parse_type(env);
+	assert(env->token.type == T_def);
+	next_token(env);
+
+	if(env->token.type == '<') {
+		type = parse_type(env);
+		expect(env, '>');
+	}
 
 	while(1) {
 		decl = obstack_alloc(&env->obst, sizeof(decl[0]));
@@ -664,7 +666,22 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 		}
 	}
 
+	expect(env, ';');
 	return first_statement;
+}
+
+static
+statement_t *parse_expression_statement(parser_env_t *env)
+{
+	expression_statement_t *expression_statement
+		= obstack_alloc(&env->obst, sizeof(expression_statement[0]));
+	memset(expression_statement, 0, sizeof(expression_statement[0]));
+
+	expression_statement->statement.type = STATEMENT_EXPRESSION;
+	expression_statement->expression     = parse_expression(env);
+	expect(env, ';');
+
+	return (statement_t*) expression_statement;
 }
 
 static
@@ -685,46 +702,16 @@ statement_t *parse_statement(parser_env_t *env)
 		break;
 
 	case '{':
-		next_token(env);
 		statement = parse_block(env);
-		expect(env, '}');
-		return statement;
-
-	case T_unsigned:
-	case T_signed:
-	case T_byte:
-	case T_short:
-	case T_int:
-	case T_long:
-		statement = parse_variable_declaration(env);
-		expect(env, ';');
 		break;
 
-	case T_IDENTIFIER:
-		if(la(env, 1)->type == T_IDENTIFIER) {
-			/* must be a variable declaration */
-			statement = parse_variable_declaration(env);
-			break;
-		}
-
-		/* must be some expression starting with a variable reference */
-		expression_statement_t *expression_statement
-			= obstack_alloc(&env->obst, sizeof(expression_statement[0]));
-		memset(expression_statement, 0, sizeof(expression_statement[0]));
-
-		expression_statement->statement.type = STATEMENT_EXPRESSION;
-		expression_statement->expression     = parse_expression(env);
-		statement = (statement_t*) expression_statement;
-		expect(env, ';');
+	case T_def:
+		statement = parse_variable_declaration(env);
 		break;
 
 	default:
-		parse_error(env, "Expected statement");
-		eat_until_semi(env);
-		statement = obstack_alloc(&env->obst, sizeof(statement[0]));
-		memset(statement, 0, sizeof(statement[0]));
-		statement->type = STATEMENT_INVALID;
-		return statement;
+		statement = parse_expression_statement(env);
+		break;
 	}
 
 	return statement;
@@ -736,8 +723,10 @@ statement_t *parse_block(parser_env_t *env)
 	statement_t       *last = NULL;
 	block_statement_t *block = obstack_alloc(&env->obst, sizeof(block[0]));
 	memset(block, 0, sizeof(block[0]));
-
 	block->statement.type = STATEMENT_BLOCK;
+
+	assert(env->token.type == '{');
+	next_token(env);
 
 	while(env->token.type != '}') {
 		/* eat the empty statement */
@@ -758,6 +747,8 @@ statement_t *parse_block(parser_env_t *env)
 		while(last->next != NULL)
 			last = last->next;
 	}
+
+	expect(env, '}');
 
 	return (statement_t*) block;
 }
@@ -870,27 +861,22 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 			= obstack_alloc(&env->obst, sizeof(method_type[0]));
 		memset(method_type, 0, sizeof(method_type[0]));
 
-		method_type->type.type       = TYPE_METHOD;
-		method_type->result_type     = type;
+		method_type->type.type   = TYPE_METHOD;
+		method_type->result_type = type;
 
 		/* parse parameters */
 		parse_parameter_declaration(env, &method_type->parameter_types,
 		                            &method->parameters);
 
-		type_t *normalized_type      = typehash_insert((type_t*) method_type);
-#if 0
-		/* Matze: for now so we don't remove the parameter names... */
-		if(normalized_type != (type_t*) method_type) {
-			obstack_free(&env->obst, method_type);
-		}
-#endif
-
-		method->type                 = (method_type_t*) normalized_type;
+		method->type = method_type;
 
 		expect(env, ')');
-		expect(env, '{');
+		if(env->token.type != '{') {
+			parse_error_expected(env, "Problem while parsing method", '{', 0);
+			eat_until_semi(env);
+			return NULL;
+		}
 		method->statement = parse_block(env);
-		expect(env, '}');
 
 		return (namespace_entry_t*) method;
 	} else {
@@ -953,13 +939,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	expect(env, ')');
 	expect(env, ';');
 
-	type_t *normalized_type  = typehash_insert((type_t*) method_type);
-	if(normalized_type != (type_t*) method_type) {
-		/* remove method_type and all the parameter_type_t from obstack */
-		obstack_free(&env->obst, method_type);
-	}
-
-	extern_method->type = (method_type_t*) normalized_type;
+	extern_method->type = method_type;
 
 	return (namespace_entry_t*) extern_method;
 }
@@ -990,6 +970,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	memset(struct_type, 0, sizeof(struct_type[0]));
 
 	struct_type->type.type     = TYPE_STRUCT;
+	struct_type->symbol        = struct_->symbol;
 	struct_entry_t *last_entry = NULL;
 	while(env->token.type != '}') {
 		struct_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
@@ -1015,6 +996,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	}
 
 	expect(env, '}');
+	struct_->type = struct_type;
 
 	return (namespace_entry_t*) struct_;
 }

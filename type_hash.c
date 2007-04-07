@@ -39,8 +39,16 @@ unsigned hash_pointer_type(const pointer_type_t *type)
 static
 unsigned hash_struct_type(const struct_type_t *type)
 {
-	(void) type;
-	abort();
+	unsigned result = hash_ptr(type->symbol);
+
+	struct_entry_t *entry = type->entries;
+	while(entry != NULL) {
+		result ^= hash_ptr(entry->type);
+
+		entry = entry->next;
+	}
+
+	return result;
 }
 
 static
@@ -91,10 +99,22 @@ int atomic_types_equal(const atomic_type_t *type1, const atomic_type_t *type2)
 static
 int struct_types_equal(const struct_type_t *type1, const struct_type_t *type2)
 {
-	(void) type1;
-	(void) type2;
-	abort();
-	return 0;
+	if(type1->symbol != type2->symbol)
+		return 0;
+
+	struct_entry_t *entry1 = type1->entries;
+	struct_entry_t *entry2 = type2->entries;
+
+	while(entry1 != NULL && entry2 != NULL) {
+		if(entry1->type != entry2->type)
+			return 0;
+		entry1 = entry1->next;
+		entry2 = entry2->next;
+	}
+	if(entry1 != NULL || entry2 != NULL)
+		return 0;
+
+	return 1;
 }
 
 static

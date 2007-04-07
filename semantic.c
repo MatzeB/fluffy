@@ -16,7 +16,7 @@ enum environment_entry_type_t {
 	ENTRY_GLOBAL_VARIABLE,
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
-	ENTRY_STRUCT,
+	ENTRY_TYPE,
 	ENTRY_EXTERN_METHOD
 };
 
@@ -29,7 +29,7 @@ struct environment_entry_t {
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
 		extern_method_t                  *extern_method;
-		struct_t                         *the_struct;
+		type_t                           *stored_type;
 		variable_declaration_statement_t *variable;
 	};
 };
@@ -112,63 +112,90 @@ size_t environment_top(semantic_env_t *env)
 	return ARR_LEN(env->symbol_stack);
 }
 
-#if 0
+static
+type_t *normalize_type(semantic_env_t *env, type_t *type);
+
 static
 type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
 {
-	environment_entry_t *entry = type_ref->symbol->thing;
+	environment_entry_t *entry    = type_ref->symbol->thing;
 	if(entry == NULL) {
 		fprintf(stderr, "Error: Can't resolve type: Symbol '%s' is "
 				"unknown\n", type_ref->symbol->string);
 		env->found_errors = 1;
-		return 0;
+		return NULL;
 	}
-	if(entry->type != ENTRY_STRUCT) {
+	if(entry->type != ENTRY_TYPE) {
 		fprintf(stderr, "Error: Symbol '%s' is not a type\n",
 				type_ref->symbol->string);
 		env->found_errors = 1;
-		return 0;
+		return NULL;
 	}
-	type_t *referenced_type = (type_t*) entry->the_struct->type;
 
-	return referenced_type;
+	return entry->stored_type;
 }
 
 static
-int normalize_type(semantic_env_t *env, type_t **type_ptr)
+type_t *normalize_pointer_type(semantic_env_t *env, pointer_type_t *type)
 {
-	type_t *type = *type_ptr;
+	type->points_to = normalize_type(env, type->points_to);
 
+	return typehash_insert((type_t*) type);
+}
+
+static
+type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
+{
+	method_type->result_type = normalize_type(env, method_type->result_type);
+
+	method_parameter_type_t *parameter = method_type->parameter_types;
+	while(parameter != NULL) {
+		parameter->type = normalize_type(env, parameter->type);
+
+		parameter = parameter->next;
+	}
+
+	return typehash_insert((type_t*) method_type);
+}
+
+static
+type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
+{
+	struct_entry_t *entry = struct_type->entries;
+	while(entry != NULL) {
+		entry->type = normalize_type(env, entry->type);
+
+		entry = entry->next;
+	}
+
+	return typehash_insert((type_t*) struct_type);
+}
+
+static
+type_t *normalize_type(semantic_env_t *env, type_t *type)
+{
 	switch(type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ATOMIC:
-		return 0;
+		return type;
 
 	case TYPE_REF:
-		*type_ptr = normalize_ref_type(env, (ref_type_t*) type);
-		return 1;
+		return normalize_ref_type(env, (ref_type_t*) type);
 
 	case TYPE_POINTER:
-		abort();
-		/* TODO */
-		return 1;
+		return normalize_pointer_type(env, (pointer_type_t*) type);
 	
 	case TYPE_METHOD:
-		abort();
-		/* TODO */
-		return 1;
+		return normalize_method_type(env, (method_type_t*) type);
 
 	case TYPE_STRUCT:
-		abort();
-		/* TODO */
-		return 1;
+		return normalize_struct_type(env, (struct_type_t*) type);
 
 	default:
 		panic("Unknown type found");
 	}
 }
-#endif
 
 static
 void check_expression(semantic_env_t *env, expression_t *expression);
@@ -223,6 +250,10 @@ void check_reference_expression(semantic_env_t *env,
 		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
 		ref->expression.datatype = method_parameter->type;
 		break;
+	case ENTRY_TYPE:
+		fprintf(stderr, "Error: Can't use type in expression\n");
+		env->found_errors = 1;
+		break;
 	default:
 		panic("Unknown reference type encountered");
 		break;
@@ -233,12 +264,25 @@ static
 void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
+	expression_t *right = assign->right;
 
 	if(left->type != EXPR_REFERENCE_VARIABLE) {
 		fprintf(stderr, "Error: Left side of assign is not an lvalue.\n");
 		env->found_errors = 1;
 		return;
 	}
+	reference_expression_t *ref = (reference_expression_t*) left;
+
+	/* do type inferencing if needed */
+	if(left->datatype == NULL) {
+		ref->variable->type = right->datatype;
+		left->datatype = right->datatype;
+		fprintf(stderr, "Type inference for '%s': ",
+		        ref->variable->symbol->string);
+		print_type(stderr, right->datatype);
+		fputs("\n", stderr);
+	}
+
 	if(left->datatype->type != TYPE_ATOMIC &&
 			left->datatype->type != TYPE_POINTER) {
 		fprintf(stderr, "NIY: Only primitive and pointer types in assignments supported at the moment\n");
@@ -246,11 +290,8 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 		return;
 	}
 
-	/* assignment is not reading the value */
-	reference_expression_t *ref = (reference_expression_t*) left;
+	/* making an assignment is not reading the value */
 	ref->variable->refs--;
-
-	assign->expression.datatype = left->datatype;
 }
 
 static
@@ -394,6 +435,7 @@ void check_cast_expression(semantic_env_t *env, cast_expression_t *cast)
 	if(cast->expression.datatype == NULL) {
 		panic("Cast expression needs a datatype!");
 	}
+	cast->expression.datatype = normalize_type(env, cast->expression.datatype);
 
 	check_expression(env, cast->value);
 }
@@ -501,8 +543,12 @@ void check_variable_declaration(semantic_env_t *env,
                                 variable_declaration_statement_t *statement)
 {
 	statement->value_number = env->next_valnum;
-	statement->refs         = 0;
 	env->next_valnum++;
+
+	statement->refs         = 0;
+	if(statement->type != NULL) {
+		statement->type = normalize_type(env, statement->type);
+	}
 
 	/* push the variable declaration on the environment stack */
 	environment_entry_t *entry = environment_push(env, statement->symbol);
@@ -580,8 +626,9 @@ void check_method(semantic_env_t *env, method_t *method)
 		entry->type                = ENTRY_METHOD_PARAMETER;
 		entry->method_parameter    = parameter;
 		parameter->num             = n;
-		n++;
+		parameter->type            = normalize_type(env, parameter->type);
 
+		n++;
 		parameter = parameter->next;
 	}
 
@@ -609,7 +656,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	extern_method_t     *extern_method;
 	environment_entry_t *env_entry;
 	struct_t            *the_struct;
-	int old_top         = environment_top(env);
+	int                  old_top        = environment_top(env);
 
 	/* record namespace entries in environment */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -634,15 +681,53 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry->method   = method;
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
-			the_struct            = (struct_t*) entry;
-			env_entry             = environment_push(env, the_struct->symbol);
-			env_entry->type       = ENTRY_STRUCT;
-			env_entry->the_struct = the_struct;
+			the_struct             = (struct_t*) entry;
+			env_entry              = environment_push(env, the_struct->symbol);
+			env_entry->type        = ENTRY_TYPE;
+			env_entry->stored_type = (type_t*) the_struct->type;
 			break;
 		default:
 			panic("Unknown thing in namespace");
 			break;
 		}
+		entry = entry->next;
+	}
+
+	/* normalize types */
+	entry = namespace->first_entry;
+	while(entry != NULL) {
+		switch(entry->type) {
+		case NAMESPACE_ENTRY_VARIABLE:
+			variable            = (variable_t*) entry;
+			env_entry           = variable->symbol->thing;
+			assert(env_entry->global_variable == variable);
+			variable->type      = normalize_type(env, variable->type);
+			break;
+		case NAMESPACE_ENTRY_EXTERN_METHOD:
+			extern_method       = (extern_method_t*) entry;
+			env_entry           = extern_method->symbol->thing;
+			assert(env_entry->extern_method == extern_method);
+			extern_method->type = (method_type_t*)
+			    normalize_type(env, (type_t*) extern_method->type);
+			break;
+		case NAMESPACE_ENTRY_METHOD:
+			method              = (method_t*) entry;
+			env_entry           = method->symbol->thing;
+			assert(env_entry->method == method);
+			method->type 
+				= (method_type_t*) normalize_type(env, (type_t*) method->type);
+			break;
+		case NAMESPACE_ENTRY_STRUCT:
+			the_struct = (struct_t*) entry;
+			env_entry  = the_struct->symbol->thing;
+			assert(env_entry->stored_type == (type_t*) the_struct->type);
+			env_entry->stored_type 
+				= normalize_type(env, env_entry->stored_type);
+			break;
+		default:
+			break;
+		}
+
 		entry = entry->next;
 	}
 

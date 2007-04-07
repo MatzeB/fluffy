@@ -75,6 +75,7 @@ struct struct_entry_t {
 struct struct_type_t {
 	type_t          type;
 	struct_entry_t *entries;
+	symbol_t       *symbol;
 };
 
 typedef enum {
@@ -235,7 +236,6 @@ struct extern_method_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
 	method_type_t     *type;
-	/* TODO arguments */
 
 	ir_entity         *entity;
 };

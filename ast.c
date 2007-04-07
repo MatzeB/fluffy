@@ -80,7 +80,7 @@ void print_type(FILE *out, const type_t *type)
 		print_atomic_type(out, (const atomic_type_t*) type);
 		break;
 	case TYPE_STRUCT:
-		abort();
+		fprintf(out, "<%s>", ((const struct_type_t*) type)->symbol->string);
 		break;
 	case TYPE_METHOD:
 		print_method_type(out, (const method_type_t*) type);
