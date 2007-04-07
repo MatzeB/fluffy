@@ -153,10 +153,10 @@ ir_type *get_method_type(const method_type_t *method_type)
 static
 ir_type *get_pointer_type(const pointer_type_t *type)
 {
-	ir_type *irtype = new_type_pointer(unique_id("pointer"),
-	                                   get_ir_type(type->points_to),
-	                                   mode_P_data);
-	return irtype;
+	type_t  *points_to = type->points_to;
+	ir_type *ir_points_to = get_ir_type(points_to);
+
+	return new_type_pointer(unique_id("pointer"), ir_points_to, mode_P_data);
 }
 
 static
@@ -178,6 +178,10 @@ ir_type *get_ir_type(type_t *type)
 		break;
 	case TYPE_POINTER:
 		firm_type = get_pointer_type((const pointer_type_t*) type);
+		break;
+	case TYPE_VOID:
+		/* there is no mode_VOID in firm, use mode_C */
+		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
 		break;
 	default:
 		panic("unknown type");

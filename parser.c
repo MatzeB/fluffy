@@ -274,7 +274,12 @@ type_t *parse_type(parser_env_t *env)
 		pointer_type->type.type = TYPE_POINTER;
 		pointer_type->points_to = type;
 
-		type = (type_t*) pointer_type;
+		type_t *normalized_type = typehash_insert((type_t*) pointer_type);
+		if(normalized_type != (type_t*) pointer_type) {
+			obstack_free(&env->obst, pointer_type);
+		}
+
+		type = normalized_type;
 	}
 
 	return type;
@@ -964,6 +969,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 {
 	struct_t *struct_ = obstack_alloc(&env->obst, sizeof(struct_[0]));
 	memset(struct_, 0, sizeof(struct_[0]));
+	struct_->namespace_entry.type = NAMESPACE_ENTRY_STRUCT;
 
 	assert(env->token.type == T_struct);
 	next_token(env);
@@ -974,10 +980,8 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 		eat_until_semi(env);
 		return NULL;
 	}
+	struct_->symbol = env->token.symbol;
 	next_token(env);
-
-	struct_->namespace_entry.type = NAMESPACE_ENTRY_STRUCT;
-	struct_->symbol               = env->token.symbol;
 
 	expect(env, '{');
 

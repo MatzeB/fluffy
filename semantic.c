@@ -112,6 +112,64 @@ size_t environment_top(semantic_env_t *env)
 	return ARR_LEN(env->symbol_stack);
 }
 
+#if 0
+static
+type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
+{
+	environment_entry_t *entry = type_ref->symbol->thing;
+	if(entry == NULL) {
+		fprintf(stderr, "Error: Can't resolve type: Symbol '%s' is "
+				"unknown\n", type_ref->symbol->string);
+		env->found_errors = 1;
+		return 0;
+	}
+	if(entry->type != ENTRY_STRUCT) {
+		fprintf(stderr, "Error: Symbol '%s' is not a type\n",
+				type_ref->symbol->string);
+		env->found_errors = 1;
+		return 0;
+	}
+	type_t *referenced_type = (type_t*) entry->the_struct->type;
+
+	return referenced_type;
+}
+
+static
+int normalize_type(semantic_env_t *env, type_t **type_ptr)
+{
+	type_t *type = *type_ptr;
+
+	switch(type->type) {
+	case TYPE_INVALID:
+	case TYPE_VOID:
+	case TYPE_ATOMIC:
+		return 0;
+
+	case TYPE_REF:
+		*type_ptr = normalize_ref_type(env, (ref_type_t*) type);
+		return 1;
+
+	case TYPE_POINTER:
+		abort();
+		/* TODO */
+		return 1;
+	
+	case TYPE_METHOD:
+		abort();
+		/* TODO */
+		return 1;
+
+	case TYPE_STRUCT:
+		abort();
+		/* TODO */
+		return 1;
+
+	default:
+		panic("Unknown type found");
+	}
+}
+#endif
+
 static
 void check_expression(semantic_env_t *env, expression_t *expression);
 

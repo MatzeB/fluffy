@@ -1,5 +1,6 @@
 extern "cdecl" int get_int();
 extern "cdecl" void print_int(int someint);
+extern "cdecl" int atoi(byte* string);
 
 int fib(int n) {
 	if(n = 0)
@@ -10,8 +11,11 @@ int fib(int n) {
 	return fib(n-1) + fib(n-2);
 }
 
-int main() {
-	int number <- get_int();
+int main(int argc, byte** argv) {
+	int number <- 10;
+	if(argc > 1)
+		number <- atoi(*(argv+1));
+
 	int result <- fib(number);
 
 	print_int(result);
