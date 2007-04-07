@@ -12,11 +12,11 @@ int fib(int n) {
 }
 
 int main(int argc, byte** argv) {
-	int number <- 10;
+	def number <- 10;
 	if(argc > 1)
-		number <- atoi(*(argv+1));
+		number <- atoi(*(argv+4));
 
-	int result <- fib(number);
+	def result <- fib(number);
 
 	print_int(result);
 

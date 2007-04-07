@@ -79,9 +79,8 @@ struct struct_type_t {
 };
 
 typedef enum {
-	EXPR_INVALID,
+	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
-	EXPR_CAST,
 	EXPR_REFERENCE,
 	EXPR_REFERENCE_VARIABLE,
 	EXPR_REFERENCE_METHOD,
@@ -89,7 +88,8 @@ typedef enum {
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
-	EXPR_BINARY
+	EXPR_BINARY,
+	EXPR_UNARY
 } expresion_type_t;
 
 struct expression_t {
@@ -100,11 +100,6 @@ struct expression_t {
 struct int_const_t {
 	expression_t  expression;
 	int           value;
-};
-
-struct cast_expression_t {
-	expression_t  expression;
-	expression_t *value;
 };
 
 struct reference_expression_t {
@@ -131,6 +126,24 @@ struct call_expression_t {
 };
 
 typedef enum {
+	UNEXPR_INVALID = 0,
+	UNEXPR_NEGATE,
+	UNEXPR_NOT,
+	UNEXPR_DEREFERENCE,
+	UNEXPR_TAKE_ADDRESS,
+	UNEXPR_INCREMENT,
+	UNEXPR_DECREMENT,
+	UNEXPR_CAST
+} unary_expression_type_t;
+
+struct unary_expression_t {
+	expression_t             expression;
+	unary_expression_type_t  type;
+	expression_t            *value;
+};
+
+typedef enum {
+	BINEXPR_INVALID = 0,
 	BINEXPR_ADD,
 	BINEXPR_SUB,
 	BINEXPR_MUL,
@@ -148,13 +161,13 @@ typedef enum {
 	BINEXPR_SHIFTLEFT,
 	BINEXPR_SHIFTRIGHT,
 	BINEXPR_ASSIGN
-} binexpr_type_t;
+} binary_expression_type_t;
 
 struct binary_expression_t {
-	expression_t    expression;
-	binexpr_type_t  binexpr_type;
-	expression_t   *left;
-	expression_t   *right;
+	expression_t              expression;
+	binary_expression_type_t  type;
+	expression_t             *left;
+	expression_t             *right;
 };
 
 typedef enum {

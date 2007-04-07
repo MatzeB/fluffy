@@ -275,6 +275,13 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 
 	/* do type inferencing if needed */
 	if(left->datatype == NULL) {
+		if(right->datatype == NULL) {
+			fprintf(stderr, "Error: Can't infer type for '%s'\n",
+			ref->variable->symbol->string);
+			env->found_errors = 1;
+			return;
+		}
+
 		ref->variable->type = right->datatype;
 		left->datatype = right->datatype;
 		fprintf(stderr, "Type inference for '%s': ",
@@ -300,9 +307,10 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 {
 	assert(from->datatype != destination_type);
 
-	cast_expression_t *cast = obstack_alloc(env->obst, sizeof(cast[0]));
+	unary_expression_t *cast = obstack_alloc(env->obst, sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
-	cast->expression.type     = EXPR_CAST;
+	cast->expression.type     = EXPR_UNARY;
+	cast->type                = UNEXPR_CAST;
 	cast->expression.datatype = destination_type;
 	cast->value               = from;
 
@@ -310,7 +318,7 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 }
 
 static
-int is_arithmetic_op(binexpr_type_t type)
+int is_arithmetic_op(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_ADD:
@@ -326,7 +334,7 @@ int is_arithmetic_op(binexpr_type_t type)
 }
 
 static
-int is_comparison_op(binexpr_type_t type)
+int is_comparison_op(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_EQUAL:
@@ -352,7 +360,7 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 
 	type_t *exprtype;
 	type_t *lefttype, *righttype;
-	binexpr_type_t binexpr_type = binexpr->binexpr_type;
+	binary_expression_type_t binexpr_type = binexpr->type;
 
 	if(binexpr_type == BINEXPR_ASSIGN) {
 		check_assign_expression(env, binexpr);
@@ -430,7 +438,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 }
 
 static
-void check_cast_expression(semantic_env_t *env, cast_expression_t *cast)
+void check_cast_expression(semantic_env_t *env, unary_expression_t *cast)
 {
 	if(cast->expression.datatype == NULL) {
 		panic("Cast expression needs a datatype!");
@@ -441,20 +449,60 @@ void check_cast_expression(semantic_env_t *env, cast_expression_t *cast)
 }
 
 static
+void check_dereference_expression(semantic_env_t *env,
+                                  unary_expression_t *dereference)
+{
+	expression_t *value = dereference->value;
+	check_expression(env, value);
+	if(value->datatype == NULL) {
+		fprintf(stderr,
+		        "Error: can't derefence expression with unknown datatype\n");
+		env->found_errors = 1;
+		return;
+	}
+	if(value->datatype->type != TYPE_POINTER) {
+		fprintf(stderr,
+		        "Can only dereference expressions with pointer type\n");
+		env->found_errors = 1;
+		return;
+	}
+	pointer_type_t *pointer_type      = (pointer_type_t*) value->datatype;
+	type_t         *dereferenced_type = pointer_type->points_to;
+	dereference->expression.datatype  = dereferenced_type;
+}
+
+static
+void check_unary_expression(semantic_env_t *env,
+                            unary_expression_t *unary_expression)
+{
+	switch(unary_expression->type) {
+	case UNEXPR_CAST:
+		check_cast_expression(env, unary_expression);
+		break;
+	case UNEXPR_DEREFERENCE:
+		check_dereference_expression(env, unary_expression);
+		break;
+	default:
+		abort();
+		break;
+	}
+}
+
+static
 void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		expression->datatype = env->type_int;
 		break;
-	case EXPR_CAST:
-		check_cast_expression(env, (cast_expression_t*) expression);
-		break;
 	case EXPR_REFERENCE:
 		check_reference_expression(env, (reference_expression_t*) expression);
 		break;
 	case EXPR_BINARY:
 		check_binary_expression(env, (binary_expression_t*) expression);
+		break;
+	case EXPR_UNARY:
+		check_unary_expression(env, (unary_expression_t*) expression);
 		break;
 	case EXPR_CALL:
 		check_call_expression(env, (call_expression_t*) expression);
@@ -574,7 +622,7 @@ void check_expression_statement(semantic_env_t *env,
 
 	int is_assign = 0;
 	if(expression->type == EXPR_BINARY &&
-			((binary_expression_t*) expression)->binexpr_type == BINEXPR_ASSIGN)
+			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN)
 		is_assign = 1;
 
 	if(expression->datatype != void_type && !is_assign) {

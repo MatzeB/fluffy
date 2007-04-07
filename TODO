@@ -1,3 +1,2 @@
 - Declaring a variable, function, etc. twice is not detected in semantic phase
-- Append missing return statement and issue warning when return type was not void
 

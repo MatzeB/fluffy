@@ -295,7 +295,7 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 }
 
 static
-ir_op *binexpr_type_to_op(binexpr_type_t type)
+ir_op *binexpr_type_to_op(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_ADD:
@@ -320,7 +320,7 @@ ir_op *binexpr_type_to_op(binexpr_type_t type)
 }
 
 static
-long binexpr_type_to_cmp_pn(binexpr_type_t type)
+long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_EQUAL:
@@ -341,11 +341,11 @@ long binexpr_type_to_cmp_pn(binexpr_type_t type)
 }
 
 static
-ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
+ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 {
-	switch(binexpr->binexpr_type) {
+	switch(binary_expression->type) {
 	case BINEXPR_ASSIGN:
-		return assign_expression_to_firm(binexpr);
+		return assign_expression_to_firm(binary_expression);
 	/* TODO construct Div,Mod nodes (they need special treatment with memory
 	 * edges */
 	default:
@@ -353,13 +353,13 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
 	}
 
 	/* an arithmetic binexpressions? */
-	ir_op *irop = binexpr_type_to_op(binexpr->binexpr_type);
+	ir_op *irop = binexpr_type_to_op(binary_expression->type);
 	if(irop != NULL) {
 		ir_node *in[2] = {
-			expression_to_firm(binexpr->left),
-			expression_to_firm(binexpr->right)
+			expression_to_firm(binary_expression->left),
+			expression_to_firm(binary_expression->right)
 		};
-		ir_mode *mode  = get_ir_mode(binexpr->expression.datatype);
+		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *block = get_irg_current_block(current_ir_graph);
 		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
 				irop, mode, 2, in);
@@ -367,10 +367,10 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
 	}
 
 	/* a comparison expression? */
-	long compare_pn = binexpr_type_to_cmp_pn(binexpr->binexpr_type);
+	long compare_pn = binexpr_type_to_cmp_pn(binary_expression->type);
 	if(compare_pn != 0) {
-		ir_node *left  = expression_to_firm(binexpr->left);
-		ir_node *right = expression_to_firm(binexpr->right);
+		ir_node *left  = expression_to_firm(binary_expression->left);
+		ir_node *right = expression_to_firm(binary_expression->right);
 		ir_node *cmp   = new_Cmp(left, right);
 		ir_node *proj  = new_Proj(cmp, mode_b, compare_pn);
 		return proj;
@@ -380,13 +380,40 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binexpr)
 }
 
 static
-ir_node *cast_expression_to_firm(const cast_expression_t *cast)
+ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
 	ir_node *node      = expression_to_firm(cast->value);
 	ir_mode *mode      = get_ir_mode(cast->expression.datatype);
 	ir_node *conv_node = new_Conv(node, mode);
 
 	return conv_node;
+}
+
+static
+ir_node *dereference_expression_to_firm(const unary_expression_t *dereference)
+{
+	ir_node *addr  = expression_to_firm(dereference->value);
+	ir_mode *mode  = get_ir_mode(dereference->expression.datatype);
+	ir_node *store = get_store();
+	ir_node *load  = new_Load(store, addr, mode);
+	ir_node *mem   = new_Proj(load, mode_M, pn_Load_M);
+	ir_node *val   = new_Proj(load, mode, pn_Load_res);
+	set_store(mem);
+
+	return val;
+}
+
+static
+ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
+{
+	switch(unary_expression->type) {
+	case UNEXPR_CAST:
+		return cast_expression_to_firm(unary_expression);
+	case UNEXPR_DEREFERENCE:
+		return dereference_expression_to_firm(unary_expression);
+	default:
+		abort();
+	}
 }
 
 static
@@ -482,9 +509,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
-	case EXPR_CAST:
-		return cast_expression_to_firm(
-				(const cast_expression_t*) expression);
+	case EXPR_UNARY:
+		return unary_expression_to_firm(
+				(const unary_expression_t*) expression);
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
 	default:

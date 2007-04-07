@@ -1,0 +1,11 @@
+
+int main()
+{
+	def blo <- 0xfffffff;
+	def na <- blo < 5;
+	def<short> jump <- blo;
+
+	/* uhoh, looks like firms tarval is currently broken and 0xffffaaaa is
+	   returned here... */
+	return jump;
+}

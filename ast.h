@@ -19,6 +19,7 @@ typedef struct reference_expression_t   reference_expression_t;
 typedef struct call_argument_t          call_argument_t;
 typedef struct call_expression_t        call_expression_t;
 typedef struct binary_expression_t      binary_expression_t;
+typedef struct unary_expression_t       unary_expression_t;
 
 typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;

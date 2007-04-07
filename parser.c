@@ -407,14 +407,55 @@ expression_t *parse_postfix_expression(parser_env_t *env)
 	return expression;
 }
 
+/**
+ * Returns an unary expression type if c is a prefix operator
+ */
 static
-expression_t *parse_unary_expression(parser_env_t *env)
+unary_expression_type_t get_unexpr_prefix_type(int c)
 {
-	return parse_postfix_expression(env);
+	switch(c) {
+	case '-':
+		return UNEXPR_NEGATE;
+	case '!':
+		return UNEXPR_NOT;
+	case '*':
+		return UNEXPR_DEREFERENCE;
+	case '&':
+		return UNEXPR_TAKE_ADDRESS;
+	default:
+		return 0;
+	}
 }
 
 static
-binexpr_type_t get_binexpr_type(int c)
+expression_t *parse_prefix_expression(parser_env_t *env)
+{
+	/* TODO: integrate this into parse_expression_prec, so that prefix
+	 * expressions can have configurable precedence too.
+	 */
+	unary_expression_type_t type = get_unexpr_prefix_type(env->token.type);
+	if(type != 0) {
+		next_token(env);
+	}
+
+	expression_t *value = parse_postfix_expression(env);
+
+	if(type != 0) {
+		unary_expression_t *unary_expression 
+			= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
+		memset(unary_expression, 0, sizeof(unary_expression[0]));
+		unary_expression->expression.type = EXPR_UNARY;
+		unary_expression->type            = type;
+		unary_expression->value           = value;
+
+		value = (expression_t*) unary_expression;	
+	}
+
+	return value;
+}
+
+static
+binary_expression_type_t get_binexpr_type(int c)
 {
 	switch(c) {
 	case '*':
@@ -501,7 +542,7 @@ unsigned get_level(int c)
 static
 expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 {
-	expression_t *left = parse_unary_expression(env);
+	expression_t *left = parse_prefix_expression(env);
 
 	while(1) {
 		int      op       = env->token.type;
@@ -516,7 +557,7 @@ expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 			= obstack_alloc(&env->obst, sizeof(binexpr[0]));
 		memset(binexpr, 0, sizeof(binexpr[0]));
 		binexpr->expression.type = EXPR_BINARY;
-		binexpr->binexpr_type    = get_binexpr_type(op);
+		binexpr->type            = get_binexpr_type(op);
 		binexpr->left            = left;
 		binexpr->right           = right;
 
@@ -597,7 +638,7 @@ statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 	memset(assign, 0, sizeof(assign[0]));
 
 	assign->expression.type = EXPR_BINARY;
-	assign->binexpr_type    = BINEXPR_ASSIGN;
+	assign->type            = BINEXPR_ASSIGN;
 	assign->left            = (expression_t*) ref;
 	assign->right           = parse_expression(env);
 
@@ -623,6 +664,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 	next_token(env);
 
 	if(env->token.type == '<') {
+		next_token(env);
 		type = parse_type(env);
 		expect(env, '>');
 	}
