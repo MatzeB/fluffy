@@ -201,6 +201,19 @@ static
 void check_expression(semantic_env_t *env, expression_t *expression);
 
 static
+void check_local_variable_type(semantic_env_t *env,
+                               variable_declaration_statement_t *declaration,
+                               type_t *type)
+{
+	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
+			&& type->type != TYPE_STRUCT) {
+		fprintf(stderr, "Only atomic or pointer types allowed for local "
+		        "variables (at variable '%s')\n", declaration->symbol->string);
+		env->found_errors = 1;
+	}
+}
+
+static
 void check_reference_expression(semantic_env_t *env,
                                 reference_expression_t *ref)
 {
@@ -266,39 +279,37 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 	expression_t *left  = assign->left;
 	expression_t *right = assign->right;
 
-	if(left->type != EXPR_REFERENCE_VARIABLE) {
+	if(left->type != EXPR_REFERENCE_VARIABLE &&
+			left->type != EXPR_SELECT) {
 		fprintf(stderr, "Error: Left side of assign is not an lvalue.\n");
 		env->found_errors = 1;
 		return;
 	}
-	reference_expression_t *ref = (reference_expression_t*) left;
+	if(left->type == EXPR_REFERENCE_VARIABLE) {
+		reference_expression_t *ref = (reference_expression_t*) left;
 
-	/* do type inferencing if needed */
-	if(left->datatype == NULL) {
-		if(right->datatype == NULL) {
-			fprintf(stderr, "Error: Can't infer type for '%s'\n",
-			ref->variable->symbol->string);
-			env->found_errors = 1;
-			return;
+		/* do type inferencing if needed */
+		if(left->datatype == NULL) {
+			if(right->datatype == NULL) {
+				fprintf(stderr, "Error: Can't infer type for '%s'\n",
+				        ref->variable->symbol->string);
+				env->found_errors = 1;
+				return;
+			}
+
+			ref->variable->type = right->datatype;
+			left->datatype = right->datatype;
+			fprintf(stderr, "Type inference for '%s': ",
+			        ref->variable->symbol->string);
+			print_type(stderr, right->datatype);
+			fputs("\n", stderr);
+
+			check_local_variable_type(env, ref->variable, right->datatype);
 		}
 
-		ref->variable->type = right->datatype;
-		left->datatype = right->datatype;
-		fprintf(stderr, "Type inference for '%s': ",
-		        ref->variable->symbol->string);
-		print_type(stderr, right->datatype);
-		fputs("\n", stderr);
+		/* making an assignment is not reading the value */
+		ref->variable->refs--;
 	}
-
-	if(left->datatype->type != TYPE_ATOMIC &&
-			left->datatype->type != TYPE_POINTER) {
-		fprintf(stderr, "NIY: Only primitive and pointer types in assignments supported at the moment\n");
-		env->found_errors = 1;
-		return;
-	}
-
-	/* making an assignment is not reading the value */
-	ref->variable->refs--;
 }
 
 static
@@ -489,6 +500,39 @@ void check_unary_expression(semantic_env_t *env,
 }
 
 static
+void check_select_expression(semantic_env_t *env, select_expression_t *select)
+{
+	expression_t *compound = select->compound;
+	check_expression(env, compound);
+
+	type_t *compound_type = compound->datatype;
+	if(compound_type->type != TYPE_STRUCT) {
+		fprintf(stderr, "Compound type in select expression is not a pointer "
+		                "to a struct\n");
+		env->found_errors = 1;
+		return;
+	}
+
+	struct_type_t  *struct_type   = (struct_type_t*) compound_type;
+	struct_entry_t *entry         = struct_type->entries;
+	symbol_t       *symbol        = select->symbol;
+	while(entry != NULL) {
+		if(entry->symbol == symbol) {
+			break;
+		}
+		entry = entry->next;
+	}
+	if(entry == NULL) {
+		fprintf(stderr, "Struct type '%s' does not contain a member '%s'\n",
+		        struct_type->symbol->string, symbol->string);
+		env->found_errors = 1;
+		return;
+	}
+	select->struct_entry        = entry;
+	select->expression.datatype = entry->type;
+}
+
+static
 void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
@@ -503,6 +547,9 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		break;
 	case EXPR_UNARY:
 		check_unary_expression(env, (unary_expression_t*) expression);
+		break;
+	case EXPR_SELECT:
+		check_select_expression(env, (select_expression_t*) expression);
 		break;
 	case EXPR_CALL:
 		check_call_expression(env, (call_expression_t*) expression);
@@ -596,6 +643,7 @@ void check_variable_declaration(semantic_env_t *env,
 	statement->refs         = 0;
 	if(statement->type != NULL) {
 		statement->type = normalize_type(env, statement->type);
+		check_local_variable_type(env, statement, statement->type);
 	}
 
 	/* push the variable declaration on the environment stack */

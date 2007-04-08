@@ -70,6 +70,8 @@ struct struct_entry_t {
 	type_t         *type;
 	symbol_t       *symbol;
 	struct_entry_t *next;
+
+	ir_entity      *entity;
 };
 
 struct struct_type_t {
@@ -89,7 +91,8 @@ typedef enum {
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
 	EXPR_BINARY,
-	EXPR_UNARY
+	EXPR_UNARY,
+	EXPR_SELECT
 } expresion_type_t;
 
 struct expression_t {
@@ -168,6 +171,14 @@ struct binary_expression_t {
 	binary_expression_type_t  type;
 	expression_t             *left;
 	expression_t             *right;
+};
+
+struct select_expression_t {
+	expression_t    expression;
+	expression_t   *compound;
+	symbol_t       *symbol;
+
+	struct_entry_t *struct_entry;
 };
 
 typedef enum {

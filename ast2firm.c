@@ -123,6 +123,18 @@ int count_parameters(const method_type_t *method_type)
 }
 
 static
+ir_type *get_struct_as_pointer_type(type_t *type)
+{
+	ir_type *ir_type = get_ir_type(type);
+
+	if(type->type == TYPE_STRUCT) {
+		ident *id = unique_id("struct_ptr");
+		ir_type = new_type_pointer(id, ir_type, mode_P_data);
+	}
+	return ir_type;
+}
+
+static
 ir_type *get_method_type(const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
@@ -133,14 +145,14 @@ ir_type *get_method_type(const method_type_t *method_type)
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
 	if(result_type->type != TYPE_VOID) {
-		ir_type *restype = get_ir_type(result_type);
+		ir_type *restype = get_struct_as_pointer_type(result_type);
 		set_method_res_type(irtype, 0, restype);
 	}
 
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	int n = 0;
 	while(param_type != NULL) {
-		ir_type *p_irtype = get_ir_type(param_type->type);
+		ir_type *p_irtype = get_struct_as_pointer_type(param_type->type);
 		set_method_param_type(irtype, n, p_irtype);
 
 		param_type = param_type->next;
@@ -151,12 +163,71 @@ ir_type *get_method_type(const method_type_t *method_type)
 }
 
 static
-ir_type *get_pointer_type(const pointer_type_t *type)
+ir_type *get_pointer_type(pointer_type_t *type)
 {
 	type_t  *points_to = type->points_to;
-	ir_type *ir_points_to = get_ir_type(points_to);
+	ir_type *ir_points_to;
+	/* Avoid endless recursion if the points_to type contains this poiner type
+	 * again (might be a struct). We therefore first create a void* pointer
+	 * and then set the real points_to type
+	 */
+	ir_type *ir_void_type = get_ir_type(void_type);
+	ir_type *ir_type      = new_type_pointer(unique_id("pointer"),
+	                                         ir_void_type, mode_P_data);
+	type->type.firm_type = ir_type;
 
-	return new_type_pointer(unique_id("pointer"), ir_points_to, mode_P_data);
+	ir_points_to = get_ir_type(points_to);
+	set_pointer_points_to_type(ir_type, ir_points_to);
+
+	return ir_type;
+}
+
+#define INVALID_TYPE ((ir_type_ptr)12)
+
+static
+ir_type *get_struct_type(struct_type_t *type)
+{
+	ir_type *ir_type = new_type_struct(unique_id(type->symbol->string));
+#ifndef NDEBUG
+	/* detect structs that contain themselfes. The semantic phase should have
+	 * already reported errors about this but you never know... */
+	type->type.firm_type = INVALID_TYPE;
+#endif
+
+	int align_all = 1;
+	int offset    = 0;
+	struct_entry_t *entry = type->entries;
+	while(entry != NULL) {
+		ident       *ident         = new_id_from_str(entry->symbol->string);
+		ir_type_ptr  entry_ir_type = get_struct_as_pointer_type(entry->type);
+
+		int entry_size      = get_type_size_bytes(entry_ir_type);
+		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
+		int misalign = offset % entry_alignment;
+		offset += misalign;
+
+		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
+		set_entity_offset(entity, offset);
+		add_struct_member(ir_type, entity);
+		entry->entity = entity;
+
+		offset += entry_size;
+		if(entry_alignment > align_all) {
+			if(entry_alignment % align_all != 0) {
+				panic("Uneven alignments not supported yet");
+			}
+			align_all = entry_alignment;
+		}
+		entry = entry->next;
+	}
+
+	int misalign = offset % align_all;
+	offset += misalign;
+	set_type_alignment_bytes(ir_type, align_all);
+	set_type_size_bytes(ir_type, offset);
+	set_type_state(ir_type, layout_fixed);
+
+	return ir_type;
 }
 
 static
@@ -165,23 +236,27 @@ ir_type *get_ir_type(type_t *type)
 	assert(type != NULL);
 
 	if(type->firm_type != NULL) {
+		assert(type->firm_type != INVALID_TYPE);
 		return type->firm_type;
 	}
 
 	ir_type *firm_type = NULL;
 	switch(type->type) {
 	case TYPE_ATOMIC:
-		firm_type = get_atomic_type((const atomic_type_t*) type);
+		firm_type = get_atomic_type((atomic_type_t*) type);
 		break;
 	case TYPE_METHOD:
-		firm_type = get_method_type((const method_type_t*) type);
+		firm_type = get_method_type((method_type_t*) type);
 		break;
 	case TYPE_POINTER:
-		firm_type = get_pointer_type((const pointer_type_t*) type);
+		firm_type = get_pointer_type((pointer_type_t*) type);
 		break;
 	case TYPE_VOID:
 		/* there is no mode_VOID in firm, use mode_C */
 		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
+		break;
+	case TYPE_STRUCT:
+		firm_type = get_struct_type((struct_type_t*) type);
 		break;
 	default:
 		panic("unknown type");
@@ -194,6 +269,9 @@ ir_type *get_ir_type(type_t *type)
 static inline
 ir_mode *get_ir_mode(type_t *type)
 {
+	if(type->type == TYPE_STRUCT) {
+		return mode_P_data;
+	}
 	ir_type *irtype = get_ir_type(type);
 	ir_mode *mode   = get_type_mode(irtype);
 	assert(mode != NULL);
@@ -276,22 +354,59 @@ ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
+ir_node *get_select_address_node(const select_expression_t *select)
+{
+	expression_t *compound_ptr      = select->compound;
+	/* make sure the firm type for the struct is constructed */
+	get_ir_type(compound_ptr->datatype);
+	ir_node      *compound_ptr_node = expression_to_firm(compound_ptr);
+	ir_node      *nomem             = new_NoMem();
+	ir_entity    *entity            = select->struct_entry->entity;
+	ir_node      *addr              = new_simpleSel(nomem, compound_ptr_node,
+	                                                entity);
+
+	return addr;
+}
+
+static
 ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 {
 	const expression_t *left  = assign->left;
 	const expression_t *right = assign->right;
+	ir_node            *value = expression_to_firm(right);
 
-	assert(left->type == EXPR_REFERENCE_VARIABLE);
-	const reference_expression_t *ref = (const reference_expression_t*) left;
-	variable_declaration_statement_t *variable = ref->variable;
+	if(left->type == EXPR_REFERENCE_VARIABLE) {
+		const reference_expression_t *ref
+			= (const reference_expression_t*) left;
+		variable_declaration_statement_t *variable = ref->variable;
 
-	value_numbers[variable->value_number] = variable;
+		value_numbers[variable->value_number] = variable;
+		set_value(variable->value_number, value);
+	} else if(left->type == EXPR_SELECT) {
+		const select_expression_t *select
+			= (const select_expression_t*) left;
+		ir_node *addr       = get_select_address_node(select);
+		ir_node *store      = get_store();
+		ir_node *store_node = new_Store(store, addr, value);
+		ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
+		set_store(mem);
+	} else if(left->type == EXPR_UNARY) {
+		const unary_expression_t *dereference
+			= (const unary_expression_t*) left;
+		if(dereference->type == UNEXPR_DEREFERENCE) {
+			ir_node *addr       = expression_to_firm(dereference->value);
+			ir_node *store      = get_store();
+			ir_node *store_node = new_Store(store, addr, value);
+			ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
+			set_store(mem);
+		} else {
+			abort();
+		}
+	} else {
+		abort();
+	}
 
-	ir_node *val = expression_to_firm(right);
-
-	set_value(variable->value_number, val);
-
-	return val;
+	return value;
 }
 
 static
@@ -449,6 +564,22 @@ ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
+ir_node *select_expression_to_firm(const select_expression_t *select)
+{
+	ir_node *addr  = get_select_address_node(select);
+	ir_node *store = get_store();
+	type_t  *type  = select->expression.datatype;
+	ir_mode *mode  = get_ir_mode(type);
+
+	ir_node *load  = new_Load(store, addr, mode);
+	ir_node *mem   = new_Proj(load, mode_M, pn_Load_M);
+	ir_node *res   = new_Proj(load, mode, pn_Load_res);
+	set_store(mem);
+
+	return res;
+}
+
+static
 ir_node *call_expression_to_firm(const call_expression_t *call)
 {
 	ir_node       *result         = NULL;
@@ -512,6 +643,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_UNARY:
 		return unary_expression_to_firm(
 				(const unary_expression_t*) expression);
+	case EXPR_SELECT:
+		return select_expression_to_firm(
+				(const select_expression_t*) expression);
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
 	default:
@@ -668,14 +802,20 @@ void create_method(method_t *method)
 	value_numbers = NULL;
 
 	dump_ir_block_graph(irg, "-test");
+}
 
+#if 0
 	/* do some simple optimisations... */
 	place_code(irg);
 	optimize_graph_df(irg);
 	dead_node_elimination(irg);
 
 	dump_ir_block_graph(irg, "-opt");
+
+    lower_firm(alloc_noinit);
+
 }
+#endif
 
 /**
  * Build a firm representation of an AST programm

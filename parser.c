@@ -396,12 +396,37 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 }
 
 static
+expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
+{
+	assert(env->token.type == '.');
+	next_token(env);
+
+	select_expression_t *select = obstack_alloc(&env->obst, sizeof(select[0]));
+	memset(select, 0, sizeof(select[0]));
+
+	select->expression.type = EXPR_SELECT;
+	select->compound        = compound;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing compound select",
+		                     T_IDENTIFIER, 0);
+		return NULL;
+	}
+	select->symbol          = env->token.symbol;
+	next_token(env);
+
+	return (expression_t*) select;
+}
+
+static
 expression_t *parse_postfix_expression(parser_env_t *env)
 {
 	expression_t *expression = parse_primary_expression(env);
 
 	if(env->token.type == '(') {
 		return parse_call_expression(env, expression);
+	} else if(env->token.type == '.') {
+		return parse_select_expression(env, expression);
 	}
 
 	return expression;

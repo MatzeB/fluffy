@@ -1,2 +1,3 @@
 - Declaring a variable, function, etc. twice is not detected in semantic phase
+- having the same entry twice in a struct is not detected
 
