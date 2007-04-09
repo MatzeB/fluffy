@@ -1,25 +1,22 @@
-extern "cdecl" int get_int();
-extern "cdecl" void print_int(int someint);
-extern "cdecl" int atoi(byte* string);
+extern "cdecl" int get_int()
+extern "cdecl" void print_int(int someint)
+extern "cdecl" int atoi(byte* string)
 
-int fib(int n) {
-	if(n = 0)
-		return 0;
-	if(n = 1) {
-		return 1;
-	}
-	return fib(n-1) + fib(n-2);
-}
+int fib(int n):
+	if n = 0:
+		return 0
+	if n = 1:
+		return 1
+	return fib(n-1) + fib(n-2)
 
-int main(int argc, byte** argv) {
-	def number <- 10;
-	if(argc > 1)
-		number <- atoi(*(argv+4));
+int main(int argc, byte* * argv):
+	def number <- 10
+	if argc > 1:
+		number <- atoi(*(argv+4))
 
-	def result <- fib(number);
+	def result <- fib(number)
 
-	print_int(result);
+	print_int(result)
 
-	return 0;
-}
+	return 0
 

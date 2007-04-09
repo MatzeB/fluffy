@@ -19,27 +19,36 @@
 #define LOOKAHEAD	1
 #define PRINT_TOKENS
 
+typedef struct lexer_state_t {
+	token_t            token;
+	source_position_t  source_position;
+} lexer_state_t;
+
 typedef struct {
-	struct obstack  obst;
-	token_t         token;
-	token_t         lookahead[LOOKAHEAD];
-	lexer_t         lexer;
-	symbol_table_t  symbol_table;
-	int             error;
+	struct obstack     obst;
+	token_t            token;
+	source_position_t  source_position;
+	lexer_state_t      lookahead[LOOKAHEAD];
+	lexer_t            lexer;
+	symbol_table_t     symbol_table;
+	int                error;
 } parser_env_t;
 
 static inline
 void next_token(parser_env_t *env)
 {
-	env->token = env->lookahead[0];
+	env->token           = env->lookahead[0].token;
+	env->source_position = env->lookahead[0].source_position;
 #if LOOKAHEAD > 1
 	memmove(env->lookahead, env->lookahead + 1,
 	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
 #endif
-	lexer_next_token(&env->lexer, & env->lookahead[LOOKAHEAD - 1]);
+	lexer_state_t *state = &env->lookahead[LOOKAHEAD - 1];
+	lexer_next_token(&env->lexer, & state->token);
+	state->source_position = env->lexer.source_position;
 
 #ifdef PRINT_TOKENS
-	print_token(stderr, & env->lookahead[LOOKAHEAD - 1]);
+	print_token(stderr, & env->token);
 	fprintf(stderr, "\n");
 #endif
 }
@@ -50,7 +59,7 @@ const token_t* la(parser_env_t *env, int i)
 {
 	assert(i >= 1);
 	assert(i <= LOOKAHEAD);
-	return & env->lookahead[i - 1];
+	return & env->lookahead[i - 1].token;
 }
 
 typedef enum {
@@ -70,9 +79,9 @@ void parser_found_error(parser_env_t *env)
 static
 void print_error_prefix(parser_env_t *env, error_type_t error_type)
 {
-	fputs(env->token.sourcefile, stderr);
+	fputs(env->source_position.input_name, stderr);
 	fputc(':', stderr);
-	fprintf(stderr, "%d", env->token.linenr);
+	fprintf(stderr, "%d", env->source_position.linenr);
 	if(error_type == ERR_WARNING) {
 		fputs(": warning: ", stderr);
 	} else {
@@ -610,11 +619,10 @@ statement_t *parse_return_statement(parser_env_t *env)
 	return_statement->statement.type = STATEMENT_RETURN;
 	next_token(env);
 
-	if(env->token.type != ';') {
+	if(env->token.type != T_NEWLINE) {
 		return_statement->return_value = parse_expression(env);
 	}
-
-	expect(env, ';');
+	expect(env, T_NEWLINE);
 
 	return (statement_t*) return_statement;
 }
@@ -629,13 +637,13 @@ statement_t *parse_if_statement(parser_env_t *env)
 	assert(env->token.type == T_if);
 	next_token(env);
 
-	expect(env, '(');
 	condition = parse_expression(env);
-	expect(env, ')');
+	expect(env, ':');
 
 	true_statement = parse_statement(env);
 	if(env->token.type == T_else) {
 		next_token(env);
+		expect(env, ':');
 		false_statement = parse_statement(env);
 	}
 
@@ -732,7 +740,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 		}
 	}
 
-	expect(env, ';');
+	expect(env, T_NEWLINE);
 	return first_statement;
 }
 
@@ -745,7 +753,7 @@ statement_t *parse_expression_statement(parser_env_t *env)
 
 	expression_statement->statement.type = STATEMENT_EXPRESSION;
 	expression_statement->expression     = parse_expression(env);
-	expect(env, ';');
+	expect(env, T_NEWLINE);
 
 	return (statement_t*) expression_statement;
 }
@@ -767,13 +775,18 @@ statement_t *parse_statement(parser_env_t *env)
 		statement = parse_if_statement(env);
 		break;
 
-	case '{':
+	case T_INDENT:
 		statement = parse_block(env);
 		break;
 
 	case T_def:
 		statement = parse_variable_declaration(env);
 		break;
+
+	case T_NEWLINE:
+		/* eat newlines */
+		next_token(env);
+		return parse_statement(env);
 
 	default:
 		statement = parse_expression_statement(env);
@@ -791,16 +804,10 @@ statement_t *parse_block(parser_env_t *env)
 	memset(block, 0, sizeof(block[0]));
 	block->statement.type = STATEMENT_BLOCK;
 
-	assert(env->token.type == '{');
+	assert(env->token.type == T_INDENT);
 	next_token(env);
 
-	while(env->token.type != '}') {
-		/* eat the empty statement */
-		if(env->token.type == ';') {
-			next_token(env);
-			continue;
-		}
-
+	while(env->token.type != T_DEDENT) {
 		/* parse statement */
 		statement_t *statement = parse_statement(env);
 		if(last != NULL) {
@@ -814,7 +821,7 @@ statement_t *parse_block(parser_env_t *env)
 			last = last->next;
 	}
 
-	expect(env, '}');
+	expect(env, T_DEDENT);
 
 	return (statement_t*) block;
 }
@@ -937,12 +944,8 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 		method->type = method_type;
 
 		expect(env, ')');
-		if(env->token.type != '{') {
-			parse_error_expected(env, "Problem while parsing method", '{', 0);
-			eat_until_semi(env);
-			return NULL;
-		}
-		method->statement = parse_block(env);
+		expect(env, ':');
+		method->statement = parse_statement(env);
 
 		return (namespace_entry_t*) method;
 	} else {
@@ -955,6 +958,8 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 		variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
 		variable->symbol               = symbol;
 		variable->type                 = type;
+
+		expect(env, T_NEWLINE);
 
 		return (namespace_entry_t*) variable;
 	}
@@ -1003,7 +1008,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	expect(env, '(');
 	parse_parameter_declaration(env, &method_type->parameter_types, NULL);
 	expect(env, ')');
-	expect(env, ';');
+	expect(env, T_NEWLINE);
 
 	extern_method->type = method_type;
 
@@ -1029,7 +1034,8 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	struct_->symbol = env->token.v.symbol;
 	next_token(env);
 
-	expect(env, '{');
+	expect(env, ':');
+	expect(env, T_NEWLINE);
 
 	struct_type_t *struct_type 
 		= obstack_alloc(&env->obst, sizeof(struct_type[0]));
@@ -1038,30 +1044,33 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	struct_type->type.type     = TYPE_STRUCT;
 	struct_type->symbol        = struct_->symbol;
 	struct_entry_t *last_entry = NULL;
-	while(env->token.type != '}') {
-		struct_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
-		memset(entry, 0, sizeof(entry[0]));
 
-		entry->type = parse_type(env);
-		if(env->token.type != T_IDENTIFIER) {
-			parse_error_expected(env, "Problem while parsing struct entry",
-			                     T_IDENTIFIER, 0);
-			return NULL;
-		}
-		entry->symbol = env->token.v.symbol;
+	if(env->token.type == T_INDENT) {
 		next_token(env);
+		do {
+			struct_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
+			memset(entry, 0, sizeof(entry[0]));
 
-		if(last_entry == NULL) {
-			struct_type->entries = entry;
-		} else {
-			last_entry->next     = entry;
-		}
-		last_entry = entry;
+			entry->type = parse_type(env);
+			if(env->token.type != T_IDENTIFIER) {
+				parse_error_expected(env, "Problem while parsing struct entry",
+						T_IDENTIFIER, 0);
+				return NULL;
+			}
+			entry->symbol = env->token.v.symbol;
+			next_token(env);
 
-		expect(env, ';');
+			if(last_entry == NULL) {
+				struct_type->entries = entry;
+			} else {
+				last_entry->next     = entry;
+			}
+			last_entry = entry;
+
+			expect(env, T_NEWLINE);
+		} while(env->token.type != T_DEDENT);
+		next_token(env);
 	}
-
-	expect(env, '}');
 	struct_->type = struct_type;
 
 	return (namespace_entry_t*) struct_;
@@ -1097,6 +1106,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 			entry = parse_struct(env);
 			break;
 
+		case T_NEWLINE:
 		case ';':
 			next_token(env);
 			continue;

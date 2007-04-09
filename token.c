@@ -23,6 +23,9 @@ void print_token_type(FILE *f, token_type_t token_type)
 	}
 
 	switch(token_type) {
+		case T_NEWLINE:        fputs("newline",         f); break;
+		case T_INDENT:         fputs("indent",          f); break;
+		case T_DEDENT:         fputs("dedent",          f); break;
 		case T_IDENTIFIER:     fputs("identifier",      f); break;
 		case T_INTEGER:        fputs("integer number",  f); break;
 		case T_STRING_LITERAL: fputs("string literal",  f); break;

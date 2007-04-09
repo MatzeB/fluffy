@@ -1,75 +1,66 @@
-struct PixelFormat {
-	
-}
+struct PixelFormat:
 
-struct Palette {
-	int       ncolors;
-	Color     colors;
-}
+struct Palette:
+	int       ncolors
+	Color     colors
 
-struct Color {
-	byte      r;
-	byte      g;
-	byte      b;
-	byte      a;
-}
+struct Color:
+	byte      r
+	byte      g
+	byte      b
+	byte      a
 
-struct Surface {
-	unsigned int   flags;
-	PixelFormat    format;
-	int            w;
-	int            h;
-	unsigned short pitch;
-	void*          pixels;
-	int            offset;
-	void*          hwdata;
+struct Surface:
+	unsigned int   flags
+	PixelFormat    format
+	int            w
+	int            h
+	unsigned short pitch
+	void*          pixels
+	int            offset
+	void*          hwdata
 
 	/*Rect           clip_rect; */
-	short r_x;
-	short r_y;
-	unsigned short r_w;
-	unsigned short r_h;
+	short r_x
+	short r_y
+	unsigned short r_w
+	unsigned short r_h
 
-	unsigned int   unused1;
-	unsigned int   locked;
-	void*          map;
-	unsigned int   format_version;
-	int            refcount;
-}
+	unsigned int   unused1
+	unsigned int   locked
+	void*          map
+	unsigned int   format_version
+	int            refcount
 
-struct Rect {
-	short x;
-	short y;
-	unsigned short w;
-	unsigned short h;
-}
+struct Rect:
+	short x
+	short y
+	unsigned short w
+	unsigned short h
 
-extern int  SDL_Init(unsigned int flags);
-extern void SDL_Quit();
-extern byte* SDL_GetError();
+extern int  SDL_Init(unsigned int flags)
+extern void SDL_Quit()
+extern byte* SDL_GetError()
 
-extern Surface SDL_SetVideoMode(int width, int height, int bpp, int flags);
-extern int SDL_UpperBlit(Surface src, Rect srcrect, Surface dest, Rect destrect);
-extern int SDL_FillRect(Surface dest, Rect destrect, unsigned int color);
-extern Surface IMG_Load(byte* filename);
-extern void SDL_FreeSurface(Surface surface);
-extern void SDL_Delay(unsigned int ms);
+extern Surface SDL_SetVideoMode(int width, int height, int bpp, int flags)
+extern int SDL_UpperBlit(Surface src, Rect srcrect, Surface dest, Rect destrect)
+extern int SDL_FillRect(Surface dest, Rect destrect, unsigned int color)
+extern Surface IMG_Load(byte* filename)
+extern void SDL_FreeSurface(Surface surface)
+extern void SDL_Delay(unsigned int ms)
 
-extern void print_int(int val);
+extern void print_int(int val)
 
-int main()
-{
-	SDL_Init(0x0000FFFF);
+int main():
+	SDL_Init(0x0000FFFF)
 
-	def screen <- SDL_SetVideoMode(640, 480, 0, 0);
+	def screen <- SDL_SetVideoMode(640, 480, 0, 0)
 
-	print_int(screen.w);
-	print_int(screen.h);
+	print_int(screen.w)
+	print_int(screen.h)
 
-	SDL_Delay(1000);
+	SDL_Delay(1000)
 
-	SDL_Quit();
+	SDL_Quit()
 
-	return 0;
-}
-
+	return 0

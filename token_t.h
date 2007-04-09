@@ -21,8 +21,6 @@ typedef enum {
 
 typedef struct {
 	int type;
-	const char *sourcefile;
-	unsigned    linenr;
 	union {
 		symbol_t   *symbol;
 		int         intvalue;
