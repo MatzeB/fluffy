@@ -1,0 +1,61 @@
+/* scratchpad to keep ideas about syntax, not really fixed yet... */
+
+binary operator . infix 9;
+binary operator * infix 9;
+unary operator ! infix 3;
+
+class Eq<T>
+{
+	bool operator == (T x, T y)
+	{
+		return ! (x /= y);
+	}
+
+	bool operator /= (T x, T y)
+	{
+		return ! (x == y);
+	}
+};
+
+class Ord<T : Eq>
+{
+
+}
+
+class Show<T>
+{
+	void show(stream : Stream, objekt : T)
+	{
+
+	}
+};
+
+class Ord<T : Eq, Show>
+{
+
+};
+
+class Enum<T>
+{
+
+};
+
+class Num<T : Eq, Show>
+{
+	T operator + (T left, T right);
+	T operator - (T left, T right);
+	T operator * (T left, T right);
+	T operator - (T value);
+	T abs(T value);
+	T signum(T value);
+
+	x - y = x + -y
+	-x    = 0 - x
+};
+
+class InputStream<T>:
+	void read(Stream s, T buffer, size buflen);
+
+class OutputStream<T>:
+	bla();
+

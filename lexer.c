@@ -7,6 +7,87 @@
 #include <string.h>
 #include <ctype.h>
 
+enum TOKEN_START_TYPE {
+	START_UNKNOWN = 0,
+	START_IDENT,
+	START_NUMBER,
+	START_SINGLE_CHARACTER_OPERATOR,
+	START_OPERATOR,
+	START_STRING_LITERAL,
+	START_CHARACTER_CONSTANT
+};
+
+static int  tables_init = 0;
+static char char_type[256];
+static char ident_char[256];
+
+static
+void init_tables()
+{
+	memset(char_type, 0, sizeof(char_type));
+	for(int c = 0; c <= 256; ++c) {
+		if(isalnum(c)) {
+			char_type[c]  = START_IDENT;
+			ident_char[c] = 1;
+		}
+	}
+	char_type['_']  = START_IDENT;
+	ident_char['_'] = 1;
+	for(int c = '0'; c <= '9'; ++c) {
+		ident_char[c] = 1;
+		char_type[c]  = START_NUMBER;
+	}
+
+	char_type['"']  = START_STRING_LITERAL;
+	char_type['\''] = START_CHARACTER_CONSTANT;
+
+	static const int single_char_ops[] = {
+		'(', ')', '[', ']', '{', '}', ',', ':', ';'
+	};
+	for(size_t i = 0; i < sizeof(single_char_ops)/sizeof(single_char_ops[0]);
+	    ++i) {
+		int c        = single_char_ops[i];
+		char_type[c] = START_SINGLE_CHARACTER_OPERATOR;
+	}
+
+	static const int ops[] = {
+		'+', '-', '*', '/', '=', '<', '>', '.', '^', '!', '?', '&', '%',
+		'~', '|'
+	};
+	for(size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); ++i) {
+		int c        = ops[i];
+		char_type[c] = START_OPERATOR;
+	}
+
+	tables_init = 1;
+}
+
+static inline
+int is_ident_char(int c)
+{
+	return ident_char[c];
+}
+
+static
+void error_prefix_at(lexer_t *this, const char *input_name, unsigned linenr)
+{
+	(void) this;
+	fprintf(stderr, "%s:%d: Error: ", input_name, linenr);
+}
+
+static
+void error_prefix(lexer_t *this)
+{
+	error_prefix_at(this, this->input_name, this->linenr);
+}
+
+static
+void parse_error(lexer_t *this, const char *msg)
+{
+	error_prefix(this);
+	fprintf(stderr, "%s\n", msg);
+}
+
 static inline
 void next_char(lexer_t *this)
 {
@@ -32,7 +113,7 @@ void parse_symbol(lexer_t *this, token_t *token)
 	do {
 		obstack_1grow(this->obst, this->c);
 		next_char(this);
-	} while(isalnum(this->c) || this->c == '_');
+	} while(is_ident_char(this->c));
 	obstack_1grow(this->obst, '\0');
 	string = obstack_finish(this->obst);
 
@@ -43,7 +124,7 @@ void parse_symbol(lexer_t *this, token_t *token)
 	} else {
 		token->type = T_IDENTIFIER;
 	}
-	token->symbol = symbol;
+	token->v.symbol = symbol;
 
 	if(symbol->string != string) {
 		obstack_free(this->obst, string);
@@ -55,9 +136,7 @@ void parse_number_bin(lexer_t *this, token_t *token)
 {
 	next_char(this);
 	if (this->c != '0' && this->c != '1') {
-		fprintf(stderr,
-			"Premature end of binary number literal at %s:%d\n",
-			this->input_name, this->linenr);
+		parse_error(this, "premature end of binary number literal");
 		token->type = T_ERROR;
 		return;
 	}
@@ -70,7 +149,7 @@ void parse_number_bin(lexer_t *this, token_t *token)
 
 			default:
 				token->type     = T_INTEGER;
-				token->intvalue = value;
+				token->v.intvalue = value;
 				return;
 		}
 		next_char(this);
@@ -84,9 +163,7 @@ void parse_number_hex(lexer_t *this, token_t *token)
 	if (!isdigit(this->c) &&
 		!('A' <= this->c && this->c <= 'F') &&
 		!('a' <= this->c && this->c <= 'f')) {
-		fprintf(stderr,
-			"Premature end of hex number literal at %s:%d\n",
-			this->input_name, this->linenr);
+		parse_error(this, "premature end of hex number literal");
 		token->type = T_ERROR;
 		return;
 	}
@@ -101,7 +178,7 @@ void parse_number_hex(lexer_t *this, token_t *token)
 			value = 16 * value + this->c - 'f' + 10;
 		} else {
 			token->type     = T_INTEGER;
-			token->intvalue = value;
+			token->v.intvalue = value;
 			return;
 		}
 		next_char(this);
@@ -117,7 +194,7 @@ void parse_number_oct(lexer_t *this, token_t *token)
 			value = 8 * value + this->c - '0';
 		} else {
 			token->type     = T_INTEGER;
-			token->intvalue = value;
+			token->v.intvalue = value;
 			return;
 		}
 		next_char(this);
@@ -133,7 +210,7 @@ void parse_number_dec(lexer_t *this, token_t *token)
 			value = 10 * value + this->c - '0';
 		} else {
 			token->type     = T_INTEGER;
-			token->intvalue = value;
+			token->v.intvalue = value;
 			return;
 		}
 		next_char(this);
@@ -162,7 +239,7 @@ void parse_number(lexer_t *this, token_t *token)
 static
 void parse_string_literal(lexer_t *this, token_t *token)
 {
-	int         start_linenr = this->linenr;
+	unsigned    start_linenr = this->linenr;
 	char       *string;
 	const char *result;
 	int         c = this->c;
@@ -211,9 +288,8 @@ void parse_string_literal(lexer_t *this, token_t *token)
 		}
 
 		if(c == EOF) {
-			fprintf(stderr, "Error: unexpected end of file while parsing "
-			        "string constant starting at %s:%d\n", this->input_name,
-			        start_linenr);
+			error_prefix_at(this, this->input_name, start_linenr);
+			fprintf(stderr, "string has no end\n");
 			token->type = T_ERROR;
 			return;
 		}
@@ -235,13 +311,13 @@ void parse_string_literal(lexer_t *this, token_t *token)
 	}
 
 	token->type     = T_STRING_LITERAL;
-	token->string   = result;
+	token->v.string = result;
 }
 
 static
 void skip_multiline_comment(lexer_t *this)
 {
-	int start_linenr = this->linenr;
+	unsigned start_linenr = this->linenr;
 
 	while(1) {
 		if(this->c == '*') {
@@ -251,8 +327,8 @@ void skip_multiline_comment(lexer_t *this)
 				return;
 			}
 		} else if(this->c == EOF) {
-			fprintf(stderr, "Parse error: Comment starting at %s:%d not "
-					"closed\n", this->input_name, start_linenr);
+			error_prefix_at(this, this->input_name, start_linenr);
+			fprintf(stderr, "comment has no end\n");
 			return;
 		} else {
 			if(this->c == '\n') {
@@ -263,7 +339,7 @@ void skip_multiline_comment(lexer_t *this)
 	}
 }
 
-static inline
+static 
 void skip_line_comment(lexer_t *this)
 {
 	while(this->c != '\n' && this->c != EOF) {
@@ -271,10 +347,43 @@ void skip_line_comment(lexer_t *this)
 	}
 }
 
-token_t lexer_next_token(lexer_t *this)
+static
+void parse_operator(lexer_t *this, token_t *token)
 {
-	token_t token;
+	do {
+		obstack_1grow(this->obst, this->c);
+		next_char(this);
+	} while(char_type[this->c] == START_OPERATOR);
+	obstack_1grow(this->obst, '\0');
+	char     *string = obstack_finish(this->obst);
+	symbol_t *symbol = symbol_table_insert(this->symbol_table, string);
 
+	int ID = symbol->ID;
+	if(ID > 0) {
+		if(ID == T_MULTILINE_COMMENT_BEGIN) {
+			skip_multiline_comment(this);
+			return lexer_next_token(this, token);
+		} else if(ID == T_SINGLELINE_COMMENT) {
+			skip_line_comment(this);
+			return lexer_next_token(this, token);
+		} else {
+			token->type = symbol->ID;
+		}
+	} else {
+		error_prefix(this);
+		fprintf(stderr, "unknown operator %s found\n", string);
+		token->type = T_ERROR;
+	}
+	token->v.symbol = symbol;
+
+	if(symbol->string != string) {
+		obstack_free(this->obst, string);
+	}
+}
+
+void lexer_next_token(lexer_t *this, token_t *token)
+{
+	/* skip whitespaces */
 	while(isspace(this->c)) {
 		if(this->c == '\n')
 			this->linenr++;
@@ -282,117 +391,49 @@ token_t lexer_next_token(lexer_t *this)
 		next_char(this);
 	}
 
-	token.sourcefile = this->input_name;
-	token.linenr = this->linenr;
+	token->sourcefile = this->input_name;
+	token->linenr = this->linenr;
 
-	switch(this->c) {
-	case '(':
-	case ')':
-	case '{':
-	case '}':
-	case '[':
-	case ']':
-	case ',':
-	case ';':
-	case '+':
-	case '-':
-	case '*':
-		token.type = this->c;
-		next_char(this);
-		return token;
-	case '=':
-		next_char(this);
-		if(this->c == '=') {
-			next_char(this);
-			token.type = T_EQUALEQUAL;
-		} else {
-			token.type = '=';
-		}
-		return token;
-	case '.':
-		next_char(this);
-		if(this->c == '.') {
-			next_char(this);
-			if(this->c == '.') {
-				next_char(this);
-				token.type = T_DOTDOTDOT;
-			} else {
-				token.type = T_DOTDOT;
-			}
-		} else {
-			token.type = '.';
-		}
-		return token;
-	case '/':
-		next_char(this);
-		if(this->c == '*') {
-			next_char(this);
-			skip_multiline_comment(this);
-			return lexer_next_token(this);
-		} else if(this->c == '/') {
-			next_char(this);
-			skip_line_comment(this);
-			return lexer_next_token(this);
-		} else if(this->c == '=') {
-			next_char(this);
-			token.type = T_SLASHEQUAL;
-			return token;
-		}
-		token.type = this->c;
-		return token;
-	case '"':
-		next_char(this);
-		parse_string_literal(this, &token);
-		return token;
-	case '<':
-		next_char(this);
-		if(this->c == '-') {
-			next_char(this);
-			token.type = T_ASSIGN;
-			return token;
-		} else if(this->c == '=') {
-			next_char(this);
-			token.type = T_LESSEQUAL;
-			return token;
-		} else if(this->c == '<') {
-			next_char(this);
-			token.type = T_LESSLESS;
-			return token;
-		}
-		token.type = '<';
-		return token;
-	case '>':
-		next_char(this);
-		if(this->c == '=') {
-			next_char(this);
-			token.type = T_GREATEREQUAL;
-			return token;
-		} else if(this->c == '>') {
-			next_char(this);
-			token.type = T_GREATERGREATER;
-			return token;
-		}
-		token.type = '>';
-		return token;
-	case EOF:
-		token.type = T_EOF;
-		return token;
+	if(this->c < 0 || this->c >= 256) {
+		token->type = T_EOF;
+		return;
 	}
 
-	if(isalpha(this->c) || this->c == '_') {
-		parse_symbol(this, &token);
-		return token;
-	}
+	int type = char_type[this->c];
+	switch(type) {
+	case START_SINGLE_CHARACTER_OPERATOR:
+		token->type = this->c;
+		next_char(this);
+		break;
 
-	if(isdigit(this->c)) {
-		parse_number(this, &token);
-		return token;
-	}
+	case START_OPERATOR:
+		parse_operator(this, token);
+		break;
 
-	fprintf(stderr, "Unexpected character '%c' found.\n", this->c);
-	token.type = T_ERROR;
-	next_char(this);
-	return token;
+	case START_IDENT:
+		parse_symbol(this, token);
+		break;
+
+	case START_NUMBER:
+		parse_number(this, token);
+		break;
+
+	case START_STRING_LITERAL:
+		parse_string_literal(this, token);
+		break;
+
+	case START_CHARACTER_CONSTANT:
+		/* TODO */
+		abort();
+		break;
+
+	default:
+		error_prefix(this);
+		fprintf(stderr, "unknown character '%c' found\n", this->c);
+		token->type = T_ERROR;
+		next_char(this);
+		break;
+	}
 }
 
 void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
@@ -407,8 +448,11 @@ void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
 	this->obst         = &symbol_table->obst;
 	this->linenr       = 1;
 	this->input_name   = input_name;
-
 	strset_init(&this->stringset);
+
+	if(!tables_init) {
+		init_tables();
+	}
 }
 
 void lexer_destroy(lexer_t *this)

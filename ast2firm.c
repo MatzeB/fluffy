@@ -345,7 +345,7 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 static
 ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 {
-	variable_declaration_statement_t *variable = ref->variable;
+	variable_declaration_statement_t *variable = ref->r.variable;
 	ir_mode                          *mode     = get_ir_mode(variable->type);
 
 	value_numbers[variable->value_number] = variable;
@@ -378,7 +378,7 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	if(left->type == EXPR_REFERENCE_VARIABLE) {
 		const reference_expression_t *ref
 			= (const reference_expression_t*) left;
-		variable_declaration_statement_t *variable = ref->variable;
+		variable_declaration_statement_t *variable = ref->r.variable;
 
 		value_numbers[variable->value_number] = variable;
 		set_value(variable->value_number, value);
@@ -534,7 +534,7 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 static
 ir_node *method_reference_to_firm(const reference_expression_t *ref)
 {
-	ir_entity *entity = get_method_entity(ref->method);
+	ir_entity *entity = get_method_entity(ref->r.method);
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
 
@@ -544,7 +544,7 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 static
 ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
 {
-	ir_entity *entity = get_extern_method_entity(ref->extern_method);
+	ir_entity *entity = get_extern_method_entity(ref->r.extern_method);
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
 
@@ -555,9 +555,9 @@ static
 ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
-	ir_mode *mode  = get_ir_mode(ref->method_parameter->type);
+	ir_mode *mode  = get_ir_mode(ref->r.method_parameter->type);
 	ir_node *block = get_irg_start_block(current_ir_graph);
-	long     pn    = ref->method_parameter->num;
+	long     pn    = ref->r.method_parameter->num;
 	ir_node *proj  = new_r_Proj(current_ir_graph, block, args, mode, pn);
 
 	return proj;

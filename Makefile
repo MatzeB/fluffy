@@ -1,6 +1,6 @@
 GOAL = mlang
 
-CFLAGS += -Wall -W -Werror -O0 -g3
+CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
 CFLAGS += -I include
@@ -32,7 +32,6 @@ SOURCES += adt/strset.c
 SOURCES += adt/xmalloc.c
 SOURCES += ast.c
 SOURCES += ast2firm.c
-SOURCES += known_symbols.c
 SOURCES += lexer.c
 SOURCES += main.c
 SOURCES += parser.c

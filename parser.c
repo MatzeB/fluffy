@@ -7,7 +7,6 @@
 #include <stdarg.h>
 
 #include "symbol_table_t.h"
-#include "known_symbols.h"
 #include "lexer_t.h"
 #include "symbol.h"
 #include "type_hash.h"
@@ -37,7 +36,7 @@ void next_token(parser_env_t *env)
 	memmove(env->lookahead, env->lookahead + 1,
 	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
 #endif
-	env->lookahead[LOOKAHEAD - 1] = lexer_next_token(&env->lexer);
+	lexer_next_token(&env->lexer, & env->lookahead[LOOKAHEAD - 1]);
 
 #ifdef PRINT_TOKENS
 	print_token(stderr, & env->lookahead[LOOKAHEAD - 1]);
@@ -231,7 +230,7 @@ type_t *parse_type_ref_sym(parser_env_t *env, symbol_t *symbol)
 static
 type_t *parse_type_ref(parser_env_t *env)
 {
-	symbol_t *symbol = env->token.symbol;
+	symbol_t *symbol = env->token.v.symbol;
 	next_token(env);
 	return parse_type_ref_sym(env, symbol);
 }
@@ -306,7 +305,7 @@ expression_t *parse_int_const(parser_env_t *env)
 	memset(cnst, 0, sizeof(cnst));
 
 	cnst->expression.type = EXPR_INT_CONST;
-	cnst->value           = env->token.intvalue;
+	cnst->value           = env->token.v.intvalue;
 
 	next_token(env);
 
@@ -320,7 +319,7 @@ expression_t *parse_reference(parser_env_t *env)
 	memset(ref, 0, sizeof(ref[0]));
 
 	ref->expression.type = EXPR_REFERENCE;
-	ref->symbol          = env->token.symbol;
+	ref->symbol          = env->token.v.symbol;
 
 	next_token(env);
 
@@ -412,7 +411,7 @@ expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
 		                     T_IDENTIFIER, 0);
 		return NULL;
 	}
-	select->symbol          = env->token.symbol;
+	select->symbol          = env->token.v.symbol;
 	next_token(env);
 
 	return (expression_t*) select;
@@ -699,7 +698,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 		memset(decl, 0, sizeof(decl[0]));
 		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
 		decl->type           = type;
-		decl->symbol         = env->token.symbol;
+		decl->symbol         = env->token.v.symbol;
 
 		/* append multiple variable declarations */
 		if(last_statement != NULL) {
@@ -866,7 +865,7 @@ void parse_parameter_declaration(parser_env_t *env,
 
 			symbol_t *symbol = NULL;
 			if(env->token.type == T_IDENTIFIER) {
-				symbol = env->token.symbol;
+				symbol = env->token.v.symbol;
 				next_token(env);
 			}
 
@@ -911,7 +910,7 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 		eat_until_semi(env);
 		return NULL;
 	}
-	symbol = env->token.symbol;
+	symbol = env->token.v.symbol;
 	next_token(env);
 
 	/* is it a method? */
@@ -978,7 +977,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	next_token(env);
 
 	if(env->token.type == T_STRING_LITERAL) {
-		abi_style = env->token.string;
+		abi_style = env->token.v.string;
 		next_token(env);
 	}
 
@@ -990,7 +989,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 		eat_until_semi(env);
 		return NULL;
 	}
-	extern_method->symbol = env->token.symbol;
+	extern_method->symbol = env->token.v.symbol;
 	next_token(env);
 
 	method_type_t *method_type
@@ -1027,7 +1026,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 		eat_until_semi(env);
 		return NULL;
 	}
-	struct_->symbol = env->token.symbol;
+	struct_->symbol = env->token.v.symbol;
 	next_token(env);
 
 	expect(env, '{');
@@ -1049,7 +1048,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 			                     T_IDENTIFIER, 0);
 			return NULL;
 		}
-		entry->symbol = env->token.symbol;
+		entry->symbol = env->token.v.symbol;
 		next_token(env);
 
 		if(last_entry == NULL) {
@@ -1071,11 +1070,12 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 static
 namespace_t *parse_namespace(parser_env_t *env)
 {
-	namespace_entry_t *entry;
 	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
 	memset(namespace, 0, sizeof(namespace[0]));
 
 	while(1) {
+		namespace_entry_t *entry = NULL;
+
 		switch(env->token.type) {
 		case T_unsigned:
 		case T_signed:
@@ -1099,7 +1099,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 
 		case ';':
 			next_token(env);
-			break;
+			continue;
 
 		case T_EOF:
 			return namespace;

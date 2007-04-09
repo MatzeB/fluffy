@@ -5,11 +5,14 @@ struct PixelFormat {
 struct Palette {
 	int       ncolors;
 	Color     colors;
-};
+}
 
 struct Color {
-	byte r, g, b, a;
-};
+	byte      r;
+	byte      g;
+	byte      b;
+	byte      a;
+}
 
 struct Surface {
 	unsigned int   flags;

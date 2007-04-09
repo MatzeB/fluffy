@@ -31,7 +31,7 @@ struct environment_entry_t {
 		extern_method_t                  *extern_method;
 		type_t                           *stored_type;
 		variable_declaration_statement_t *variable;
-	};
+	} e;
 };
 
 struct semantic_env_t {
@@ -89,7 +89,7 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 		symbol_t *symbol = entry->symbol;
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
-				&& entry->variable->refs == 0) {
+				&& entry->e.variable->refs == 0) {
 			fprintf(stderr, "Warning: Variable '%s' was declared but never read\n", symbol->string);
 		}
 
@@ -132,7 +132,7 @@ type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
 		return NULL;
 	}
 
-	return entry->stored_type;
+	return entry->e.stored_type;
 }
 
 static
@@ -233,33 +233,33 @@ void check_reference_expression(semantic_env_t *env,
 
 	switch(entry->type) {
 	case ENTRY_LOCAL_VARIABLE:
-		variable                 = entry->variable;
-		ref->variable            = variable;
+		variable                 = entry->e.variable;
+		ref->r.variable          = variable;
 		ref->expression.type     = EXPR_REFERENCE_VARIABLE;
 		ref->expression.datatype = variable->type;
 		variable->refs++;
 		break;
 	case ENTRY_METHOD:
-		method                   = entry->method;
-		ref->method              = method;
+		method                   = entry->e.method;
+		ref->r.method            = method;
 		ref->expression.type     = EXPR_REFERENCE_METHOD;
 		ref->expression.datatype = (type_t*) method->type;
 		break;
 	case ENTRY_EXTERN_METHOD:
-		extern_method            = entry->extern_method;
-		ref->extern_method       = extern_method;
+		extern_method            = entry->e.extern_method;
+		ref->r.extern_method     = extern_method;
 		ref->expression.type     = EXPR_REFERENCE_EXTERN_METHOD;
 		ref->expression.datatype = (type_t*) extern_method->type;
 		break;
 	case ENTRY_GLOBAL_VARIABLE:
-		global_variable          = entry->global_variable;
-		ref->global_variable     = global_variable;
+		global_variable          = entry->e.global_variable;
+		ref->r.global_variable   = global_variable;
 		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
 		ref->expression.datatype = global_variable->type;
 		break;
 	case ENTRY_METHOD_PARAMETER:
-		method_parameter         = entry->method_parameter;
-		ref->method_parameter    = method_parameter;
+		method_parameter         = entry->e.method_parameter;
+		ref->r.method_parameter  = method_parameter;
 		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
 		ref->expression.datatype = method_parameter->type;
 		break;
@@ -287,28 +287,29 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 	}
 	if(left->type == EXPR_REFERENCE_VARIABLE) {
 		reference_expression_t *ref = (reference_expression_t*) left;
+		variable_declaration_statement_t *variable = ref->r.variable;
+		symbol_t                         *symbol   = variable->symbol;
 
 		/* do type inferencing if needed */
 		if(left->datatype == NULL) {
 			if(right->datatype == NULL) {
 				fprintf(stderr, "Error: Can't infer type for '%s'\n",
-				        ref->variable->symbol->string);
+				        symbol->string);
 				env->found_errors = 1;
 				return;
 			}
 
-			ref->variable->type = right->datatype;
+			variable->type = right->datatype;
 			left->datatype = right->datatype;
-			fprintf(stderr, "Type inference for '%s': ",
-			        ref->variable->symbol->string);
+			fprintf(stderr, "Type inference for '%s': ", symbol->string);
 			print_type(stderr, right->datatype);
 			fputs("\n", stderr);
 
-			check_local_variable_type(env, ref->variable, right->datatype);
+			check_local_variable_type(env, variable, right->datatype);
 		}
 
 		/* making an assignment is not reading the value */
-		ref->variable->refs--;
+		variable->refs--;
 	}
 }
 
@@ -649,7 +650,7 @@ void check_variable_declaration(semantic_env_t *env,
 	/* push the variable declaration on the environment stack */
 	environment_entry_t *entry = environment_push(env, statement->symbol);
 	entry->type                = ENTRY_LOCAL_VARIABLE;
-	entry->variable            = statement;
+	entry->e.variable          = statement;
 
 	if(env->current_method != NULL) {
 		env->current_method->n_local_vars++;
@@ -720,7 +721,7 @@ void check_method(semantic_env_t *env, method_t *method)
 	while(parameter != NULL) {
 		environment_entry_t *entry = environment_push(env, parameter->symbol);
 		entry->type                = ENTRY_METHOD_PARAMETER;
-		entry->method_parameter    = parameter;
+		entry->e.method_parameter  = parameter;
 		parameter->num             = n;
 		parameter->type            = normalize_type(env, parameter->type);
 
@@ -762,25 +763,25 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			variable            = (variable_t*) entry;
 			env_entry           = environment_push(env, variable->symbol);
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
-			env_entry->global_variable = variable;
+			env_entry->e.global_variable = variable;
 			break;
 		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			extern_method       = (extern_method_t*) entry;
 			env_entry           = environment_push(env, extern_method->symbol);
 			env_entry->type     = ENTRY_EXTERN_METHOD;
-			env_entry->extern_method = extern_method;
+			env_entry->e.extern_method = extern_method;
 			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
 			env_entry           = environment_push(env, method->symbol);
 			env_entry->type     = ENTRY_METHOD;
-			env_entry->method   = method;
+			env_entry->e.method = method;
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
 			the_struct             = (struct_t*) entry;
 			env_entry              = environment_push(env, the_struct->symbol);
 			env_entry->type        = ENTRY_TYPE;
-			env_entry->stored_type = (type_t*) the_struct->type;
+			env_entry->e.stored_type = (type_t*) the_struct->type;
 			break;
 		default:
 			panic("Unknown thing in namespace");
@@ -796,29 +797,29 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		case NAMESPACE_ENTRY_VARIABLE:
 			variable            = (variable_t*) entry;
 			env_entry           = variable->symbol->thing;
-			assert(env_entry->global_variable == variable);
+			assert(env_entry->e.global_variable == variable);
 			variable->type      = normalize_type(env, variable->type);
 			break;
 		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			extern_method       = (extern_method_t*) entry;
 			env_entry           = extern_method->symbol->thing;
-			assert(env_entry->extern_method == extern_method);
+			assert(env_entry->e.extern_method == extern_method);
 			extern_method->type = (method_type_t*)
 			    normalize_type(env, (type_t*) extern_method->type);
 			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
 			env_entry           = method->symbol->thing;
-			assert(env_entry->method == method);
+			assert(env_entry->e.method == method);
 			method->type 
 				= (method_type_t*) normalize_type(env, (type_t*) method->type);
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
 			the_struct = (struct_t*) entry;
 			env_entry  = the_struct->symbol->thing;
-			assert(env_entry->stored_type == (type_t*) the_struct->type);
-			env_entry->stored_type 
-				= normalize_type(env, env_entry->stored_type);
+			assert(env_entry->e.stored_type == (type_t*) the_struct->type);
+			env_entry->e.stored_type 
+				= normalize_type(env, env_entry->e.stored_type);
 			break;
 		default:
 			break;

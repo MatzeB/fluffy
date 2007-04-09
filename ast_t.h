@@ -114,7 +114,7 @@ struct reference_expression_t {
 		extern_method_t                  *extern_method;
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
-	};
+	} r;
 };
 
 struct call_argument_t {
