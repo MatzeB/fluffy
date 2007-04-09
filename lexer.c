@@ -451,6 +451,7 @@ void parse_indent(lexer_t *this, token_t *token)
 	}
 	if(this->c == '\n') {
 		next_char(this);
+		this->source_position.linenr++;
 		lexer_next_token(this, token);
 		return;
 	}

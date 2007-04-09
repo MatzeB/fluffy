@@ -17,7 +17,9 @@ enum environment_entry_type_t {
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
 	ENTRY_TYPE,
-	ENTRY_EXTERN_METHOD
+	ENTRY_EXTERN_METHOD,
+	ENTRY_GOTO,
+	ENTRY_LABEL
 };
 
 struct environment_entry_t {
@@ -31,6 +33,8 @@ struct environment_entry_t {
 		extern_method_t                  *extern_method;
 		type_t                           *stored_type;
 		variable_declaration_statement_t *variable;
+		goto_statement_t                 *goto_statement;
+		label_statement_t                *label;
 	} e;
 };
 
@@ -38,6 +42,8 @@ struct semantic_env_t {
 	struct obstack       *obst;
 	struct obstack        symbol_obstack;
 	environment_entry_t **symbol_stack;
+	struct obstack        label_obstack;
+	symbol_t            **label_stack;
 	int                   next_valnum;
 	int                   found_errors;
 
@@ -45,6 +51,8 @@ struct semantic_env_t {
 	int                   last_statement_was_return;
 	type_t               *type_bool;
 	type_t               *type_int;
+	type_t               *type_uint;
+	type_t               *type_void_ptr;
 };
 
 /**
@@ -120,13 +128,13 @@ type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
 {
 	environment_entry_t *entry    = type_ref->symbol->thing;
 	if(entry == NULL) {
-		fprintf(stderr, "Error: Can't resolve type: Symbol '%s' is "
+		fprintf(stderr, "Error: can't resolve type: Symbol '%s' is "
 				"unknown\n", type_ref->symbol->string);
 		env->found_errors = 1;
 		return NULL;
 	}
 	if(entry->type != ENTRY_TYPE) {
-		fprintf(stderr, "Error: Symbol '%s' is not a type\n",
+		fprintf(stderr, "Error: symbol '%s' is not a type\n",
 				type_ref->symbol->string);
 		env->found_errors = 1;
 		return NULL;
@@ -301,9 +309,11 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 
 			variable->type = right->datatype;
 			left->datatype = right->datatype;
+#if 0
 			fprintf(stderr, "Type inference for '%s': ", symbol->string);
 			print_type(stderr, right->datatype);
 			fputs("\n", stderr);
+#endif
 
 			check_local_variable_type(env, variable, right->datatype);
 		}
@@ -318,6 +328,32 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
                         type_t *destination_type)
 {
 	assert(from->datatype != destination_type);
+
+	type_t *from_type = from->datatype;
+	/* TODO: test which types can be implicitely casted... */
+	if(from_type->type == TYPE_POINTER) {
+		if(destination_type->type != TYPE_POINTER) {
+			fprintf(stderr, "Can't implicitely cast ");
+			print_type(stderr, from_type);
+			fprintf(stderr, " to ");
+			print_type(stderr, destination_type);
+			fprintf(stderr, "\n");
+			env->found_errors = 1;
+			return from;
+		}
+		pointer_type_t *p1 = (pointer_type_t*) from_type;
+		pointer_type_t *p2 = (pointer_type_t*) destination_type;
+		if(p1->points_to != p2->points_to
+				&& destination_type != env->type_void_ptr) {
+			fprintf(stderr, "Can't implicitely cast ");
+			print_type(stderr, from_type);
+			fprintf(stderr, " to ");
+			print_type(stderr, destination_type);
+			fprintf(stderr, "\n");
+			env->found_errors = 1;
+			return from;
+		}
+	}
 
 	unary_expression_t *cast = obstack_alloc(env->obst, sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
@@ -336,6 +372,7 @@ int is_arithmetic_op(binary_expression_type_t type)
 	case BINEXPR_ADD:
 	case BINEXPR_SUB:
 	case BINEXPR_MUL:
+	case BINEXPR_MOD:
 	case BINEXPR_DIV:
 	case BINEXPR_SHIFTLEFT:
 	case BINEXPR_SHIFTRIGHT:
@@ -383,7 +420,12 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 		exprtype  = left->datatype;
 		/* TODO find out greatest common type... */
 		lefttype  = exprtype;
-		righttype = exprtype;
+		if(binexpr_type == BINEXPR_SHIFTLEFT
+				|| binexpr_type == BINEXPR_SHIFTRIGHT) {
+			righttype = env->type_uint;
+		} else {
+			righttype = exprtype;
+		}
 	} else if(is_comparison_op(binexpr_type)) {
 		exprtype  = env->type_bool;
 		/* TODO find out greatest common type... */
@@ -394,10 +436,10 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 	}
 
 	if(left->datatype != lefttype) {
-		binexpr->left  = make_cast(env, left, exprtype);
+		binexpr->left  = make_cast(env, left, lefttype);
 	}
 	if(right->datatype != righttype) {
-		binexpr->right = make_cast(env, right, exprtype);
+		binexpr->right = make_cast(env, right, righttype);
 	}
 	binexpr->expression.datatype = exprtype;
 }
@@ -577,8 +619,8 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 
 	if(return_value != NULL) {
 		check_expression(env, return_value);
-		if(method_result_type == void_type
-				&& return_value->datatype != void_type) {
+		if(method_result_type == type_void
+				&& return_value->datatype != type_void) {
 			fprintf(stderr, "Error: return with value in void method '%s'\n",
 			        method->symbol->string);
 			env->found_errors = 1;
@@ -593,7 +635,7 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 			statement->return_value = return_value;
 		}
 	} else {
-		if(method_result_type != void_type) {
+		if(method_result_type != type_void) {
 			fprintf(stderr, "Error: missing return value in method '%s'\n",
 			        method->symbol->string);
 			env->found_errors = 1;
@@ -669,14 +711,85 @@ void check_expression_statement(semantic_env_t *env,
 	if(expression->datatype == NULL)
 		return;
 
-	int is_assign = 0;
+	int may_be_unused = 0;
 	if(expression->type == EXPR_BINARY &&
-			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN)
-		is_assign = 1;
+			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN) {
+		may_be_unused = 1;
+	} else if(expression->type == EXPR_CALL) {
+		may_be_unused = 1;
+	}
 
-	if(expression->datatype != void_type && !is_assign) {
+	if(expression->datatype != type_void && !may_be_unused) {
 		fprintf(stderr, "Warning: result of expression is unused\n");
 		fprintf(stderr, "Note: Cast expression to void to avoid this warning\n");
+	}
+}
+
+static
+void check_label_statement(semantic_env_t *env, label_statement_t *label)
+{
+	symbol_t *symbol = label->symbol;
+	/* anonymous label */
+	if(symbol == NULL)
+		return;
+
+	environment_entry_t *entry = symbol->label;
+	if(entry != NULL && entry->type == ENTRY_LABEL) {
+		fprintf(stderr, "Error: doubled label\n");
+		env->found_errors = 1;
+		return;
+	}
+
+	if(entry == NULL) {
+		ARR_APP1(symbol_t*, env->label_stack, symbol);
+	}
+
+	/* gotos prior to the label? */
+	while(entry != NULL) {
+		assert(entry->type == ENTRY_GOTO);
+		goto_statement_t *goto_statement = entry->e.goto_statement;
+
+		goto_statement->label = label;
+		entry = entry->up;
+	}
+
+	environment_entry_t *new_entry
+		= obstack_alloc(& env->label_obstack, sizeof(new_entry[0]));
+	memset(new_entry, 0, sizeof(new_entry[0]));
+	new_entry->type    = ENTRY_LABEL;
+	new_entry->e.label = label;
+	symbol->label      = new_entry;
+}
+
+static
+void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
+{
+	/* already resolved? */
+	if(goto_statement->label != NULL)
+		return;
+
+	symbol_t *symbol = goto_statement->label_symbol;
+	if(symbol == NULL) {
+		fprintf(stderr, "Error: unresolved anonymous goto\n");
+		env->found_errors = 1;
+		return;
+	}
+
+	environment_entry_t *entry = symbol->label;
+	if(entry != NULL && entry->type == ENTRY_LABEL) {
+		goto_statement->label = entry->e.label;
+	} else {
+		environment_entry_t *new_entry
+			= obstack_alloc(& env->label_obstack, sizeof(new_entry[0]));
+		memset(new_entry, 0, sizeof(new_entry[0]));
+		new_entry->type             = ENTRY_GOTO;
+		new_entry->e.goto_statement = goto_statement;
+		new_entry->up               = entry;
+		symbol->label               = new_entry;
+
+		if(entry == NULL) {
+			ARR_APP1(symbol_t*, env->label_stack, symbol);
+		}
 	}
 }
 
@@ -692,6 +805,12 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 		break;
 	case STATEMENT_RETURN:
 		check_return_statement(env, (return_statement_t*) statement);
+		break;
+	case STATEMENT_GOTO:
+		check_goto_statement(env, (goto_statement_t*) statement);
+		break;
+	case STATEMENT_LABEL:
+		check_label_statement(env, (label_statement_t*) statement);
 		break;
 	case STATEMENT_IF:
 		check_if_statement(env, (if_statement_t*) statement);
@@ -712,8 +831,9 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 static
 void check_method(semantic_env_t *env, method_t *method)
 {
-	int old_top         = environment_top(env);
-	env->current_method = method;
+	int old_top            = environment_top(env);
+	env->current_method    = method;
+	char *label_obst_start = obstack_alloc(&env->label_obstack, 1);
 
 	/* push method parameters */
 	method_parameter_t *parameter = method->parameters;
@@ -733,13 +853,29 @@ void check_method(semantic_env_t *env, method_t *method)
 
 	if(!env->last_statement_was_return) {
 		type_t *result_type = method->type->result_type;
-		if(result_type != void_type) {
+		if(result_type != type_void) {
 			fprintf(stderr, "Error: Missing return statement at end of '%s'\n",
 			        method->symbol->string);
 			env->found_errors = 1;
 			return;
 		}
 	}
+
+	/* reset pointers on symbols from labels */
+	int len = ARR_LEN(env->label_stack);
+	for(int i = 0; i < len; ++i) {
+		symbol_t            *symbol = env->label_stack[i];
+		environment_entry_t *entry  = symbol->label;
+
+		if(entry->type != ENTRY_LABEL) {
+			fprintf(stderr, "Error: no label '%s' found\n",
+			        symbol->string);
+			env->found_errors = 1;
+		}
+		symbol->label = NULL;
+	}
+	ARR_SHRINKLEN(env->label_stack, 0);
+	obstack_free(& env->label_obstack, label_obst_start);
 
 	env->current_method = NULL;
 	environment_pop_to(env, old_top);
@@ -861,27 +997,50 @@ type_t* make_atomic_type(struct obstack *obst, atomic_type_type_t atype)
 	return normalized_type;
 }
 
+static
+type_t* make_pointer_type(struct obstack *obst, type_t *points_to)
+{
+	pointer_type_t *type = obstack_alloc(obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_POINTER;
+	type->points_to = points_to;
+
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(obst, type);
+	}
+
+	return normalized_type;
+}
+
 int check_static_semantic(namespace_t *namespace)
 {
 	struct obstack obst;
 	semantic_env_t env;
 
 	obstack_init(&obst);
-	env.obst         = &obst;
-	env.symbol_stack = NEW_ARR_F(environment_entry_t*, 0);
+	env.obst          = &obst;
+	env.symbol_stack  = NEW_ARR_F(environment_entry_t*, 0);
 	obstack_init(&env.symbol_obstack);
-	env.next_valnum  = 0;
-	env.found_errors = 0;
-	env.type_bool    = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
-	env.type_int     = make_atomic_type(&obst, ATOMIC_TYPE_INT);
+	env.label_stack   = NEW_ARR_F(symbol_t*, 0);
+	obstack_init(&env.label_obstack);
+	env.next_valnum   = 0;
+	env.found_errors  = 0;
+	env.type_bool     = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
+	env.type_int      = make_atomic_type(&obst, ATOMIC_TYPE_INT);
+	env.type_uint     = make_atomic_type(&obst, ATOMIC_TYPE_UINT);
+	env.type_void_ptr = make_pointer_type(&obst, type_void);
 
 	check_namespace(&env, namespace);
 
 	DEL_ARR_F(env.symbol_stack);
+	DEL_ARR_F(env.label_stack);
 
 	// TODO global obstack...
 	//obstack_free(&obst, NULL);
 	obstack_free(&env.symbol_obstack, NULL);
+	obstack_free(&env.label_obstack, NULL);
 
 	return !env.found_errors;
 }
+

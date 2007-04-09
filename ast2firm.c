@@ -11,6 +11,7 @@
 #include "adt/xmalloc.h"
 
 static variable_declaration_statement_t **value_numbers = NULL;
+static label_statement_t                 *labels        = NULL;
 
 static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
@@ -171,9 +172,9 @@ ir_type *get_pointer_type(pointer_type_t *type)
 	 * again (might be a struct). We therefore first create a void* pointer
 	 * and then set the real points_to type
 	 */
-	ir_type *ir_void_type = get_ir_type(void_type);
+	ir_type *ir_type_void = get_ir_type(type_void);
 	ir_type *ir_type      = new_type_pointer(unique_id("pointer"),
-	                                         ir_void_type, mode_P_data);
+	                                         ir_type_void, mode_P_data);
 	type->type.firm_type = ir_type;
 
 	ir_points_to = get_ir_type(points_to);
@@ -475,7 +476,7 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 			expression_to_firm(binary_expression->right)
 		};
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
-		ir_node *block = get_irg_current_block(current_ir_graph);
+		ir_node *block = get_cur_block();
 		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
 				irop, mode, 2, in);
 		return node;
@@ -658,7 +659,7 @@ ir_node *expression_to_firm(const expression_t *expression)
 
 
 static
-void statement_to_firm(const statement_t *statement);
+void statement_to_firm(statement_t *statement);
 
 static
 void return_statement_to_firm(const return_statement_t *statement)
@@ -696,9 +697,8 @@ void if_statement_to_firm(const if_statement_t *statement)
 	add_immBlock_pred(true_block, true_proj);
 	mature_immBlock(true_block);
 
-	set_cur_block(true_block);
 	statement_to_firm(statement->true_statement);
-	if(get_irg_current_block(current_ir_graph) != NULL) {
+	if(get_cur_block() != NULL) {
 		ir_node *jmp = new_Jmp();
 		add_immBlock_pred(fallthrough_block, jmp);
 	}
@@ -709,9 +709,8 @@ void if_statement_to_firm(const if_statement_t *statement)
 		add_immBlock_pred(false_block, false_proj);
 		mature_immBlock(false_block);
 
-		set_cur_block(false_block);
 		statement_to_firm(statement->false_statement);
-		if(get_irg_current_block(current_ir_graph) != NULL) {
+		if(get_cur_block() != NULL) {
 			ir_node *jmp = new_Jmp();
 			add_immBlock_pred(fallthrough_block, jmp);
 		}
@@ -732,33 +731,84 @@ void expression_statement_to_firm(const expression_statement_t *statement)
 static
 void block_statement_to_firm(const block_statement_t *block)
 {
-	const statement_t *statement = block->first_statement;
+	statement_t *statement = block->first_statement;
 	while(statement != NULL) {
-		assert(get_irg_current_block(current_ir_graph) != NULL);
-
 		statement_to_firm(statement);
 		statement = statement->next;
 	}
 }
 
 static
-void statement_to_firm(const statement_t *statement)
+void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
+	label_statement_t *label = goto_statement->label;
+	ir_node           *block = label->block;
+
+	if(block == NULL) {
+		ir_node *temp = get_cur_block();
+		block        = new_immBlock();
+		set_cur_block(temp);
+		label->block = block;
+		label->next  = labels;
+		labels       = label;
+	}
+	ir_node *jmp = new_Jmp();
+	add_immBlock_pred(block, jmp);
+
+	set_cur_block(NULL);
+}
+
+static
+void label_statement_to_firm(label_statement_t *label)
+{
+	ir_node *block = label->block;
+
+	if(block == NULL) {
+		ir_node *temp = get_cur_block();
+		block        = new_immBlock();
+		set_cur_block(temp);
+		label->block = block;
+		label->next  = labels;
+		labels       = label;
+	}
+
+	if(get_cur_block() != NULL) {
+		ir_node *jmp = new_Jmp();
+
+		add_immBlock_pred(block, jmp);
+	}
+	set_cur_block(block);
+}
+
+static
+void statement_to_firm(statement_t *statement)
+{
+	if(statement->type != STATEMENT_LABEL && get_cur_block() == NULL) {
+		fprintf(stderr, "Warning: unreachable code detected\n");
+		return;
+	}
+
 	switch(statement->type) {
 	case STATEMENT_BLOCK:
-		block_statement_to_firm((const block_statement_t*) statement);
+		block_statement_to_firm((block_statement_t*) statement);
 		return;
 	case STATEMENT_RETURN:
-		return_statement_to_firm((const return_statement_t*) statement);
+		return_statement_to_firm((return_statement_t*) statement);
 		return;
 	case STATEMENT_IF:
-		if_statement_to_firm((const if_statement_t*) statement);
+		if_statement_to_firm((if_statement_t*) statement);
 		return;
 	case STATEMENT_VARIABLE_DECLARATION:
 		/* nothing to do */
 		break;
 	case STATEMENT_EXPRESSION:
-		expression_statement_to_firm((const expression_statement_t*) statement);
+		expression_statement_to_firm((expression_statement_t*) statement);
+		break;
+	case STATEMENT_LABEL:
+		label_statement_to_firm((label_statement_t*) statement);
+		break;
+	case STATEMENT_GOTO:
+		goto_statement_to_firm((goto_statement_t*) statement);
 		break;
 	default:
 		abort();
@@ -775,19 +825,26 @@ void create_method(method_t *method)
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
 
-	ir_node *firstblock = get_irg_current_block(irg);
+	ir_node *firstblock = get_cur_block();
 
 	statement_to_firm(method->statement);
 
 	/* no return statement seen yet? */
 	ir_node *end_block     = get_irg_end_block(irg);
-	if(get_irg_current_block(irg) != NULL) {
+	if(get_cur_block() != NULL) {
 		ir_node *ret = new_Return(get_store(), 0, NULL);
 		add_immBlock_pred(end_block, ret);
 	}
 
 	mature_immBlock(firstblock);
 	mature_immBlock(end_block);
+
+	label_statement_t *label = labels;
+	while(label != NULL) {
+		mature_immBlock(label->block);
+		label = label->next;
+	}
+	labels = NULL;
 
 	irg_finalize_cons(irg);
 

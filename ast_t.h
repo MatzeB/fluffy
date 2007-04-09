@@ -187,7 +187,9 @@ typedef enum {
 	STATEMENT_RETURN,
 	STATEMENT_VARIABLE_DECLARATION,
 	STATEMENT_IF,
-	STATEMENT_EXPRESSION
+	STATEMENT_EXPRESSION,
+	STATEMENT_GOTO,
+	STATEMENT_LABEL
 } statement_type_t;
 
 struct statement_t {
@@ -219,6 +221,20 @@ struct if_statement_t {
 	expression_t *condition;
 	statement_t  *true_statement;
 	statement_t  *false_statement;
+};
+
+struct goto_statement_t {
+	statement_t        statement;
+	symbol_t          *label_symbol;
+	label_statement_t *label;
+};
+
+struct label_statement_t {
+	statement_t        statement;
+	symbol_t          *symbol;
+
+	ir_node           *block;
+	label_statement_t *next;
 };
 
 struct expression_statement_t {

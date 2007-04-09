@@ -48,19 +48,48 @@ extern int SDL_FillRect(Surface dest, Rect destrect, unsigned int color)
 extern Surface IMG_Load(byte* filename)
 extern void SDL_FreeSurface(Surface surface)
 extern void SDL_Delay(unsigned int ms)
+extern void* malloc(unsigned int size)
+extern void free(void* ptr)
+extern int SDL_Flip(Surface screen)
 
 extern void print_int(int val)
+extern void print_string(byte * val)
 
-int main():
+int main(int argc, byte * * argv):
 	SDL_Init(0x0000FFFF)
 
+	def image_count <- argc - 1
 	def screen <- SDL_SetVideoMode(640, 480, 0, 0)
+	def filename <- argv + 4
+	def i <- 0
+	def rect <- cast<Rect> (malloc(8))
 
 	print_int(screen.w)
 	print_int(screen.h)
 
-	SDL_Delay(1000)
+	:loop
+	if i >= image_count:
+		goto end
 
+	print_string(*filename)
+	def image <- IMG_Load(*filename)
+	if image = 0:
+		return 1
+	
+	SDL_FillRect(screen, 0, 0)
+	rect.x <- (screen.w - image.w) >> 1
+	rect.y <- (screen.h - image.h) >> 1
+	SDL_UpperBlit(image, 0, screen, rect)
+	SDL_Flip(screen)
+
+	SDL_Delay(1500)
+	i <- i + 1
+	filename <- filename + 4
+	goto loop
+
+	:end
+
+	free(rect)
 	SDL_Quit()
 
 	return 0

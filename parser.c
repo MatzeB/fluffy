@@ -129,10 +129,10 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 }
 
 
-static type_t void_type_    = { TYPE_VOID, NULL };
-static type_t invalid_type_ = { TYPE_INVALID, NULL };
-type_t *void_type    = &void_type_;
-type_t *invalid_type = &invalid_type_;
+static type_t type_void_    = { TYPE_VOID, NULL };
+static type_t type_invalid_ = { TYPE_INVALID, NULL };
+type_t *type_void    = &type_void_;
+type_t *type_invalid = &type_invalid_;
 
 static
 atomic_type_type_t parse_unsigned_atomic_type(parser_env_t *env)
@@ -263,12 +263,12 @@ type_t *parse_type(parser_env_t *env)
 		type = parse_type_ref(env);
 		break;
 	case T_void:
-		type = void_type;
+		type = type_void;
 		next_token(env);
 		break;
 	default:
 		parse_error(env, "Invalid type");
-		type = invalid_type;
+		type = type_invalid;
 		break;
 	}
 
@@ -289,9 +289,9 @@ type_t *parse_type(parser_env_t *env)
 }
 
 static
-void eat_until_semi(parser_env_t *env)
+void eat_until_newline(parser_env_t *env)
 {
-	while(env->token.type != ';') {
+	while(env->token.type != T_NEWLINE) {
 		next_token(env);
 		if(env->token.type == T_EOF)
 			return;
@@ -302,7 +302,7 @@ void eat_until_semi(parser_env_t *env)
 #define expect(env,expected) \
 	if(UNLIKELY(env->token.type != (expected))) { \
 		parse_error_expected(env, NULL, (expected), 0); \
-		eat_until_semi(env); \
+		eat_until_newline(env); \
 		return NULL; \
 	} \
 	next_token(env);
@@ -339,6 +339,27 @@ static
 expression_t *parse_expression(parser_env_t *env);
 
 static
+expression_t *parse_cast_expression(parser_env_t *env)
+{
+	assert(env->token.type == T_cast);
+	next_token(env);
+
+	unary_expression_t *unary_expression
+		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
+	unary_expression->expression.type = EXPR_UNARY;
+	unary_expression->type            = UNEXPR_CAST;
+	
+	expect(env, '<');
+	unary_expression->expression.datatype = parse_type(env);
+	expect(env, '>');
+	expect(env, '(');
+	unary_expression->value = parse_expression(env);
+	expect(env, ')');
+
+	return (expression_t*) unary_expression;
+}
+
+static
 expression_t *parse_primary_expression(parser_env_t *env)
 {
 	expression_t *expression;
@@ -348,6 +369,8 @@ expression_t *parse_primary_expression(parser_env_t *env)
 		return parse_int_const(env);
 	case T_IDENTIFIER:
 		return parse_reference(env);
+	case T_cast:
+		return parse_cast_expression(env);
 	case '(':
 		next_token(env);
 		expression = parse_expression(env);
@@ -628,6 +651,55 @@ statement_t *parse_return_statement(parser_env_t *env)
 }
 
 static
+statement_t *parse_goto_statement(parser_env_t *env)
+{
+	assert(env->token.type == T_goto);
+	next_token(env);
+
+	goto_statement_t *goto_statement
+		= obstack_alloc(&env->obst, sizeof(goto_statement[0]));
+	memset(goto_statement, 0, sizeof(goto_statement[0]));
+	goto_statement->statement.type = STATEMENT_GOTO;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "problem while parsing goto statement",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+	goto_statement->label_symbol = env->token.v.symbol;
+	next_token(env);
+
+	expect(env, T_NEWLINE);
+
+	return (statement_t*) goto_statement;
+}
+
+static
+statement_t *parse_label_statement(parser_env_t *env)
+{
+	assert(env->token.type == ':');
+	next_token(env);
+
+	label_statement_t *label = obstack_alloc(&env->obst, sizeof(label[0]));
+	memset(label, 0, sizeof(label[0]));
+	label->statement.type = STATEMENT_LABEL;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "problem while parsing label",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+	label->symbol = env->token.v.symbol;
+	next_token(env);
+
+	expect(env, T_NEWLINE);
+
+	return (statement_t*) label;
+}
+
+static
 statement_t *parse_if_statement(parser_env_t *env)
 {
 	expression_t *condition;
@@ -735,7 +807,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 		if(env->token.type != T_IDENTIFIER) {
 			parse_error_expected(env, "Problem parsing variable declaration",
 			                     T_IDENTIFIER, 0);
-			eat_until_semi(env);
+			eat_until_newline(env);
 			return NULL;
 		}
 	}
@@ -781,6 +853,14 @@ statement_t *parse_statement(parser_env_t *env)
 
 	case T_def:
 		statement = parse_variable_declaration(env);
+		break;
+
+	case ':':
+		statement = parse_label_statement(env);
+		break;
+
+	case T_goto:
+		statement = parse_goto_statement(env);
 		break;
 
 	case T_NEWLINE:
@@ -914,7 +994,7 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, NULL, T_IDENTIFIER, 0);
-		eat_until_semi(env);
+		eat_until_newline(env);
 		return NULL;
 	}
 	symbol = env->token.v.symbol;
@@ -991,7 +1071,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing extern declaration",
 		                     T_IDENTIFIER, 0);
-		eat_until_semi(env);
+		eat_until_newline(env);
 		return NULL;
 	}
 	extern_method->symbol = env->token.v.symbol;
@@ -1028,7 +1108,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing struct",
 		                     T_IDENTIFIER, 0);
-		eat_until_semi(env);
+		eat_until_newline(env);
 		return NULL;
 	}
 	struct_->symbol = env->token.v.symbol;

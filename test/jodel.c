@@ -5,6 +5,11 @@ void print_int(int param)
 	printf("Int: %d\n", param);
 }
 
+void print_string(const char *str)
+{
+	printf("String: %s\n", str);
+}
+
 int get_int()
 {
 	printf("Int: ");

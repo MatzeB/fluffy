@@ -10,6 +10,7 @@ struct symbol_t {
 	const char          *string;
 	unsigned             ID;
 	environment_entry_t *thing;
+	environment_entry_t *label;
 };
 
 #endif

@@ -28,6 +28,8 @@ typedef struct return_statement_t       return_statement_t;
 typedef struct if_statement_t           if_statement_t;
 typedef struct variable_declaration_statement_t variable_declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
+typedef struct goto_statement_t         goto_statement_t;
+typedef struct label_statement_t        label_statement_t;
 
 typedef enum   namespace_entry_type_t   namespace_entry_type_t;
 typedef struct namespace_entry_t        namespace_entry_t;
@@ -38,8 +40,8 @@ typedef struct extern_method_t          extern_method_t;
 typedef struct variable_t               variable_t;
 typedef struct struct_t                 struct_t;
 
-extern type_t *void_type;
-extern type_t *invalid_type;
+extern type_t *type_void;
+extern type_t *type_invalid;
 
 void print_type(FILE* out, const type_t *type);
 void print_expression(FILE *out, const expression_t *expression);

@@ -2,3 +2,8 @@
 - having the same entry twice in a struct is not detected
 - lexer does not produce multiple DEDENTS yet
 
+Smaller tasks:
+- Add option parsing to the compiler, pass options to backend as well
+- Start more firm optimisations
+- Create an eccp like wrapper script
+
