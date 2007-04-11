@@ -62,6 +62,7 @@ const token_t* la(parser_env_t *env, int i)
 	return & env->lookahead[i - 1].token;
 }
 
+
 typedef enum {
 	ERR_WARNING,
 	ERR_ERROR
@@ -226,22 +227,19 @@ type_t *parse_atomic_type(parser_env_t *env)
 }
 
 static
-type_t *parse_type_ref_sym(parser_env_t *env, symbol_t *symbol)
+type_t *parse_type_ref(parser_env_t *env)
 {
+	assert(env->token.type == T_IDENTIFIER);
+
 	ref_type_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
 	memset(type_ref, 0, sizeof(type_ref[0]));
 
-	type_ref->type.type = TYPE_REF;
-	type_ref->symbol    = symbol;
-	return (type_t*) type_ref;
-}
-
-static
-type_t *parse_type_ref(parser_env_t *env)
-{
-	symbol_t *symbol = env->token.v.symbol;
+	type_ref->type.type       = TYPE_REF;
+	type_ref->symbol          = env->token.v.symbol;
+	type_ref->source_position = env->source_position;
 	next_token(env);
-	return parse_type_ref_sym(env, symbol);
+
+	return (type_t*) type_ref;
 }
 
 static
@@ -313,8 +311,9 @@ expression_t *parse_int_const(parser_env_t *env)
 	int_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
 	memset(cnst, 0, sizeof(cnst));
 
-	cnst->expression.type = EXPR_INT_CONST;
-	cnst->value           = env->token.v.intvalue;
+	cnst->expression.type            = EXPR_INT_CONST;
+	cnst->expression.source_position = env->source_position;
+	cnst->value                      = env->token.v.intvalue;
 
 	next_token(env);
 
@@ -327,8 +326,9 @@ expression_t *parse_reference(parser_env_t *env)
 	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
 	memset(ref, 0, sizeof(ref[0]));
 
-	ref->expression.type = EXPR_REFERENCE;
-	ref->symbol          = env->token.v.symbol;
+	ref->expression.type            = EXPR_REFERENCE;
+	ref->expression.source_position = env->source_position;
+	ref->symbol                     = env->token.v.symbol;
 
 	next_token(env);
 
@@ -341,13 +341,15 @@ expression_t *parse_expression(parser_env_t *env);
 static
 expression_t *parse_cast_expression(parser_env_t *env)
 {
+	source_position_t source_position = env->source_position;
 	assert(env->token.type == T_cast);
 	next_token(env);
 
 	unary_expression_t *unary_expression
 		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
-	unary_expression->expression.type = EXPR_UNARY;
-	unary_expression->type            = UNEXPR_CAST;
+	unary_expression->expression.type            = EXPR_UNARY;
+	unary_expression->expression.source_position = source_position;
+	unary_expression->type                       = UNEXPR_CAST;
 	
 	expect(env, '<');
 	unary_expression->expression.datatype = parse_type(env);
@@ -393,8 +395,9 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 	call_expression_t *call = obstack_alloc(&env->obst, sizeof(call[0]));
 	memset(call, 0, sizeof(call[0]));
 
-	call->expression.type = EXPR_CALL;
-	call->method          = expression;
+	call->expression.type            = EXPR_CALL;
+	call->expression.source_position = env->source_position;
+	call->method                     = expression;
 
 	/* parse arguments */
 	assert(env->token.type == '(');
@@ -429,14 +432,16 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 static
 expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
 {
+	source_position_t source_position = env->source_position;
 	assert(env->token.type == '.');
 	next_token(env);
 
 	select_expression_t *select = obstack_alloc(&env->obst, sizeof(select[0]));
 	memset(select, 0, sizeof(select[0]));
 
-	select->expression.type = EXPR_SELECT;
-	select->compound        = compound;
+	select->expression.type            = EXPR_SELECT;
+	select->expression.source_position = source_position;
+	select->compound                   = compound;
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing compound select",
@@ -490,7 +495,9 @@ expression_t *parse_prefix_expression(parser_env_t *env)
 	 * expressions can have configurable precedence too.
 	 */
 	unary_expression_type_t type = get_unexpr_prefix_type(env->token.type);
+	source_position_t       source_position;
 	if(type != 0) {
+		source_position = env->source_position;
 		next_token(env);
 	}
 
@@ -501,6 +508,7 @@ expression_t *parse_prefix_expression(parser_env_t *env)
 			= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
 		memset(unary_expression, 0, sizeof(unary_expression[0]));
 		unary_expression->expression.type = EXPR_UNARY;
+		unary_expression->expression.source_position = source_position;
 		unary_expression->type            = type;
 		unary_expression->value           = value;
 
@@ -598,7 +606,8 @@ unsigned get_level(int c)
 static
 expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 {
-	expression_t *left = parse_prefix_expression(env);
+	source_position_t  source_position = env->source_position;
+	expression_t      *left            = parse_prefix_expression(env);
 
 	while(1) {
 		int      op       = env->token.type;
@@ -612,10 +621,11 @@ expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 		binary_expression_t *binexpr
 			= obstack_alloc(&env->obst, sizeof(binexpr[0]));
 		memset(binexpr, 0, sizeof(binexpr[0]));
-		binexpr->expression.type = EXPR_BINARY;
-		binexpr->type            = get_binexpr_type(op);
-		binexpr->left            = left;
-		binexpr->right           = right;
+		binexpr->expression.type            = EXPR_BINARY;
+		binexpr->expression.source_position = source_position;
+		binexpr->type                       = get_binexpr_type(op);
+		binexpr->left                       = left;
+		binexpr->right                      = right;
 
 		left = (expression_t*) binexpr;
 	}
@@ -836,7 +846,8 @@ statement_t *parse_block(parser_env_t *env);
 static
 statement_t *parse_statement(parser_env_t *env)
 {
-	statement_t *statement;
+	statement_t       *statement;
+	source_position_t  source_position = env->source_position;
 
 	switch(env->token.type) {
 	case T_return:
@@ -871,6 +882,13 @@ statement_t *parse_statement(parser_env_t *env)
 	default:
 		statement = parse_expression_statement(env);
 		break;
+	}
+
+	statement->source_position = source_position;
+	statement_t *next = statement->next;
+	while(next != NULL) {
+		next->source_position = source_position;
+		next                  = next->next;
 	}
 
 	return statement;
@@ -1163,7 +1181,8 @@ namespace_t *parse_namespace(parser_env_t *env)
 	memset(namespace, 0, sizeof(namespace[0]));
 
 	while(1) {
-		namespace_entry_t *entry = NULL;
+		namespace_entry_t *entry           = NULL;
+		source_position_t  source_position = env->source_position;
 
 		switch(env->token.type) {
 		case T_unsigned:
@@ -1201,7 +1220,8 @@ namespace_t *parse_namespace(parser_env_t *env)
 		}
 
 		if(entry != NULL) {
-			entry->next = namespace->first_entry;
+			entry->next            = namespace->first_entry;
+			entry->source_position = source_position;
 			namespace->first_entry = entry;
 		}
 	}

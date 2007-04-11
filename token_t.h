@@ -13,7 +13,7 @@ typedef enum {
 	T_INTEGER,
 	T_STRING_LITERAL,
 #define T(x,str,val) T_##x val,
-#include "known_symbols.inc"
+#include "tokens.inc"
 #undef T
 	T_EOF      = -1,
 	T_ERROR    = -2

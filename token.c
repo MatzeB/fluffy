@@ -11,7 +11,7 @@ void put_known_symbols_into_symbol_table(symbol_table_t *symbol_table)
 #define T(x,str,val)                                 \
 	symbol = symbol_table_insert(symbol_table, str); \
 	symbol->ID = T_##x;
-#include "known_symbols.inc"
+#include "tokens.inc"
 #undef T
 }
 
@@ -33,7 +33,7 @@ void print_token_type(FILE *f, token_type_t token_type)
 		case T_ERROR:          fputs("malformed token", f); break;
 
 #define T(x,str,val) case T_##x: fputs("'" str "'", f); break;
-#include "known_symbols.inc"
+#include "tokens.inc"
 #undef T
 
 		default: fputs("unknown token", f); break;

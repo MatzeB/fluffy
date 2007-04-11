@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "symbol.h"
 #include "semantic.h"
+#include "lexer_t.h"
 #include "firm/tr/type.h"
 #include "firm/tr/entity.h"
 
@@ -35,8 +36,9 @@ typedef enum {
 } atomic_type_type_t;
 
 struct type_t {
-	type_type_t  type;
-	ir_type     *firm_type;
+	type_type_t        type;
+
+	ir_type           *firm_type;
 };
 
 struct atomic_type_t {
@@ -50,8 +52,9 @@ struct pointer_type_t {
 };
 
 struct ref_type_t {
-	type_t    type;
-	symbol_t *symbol;
+	type_t             type;
+	symbol_t          *symbol;
+	source_position_t  source_position;
 };
 
 struct method_parameter_type_t {
@@ -67,17 +70,19 @@ struct method_type_t {
 };
 
 struct struct_entry_t {
-	type_t         *type;
-	symbol_t       *symbol;
-	struct_entry_t *next;
+	type_t            *type;
+	symbol_t          *symbol;
+	struct_entry_t    *next;
+	source_position_t  source_position;
 
-	ir_entity      *entity;
+	ir_entity         *entity;
 };
 
 struct struct_type_t {
-	type_t          type;
-	struct_entry_t *entries;
-	symbol_t       *symbol;
+	type_t             type;
+	struct_entry_t    *entries;
+	symbol_t          *symbol;
+	source_position_t  source_position;
 };
 
 typedef enum {
@@ -96,8 +101,9 @@ typedef enum {
 } expresion_type_t;
 
 struct expression_t {
-	expresion_type_t  type;
-	type_t           *datatype;
+	expresion_type_t   type;
+	type_t            *datatype;
+	source_position_t  source_position;
 };
 
 struct int_const_t {
@@ -193,8 +199,9 @@ typedef enum {
 } statement_type_t;
 
 struct statement_t {
-	statement_t      *next;
-	statement_type_t  type;
+	statement_type_t   type;
+	statement_t       *next;
+	source_position_t  source_position;
 };
 
 struct return_statement_t {
@@ -252,6 +259,7 @@ enum namespace_entry_type_t {
 struct namespace_entry_t {
 	namespace_entry_type_t  type;
 	namespace_entry_t      *next;
+	source_position_t       source_position;
 };
 
 struct method_parameter_t {

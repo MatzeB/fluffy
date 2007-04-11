@@ -55,6 +55,31 @@ struct semantic_env_t {
 	type_t               *type_void_ptr;
 };
 
+
+static
+void print_error_prefix(semantic_env_t *env, const source_position_t position)
+{
+	(void) env;
+	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
+}
+
+static
+void print_warning_prefix(semantic_env_t *env,
+                          const source_position_t position)
+{
+	(void) env;
+	fprintf(stderr, "%s:%d: warning: ", position.input_name, position.linenr);
+}
+
+static
+void error_at(semantic_env_t *env, const source_position_t position,
+              const char *message)
+{
+	print_error_prefix(env, position);
+	fprintf(stderr, "%s\n", message);
+	env->found_errors = 1;
+}
+
 /**
  * pushs an environment_entry on the environment stack and links the
  * corresponding symbol to the new entry
@@ -98,7 +123,10 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
 				&& entry->e.variable->refs == 0) {
-			fprintf(stderr, "Warning: Variable '%s' was declared but never read\n", symbol->string);
+			variable_declaration_statement_t *variable = entry->e.variable;
+			print_warning_prefix(env, variable->statement.source_position);
+			fprintf(stderr, "variable '%s' was declared but never read\n",
+			        symbol->string);
 		}
 
 		assert(symbol->thing == entry);
@@ -128,14 +156,16 @@ type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
 {
 	environment_entry_t *entry    = type_ref->symbol->thing;
 	if(entry == NULL) {
-		fprintf(stderr, "Error: can't resolve type: Symbol '%s' is "
-				"unknown\n", type_ref->symbol->string);
+		print_error_prefix(env, type_ref->source_position);
+		fprintf(stderr, "can't resolve type: nothing known about '%s'\n",
+		        type_ref->symbol->string);
 		env->found_errors = 1;
 		return NULL;
 	}
 	if(entry->type != ENTRY_TYPE) {
-		fprintf(stderr, "Error: symbol '%s' is not a type\n",
-				type_ref->symbol->string);
+		print_error_prefix(env, type_ref->source_position);
+		fprintf(stderr, "can't resolve type: '%s' is not a type\n",
+		        type_ref->symbol->string);
 		env->found_errors = 1;
 		return NULL;
 	}
@@ -215,7 +245,8 @@ void check_local_variable_type(semantic_env_t *env,
 {
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
 			&& type->type != TYPE_STRUCT) {
-		fprintf(stderr, "Only atomic or pointer types allowed for local "
+		print_error_prefix(env, declaration->statement.source_position);
+		fprintf(stderr, "only atomic or pointer types allowed for local "
 		        "variables (at variable '%s')\n", declaration->symbol->string);
 		env->found_errors = 1;
 	}
@@ -234,7 +265,8 @@ void check_reference_expression(semantic_env_t *env,
 	environment_entry_t              *entry  = symbol->thing;
 
 	if(entry == NULL) {
-		fprintf(stderr, "Error: No known definition for '%s'\n", symbol->string);
+		print_error_prefix(env, ref->expression.source_position);
+		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
 		env->found_errors = 1;
 		return;
 	}
@@ -272,7 +304,9 @@ void check_reference_expression(semantic_env_t *env,
 		ref->expression.datatype = method_parameter->type;
 		break;
 	case ENTRY_TYPE:
-		fprintf(stderr, "Error: Can't use type in expression\n");
+		print_error_prefix(env, ref->expression.source_position);
+		fprintf(stderr, "'%s' is a type and can't be used as expression\n",
+		        ref->symbol->string);
 		env->found_errors = 1;
 		break;
 	default:
@@ -301,8 +335,8 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 		/* do type inferencing if needed */
 		if(left->datatype == NULL) {
 			if(right->datatype == NULL) {
-				fprintf(stderr, "Error: Can't infer type for '%s'\n",
-				        symbol->string);
+				print_error_prefix(env, assign->expression.source_position);
+				fprintf(stderr, "can't infer type for '%s'\n", symbol->string);
 				env->found_errors = 1;
 				return;
 			}
@@ -329,8 +363,18 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 {
 	assert(from->datatype != destination_type);
 
+	/* TODO: - test which types can be implicitely casted... 
+	 *       - improve error reporting (want to know the context of the cast)
+	 *          ("can't implicitely cast for argument 2 of method call...")
+	 */
+
 	type_t *from_type = from->datatype;
-	/* TODO: test which types can be implicitely casted... */
+	if(from_type == NULL) {
+		fprintf(stderr, "error: can't implicitely cast from unknown type\n");
+		env->found_errors = 1;
+		return from;
+	}
+
 	if(from_type->type == TYPE_POINTER) {
 		if(destination_type->type != TYPE_POINTER) {
 			fprintf(stderr, "Can't implicitely cast ");
@@ -457,7 +501,10 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		return;
 
 	if(type->type != TYPE_METHOD) {
-		fprintf(stderr, "Trying to call something which is not a method\n");
+		print_error_prefix(env, call->expression.source_position);
+		fprintf(stderr, "trying to call a non-method value of type");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
 		env->found_errors = 1;
 		return;
 	}
@@ -469,7 +516,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	while(argument != NULL) {
 		if(param_type == NULL) {
-			fprintf(stderr, "Too few arguments for method call\n");
+			error_at(env, call->expression.source_position,
+			         "too few arguments for method call\n");
 			env->found_errors = 1;
 			break;
 		}
@@ -486,7 +534,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		param_type = param_type->next;
 	}
 	if(param_type != NULL) {
-		fprintf(stderr, "Too much argumentss for method call\n");
+		error_at(env, call->expression.source_position,
+		         "too much arguments for method call\n");
 		env->found_errors = 1;
 	}
 }
@@ -509,15 +558,13 @@ void check_dereference_expression(semantic_env_t *env,
 	expression_t *value = dereference->value;
 	check_expression(env, value);
 	if(value->datatype == NULL) {
-		fprintf(stderr,
-		        "Error: can't derefence expression with unknown datatype\n");
-		env->found_errors = 1;
+		error_at(env, dereference->expression.source_position,
+		         "can't derefence expression with unknown datatype\n");
 		return;
 	}
 	if(value->datatype->type != TYPE_POINTER) {
-		fprintf(stderr,
-		        "Can only dereference expressions with pointer type\n");
-		env->found_errors = 1;
+		error_at(env, dereference->expression.source_position,
+		         "can only dereference expressions with pointer type\n");
 		return;
 	}
 	pointer_type_t *pointer_type      = (pointer_type_t*) value->datatype;
@@ -550,8 +597,10 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 
 	type_t *compound_type = compound->datatype;
 	if(compound_type->type != TYPE_STRUCT) {
-		fprintf(stderr, "Compound type in select expression is not a pointer "
-		                "to a struct\n");
+		print_error_prefix(env, select->expression.source_position);
+		fprintf(stderr, "can't component from non-compound value of type ");
+		print_type(stderr, compound_type);
+		fprintf(stderr, "\n");
 		env->found_errors = 1;
 		return;
 	}
@@ -566,8 +615,10 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		entry = entry->next;
 	}
 	if(entry == NULL) {
-		fprintf(stderr, "Struct type '%s' does not contain a member '%s'\n",
-		        struct_type->symbol->string, symbol->string);
+		print_error_prefix(env, select->expression.source_position);
+		fprintf(stderr, "compound type ");
+		print_type(stderr, compound_type);
+		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
 		env->found_errors = 1;
 		return;
 	}
@@ -621,9 +672,8 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 		check_expression(env, return_value);
 		if(method_result_type == type_void
 				&& return_value->datatype != type_void) {
-			fprintf(stderr, "Error: return with value in void method '%s'\n",
-			        method->symbol->string);
-			env->found_errors = 1;
+			error_at(env, statement->statement.source_position,
+			         "return with value in void method\n");
 			return;
 		}
 
@@ -636,9 +686,8 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 		}
 	} else {
 		if(method_result_type != type_void) {
-			fprintf(stderr, "Error: missing return value in method '%s'\n",
-			        method->symbol->string);
-			env->found_errors = 1;
+			error_at(env, statement->statement.source_position,
+			         "missing return value in non-void method\n");
 			return;
 		}
 	}
@@ -651,7 +700,8 @@ void check_if_statement(semantic_env_t *env, if_statement_t *statement)
 
 	check_expression(env, condition);
 	if(condition->datatype != env->type_bool) {
-		fprintf(stderr, "Error: if condition needs to be of boolean type\n");
+		error_at(env, statement->statement.source_position,
+		         "if condition needs to be of boolean type\n");
 		env->found_errors = 1;
 		return;
 	}
@@ -720,8 +770,10 @@ void check_expression_statement(semantic_env_t *env,
 	}
 
 	if(expression->datatype != type_void && !may_be_unused) {
-		fprintf(stderr, "Warning: result of expression is unused\n");
-		fprintf(stderr, "Note: Cast expression to void to avoid this warning\n");
+		print_warning_prefix(env, statement->statement.source_position);
+		fprintf(stderr, "result of expression is unused\n");
+		fprintf(stderr, "note: cast expression to void to avoid this "
+		        "warning\n");
 	}
 }
 
@@ -735,8 +787,7 @@ void check_label_statement(semantic_env_t *env, label_statement_t *label)
 
 	environment_entry_t *entry = symbol->label;
 	if(entry != NULL && entry->type == ENTRY_LABEL) {
-		fprintf(stderr, "Error: doubled label\n");
-		env->found_errors = 1;
+		error_at(env, label->statement.source_position, "doubled label\n");
 		return;
 	}
 
@@ -770,8 +821,8 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 
 	symbol_t *symbol = goto_statement->label_symbol;
 	if(symbol == NULL) {
-		fprintf(stderr, "Error: unresolved anonymous goto\n");
-		env->found_errors = 1;
+		error_at(env, goto_statement->statement.source_position,
+		         "unresolved anonymous goto\n");
 		return;
 	}
 
@@ -854,7 +905,9 @@ void check_method(semantic_env_t *env, method_t *method)
 	if(!env->last_statement_was_return) {
 		type_t *result_type = method->type->result_type;
 		if(result_type != type_void) {
-			fprintf(stderr, "Error: Missing return statement at end of '%s'\n",
+			/* TODO: report end-position of block-statement? */
+			print_error_prefix(env, method->namespace_entry.source_position);
+			fprintf(stderr, "missing return statement at end of method '%s'\n",
 			        method->symbol->string);
 			env->found_errors = 1;
 			return;
@@ -867,9 +920,12 @@ void check_method(semantic_env_t *env, method_t *method)
 		symbol_t            *symbol = env->label_stack[i];
 		environment_entry_t *entry  = symbol->label;
 
+		/* this happens when we had a goto to a non-existing label */
 		if(entry->type != ENTRY_LABEL) {
-			fprintf(stderr, "Error: no label '%s' found\n",
-			        symbol->string);
+			assert(entry->type == ENTRY_GOTO);
+			goto_statement_t *goto_statement = entry->e.goto_statement;
+			print_error_prefix(env, goto_statement->statement.source_position);
+			fprintf(stderr, "no label '%s' defined\n", symbol->string);
 			env->found_errors = 1;
 		}
 		symbol->label = NULL;
