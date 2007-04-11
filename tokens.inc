@@ -37,6 +37,9 @@ T(GREATERGREATER, ">>",)
 T(MULTILINE_COMMENT_BEGIN, "/*",)
 T(MULTILINE_COMMENT_END, "*/",)
 T(SINGLELINE_COMMENT, "//",)
+
+#define T_LAST_TOKEN  (T_SINGLELINE_COMMENT+1)
+
 T(PLUS, "+", = '+')
 T(MINUS, "-", = '-')
 T(MULT, "*", = '*')

@@ -11,6 +11,7 @@
 #include "symbol.h"
 #include "type_hash.h"
 #include "ast_t.h"
+#include "parse_expression.h"
 #include "adt/obst.h"
 #include "adt/util.h"
 #include "adt/error.h"
@@ -24,15 +25,23 @@ typedef struct lexer_state_t {
 	source_position_t  source_position;
 } lexer_state_t;
 
-typedef struct {
-	struct obstack     obst;
-	token_t            token;
-	source_position_t  source_position;
-	lexer_state_t      lookahead[LOOKAHEAD];
-	lexer_t            lexer;
-	symbol_table_t     symbol_table;
-	int                error;
-} parser_env_t;
+typedef struct expression_parse_function_t {
+	unsigned                         precedence;
+	parse_expression_function        parser;
+	unsigned                         infix_precedence;
+	parse_expression_infix_function  infix_parser;
+} expression_parse_function_t;
+
+struct parser_env_t {
+	struct obstack               obst;
+	token_t                      token;
+	source_position_t            source_position;
+	lexer_state_t                lookahead[LOOKAHEAD];
+	expression_parse_function_t  expression_parsers[T_LAST_TOKEN];
+	lexer_t                      lexer;
+	symbol_table_t               symbol_table;
+	int                          error;
+};
 
 static inline
 void next_token(parser_env_t *env)
@@ -312,7 +321,6 @@ expression_t *parse_int_const(parser_env_t *env)
 	memset(cnst, 0, sizeof(cnst));
 
 	cnst->expression.type            = EXPR_INT_CONST;
-	cnst->expression.source_position = env->source_position;
 	cnst->value                      = env->token.v.intvalue;
 
 	next_token(env);
@@ -327,7 +335,6 @@ expression_t *parse_reference(parser_env_t *env)
 	memset(ref, 0, sizeof(ref[0]));
 
 	ref->expression.type            = EXPR_REFERENCE;
-	ref->expression.source_position = env->source_position;
 	ref->symbol                     = env->token.v.symbol;
 
 	next_token(env);
@@ -338,27 +345,34 @@ expression_t *parse_reference(parser_env_t *env)
 static
 expression_t *parse_expression(parser_env_t *env);
 
-static
-expression_t *parse_cast_expression(parser_env_t *env)
+void register_expression_parser(parser_env_t *env,
+                                parse_expression_function parser,
+                                int token_type, unsigned precedence)
 {
-	source_position_t source_position = env->source_position;
-	assert(env->token.type == T_cast);
-	next_token(env);
+	assert(token_type >= 0 && token_type < T_LAST_TOKEN);
+	expression_parse_function_t *entry = &env->expression_parsers[token_type];
+	if(entry->parser != NULL) {
+		panic("Trying to register multiple expression parsers for token");
+		return;
+	}
 
-	unary_expression_t *unary_expression
-		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
-	unary_expression->expression.type            = EXPR_UNARY;
-	unary_expression->expression.source_position = source_position;
-	unary_expression->type                       = UNEXPR_CAST;
-	
-	expect(env, '<');
-	unary_expression->expression.datatype = parse_type(env);
-	expect(env, '>');
-	expect(env, '(');
-	unary_expression->value = parse_expression(env);
-	expect(env, ')');
+	entry->parser     = parser;
+	entry->precedence = precedence;
+}
 
-	return (expression_t*) unary_expression;
+void register_expression_infix_parser(parser_env_t *env,
+                                      parse_expression_infix_function parser,
+                                      int token_type, unsigned precedence)
+{
+	assert(token_type >= 0 && token_type < T_LAST_TOKEN);
+	expression_parse_function_t *entry = &env->expression_parsers[token_type];
+	if(entry->infix_parser != NULL) {
+		panic("Trying to register multiple infix expression parsers for token");
+		return;
+	}
+
+	entry->infix_parser     = parser;
+	entry->infix_precedence = precedence;
 }
 
 static
@@ -371,13 +385,6 @@ expression_t *parse_primary_expression(parser_env_t *env)
 		return parse_int_const(env);
 	case T_IDENTIFIER:
 		return parse_reference(env);
-	case T_cast:
-		return parse_cast_expression(env);
-	case '(':
-		next_token(env);
-		expression = parse_expression(env);
-		expect(env, ')');
-		break;
 	default:
 		parse_error_expected(env, "Expected expression", 0);
 		expression = obstack_alloc(&env->obst, sizeof(expression[0]));
@@ -390,13 +397,47 @@ expression_t *parse_primary_expression(parser_env_t *env)
 }
 
 static
-expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
+expression_t *parse_brace_expression(parser_env_t *env, unsigned precedence)
 {
+	(void) precedence;
+	assert(env->token.type == '(');
+	next_token(env);
+
+	expression_t *result = parse_expression(env);
+	expect(env, ')');
+
+	return result;
+}
+
+static
+expression_t *parse_cast_expression(parser_env_t *env, unsigned precedence)
+{
+	assert(env->token.type == T_cast);
+	next_token(env);
+
+	unary_expression_t *unary_expression
+		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
+	unary_expression->expression.type            = EXPR_UNARY;
+	unary_expression->type                       = UNEXPR_CAST;
+	
+	expect(env, '<');
+	unary_expression->expression.datatype = parse_type(env);
+	expect(env, '>');
+
+	unary_expression->value = parse_sub_expression(env, precedence);
+
+	return (expression_t*) unary_expression;
+}
+
+static
+expression_t *parse_call_expression(parser_env_t *env, unsigned precedence,
+                                    expression_t *expression)
+{
+	(void) precedence;
 	call_expression_t *call = obstack_alloc(&env->obst, sizeof(call[0]));
 	memset(call, 0, sizeof(call[0]));
 
 	call->expression.type            = EXPR_CALL;
-	call->expression.source_position = env->source_position;
 	call->method                     = expression;
 
 	/* parse arguments */
@@ -430,9 +471,10 @@ expression_t *parse_call_expression(parser_env_t *env, expression_t *expression)
 }
 
 static
-expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
+expression_t *parse_select_expression(parser_env_t *env, unsigned precedence,
+                                      expression_t *compound)
 {
-	source_position_t source_position = env->source_position;
+	(void) precedence;
 	assert(env->token.type == '.');
 	next_token(env);
 
@@ -440,7 +482,6 @@ expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
 	memset(select, 0, sizeof(select[0]));
 
 	select->expression.type            = EXPR_SELECT;
-	select->expression.source_position = source_position;
 	select->compound                   = compound;
 
 	if(env->token.type != T_IDENTIFIER) {
@@ -454,180 +495,124 @@ expression_t *parse_select_expression(parser_env_t *env, expression_t *compound)
 	return (expression_t*) select;
 }
 
-static
-expression_t *parse_postfix_expression(parser_env_t *env)
-{
-	expression_t *expression = parse_primary_expression(env);
-
-	if(env->token.type == '(') {
-		return parse_call_expression(env, expression);
-	} else if(env->token.type == '.') {
-		return parse_select_expression(env, expression);
-	}
-
-	return expression;
+#define CREATE_UNARY_EXPRESSION_PARSER(token_type, unexpression_type) \
+static                                                           \
+expression_t *parse_##unexpression_type(parser_env_t *env,       \
+                                        unsigned precedence)     \
+{                                                                \
+	assert(env->token.type == token_type);                       \
+	next_token(env);                                             \
+                                                                 \
+	unary_expression_t *unary_expression                         \
+		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));\
+	memset(unary_expression, 0, sizeof(unary_expression[0]));    \
+	unary_expression->expression.type = EXPR_UNARY;              \
+	unary_expression->type            = unexpression_type;       \
+	unary_expression->value           = parse_sub_expression(env, precedence); \
+                                                                 \
+	return (expression_t*) unary_expression;                     \
 }
 
-/**
- * Returns an unary expression type if c is a prefix operator
- */
-static
-unary_expression_type_t get_unexpr_prefix_type(int c)
-{
-	switch(c) {
-	case '-':
-		return UNEXPR_NEGATE;
-	case '!':
-		return UNEXPR_NOT;
-	case '*':
-		return UNEXPR_DEREFERENCE;
-	case '&':
-		return UNEXPR_TAKE_ADDRESS;
-	default:
-		return 0;
-	}
+CREATE_UNARY_EXPRESSION_PARSER('-', UNEXPR_NEGATE);
+CREATE_UNARY_EXPRESSION_PARSER('!', UNEXPR_NOT);
+CREATE_UNARY_EXPRESSION_PARSER('*', UNEXPR_DEREFERENCE);
+CREATE_UNARY_EXPRESSION_PARSER('&', UNEXPR_TAKE_ADDRESS);
+
+#define CREATE_BINEXPR_PARSER(token_type, binexpression_type)    \
+static                                                           \
+expression_t *parse_##binexpression_type(parser_env_t *env,      \
+                                         unsigned precedence,    \
+                                         expression_t *left)     \
+{                                                                \
+	assert(env->token.type == token_type);                       \
+	next_token(env);                                             \
+                                                                 \
+	expression_t *right = parse_sub_expression(env, precedence); \
+                                                                 \
+	binary_expression_t *binexpr                                 \
+		= obstack_alloc(&env->obst, sizeof(binexpr[0]));         \
+	memset(binexpr, 0, sizeof(binexpr[0]));                      \
+	binexpr->expression.type            = EXPR_BINARY;           \
+	binexpr->type                       = binexpression_type;    \
+	binexpr->left                       = left;                  \
+	binexpr->right                      = right;                 \
+                                                                 \
+	return (expression_t*) binexpr;                              \
 }
 
-static
-expression_t *parse_prefix_expression(parser_env_t *env)
+CREATE_BINEXPR_PARSER('*', BINEXPR_MUL);
+CREATE_BINEXPR_PARSER('/', BINEXPR_DIV);
+CREATE_BINEXPR_PARSER('+', BINEXPR_ADD);
+CREATE_BINEXPR_PARSER('-', BINEXPR_SUB);
+CREATE_BINEXPR_PARSER('<', BINEXPR_LESS);
+CREATE_BINEXPR_PARSER('>', BINEXPR_GREATER);
+CREATE_BINEXPR_PARSER('=', BINEXPR_EQUAL);
+CREATE_BINEXPR_PARSER(T_ASSIGN, BINEXPR_ASSIGN);
+CREATE_BINEXPR_PARSER(T_SLASHEQUAL, BINEXPR_NOTEQUAL);
+CREATE_BINEXPR_PARSER(T_LESSEQUAL, BINEXPR_LESSEQUAL);
+CREATE_BINEXPR_PARSER(T_GREATEREQUAL, BINEXPR_GREATEREQUAL);
+CREATE_BINEXPR_PARSER('&', BINEXPR_AND);
+CREATE_BINEXPR_PARSER('|', BINEXPR_OR);
+CREATE_BINEXPR_PARSER('^', BINEXPR_XOR);
+CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
+CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
+
+static void register_expression_parsers(parser_env_t *env)
 {
-	/* TODO: integrate this into parse_expression_prec, so that prefix
-	 * expressions can have configurable precedence too.
-	 */
-	unary_expression_type_t type = get_unexpr_prefix_type(env->token.type);
-	source_position_t       source_position;
-	if(type != 0) {
-		source_position = env->source_position;
-		next_token(env);
-	}
+	register_expression_infix_parser(env, parse_BINEXPR_MUL,       '*', 16);
+	register_expression_infix_parser(env, parse_BINEXPR_DIV,       '/', 16);
+	register_expression_infix_parser(env, parse_BINEXPR_SHIFTLEFT, 
+	                           T_LESSLESS, 16);
+	register_expression_infix_parser(env, parse_BINEXPR_SHIFTRIGHT,
+	                           T_GREATERGREATER, 16);
+	register_expression_infix_parser(env, parse_BINEXPR_ADD,       '+', 15);
+	register_expression_infix_parser(env, parse_BINEXPR_SUB,       '-', 15);
+	register_expression_infix_parser(env, parse_BINEXPR_LESS,      '<', 14);
+	register_expression_infix_parser(env, parse_BINEXPR_GREATER,   '>', 14);
+	register_expression_infix_parser(env, parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
+	register_expression_infix_parser(env, parse_BINEXPR_GREATEREQUAL,
+	                           T_GREATEREQUAL, 14);
+	register_expression_infix_parser(env, parse_BINEXPR_EQUAL,     '=', 13);
+	register_expression_infix_parser(env, parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
+	register_expression_infix_parser(env, parse_BINEXPR_AND,       '&', 12);
+	register_expression_infix_parser(env, parse_BINEXPR_XOR,       '^', 11);
+	register_expression_infix_parser(env, parse_BINEXPR_OR,        '|', 10);
+	register_expression_infix_parser(env, parse_BINEXPR_ASSIGN, T_ASSIGN, 2);
 
-	expression_t *value = parse_postfix_expression(env);
+	register_expression_infix_parser(env, parse_call_expression,   '(', 30);
+	register_expression_infix_parser(env, parse_select_expression, '.', 30);
 
-	if(type != 0) {
-		unary_expression_t *unary_expression 
-			= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
-		memset(unary_expression, 0, sizeof(unary_expression[0]));
-		unary_expression->expression.type = EXPR_UNARY;
-		unary_expression->expression.source_position = source_position;
-		unary_expression->type            = type;
-		unary_expression->value           = value;
-
-		value = (expression_t*) unary_expression;	
-	}
-
-	return value;
+	register_expression_parser(env, parse_UNEXPR_NEGATE,       '-',    25);
+	register_expression_parser(env, parse_UNEXPR_NOT,          '!',    25);
+	register_expression_parser(env, parse_UNEXPR_DEREFERENCE,  '*',    20);
+	register_expression_parser(env, parse_UNEXPR_TAKE_ADDRESS, '&',    20);
+	register_expression_parser(env, parse_cast_expression,     T_cast,  3);
+	register_expression_parser(env, parse_brace_expression,    '(',     1);
 }
 
-static
-binary_expression_type_t get_binexpr_type(int c)
+expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 {
-	switch(c) {
-	case '*':
-		return BINEXPR_MUL;
-	case '/':
-		return BINEXPR_DIV;
-	case '%':
-		return BINEXPR_MOD;
-	case '+':
-		return BINEXPR_ADD;
-	case '-':
-		return BINEXPR_SUB;
-	case '<':
-		return BINEXPR_LESS;
-	case '>':
-		return BINEXPR_GREATER;
-	case '=':
-		return BINEXPR_EQUAL;
-	case T_ASSIGN:
-		return BINEXPR_ASSIGN;
-	case T_SLASHEQUAL:
-		return BINEXPR_NOTEQUAL;
-	case T_LESSEQUAL:
-		return BINEXPR_LESSEQUAL;
-	case T_GREATEREQUAL:
-		return BINEXPR_GREATEREQUAL;
-	case '&':
-		return BINEXPR_AND;
-	case '|':
-		return BINEXPR_OR;
-	case '^':
-		return BINEXPR_XOR;
-	case T_LESSLESS:
-		return BINEXPR_SHIFTLEFT;
-	case T_GREATERGREATER:
-		return BINEXPR_SHIFTRIGHT;
-	default:
-		panic("Can't convert unknown operator to binexpr_type");
-	}
-}
-
-static
-unsigned get_level(int c)
-{
-	switch(c) {
-	case T_ASSIGN:
-		return 2;
-
-	case '|':
-		return 10;
-
-	case '^':
-		return 11;
-
-	case '&':
-		return 12;
-
-	case '=':
-	case T_SLASHEQUAL:
-		return 13;
-
-	case '<':
-	case '>':
-	case T_LESSEQUAL:
-	case T_GREATEREQUAL:
-		return 14;
-
-	case '+':
-	case '-':
-		return 15;
-
-	case '*':
-	case '/':
-	case '%':
-	case T_LESSLESS:
-	case T_GREATERGREATER:
-		return 16;
-
-	default:
-		return 0;
-	}
-}
-
-static
-expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
-{
+	expression_parse_function_t *parser
+		= & env->expression_parsers[env->token.type];
 	source_position_t  source_position = env->source_position;
-	expression_t      *left            = parse_prefix_expression(env);
+	expression_t      *left;
+	
+	if(parser->parser != NULL) {
+		left = parser->parser(env, parser->precedence);
+	} else {
+		left = parse_primary_expression(env);
+	}
+	left->source_position = source_position;
 
 	while(1) {
-		int      op       = env->token.type;
-		unsigned op_level = get_level(op);
-		if(op_level < level)
-			return left;
+		parser = &env->expression_parsers[env->token.type];
+		if(parser->infix_parser == NULL)
+			break;
+		if(parser->infix_precedence < precedence)
+			break;
 
-		next_token(env);
-		expression_t *right = parse_expression_prec(env, op_level + 1);
-
-		binary_expression_t *binexpr
-			= obstack_alloc(&env->obst, sizeof(binexpr[0]));
-		memset(binexpr, 0, sizeof(binexpr[0]));
-		binexpr->expression.type            = EXPR_BINARY;
-		binexpr->expression.source_position = source_position;
-		binexpr->type                       = get_binexpr_type(op);
-		binexpr->left                       = left;
-		binexpr->right                      = right;
-
-		left = (expression_t*) binexpr;
+		left = parser->infix_parser(env, parser->infix_precedence, left);
+		left->source_position = source_position;
 	}
 
 	return left;
@@ -636,8 +621,12 @@ expression_t *parse_expression_prec(parser_env_t *env, unsigned level)
 static
 expression_t *parse_expression(parser_env_t *env)
 {
-	return parse_expression_prec(env, 1);
+	return parse_sub_expression(env, 1);
 }
+
+
+
+
 
 static
 statement_t *parse_statement(parser_env_t *env);
@@ -1238,6 +1227,8 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	symbol_table_init(&env.symbol_table);
 	put_known_symbols_into_symbol_table(&env.symbol_table);
+
+	register_expression_parsers(&env);
 
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
 	for(i = 0; i < LOOKAHEAD + 1; ++i) {

@@ -59,10 +59,10 @@ int main(int argc, byte * * argv):
 	SDL_Init(0x0000FFFF)
 
 	def image_count <- argc - 1
-	def screen <- SDL_SetVideoMode(640, 480, 0, 0)
-	def filename <- argv + 4
-	def i <- 0
-	def rect <- cast<Rect> (malloc(8))
+	def screen      <- SDL_SetVideoMode(640, 480, 0, 0)
+	def filename    <- argv + 4
+	def i           <- 0
+	def rect        <- cast<Rect> (malloc(8))
 
 	print_int(screen.w)
 	print_int(screen.h)
@@ -83,7 +83,7 @@ int main(int argc, byte * * argv):
 	SDL_Flip(screen)
 
 	SDL_Delay(1500)
-	i <- i + 1
+	i        <- i + 1
 	filename <- filename + 4
 	goto loop
 
