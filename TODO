@@ -1,13 +1,21 @@
+This does not describe the goals and visions but short term things that should
+not be forgotten and are not done yet because I was lazy or did not decide
+about the right way to do it yet.
+
 - Declaring a variable, function, etc. twice is not detected in semantic phase
 - having the same entry twice in a struct is not detected
 - lexer does not produce multiple DEDENTS yet
 - array access
 - correct pointer arithmetic
 
-Smaller tasks:
+Tasks suitable for contributors, because they don't affect the general design
+or need only design decision in a very specific part of the compiler and/or
+because they need no deep understanding of the design.
+
 - Add option parsing to the compiler, pass options to backend as well
-- Start more firm optimisations
+- Use more firm optimisations
 - Create an eccp like wrapper script
 - Add a sizeof operator
 - Add an alloca operator
+- forward source references to firm nodes
 
