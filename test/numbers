@@ -1,0 +1,12 @@
+extern void print_int(int v)
+
+int main():
+	print_int(42)
+	print_int(0x2a)
+	print_int(0X2A)
+	print_int(0o52)
+	print_int(0O052)
+	print_int(0b101010)
+	print_int(0B101010)
+
+	return 23

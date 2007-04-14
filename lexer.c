@@ -153,7 +153,9 @@ void parse_symbol(lexer_t *this, token_t *token)
 static
 void parse_number_bin(lexer_t *this, token_t *token)
 {
+	assert(this->c == 'b' || this->c == 'B');
 	next_char(this);
+
 	if (this->c != '0' && this->c != '1') {
 		parse_error(this, "premature end of binary number literal");
 		token->type = T_ERROR;
@@ -178,7 +180,9 @@ void parse_number_bin(lexer_t *this, token_t *token)
 static
 void parse_number_hex(lexer_t *this, token_t *token)
 {
+	assert(this->c == 'x' || this->c == 'X');
 	next_char(this);
+
 	if (!isdigit(this->c) &&
 		!('A' <= this->c && this->c <= 'F') &&
 		!('a' <= this->c && this->c <= 'f')) {
@@ -194,7 +198,7 @@ void parse_number_hex(lexer_t *this, token_t *token)
 		} else if ('A' <= this->c && this->c <= 'F') {
 			value = 16 * value + this->c - 'A' + 10;
 		} else if ('a' <= this->c && this->c <= 'f') {
-			value = 16 * value + this->c - 'f' + 10;
+			value = 16 * value + this->c - 'a' + 10;
 		} else {
 			token->type     = T_INTEGER;
 			token->v.intvalue = value;
@@ -207,6 +211,9 @@ void parse_number_hex(lexer_t *this, token_t *token)
 static
 void parse_number_oct(lexer_t *this, token_t *token)
 {
+	assert(this->c == 'o' || this->c == 'O');
+	next_char(this);
+
 	int value = 0;
 	for(;;) {
 		if ('0' <= this->c && this->c <= '7') {
@@ -245,10 +252,15 @@ void parse_number(lexer_t *this, token_t *token)
 	if (this->c == '0') {
 		next_char(this);
 		switch (this->c) {
-			case 'b': parse_number_bin(this, token); break;
+			case 'b':
+			case 'B': parse_number_bin(this, token); break;
 			case 'X':
 			case 'x': parse_number_hex(this, token); break;
-			default:  parse_number_oct(this, token); break;
+			case 'o':
+			case 'O': parse_number_oct(this, token); break;
+			default:  parse_error(this, "unknown number format (leading zeros "
+			                      "indicate number formats, don't use them for "
+								  "decimal numbers)"); break;
 		}
 	} else {
 		parse_number_dec(this, token);
