@@ -2,6 +2,7 @@
 #define AST_T_H
 
 #include "ast.h"
+#include "ast2firm.h"
 #include "symbol.h"
 #include "semantic.h"
 #include "lexer_t.h"
@@ -51,7 +52,7 @@ struct pointer_type_t {
 	type_t  *points_to;
 };
 
-struct ref_type_t {
+struct type_reference_t {
 	type_t             type;
 	symbol_t          *symbol;
 	source_position_t  source_position;
@@ -62,8 +63,21 @@ struct method_parameter_type_t {
 	method_parameter_type_t *next;
 };
 
+struct type_constraint_t {
+	symbol_t          *type_class_symbol;
+	type_class_t      *type_class;
+	type_constraint_t *next;
+};
+
+struct type_variable_t {
+	type_constraint_t *constraints;
+	symbol_t          *symbol;
+	type_variable_t   *next;
+};
+
 struct method_type_t {
 	type_t                   type;
+	type_variable_t         *type_parameters;
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
 	const char              *abi_style;
@@ -95,8 +109,10 @@ typedef enum {
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
-	EXPR_BINARY,
 	EXPR_UNARY,
+	EXPR_UNARY_LOWERED,
+	EXPR_BINARY,
+	EXPR_BINARY_LOWERED,
 	EXPR_SELECT
 } expresion_type_t;
 
@@ -111,6 +127,11 @@ struct int_const_t {
 	int           value;
 };
 
+struct type_argument_t {
+	type_t          *type;
+	type_argument_t *next;
+};
+
 struct reference_expression_t {
 	expression_t                      expression;
 	symbol_t                         *symbol;
@@ -121,11 +142,12 @@ struct reference_expression_t {
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
 	} r;
+	type_argument_t *type_arguments;
 };
 
 struct call_argument_t {
-	call_argument_t *next;
 	expression_t    *expression;
+	call_argument_t *next;
 };
 
 struct call_expression_t {
@@ -276,8 +298,8 @@ struct method_t {
 	statement_t        *statement;
 	method_parameter_t *parameters;
 
-	int                n_local_vars;
-	ir_entity         *entity;
+	int                 n_local_vars;
+	ir_entity          *entity;
 };
 
 struct extern_method_t {
@@ -286,6 +308,13 @@ struct extern_method_t {
 	method_type_t     *type;
 
 	ir_entity         *entity;
+};
+
+struct builtin_method_t {
+	symbol_t          *symbol;
+	method_type_t     *type;
+
+	ir_node * (*construct_node_func) (call_expression_t *call_expression);
 };
 
 struct variable_t {
@@ -298,6 +327,21 @@ struct struct_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
 	struct_type_t     *type;
+};
+
+struct type_class_member_t {
+	method_type_t       *method;
+	method_t            *default_implementation;
+
+	type_class_member_t *next;
+};
+
+struct type_class_t {
+	namespace_entry_t    namespace_entry;
+	symbol_t            *symbol;
+	symbol_t            *type_variable;
+	type_constraint_t   *type_constraints;
+	type_class_member_t *members;
 };
 
 struct namespace_t {

@@ -8,8 +8,7 @@
 #include "adt/array.h"
 #include "adt/error.h"
 
-typedef enum   environment_entry_type_t environment_entry_type_t;
-typedef struct semantic_env_t           semantic_env_t;
+typedef enum environment_entry_type_t environment_entry_type_t;
 
 enum environment_entry_type_t {
 	ENTRY_LOCAL_VARIABLE,
@@ -54,7 +53,6 @@ struct semantic_env_t {
 	type_t               *type_uint;
 	type_t               *type_void_ptr;
 };
-
 
 static
 void print_error_prefix(semantic_env_t *env, const source_position_t position)
@@ -152,7 +150,7 @@ static
 type_t *normalize_type(semantic_env_t *env, type_t *type);
 
 static
-type_t *normalize_ref_type(semantic_env_t *env, ref_type_t *type_ref)
+type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 {
 	environment_entry_t *entry    = type_ref->symbol->thing;
 	if(entry == NULL) {
@@ -219,7 +217,7 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 		return type;
 
 	case TYPE_REF:
-		return normalize_ref_type(env, (ref_type_t*) type);
+		return resolve_type_reference(env, (type_reference_t*) type);
 
 	case TYPE_POINTER:
 		return normalize_pointer_type(env, (pointer_type_t*) type);
@@ -359,7 +357,8 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 
 static
 expression_t *make_cast(semantic_env_t *env, expression_t *from,
-                        type_t *destination_type)
+                        type_t *destination_type,
+                        const source_position_t source_position)
 {
 	assert(from->datatype != destination_type);
 
@@ -375,31 +374,35 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 		return from;
 	}
 
+	int implicit_cast_allowed = 1;
 	if(from_type->type == TYPE_POINTER) {
-		if(destination_type->type != TYPE_POINTER) {
-			fprintf(stderr, "Can't implicitely cast ");
-			print_type(stderr, from_type);
-			fprintf(stderr, " to ");
-			print_type(stderr, destination_type);
-			fprintf(stderr, "\n");
-			env->found_errors = 1;
-			return from;
+		if(destination_type->type == TYPE_POINTER) {
+			pointer_type_t *p1 = (pointer_type_t*) from_type;
+			pointer_type_t *p2 = (pointer_type_t*) destination_type;
+			if(p1->points_to != p2->points_to
+					&& destination_type != env->type_void_ptr) {
+				implicit_cast_allowed = 0;
+			}
+		} else {
+			implicit_cast_allowed = 0;
 		}
-		pointer_type_t *p1 = (pointer_type_t*) from_type;
-		pointer_type_t *p2 = (pointer_type_t*) destination_type;
-		if(p1->points_to != p2->points_to
-				&& destination_type != env->type_void_ptr) {
-			fprintf(stderr, "Can't implicitely cast ");
-			print_type(stderr, from_type);
-			fprintf(stderr, " to ");
-			print_type(stderr, destination_type);
-			fprintf(stderr, "\n");
-			env->found_errors = 1;
-			return from;
-		}
+	} else if(destination_type->type == TYPE_POINTER) {
+		implicit_cast_allowed = 0;
 	}
 
-	unary_expression_t *cast = obstack_alloc(env->obst, sizeof(cast[0]));
+
+	if(!implicit_cast_allowed) {
+		print_error_prefix(env, source_position);
+		fprintf(stderr, "can't implicitely cast ");
+		print_type(stderr, from_type);
+		fprintf(stderr, " to ");
+		print_type(stderr, destination_type);
+		fprintf(stderr, "\n");
+		env->found_errors = 1;
+		return from;
+	}
+
+	unary_expression_t *cast  = obstack_alloc(env->obst, sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
 	cast->expression.type     = EXPR_UNARY;
 	cast->type                = UNEXPR_CAST;
@@ -480,10 +483,12 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 	}
 
 	if(left->datatype != lefttype) {
-		binexpr->left  = make_cast(env, left, lefttype);
+		binexpr->left  = make_cast(env, left, lefttype,
+		                           binexpr->expression.source_position);
 	}
 	if(right->datatype != righttype) {
-		binexpr->right = make_cast(env, right, righttype);
+		binexpr->right = make_cast(env, right, righttype,
+		                           binexpr->expression.source_position);
 	}
 	binexpr->expression.datatype = exprtype;
 }
@@ -526,7 +531,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		type_t       *wanted_type = param_type->type;
 		check_expression(env, expression);
 		if(expression->datatype != wanted_type) {
-			expression = make_cast(env, expression, wanted_type);
+			expression = make_cast(env, expression, wanted_type,
+			                       expression->source_position);
 		}
 		argument->expression = expression;
 
@@ -680,7 +686,8 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 		/* do we need a cast ?*/
 		if(return_value->datatype != method_result_type) {
 			return_value
-				= make_cast(env, return_value, method_result_type);
+				= make_cast(env, return_value, method_result_type,
+				            statement->statement.source_position);
 
 			statement->return_value = return_value;
 		}
@@ -900,7 +907,9 @@ void check_method(semantic_env_t *env, method_t *method)
 		parameter = parameter->next;
 	}
 
-	check_statement(env, method->statement);
+	env->last_statement_was_return = 0;
+	if(method->statement != NULL)
+		check_statement(env, method->statement);
 
 	if(!env->last_statement_was_return) {
 		type_t *result_type = method->type->result_type;

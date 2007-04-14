@@ -7,6 +7,9 @@ about the right way to do it yet.
 - lexer does not produce multiple DEDENTS yet
 - array access
 - correct pointer arithmetic
+- A typeof operator
+- change lexer to build a decision tree for the operators (so we can write
+  <void*> again...)
 
 Tasks suitable for contributors, because they don't affect the general design
 or need only design decision in a very specific part of the compiler and/or

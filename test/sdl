@@ -60,7 +60,7 @@ int main(int argc, byte * * argv):
 
 	def image_count <- argc - 1
 	def screen      <- SDL_SetVideoMode(640, 480, 0, 0)
-	def filename    <- argv + 4
+	def filename    <- argv + cast<byte * * > 4
 	def i           <- 0
 	def rect        <- cast<Rect> (malloc(8))
 
@@ -84,12 +84,12 @@ int main(int argc, byte * * argv):
 
 	SDL_Delay(1500)
 	i        <- i + 1
-	filename <- filename + 4
+	filename <- filename + cast<byte * * > 4
 	goto loop
 
 	:end
 
-	free(rect)
+	free(cast<void* > rect)
 	SDL_Quit()
 
 	return 0

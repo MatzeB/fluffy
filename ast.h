@@ -5,9 +5,11 @@
 
 typedef struct type_t                   type_t;
 typedef struct atomic_type_t            atomic_type_t;
-typedef struct ref_type_t               ref_type_t;
+typedef struct type_reference_t         type_reference_t;
 typedef struct struct_entry_t           struct_entry_t;
 typedef struct struct_type_t            struct_type_t;
+typedef struct type_constraint_t        type_constraint_t;
+typedef struct type_variable_t          type_variable_t;
 typedef struct method_parameter_type_t  method_parameter_type_t;
 typedef struct method_type_t            method_type_t;
 typedef struct pointer_type_t           pointer_type_t;
@@ -17,6 +19,7 @@ typedef struct int_const_t              int_const_t;
 typedef struct cast_expression_t        cast_expression_t;
 typedef struct reference_expression_t   reference_expression_t;
 typedef struct call_argument_t          call_argument_t;
+typedef struct type_argument_t          type_argument_t;
 typedef struct call_expression_t        call_expression_t;
 typedef struct binary_expression_t      binary_expression_t;
 typedef struct unary_expression_t       unary_expression_t;
@@ -39,6 +42,8 @@ typedef struct method_t                 method_t;
 typedef struct extern_method_t          extern_method_t;
 typedef struct variable_t               variable_t;
 typedef struct struct_t                 struct_t;
+typedef struct type_class_t             type_class_t;
+typedef struct type_class_member_t      type_class_member_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;

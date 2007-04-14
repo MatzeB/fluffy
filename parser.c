@@ -103,7 +103,7 @@ static
 void parse_error(parser_env_t *env, const char *message)
 {
 	print_error_prefix(env, ERR_ERROR);
-	fprintf(stderr, "Parse error: %s\n", message);
+	fprintf(stderr, "parse error: %s\n", message);
 	parser_found_error(env);
 }
 
@@ -240,7 +240,7 @@ type_t *parse_type_ref(parser_env_t *env)
 {
 	assert(env->token.type == T_IDENTIFIER);
 
-	ref_type_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
+	type_reference_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
 	memset(type_ref, 0, sizeof(type_ref[0]));
 
 	type_ref->type.type       = TYPE_REF;
@@ -329,6 +329,33 @@ expression_t *parse_int_const(parser_env_t *env)
 }
 
 static
+type_argument_t *parse_type_argument(parser_env_t *env)
+{
+	type_argument_t *argument = obstack_alloc(&env->obst, sizeof(argument[0]));
+	memset(argument, 0, sizeof(argument[0]));
+
+	argument->type = parse_type(env);
+	return argument;
+}
+
+static
+type_argument_t *parse_type_arguments(parser_env_t *env)
+{
+	type_argument_t *first_argument = parse_type_argument(env);
+	type_argument_t *last_argument  = first_argument;
+
+	while(env->token.type == ',') {
+		next_token(env);
+		type_argument_t *type_argument = parse_type_argument(env);
+
+		last_argument->next = type_argument;
+		last_argument       = type_argument;
+	}
+
+	return first_argument;
+}
+
+static
 expression_t *parse_reference(parser_env_t *env)
 {
 	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
@@ -338,6 +365,12 @@ expression_t *parse_reference(parser_env_t *env)
 	ref->symbol                     = env->token.v.symbol;
 
 	next_token(env);
+
+	if(env->token.type == '<') {
+		next_token(env);
+		ref->type_arguments = parse_type_arguments(env);
+		expect(env, '>');
+	}
 
 	return (expression_t*) ref;
 }
@@ -740,10 +773,11 @@ statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 	binary_expression_t *assign = obstack_alloc(&env->obst, sizeof(assign[0]));
 	memset(assign, 0, sizeof(assign[0]));
 
-	assign->expression.type = EXPR_BINARY;
-	assign->type            = BINEXPR_ASSIGN;
-	assign->left            = (expression_t*) ref;
-	assign->right           = parse_expression(env);
+	assign->expression.type            = EXPR_BINARY;
+	assign->expression.source_position = env->source_position;
+	assign->type                       = BINEXPR_ASSIGN;
+	assign->left                       = (expression_t*) ref;
+	assign->right                      = parse_expression(env);
 
 	expression_statement_t *expr_statement
 		= obstack_alloc(&env->obst, sizeof(expr_statement[0]));
@@ -864,9 +898,11 @@ statement_t *parse_statement(parser_env_t *env)
 		break;
 
 	case T_NEWLINE:
-		/* eat newlines */
 		next_token(env);
-		return parse_statement(env);
+		if(env->token.type == T_INDENT)
+			return parse_block(env);
+
+		return NULL;
 
 	default:
 		statement = parse_expression_statement(env);
@@ -897,6 +933,9 @@ statement_t *parse_block(parser_env_t *env)
 	while(env->token.type != T_DEDENT) {
 		/* parse statement */
 		statement_t *statement = parse_statement(env);
+		if(statement == NULL)
+			continue;
+
 		if(last != NULL) {
 			last->next = statement;
 		} else {
@@ -994,6 +1033,116 @@ void parse_parameter_declaration(parser_env_t *env,
 }
 
 static
+type_variable_t *parse_type_parameter(parser_env_t *env)
+{
+	type_constraint_t *last_constraint = NULL;
+	type_variable_t   *type_variable
+		= obstack_alloc(&env->obst, sizeof(type_variable[0]));
+	memset(type_variable, 0, sizeof(type_variable[0]));
+
+	while(1) {
+		if(env->token.type != T_IDENTIFIER) {
+			parse_error_expected(env, "problem while parsing type parameter",
+			                     T_IDENTIFIER, 0);
+			eat_until_newline(env);
+			return NULL;
+		}
+		symbol_t *symbol = env->token.v.symbol;
+		next_token(env);
+
+		if(env->token.type == T_IDENTIFIER) {
+			type_constraint_t *constraint 
+				= obstack_alloc(&env->obst, sizeof(constraint[0]));
+			memset(constraint, 0, sizeof(constraint[0]));
+
+			constraint->type_class_symbol = symbol;
+			if(last_constraint == NULL) {
+				type_variable->constraints = constraint;
+			} else {
+				last_constraint->next = constraint;
+			}
+			last_constraint = constraint;
+		} else {
+			type_variable->symbol = symbol;
+			break;
+		}
+	}
+
+	return type_variable;
+}
+
+static
+type_variable_t *parse_type_parameters(parser_env_t *env)
+{
+	type_variable_t *first_variable = parse_type_parameter(env);
+	type_variable_t *last_variable  = first_variable;
+
+	while(env->token.type == ',') {
+		next_token(env);
+		type_variable_t *type_variable = parse_type_parameter(env);
+
+		last_variable->next = type_variable;
+		last_variable       = type_variable;
+	}
+
+	return first_variable;
+}
+
+static
+namespace_entry_t *parse_method(parser_env_t *env, type_t *type,
+                                symbol_t *symbol)
+{
+	method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	memset(method, 0, sizeof(method[0]));
+
+	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
+	method->symbol               = symbol;
+
+	method_type_t *method_type
+		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
+
+	method_type->type.type   = TYPE_METHOD;
+	method_type->result_type = type;
+
+	if(env->token.type == '<') {
+		next_token(env);
+		method_type->type_parameters = parse_type_parameters(env);
+		expect(env, '>');
+	}
+
+	assert(env->token.type == '(');
+	next_token(env);
+
+	parse_parameter_declaration(env, &method_type->parameter_types,
+			&method->parameters);
+
+	method->type = method_type;
+
+	expect(env, ')');
+	expect(env, ':');
+	method->statement = parse_statement(env);
+
+	return (namespace_entry_t*) method;
+}
+
+static
+namespace_entry_t *parse_variable(parser_env_t *env, type_t *type,
+                                  symbol_t *symbol)
+{
+	variable_t *variable = obstack_alloc(&env->obst, sizeof(variable[0]));
+	memset(variable, 0, sizeof(variable[0]));
+
+	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
+	variable->symbol               = symbol;
+	variable->type                 = type;
+
+	expect(env, T_NEWLINE);
+
+	return (namespace_entry_t*) variable;
+}
+
+static
 namespace_entry_t *parse_method_or_var(parser_env_t *env)
 {
 	type_t   *type   = parse_type(env);
@@ -1008,48 +1157,12 @@ namespace_entry_t *parse_method_or_var(parser_env_t *env)
 	next_token(env);
 
 	/* is it a method? */
-	if(env->token.type == '(') {
-		next_token(env);
-
-		method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
-		memset(method, 0, sizeof(method[0]));
-
-		method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
-		method->symbol               = symbol;
-
-		method_type_t *method_type
-			= obstack_alloc(&env->obst, sizeof(method_type[0]));
-		memset(method_type, 0, sizeof(method_type[0]));
-
-		method_type->type.type   = TYPE_METHOD;
-		method_type->result_type = type;
-
-		/* parse parameters */
-		parse_parameter_declaration(env, &method_type->parameter_types,
-		                            &method->parameters);
-
-		method->type = method_type;
-
-		expect(env, ')');
-		expect(env, ':');
-		method->statement = parse_statement(env);
-
-		return (namespace_entry_t*) method;
-	} else {
-		/* must be a variable */
-		expect(env, ';');
-
-		variable_t *variable = obstack_alloc(&env->obst, sizeof(variable[0]));
-		memset(variable, 0, sizeof(variable[0]));
-
-		variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
-		variable->symbol               = symbol;
-		variable->type                 = type;
-
-		expect(env, T_NEWLINE);
-
-		return (namespace_entry_t*) variable;
+	if(env->token.type == '(' || env->token.type == '<') {
+		return parse_method(env, type, symbol);
 	}
+
+	/* must be a variable */
+	return parse_variable(env, type, symbol);
 }
 
 static

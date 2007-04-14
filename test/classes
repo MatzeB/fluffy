@@ -1,47 +1,39 @@
 /* scratchpad to keep ideas about syntax, not really fixed yet... */
 
-binary operator . infix 9;
-binary operator * infix 9;
-unary operator ! infix 3;
+binary operator "." infix 9;
+binary operator "*" infix 9;
+unary operator "!" infix 3;
 
-class Eq<T>
-{
-	bool operator == (T x, T y)
-	{
-		return ! (x /= y);
-	}
+def add(x, y) : int(int, int):
+	return x + y
 
-	bool operator /= (T x, T y)
-	{
-		return ! (x == y);
-	}
-};
+def add(T x, T y):
+	return x + y
 
-class Ord<T : Eq>
-{
+def sort(x, y) : T (T, T):
 
-}
+def sort : T ( x : T, y : T)
+
+def main : float (x : int, y : float):
+	return 0
+
+class Eq<T>:
+	bool operator = (T x, T y):
+		return ! (x /= y)
+
+	bool operator /= (T x, T y):
+		return ! (x = y)
+
+class Ord<T : Eq>:
 
 class Show<T>
-{
 	void show(stream : Stream, objekt : T)
-	{
 
-	}
-};
+class Ord<T : Eq, Show>:
 
-class Ord<T : Eq, Show>
-{
+class Enum<T>:
 
-};
-
-class Enum<T>
-{
-
-};
-
-class Num<T : Eq, Show>
-{
+class Num<T : Eq, Show>:
 	T operator + (T left, T right);
 	T operator - (T left, T right);
 	T operator * (T left, T right);
@@ -51,7 +43,6 @@ class Num<T : Eq, Show>
 
 	x - y = x + -y
 	-x    = 0 - x
-};
 
 class InputStream<T>:
 	void read(Stream s, T buffer, size buflen);

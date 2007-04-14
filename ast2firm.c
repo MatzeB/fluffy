@@ -861,19 +861,6 @@ void create_method(method_t *method)
 	dump_ir_block_graph(irg, "-test");
 }
 
-#if 0
-	/* do some simple optimisations... */
-	place_code(irg);
-	optimize_graph_df(irg);
-	dead_node_elimination(irg);
-
-	dump_ir_block_graph(irg, "-opt");
-
-    lower_firm(alloc_noinit);
-
-}
-#endif
-
 /**
  * Build a firm representation of an AST programm
  */

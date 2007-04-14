@@ -24,6 +24,7 @@ void optimize()
 	for(i = 0; i < n_irgs; ++i) {
 		ir_graph *irg = get_irp_irg(i);
 
+		dump_consts_local(1);
 		dump_ir_block_graph(irg, "-lower");
 
 		/* do some simple optimisations... */

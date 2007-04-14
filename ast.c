@@ -62,7 +62,7 @@ void print_pointer_type(FILE *out, const pointer_type_t *type)
 }
 
 static
-void print_ref_type(FILE *out, const ref_type_t *type)
+void print_type_reference(FILE *out, const type_reference_t *type)
 {
 	fprintf(out, "<%s>", type->symbol->string);
 }
@@ -89,7 +89,7 @@ void print_type(FILE *out, const type_t *type)
 		print_pointer_type(out, (const pointer_type_t*) type);
 		break;
 	case TYPE_REF:
-		print_ref_type(out, (const ref_type_t*) type);
+		print_type_reference(out, (const type_reference_t*) type);
 		break;
 	default:
 		fputs("unknown", out);
