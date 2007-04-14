@@ -1,4 +1,4 @@
-extern void* malloc(unsigned size)
+extern void* malloc(unsigned int size)
 
 /*
 class Initializable T:
@@ -9,7 +9,8 @@ intance Initializable int:
 		*object = 42
 */
 
-def T* construct<Initializable T>():
-	T* ptr = cast<T*> malloc(sizeof<T> ())
+T* construct<Initializable T>():
+	T* ptr = cast<T* > malloc(sizeof<T> ())
 	init(ptr)
+	return ptr
 

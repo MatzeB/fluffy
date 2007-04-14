@@ -16,7 +16,7 @@
 #include "adt/util.h"
 #include "adt/error.h"
 
-#define ABORT_ON_ERROR
+//#define ABORT_ON_ERROR
 #define LOOKAHEAD	1
 #define PRINT_TOKENS
 
@@ -635,7 +635,8 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 	} else {
 		left = parse_primary_expression(env);
 	}
-	left->source_position = source_position;
+	if(left != NULL)
+		left->source_position = source_position;
 
 	while(1) {
 		parser = &env->expression_parsers[env->token.type];
@@ -908,6 +909,9 @@ statement_t *parse_statement(parser_env_t *env)
 		statement = parse_expression_statement(env);
 		break;
 	}
+
+	if(statement == NULL)
+		return NULL;
 
 	statement->source_position = source_position;
 	statement_t *next = statement->next;

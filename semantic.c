@@ -361,6 +361,8 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
                         const source_position_t source_position)
 {
 	assert(from->datatype != destination_type);
+	if(destination_type == NULL)
+		return from;
 
 	/* TODO: - test which types can be implicitely casted... 
 	 *       - improve error reporting (want to know the context of the cast)
