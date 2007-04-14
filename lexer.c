@@ -228,9 +228,14 @@ void parse_number_oct(lexer_t *this, token_t *token)
 }
 
 static
-void parse_number_dec(lexer_t *this, token_t *token)
+void parse_number_dec(lexer_t *this, token_t *token, int first_char)
 {
 	int value = 0;
+	if(first_char > 0) {
+		assert(first_char >= '0' && first_char <= '9');
+		value = first_char - '0';
+	}
+
 	for(;;) {
 		if (isdigit(this->c)) {
 			value = 10 * value + this->c - '0';
@@ -258,12 +263,10 @@ void parse_number(lexer_t *this, token_t *token)
 			case 'x': parse_number_hex(this, token); break;
 			case 'o':
 			case 'O': parse_number_oct(this, token); break;
-			default:  parse_error(this, "unknown number format (leading zeros "
-			                      "indicate number formats, don't use them for "
-								  "decimal numbers)"); break;
+			default:  parse_number_dec(this, token, '0');
 		}
 	} else {
-		parse_number_dec(this, token);
+		parse_number_dec(this, token, 0);
 	}
 }
 
