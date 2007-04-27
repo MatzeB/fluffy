@@ -110,6 +110,66 @@ ir_type *get_atomic_type(const atomic_type_t *type)
 }
 
 static
+unsigned get_atomic_type_size(const atomic_type_t *type)
+{
+	switch(type->atype) {
+	case ATOMIC_TYPE_UBYTE:
+	case ATOMIC_TYPE_BYTE:
+		return 1;
+
+	case ATOMIC_TYPE_BOOL:
+	case ATOMIC_TYPE_INT:
+	case ATOMIC_TYPE_UINT:
+	case ATOMIC_TYPE_LONG:
+	case ATOMIC_TYPE_ULONG:
+	case ATOMIC_TYPE_FLOAT:
+		return 4;
+
+	case ATOMIC_TYPE_SHORT:
+	case ATOMIC_TYPE_USHORT:
+		return 2;
+
+	case ATOMIC_TYPE_LONGLONG:
+	case ATOMIC_TYPE_ULONGLONG:
+	case ATOMIC_TYPE_DOUBLE:
+		return 8;
+
+	case ATOMIC_TYPE_INVALID:
+		break;
+	}
+	panic("Trying to determine size of invalid atomic type");
+}
+
+static
+unsigned get_struct_type_size(const struct_type_t *type)
+{
+	(void) type;
+	panic("sizeof struct type not implemented yet");
+}
+
+static
+unsigned get_type_size(const type_t *type)
+{
+	switch(type->type) {
+	case TYPE_VOID:
+		return 0;
+	case TYPE_ATOMIC:
+		return get_atomic_type_size((const atomic_type_t*) type);
+	case TYPE_STRUCT:
+		return get_struct_type_size((const struct_type_t*) type);
+	case TYPE_METHOD:
+		panic("It's not possible to determine the size of a method type");
+	case TYPE_POINTER:
+		return 4;
+	case TYPE_REF:
+		panic("Type reference not resolved");
+	case TYPE_INVALID:
+		break;
+	}
+	panic("Trying to determine size of invalid type");
+}
+
+static
 int count_parameters(const method_type_t *method_type)
 {
 	int count = 0;
@@ -183,7 +243,7 @@ ir_type *get_pointer_type(pointer_type_t *type)
 	return ir_type;
 }
 
-#define INVALID_TYPE ((ir_type_ptr)12)
+#define INVALID_TYPE ((ir_type_ptr)-1)
 
 static
 ir_type *get_struct_type(struct_type_t *type)
@@ -581,6 +641,17 @@ ir_node *select_expression_to_firm(const select_expression_t *select)
 }
 
 static
+ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
+{
+	ir_mode  *mode = get_ir_mode(expression->expression.datatype);
+	unsigned  size = get_type_size(expression->type);
+	tarval   *tv   = new_tarval_from_long(size, mode);
+	ir_node  *res  = new_Const(mode, tv);
+
+	return res;
+}
+
+static
 ir_node *call_expression_to_firm(const call_expression_t *call)
 {
 	ir_node       *result         = NULL;
@@ -649,9 +720,17 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const select_expression_t*) expression);
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
-	default:
-		abort();
+	case EXPR_SIZEOF:
+		return sizeof_expression_to_firm(
+				(const sizeof_expression_t*) expression);
+	case EXPR_REFERENCE:
+		panic("reference expressions not lowered");
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
+		panic("global variable references not handled yet");
+	case EXPR_INVALID:
+		break;
 	}
+	abort();
 	return NULL;
 }
 
@@ -886,3 +965,4 @@ void ast2firm(namespace_t *namespace)
 		entry = entry->next;
 	}
 }
+

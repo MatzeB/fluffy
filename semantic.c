@@ -635,6 +635,14 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 }
 
 static
+void check_sizeof_expression(semantic_env_t *env,
+                             sizeof_expression_t *expression)
+{
+	expression->type = normalize_type(env, expression->type);
+	expression->expression.datatype = env->type_uint;
+}
+
+static
 void check_expression(semantic_env_t *env, expression_t *expression)
 {
 	switch(expression->type) {
@@ -643,6 +651,9 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		break;
 	case EXPR_REFERENCE:
 		check_reference_expression(env, (reference_expression_t*) expression);
+		break;
+	case EXPR_SIZEOF:
+		check_sizeof_expression(env, (sizeof_expression_t*) expression);
 		break;
 	case EXPR_BINARY:
 		check_binary_expression(env, (binary_expression_t*) expression);

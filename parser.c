@@ -376,6 +376,24 @@ expression_t *parse_reference(parser_env_t *env)
 }
 
 static
+expression_t *parse_sizeof(parser_env_t *env)
+{
+	sizeof_expression_t *expression
+		= obstack_alloc(&env->obst, sizeof(expression[0]));
+	memset(expression, 0, sizeof(expression[0]));
+	expression->expression.type = EXPR_SIZEOF;
+
+	assert(env->token.type == T___sizeof);
+	next_token(env);
+
+	expect(env, '<');
+	expression->type = parse_type(env);
+	expect(env, '>');
+
+	return (expression_t*) expression;
+}
+
+static
 expression_t *parse_expression(parser_env_t *env);
 
 void register_expression_parser(parser_env_t *env,
@@ -418,6 +436,8 @@ expression_t *parse_primary_expression(parser_env_t *env)
 		return parse_int_const(env);
 	case T_IDENTIFIER:
 		return parse_reference(env);
+	case T___sizeof:
+		return parse_sizeof(env);
 	default:
 		parse_error_expected(env, "Expected expression", 0);
 		expression = obstack_alloc(&env->obst, sizeof(expression[0]));

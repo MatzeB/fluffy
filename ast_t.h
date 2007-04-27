@@ -110,10 +110,9 @@ typedef enum {
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_CALL,
 	EXPR_UNARY,
-	EXPR_UNARY_LOWERED,
 	EXPR_BINARY,
-	EXPR_BINARY_LOWERED,
-	EXPR_SELECT
+	EXPR_SELECT,
+	EXPR_SIZEOF
 } expresion_type_t;
 
 struct expression_t {
@@ -209,6 +208,11 @@ struct select_expression_t {
 	struct_entry_t *struct_entry;
 };
 
+struct sizeof_expression_t {
+	expression_t  expression;
+	type_t       *type;
+};
+
 typedef enum {
 	STATEMENT_INVALID,
 	STATEMENT_BLOCK,
@@ -289,6 +293,17 @@ struct method_parameter_t {
 	symbol_t           *symbol;
 	type_t             *type;
 	int                 num;
+};
+
+struct method_instance_t {
+	type_t             *concrete_type;
+	method_t           *method;
+	method_type_t      *type;
+	method_parameter_t *parameters;
+	statement_t        *statement;
+
+	int                 n_local_vars;
+	ir_entity          *entity;
 };
 
 struct method_t {
