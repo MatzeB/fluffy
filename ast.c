@@ -88,7 +88,7 @@ void print_type(FILE *out, const type_t *type)
 	case TYPE_POINTER:
 		print_pointer_type(out, (const pointer_type_t*) type);
 		break;
-	case TYPE_REF:
+	case TYPE_REFERENCE:
 		print_type_reference(out, (const type_reference_t*) type);
 		break;
 	default:

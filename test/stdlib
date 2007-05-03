@@ -1,0 +1,25 @@
+/**
+ * Streams ...
+ */
+
+class InputStream<Character, T>:
+	Character get(T* object)
+	
+	size_t    read(T* object, Character* buffer, size_t buffer_size)
+
+	/* TODO: Wie EOF anzeigen? exception oder ein EOF Zeichen? */
+
+
+class OutputStream<Character, T>:
+	void put(T* object, Character c)
+
+	void write(T* object, const Character* buffer, size_t buffer_size)
+	/* Fehlerzustände? Exceptions oder? */
+
+/**
+ * Formatting
+ */
+
+class Printable<T, OutputStream Stream>:
+	void print(Stream* stream, T object)
+

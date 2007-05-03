@@ -24,21 +24,22 @@ else
 LFLAGS += -ldl
 endif
 
-SOURCES :=
-SOURCES += adt/hashset.c
-SOURCES += adt/pset.c
-SOURCES += adt/pset_new.c
-SOURCES += adt/strset.c
-SOURCES += adt/xmalloc.c
-SOURCES += ast.c
-SOURCES += ast2firm.c
-SOURCES += lexer.c
-SOURCES += main.c
-SOURCES += parser.c
-SOURCES += semantic.c
-SOURCES += symbol_table.c
-SOURCES += token.c
-SOURCES += type_hash.c
+SOURCES := \
+	adt/hashset.c \
+	adt/pset.c \
+	adt/pset_new.c \
+	adt/strset.c \
+	adt/xmalloc.c \
+	ast.c \
+	ast2firm.c \
+	lexer.c \
+	main.c \
+	mangle_type.c \
+	parser.c \
+	semantic.c \
+	symbol_table.c \
+	token.c \
+	type_hash.c
 
 OBJECTS = $(SOURCES:%.c=build/%.o)
 

@@ -1,5 +1,7 @@
 #include <config.h>
 
+#define _GNU_SOURCE
+
 #include <assert.h>
 #include <string.h>
 #include <firm/common/firm.h>
@@ -7,11 +9,26 @@
 
 #include "ast_t.h"
 #include "semantic.h"
+#include "mangle_type.h"
+#include "adt/obst.h"
 #include "adt/error.h"
 #include "adt/xmalloc.h"
 
 static variable_declaration_statement_t **value_numbers = NULL;
 static label_statement_t                 *labels        = NULL;
+
+typedef struct instantiate_method_t  instantiate_method_t;
+
+struct instantiate_method_t {
+	method_t             *method;
+	type_argument_t      *type_arguments;
+	ir_entity            *entity;
+
+	instantiate_method_t *next;
+};
+
+static struct obstack obst;
+static instantiate_method_t *instantiate_methods = NULL;
 
 static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
@@ -110,6 +127,9 @@ ir_type *get_atomic_type(const atomic_type_t *type)
 }
 
 static
+unsigned get_type_size(const type_t *type);
+
+static
 unsigned get_atomic_type_size(const atomic_type_t *type)
 {
 	switch(type->atype) {
@@ -148,6 +168,18 @@ unsigned get_struct_type_size(const struct_type_t *type)
 }
 
 static
+unsigned get_type_reference_type_var_size(const type_reference_t *type)
+{
+	type_variable_t *type_variable = type->r.type_variable;
+
+	if(type_variable->current_type == NULL) {
+		panic("Taking size of unbound type variable");
+		return 0;
+	}
+	return get_type_size(type_variable->current_type);
+}
+
+static
 unsigned get_type_size(const type_t *type)
 {
 	switch(type->type) {
@@ -159,10 +191,16 @@ unsigned get_type_size(const type_t *type)
 		return get_struct_type_size((const struct_type_t*) type);
 	case TYPE_METHOD:
 		panic("It's not possible to determine the size of a method type");
+		break;
 	case TYPE_POINTER:
 		return 4;
-	case TYPE_REF:
+	case TYPE_REFERENCE:
 		panic("Type reference not resolved");
+		break;
+	case TYPE_REFERENCE_TYPE:
+		return get_type_size( ((const type_reference_t*) type)->r.type );
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		return get_type_reference_type_var_size((type_reference_t*) type);
 	case TYPE_INVALID:
 		break;
 	}
@@ -340,21 +378,62 @@ ir_mode *get_ir_mode(type_t *type)
 }
 
 static
-ir_entity* get_method_entity(method_t *method)
+instantiate_method_t *queue_method_instantiation(method_t *method)
+{
+	instantiate_method_t *instantiate
+		= obstack_alloc(&obst, sizeof(instantiate[0]));
+	memset(instantiate, 0, sizeof(instantiate[0]));
+
+	instantiate->method = method;
+	instantiate->next   = instantiate_methods;
+	instantiate_methods = instantiate;
+
+	return instantiate;
+}
+
+static
+int is_polymorphic_method(const method_t *method)
+{
+	return method->type_parameters != NULL;
+}
+
+static
+ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 {
 	if(method->entity != NULL)
 		return method->entity;
 
-	method_type_t  *method_type    = method->type;
+	method_type_t *method_type = method->type;
 
 	if(method_type->abi_style != NULL) {
 		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
 		        method_type->abi_style);
 	}
 
+	ident *id;
+	if(type_arguments == NULL) {
+		id = new_id_from_str(method->symbol->string);
+	} else {
+		const char *string = method->symbol->string;
+		size_t      len    = strlen(string);
+		obstack_printf(&obst, "_v%zu%s", len, string);
+
+		type_argument_t *argument = type_arguments;
+		while(argument != NULL) {
+			mangle_type(&obst, argument->type);
+			argument = argument->next;
+		}
+
+		char *str = obstack_finish(&obst);
+
+		fprintf(stderr, "Mangled Name: '%s'\n", str);
+
+		id = new_id_from_str(str);
+		obstack_free(&obst, str);
+	}
+
 	/* first create an entity */
 	ir_type *global_type    = get_glob_type();
-	ident   *id             = new_id_from_str(method->symbol->string);
 	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
@@ -595,7 +674,16 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 static
 ir_node *method_reference_to_firm(const reference_expression_t *ref)
 {
-	ir_entity *entity = get_method_entity(ref->r.method);
+	method_t  *method = ref->r.method;
+	ir_entity *entity = get_method_entity(ref->r.method, ref->type_arguments);
+
+	if(is_polymorphic_method(method)) {
+		instantiate_method_t *instantiate =
+			queue_method_instantiation(ref->r.method);
+		instantiate->type_arguments = ref->type_arguments;
+		instantiate->entity         = entity;
+	}
+
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
 
@@ -676,8 +764,7 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	assert(n == n_parameters);
 
 	ir_node *store = get_store();
-	ir_node *node  = new_Call(store, callee, n_parameters, in,
-	                          ir_method_type);
+	ir_node *node  = new_Call(store, callee, n_parameters, in, ir_method_type);
 	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
 	set_store(mem);
 
@@ -685,7 +772,7 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	if(result_type->type != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
-		         result  = new_Proj(resproj, mode, 0);
+		result           = new_Proj(resproj, mode, 0);
 	}
 
 	return result;
@@ -895,9 +982,32 @@ void statement_to_firm(statement_t *statement)
 }
 
 static
-void create_method(method_t *method)
+void create_method(method_t *method, type_argument_t *type_arguments)
 {
-	ir_entity *entity = get_method_entity(method);
+	if(is_polymorphic_method(method)) {
+		if(type_arguments == NULL)
+			return;
+		
+		type_argument_t *type_argument = type_arguments;
+		type_variable_t *type_variable = method->type_parameters;
+		while(type_argument != NULL) {
+			if(type_variable == NULL) {
+				panic("type arguments and type variables don't match");
+				return;
+			}
+
+			type_variable->current_type = type_argument->type;
+
+			type_argument = type_argument->next;
+			type_variable = type_variable->next;
+		}
+		if(type_variable != NULL) {
+			panic("type arguments and type variables don't match");
+			return;
+		}
+	}
+	
+	ir_entity *entity = get_method_entity(method, NULL);
 
 	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
@@ -945,12 +1055,14 @@ void create_method(method_t *method)
  */
 void ast2firm(namespace_t *namespace)
 {
+	obstack_init(&obst);
+
 	/* scan compilation unit for functions */
 	namespace_entry_t *entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_METHOD:
-			create_method((method_t*) entry);
+			create_method((method_t*) entry, NULL);
 			break;
 		case NAMESPACE_ENTRY_VARIABLE:
 			fprintf(stderr, "Global vars not handled yet\n");
@@ -964,5 +1076,15 @@ void ast2firm(namespace_t *namespace)
 
 		entry = entry->next;
 	}
+
+	instantiate_method_t *instantiate_method = instantiate_methods;
+	while(instantiate_method != NULL) {
+		create_method(instantiate_method->method,
+		              instantiate_method->type_arguments);
+
+		instantiate_method = instantiate_method->next;
+	}
+
+	obstack_free(&obst, NULL);
 }
 

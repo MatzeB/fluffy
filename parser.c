@@ -243,7 +243,7 @@ type_t *parse_type_ref(parser_env_t *env)
 	type_reference_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
 	memset(type_ref, 0, sizeof(type_ref[0]));
 
-	type_ref->type.type       = TYPE_REF;
+	type_ref->type.type       = TYPE_REFERENCE;
 	type_ref->symbol          = env->token.v.symbol;
 	type_ref->source_position = env->source_position;
 	next_token(env);
@@ -1131,7 +1131,7 @@ namespace_entry_t *parse_method(parser_env_t *env, type_t *type,
 
 	if(env->token.type == '<') {
 		next_token(env);
-		method_type->type_parameters = parse_type_parameters(env);
+		method->type_parameters = parse_type_parameters(env);
 		expect(env, '>');
 	}
 
@@ -1139,7 +1139,7 @@ namespace_entry_t *parse_method(parser_env_t *env, type_t *type,
 	next_token(env);
 
 	parse_parameter_declaration(env, &method_type->parameter_types,
-			&method->parameters);
+	                            &method->parameters);
 
 	method->type = method_type;
 

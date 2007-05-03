@@ -70,13 +70,22 @@ unsigned hash_method_type(const method_type_t *type)
 }
 
 static
+unsigned hash_type_reference(const type_reference_t *type)
+{
+	return hash_ptr(type->symbol);
+}
+
+static
 unsigned hash_type(const type_t *type)
 {
 	switch(type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
-	case TYPE_REF:
-		panic("internalizing void, invalid or ref types not possible");
+	case TYPE_REFERENCE:
+	case TYPE_REFERENCE_TYPE:
+		panic("internalizing void or invalid types not possible");
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		return hash_type_reference((const type_reference_t*) type);
 	case TYPE_ATOMIC:
 		return hash_atomic_type((const atomic_type_t*) type);
 	case TYPE_STRUCT:
@@ -85,9 +94,8 @@ unsigned hash_type(const type_t *type)
 		return hash_method_type((const method_type_t*) type);
 	case TYPE_POINTER:
 		return hash_pointer_type((const pointer_type_t*) type);
-	default:
-		abort();
 	}
+	abort();
 }
 
 static
@@ -148,6 +156,13 @@ int pointer_types_equal(const pointer_type_t *type1,
 }
 
 static
+int type_references_equal(const type_reference_t *type1,
+                          const type_reference_t *type2)
+{
+	return type1->symbol == type2->symbol;
+}
+
+static
 int types_equal(const type_t *type1, const type_t *type2)
 {
 	if(type1 == type2)
@@ -158,8 +173,12 @@ int types_equal(const type_t *type1, const type_t *type2)
 	switch(type1->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
-	case TYPE_REF:
+	case TYPE_REFERENCE:
+	case TYPE_REFERENCE_TYPE:
 		return 0;
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		return type_references_equal((const type_reference_t*) type1,
+		                             (const type_reference_t*) type2);
 	case TYPE_ATOMIC:
 		return atomic_types_equal((const atomic_type_t*) type1,
 		                          (const atomic_type_t*) type2);
@@ -172,9 +191,9 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_POINTER:
 		return pointer_types_equal((const pointer_type_t*) type1,
 		                           (const pointer_type_t*) type2);
-	default:
-		abort();
 	}
+
+	abort();
 }
 
 #define HashSet                    type_hash_t

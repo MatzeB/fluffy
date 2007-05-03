@@ -16,6 +16,7 @@ enum environment_entry_type_t {
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
 	ENTRY_TYPE,
+	ENTRY_TYPE_VARIABLE,
 	ENTRY_EXTERN_METHOD,
 	ENTRY_GOTO,
 	ENTRY_LABEL
@@ -31,6 +32,7 @@ struct environment_entry_t {
 		method_parameter_t               *method_parameter;
 		extern_method_t                  *extern_method;
 		type_t                           *stored_type;
+		type_variable_t                  *type_variable;
 		variable_declaration_statement_t *variable;
 		goto_statement_t                 *goto_statement;
 		label_statement_t                *label;
@@ -160,6 +162,13 @@ type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 		env->found_errors = 1;
 		return NULL;
 	}
+	if(entry->type == ENTRY_TYPE_VARIABLE) {
+		type_ref->type.type       = TYPE_REFERENCE_TYPE_VARIABLE;
+		type_ref->r.type_variable = entry->e.type_variable;
+		fprintf(stderr, "handling type var as first order type...\n");
+		return typehash_insert((type_t*) type_ref);
+	}	
+
 	if(entry->type != ENTRY_TYPE) {
 		print_error_prefix(env, type_ref->source_position);
 		fprintf(stderr, "can't resolve type: '%s' is not a type\n",
@@ -216,7 +225,7 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 	case TYPE_ATOMIC:
 		return type;
 
-	case TYPE_REF:
+	case TYPE_REFERENCE:
 		return resolve_type_reference(env, (type_reference_t*) type);
 
 	case TYPE_POINTER:
@@ -871,6 +880,7 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 	switch(statement->type) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
+		break;
 	case STATEMENT_BLOCK:
 		check_block_statement(env, (block_statement_t*) statement);
 		break;
@@ -905,6 +915,17 @@ void check_method(semantic_env_t *env, method_t *method)
 	int old_top            = environment_top(env);
 	env->current_method    = method;
 	char *label_obst_start = obstack_alloc(&env->label_obstack, 1);
+
+	/* push type variables */
+	type_variable_t *type_parameter = method->type_parameters;
+	while(type_parameter != NULL) {
+		symbol_t            *symbol = type_parameter->symbol;
+		environment_entry_t *entry  = environment_push(env, symbol);
+		entry->type                 = ENTRY_TYPE_VARIABLE;
+		entry->e.type_variable      = type_parameter;
+
+		type_parameter = type_parameter->next;
+	}
 
 	/* push method parameters */
 	method_parameter_t *parameter = method->parameters;

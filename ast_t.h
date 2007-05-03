@@ -16,7 +16,9 @@ typedef enum {
 	TYPE_STRUCT,
 	TYPE_METHOD,
 	TYPE_POINTER,
-	TYPE_REF
+	TYPE_REFERENCE,
+	TYPE_REFERENCE_TYPE,
+	TYPE_REFERENCE_TYPE_VARIABLE
 } type_type_t;
 
 typedef enum {
@@ -56,6 +58,11 @@ struct type_reference_t {
 	type_t             type;
 	symbol_t          *symbol;
 	source_position_t  source_position;
+
+	union {
+		type_t          *type;
+		type_variable_t *type_variable;
+	} r;
 };
 
 struct method_parameter_type_t {
@@ -73,11 +80,12 @@ struct type_variable_t {
 	type_constraint_t *constraints;
 	symbol_t          *symbol;
 	type_variable_t   *next;
+
+	type_t            *current_type;
 };
 
 struct method_type_t {
 	type_t                   type;
-	type_variable_t         *type_parameters;
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
 	const char              *abi_style;
@@ -310,8 +318,10 @@ struct method_t {
 	namespace_entry_t   namespace_entry;
 	symbol_t           *symbol;
 	method_type_t      *type;
-	statement_t        *statement;
+	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
+
+	statement_t        *statement;
 
 	int                 n_local_vars;
 	ir_entity          *entity;
