@@ -6,8 +6,8 @@
 #include "symbol.h"
 #include "semantic.h"
 #include "lexer_t.h"
-#include "firm/tr/type.h"
-#include "firm/tr/entity.h"
+#include <libfirm/type.h>
+#include <libfirm/entity.h>
 
 typedef enum {
 	TYPE_INVALID,

@@ -4,8 +4,8 @@
 
 #include <assert.h>
 #include <string.h>
-#include <firm/common/firm.h>
-#include <firm/be/be.h>
+#include <libfirm/firm.h>
+#include <libfirm/be.h>
 
 #include "ast_t.h"
 #include "semantic.h"

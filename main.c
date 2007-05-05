@@ -5,12 +5,12 @@
 #include <errno.h>
 #include <string.h>
 
-#include <firm/be/be.h>
-#include <firm/ir/irprog.h>
-#include <firm/ir/irgopt.h>
-#include <firm/ir/iropt.h>
-#include <firm/ir/irdump.h>
-#include <firm/lower/lower_hl.h>
+#include <libfirm/be.h>
+#include <libfirm/irprog.h>
+#include <libfirm/irgopt.h>
+#include <libfirm/iropt.h>
+#include <libfirm/irdump.h>
+#include <libfirm/lower_hl.h>
 
 #include "parser.h"
 #include "semantic.h"
