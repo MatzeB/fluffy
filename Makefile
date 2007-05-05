@@ -17,7 +17,7 @@ CFLAGS += -I include/firm/stat
 CFLAGS += -I include/firm/tr
 CFLAGS += -I include/firm/tv
 
-LFLAGS = -Llib -lfirm -lfirmlower -lcore -llpp -lm
+LFLAGS = -Llib -lfirm -lcore -llpp -lm
 ifeq ($(OSTYPE), FreeBSD)
 LFLAGS += -lobstack
 else

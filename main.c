@@ -10,7 +10,7 @@
 #include <firm/ir/irgopt.h>
 #include <firm/ir/iropt.h>
 #include <firm/ir/irdump.h>
-#include <firmlower/firmlower.h>
+#include <firm/lower/lower_hl.h>
 
 #include "parser.h"
 #include "semantic.h"
@@ -72,7 +72,7 @@ void compile(const char *fname)
 	}
 	ast2firm(namespace);
 
-    lower_firm(alloc_noinit);
+    lower_highlevel();
 
 	optimize();
 
