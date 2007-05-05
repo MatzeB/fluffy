@@ -4,19 +4,6 @@ CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
 CFLAGS += `pkg-config --cflags libfirm`
-#CFLAGS += -I include
-#CFLAGS += -I include/firm/ana
-#CFLAGS += -I include/firm/ana2
-#CFLAGS += -I include/firm/arch
-#CFLAGS += -I include/firm/common
-#CFLAGS += -I include/firm/debug
-#CFLAGS += -I include/firm/ident
-#CFLAGS += -I include/firm/ir
-#CFLAGS += -I include/firm/lower
-#CFLAGS += -I include/firm/opt
-#CFLAGS += -I include/firm/stat
-#CFLAGS += -I include/firm/tr
-#CFLAGS += -I include/firm/tv
 
 LFLAGS = `pkg-config --libs libfirm`
 
