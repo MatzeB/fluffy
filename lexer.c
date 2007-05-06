@@ -440,6 +440,14 @@ void parse_operator(lexer_t *this, token_t *token, int firstchar)
 static
 void parse_indent(lexer_t *this, token_t *token)
 {
+	if(this->not_returned_dedents > 0) {
+		token->type = T_DEDENT;
+		this->not_returned_dedents--;
+		if(this->not_returned_dedents == 0)
+			this->at_line_begin = 0;
+		return;
+	}
+
 	char     indent[MAX_INDENT];
 	unsigned indent_len = 0;
 	while(this->c == ' ' || this->c == '\t') {
@@ -500,6 +508,11 @@ void parse_indent(lexer_t *this, token_t *token)
 			token->type = T_ERROR;
 			return;
 		}
+		this->not_returned_dedents 
+			= this->last_line_indent_len - indent_len - 1;
+		if(this->not_returned_dedents > 0)
+			this->at_line_begin = 1;
+
 		this->last_line_indent_len = indent_len;
 
 		token->type = T_DEDENT;
@@ -615,7 +628,7 @@ void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
 {
 	memset(this, 0, sizeof(this[0]));
 
-	this->input  = stream;
+	this->input = stream;
 
 	this->symbol_table               = symbol_table;
 	this->obst                       = &symbol_table->obst;

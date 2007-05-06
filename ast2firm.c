@@ -1068,7 +1068,9 @@ void ast2firm(namespace_t *namespace)
 			fprintf(stderr, "Global vars not handled yet\n");
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
+		case NAMESPACE_ENTRY_TYPECLASS:
 		case NAMESPACE_ENTRY_EXTERN_METHOD:
+		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 			break;
 		default:
 			panic("Unknown namespace entry type found");

@@ -38,31 +38,31 @@ struct Rect:
 	unsigned short w
 	unsigned short h
 
-extern int  SDL_Init(unsigned int flags)
-extern void SDL_Quit()
-extern byte* SDL_GetError()
+extern func int  SDL_Init(unsigned int flags)
+extern func void SDL_Quit()
+extern func byte* SDL_GetError()
 
-extern Surface SDL_SetVideoMode(int width, int height, int bpp, int flags)
-extern int SDL_UpperBlit(Surface src, Rect srcrect, Surface dest, Rect destrect)
-extern int SDL_FillRect(Surface dest, Rect destrect, unsigned int color)
-extern Surface IMG_Load(byte* filename)
-extern void SDL_FreeSurface(Surface surface)
-extern void SDL_Delay(unsigned int ms)
-extern void* malloc(unsigned int size)
-extern void free(void* ptr)
-extern int SDL_Flip(Surface screen)
+extern func Surface SDL_SetVideoMode(int width, int height, int bpp, int flags)
+extern func int SDL_UpperBlit(Surface src, Rect srcrect, Surface dest, Rect destrect)
+extern func int SDL_FillRect(Surface dest, Rect destrect, unsigned int color)
+extern func Surface IMG_Load(byte* filename)
+extern func void SDL_FreeSurface(Surface surface)
+extern func void SDL_Delay(unsigned int ms)
+extern func void* malloc(unsigned int size)
+extern func void free(void* ptr)
+extern func int SDL_Flip(Surface screen)
 
-extern void print_int(int val)
-extern void print_string(byte * val)
+extern func void print_int(int val)
+extern func void print_string(byte * val)
 
-int main(int argc, byte * * argv):
+func int main(int argc, byte * * argv):
 	SDL_Init(0x0000FFFF)
 
-	def image_count <- argc - 1
-	def screen      <- SDL_SetVideoMode(640, 480, 0, 0)
-	def filename    <- argv + cast<byte * * > 4
-	def i           <- 0
-	def rect        <- cast<Rect> (malloc(8))
+	var image_count <- argc - 1
+	var screen      <- SDL_SetVideoMode(640, 480, 0, 0)
+	var filename    <- argv + cast<byte * * > 4
+	var i           <- 0
+	var rect        <- cast<Rect> (malloc(8))
 
 	print_int(screen.w)
 	print_int(screen.h)
@@ -72,7 +72,7 @@ int main(int argc, byte * * argv):
 		goto end
 
 	print_string(*filename)
-	def image <- IMG_Load(*filename)
+	var image <- IMG_Load(*filename)
 	if image = 0:
 		return 1
 	

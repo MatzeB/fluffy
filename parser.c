@@ -62,6 +62,13 @@ void next_token(parser_env_t *env)
 #endif
 }
 
+static inline
+void eat(parser_env_t *env, token_type_t type)
+{
+	assert(env->token.type == type);
+	next_token(env);
+}
+
 /** look ahead some symbols */
 static inline
 const token_t* la(parser_env_t *env, int i)
@@ -306,6 +313,26 @@ void eat_until_newline(parser_env_t *env)
 	next_token(env);
 }
 
+static
+void maybe_eat_block(parser_env_t *env)
+{
+	if(env->token.type != T_INDENT)
+		return;
+	next_token(env);
+
+	unsigned indent = 1;
+	while(indent >= 1) {
+		if(env->token.type == T_INDENT) {
+			indent++;
+		} else if(env->token.type == T_DEDENT) {
+			indent--;
+		} else if(env->token.type == T_EOF) {
+			break;
+		}
+		next_token(env);
+	}
+}
+
 #define expect(env,expected) \
 	if(UNLIKELY(env->token.type != (expected))) { \
 		parse_error_expected(env, NULL, (expected), 0); \
@@ -383,8 +410,7 @@ expression_t *parse_sizeof(parser_env_t *env)
 	memset(expression, 0, sizeof(expression[0]));
 	expression->expression.type = EXPR_SIZEOF;
 
-	assert(env->token.type == T___sizeof);
-	next_token(env);
+	eat(env, T___sizeof);
 
 	expect(env, '<');
 	expression->type = parse_type(env);
@@ -453,8 +479,8 @@ static
 expression_t *parse_brace_expression(parser_env_t *env, unsigned precedence)
 {
 	(void) precedence;
-	assert(env->token.type == '(');
-	next_token(env);
+
+	eat(env, '(');
 
 	expression_t *result = parse_expression(env);
 	expect(env, ')');
@@ -465,8 +491,7 @@ expression_t *parse_brace_expression(parser_env_t *env, unsigned precedence)
 static
 expression_t *parse_cast_expression(parser_env_t *env, unsigned precedence)
 {
-	assert(env->token.type == T_cast);
-	next_token(env);
+	eat(env, T_cast);
 
 	unary_expression_t *unary_expression
 		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
@@ -494,8 +519,7 @@ expression_t *parse_call_expression(parser_env_t *env, unsigned precedence,
 	call->method                     = expression;
 
 	/* parse arguments */
-	assert(env->token.type == '(');
-	next_token(env);
+	eat(env, '(');
 
 	if(env->token.type != ')') {
 		call_argument_t *last_argument = NULL;
@@ -528,8 +552,8 @@ expression_t *parse_select_expression(parser_env_t *env, unsigned precedence,
                                       expression_t *compound)
 {
 	(void) precedence;
-	assert(env->token.type == '.');
-	next_token(env);
+
+	eat(env, '.');
 
 	select_expression_t *select = obstack_alloc(&env->obst, sizeof(select[0]));
 	memset(select, 0, sizeof(select[0]));
@@ -553,8 +577,7 @@ static                                                           \
 expression_t *parse_##unexpression_type(parser_env_t *env,       \
                                         unsigned precedence)     \
 {                                                                \
-	assert(env->token.type == token_type);                       \
-	next_token(env);                                             \
+	eat(env, token_type);                                        \
                                                                  \
 	unary_expression_t *unary_expression                         \
 		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));\
@@ -577,8 +600,7 @@ expression_t *parse_##binexpression_type(parser_env_t *env,      \
                                          unsigned precedence,    \
                                          expression_t *left)     \
 {                                                                \
-	assert(env->token.type == token_type);                       \
-	next_token(env);                                             \
+	eat(env, token_type);                                        \
                                                                  \
 	expression_t *right = parse_sub_expression(env, precedence); \
                                                                  \
@@ -706,8 +728,7 @@ statement_t *parse_return_statement(parser_env_t *env)
 static
 statement_t *parse_goto_statement(parser_env_t *env)
 {
-	assert(env->token.type == T_goto);
-	next_token(env);
+	eat(env, T_goto);
 
 	goto_statement_t *goto_statement
 		= obstack_alloc(&env->obst, sizeof(goto_statement[0]));
@@ -731,8 +752,7 @@ statement_t *parse_goto_statement(parser_env_t *env)
 static
 statement_t *parse_label_statement(parser_env_t *env)
 {
-	assert(env->token.type == ':');
-	next_token(env);
+	eat(env, ':');
 
 	label_statement_t *label = obstack_alloc(&env->obst, sizeof(label[0]));
 	memset(label, 0, sizeof(label[0]));
@@ -755,17 +775,13 @@ statement_t *parse_label_statement(parser_env_t *env)
 static
 statement_t *parse_if_statement(parser_env_t *env)
 {
-	expression_t *condition;
-	statement_t  *true_statement;
-	statement_t  *false_statement = NULL;
+	eat(env, T_if);
 
-	assert(env->token.type == T_if);
-	next_token(env);
-
-	condition = parse_expression(env);
+	expression_t *condition = parse_expression(env);
 	expect(env, ':');
 
-	true_statement = parse_statement(env);
+	statement_t *true_statement  = parse_statement(env);
+	statement_t *false_statement = NULL;
 	if(env->token.type == T_else) {
 		next_token(env);
 		expect(env, ':');
@@ -818,8 +834,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 	variable_declaration_statement_t *decl;
 	type_t                           *type            = NULL;
 
-	assert(env->token.type == T_def);
-	next_token(env);
+	eat(env, T_var);
 
 	if(env->token.type == '<') {
 		next_token(env);
@@ -906,7 +921,7 @@ statement_t *parse_statement(parser_env_t *env)
 		statement = parse_block(env);
 		break;
 
-	case T_def:
+	case T_var:
 		statement = parse_variable_declaration(env);
 		break;
 
@@ -951,8 +966,7 @@ statement_t *parse_block(parser_env_t *env)
 	memset(block, 0, sizeof(block[0]));
 	block->statement.type = STATEMENT_BLOCK;
 
-	assert(env->token.type == T_INDENT);
-	next_token(env);
+	eat(env, T_INDENT);
 
 	while(env->token.type != T_DEDENT) {
 		/* parse statement */
@@ -1079,7 +1093,7 @@ type_variable_t *parse_type_parameter(parser_env_t *env)
 				= obstack_alloc(&env->obst, sizeof(constraint[0]));
 			memset(constraint, 0, sizeof(constraint[0]));
 
-			constraint->type_class_symbol = symbol;
+			constraint->typeclass_symbol = symbol;
 			if(last_constraint == NULL) {
 				type_variable->constraints = constraint;
 			} else {
@@ -1113,53 +1127,69 @@ type_variable_t *parse_type_parameters(parser_env_t *env)
 }
 
 static
-namespace_entry_t *parse_method(parser_env_t *env, type_t *type,
-                                symbol_t *symbol)
+namespace_entry_t *parse_method(parser_env_t *env)
 {
+	eat(env, T_func);
+
 	method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
 	memset(method, 0, sizeof(method[0]));
-
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
-	method->symbol               = symbol;
 
 	method_type_t *method_type
 		= obstack_alloc(&env->obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
+	method_type->type.type = TYPE_METHOD;
 
-	method_type->type.type   = TYPE_METHOD;
-	method_type->result_type = type;
-
-	if(env->token.type == '<') {
+	method_type->result_type = parse_type(env);
+	
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing function",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+	} else {
+		method->symbol = env->token.v.symbol;
 		next_token(env);
-		method->type_parameters = parse_type_parameters(env);
-		expect(env, '>');
+
+		if(env->token.type == '<') {
+			next_token(env);
+			method->type_parameters = parse_type_parameters(env);
+			expect(env, '>');
+		}
+
+		eat(env, '(');
+
+		parse_parameter_declaration(env, &method_type->parameter_types,
+									&method->parameters);
+
+		method->type = method_type;
+
+		expect(env, ')');
+		expect(env, ':');
 	}
 
-	assert(env->token.type == '(');
-	next_token(env);
-
-	parse_parameter_declaration(env, &method_type->parameter_types,
-	                            &method->parameters);
-
-	method->type = method_type;
-
-	expect(env, ')');
-	expect(env, ':');
 	method->statement = parse_statement(env);
 
 	return (namespace_entry_t*) method;
 }
 
 static
-namespace_entry_t *parse_variable(parser_env_t *env, type_t *type,
-                                  symbol_t *symbol)
+namespace_entry_t *parse_variable(parser_env_t *env)
 {
+	eat(env, T_var);
+
 	variable_t *variable = obstack_alloc(&env->obst, sizeof(variable[0]));
 	memset(variable, 0, sizeof(variable[0]));
-
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
-	variable->symbol               = symbol;
-	variable->type                 = type;
+
+	variable->type = parse_type(env);
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing global variable",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+	variable->symbol               = env->token.v.symbol;
+	next_token(env);
 
 	expect(env, T_NEWLINE);
 
@@ -1167,33 +1197,10 @@ namespace_entry_t *parse_variable(parser_env_t *env, type_t *type,
 }
 
 static
-namespace_entry_t *parse_method_or_var(parser_env_t *env)
-{
-	type_t   *type   = parse_type(env);
-	symbol_t *symbol;
-
-	if(env->token.type != T_IDENTIFIER) {
-		parse_error_expected(env, NULL, T_IDENTIFIER, 0);
-		eat_until_newline(env);
-		return NULL;
-	}
-	symbol = env->token.v.symbol;
-	next_token(env);
-
-	/* is it a method? */
-	if(env->token.type == '(' || env->token.type == '<') {
-		return parse_method(env, type, symbol);
-	}
-
-	/* must be a variable */
-	return parse_variable(env, type, symbol);
-}
-
-static
 namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
-	const char              *abi_style   = NULL;
-	type_t                  *result_type;
+	eat(env, T_extern);
+	expect(env, T_func);
 
 	extern_method_t *extern_method
 		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
@@ -1201,16 +1208,17 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 
 	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_METHOD;
 
-	/* skip the "extern" */
-	assert(env->token.type == T_extern);
-	next_token(env);
+	method_type_t *method_type
+		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
+	method_type->type.type = TYPE_METHOD;
 
 	if(env->token.type == T_STRING_LITERAL) {
-		abi_style = env->token.v.string;
+		method_type->abi_style = env->token.v.string;
 		next_token(env);
 	}
 
-	result_type = parse_type(env);
+	method_type->result_type = parse_type(env);
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing extern declaration",
@@ -1220,14 +1228,6 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	}
 	extern_method->symbol = env->token.v.symbol;
 	next_token(env);
-
-	method_type_t *method_type
-		= obstack_alloc(&env->obst, sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
-
-	method_type->type.type       = TYPE_METHOD;
-	method_type->abi_style       = abi_style;
-	method_type->result_type     = result_type;
 
 	expect(env, '(');
 	parse_parameter_declaration(env, &method_type->parameter_types, NULL);
@@ -1242,12 +1242,11 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 static
 namespace_entry_t *parse_struct(parser_env_t *env)
 {
+	eat(env, T_struct);
+
 	struct_t *struct_ = obstack_alloc(&env->obst, sizeof(struct_[0]));
 	memset(struct_, 0, sizeof(struct_[0]));
 	struct_->namespace_entry.type = NAMESPACE_ENTRY_STRUCT;
-
-	assert(env->token.type == T_struct);
-	next_token(env);
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing struct",
@@ -1278,8 +1277,9 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 			entry->type = parse_type(env);
 			if(env->token.type != T_IDENTIFIER) {
 				parse_error_expected(env, "Problem while parsing struct entry",
-						T_IDENTIFIER, 0);
-				return NULL;
+				                     T_IDENTIFIER, 0);
+				eat_until_newline(env);
+				continue;
 			}
 			entry->symbol = env->token.v.symbol;
 			next_token(env);
@@ -1301,6 +1301,167 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 }
 
 static
+typeclass_member_t *parse_typeclass_member(parser_env_t *env)
+{
+	expect(env, T_func);
+
+	typeclass_member_t *member = obstack_alloc(&env->obst, sizeof(member[0]));
+	memset(member, 0, sizeof(member[0]));
+
+	method_type_t *method_type 
+		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
+	method_type->type.type = TYPE_METHOD;
+
+	method_type->result_type = parse_type(env);
+	
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing typeclass member",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+
+	member->symbol = env->token.v.symbol;
+	next_token(env);
+
+	expect(env, '(');
+	parse_parameter_declaration(env, &method_type->parameter_types,
+	                            &member->parameters);
+	expect(env, ')');
+	expect(env, T_NEWLINE);
+
+	return member;
+}
+
+static
+namespace_entry_t *parse_typeclass(parser_env_t *env)
+{
+	eat(env, T_typeclass);
+
+	typeclass_t *typeclass = obstack_alloc(&env->obst, sizeof(typeclass[0]));
+	memset(typeclass, 0, sizeof(typeclass[0]));
+	typeclass->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing typeclass",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+	} else {
+		typeclass->symbol = env->token.v.symbol;
+		next_token(env);
+
+		if(env->token.type == '<') {
+			next_token(env);
+			typeclass->type_variables = parse_type_parameters(env);
+			expect(env, '>');
+		}
+		expect(env, ':');
+		expect(env, T_NEWLINE);
+	}
+
+	if(env->token.type != T_INDENT)
+		return (namespace_entry_t*) typeclass;
+	next_token(env);
+
+	typeclass_member_t *last_member = NULL;
+	while(env->token.type != T_DEDENT) {
+		if(env->token.type == T_EOF) {
+			parse_error(env, "EOF while parsing typeclass");
+			return NULL;
+		}
+
+		typeclass_member_t *member = parse_typeclass_member(env);
+
+		if(last_member != NULL) {
+			last_member->next = member;
+		} else {
+			typeclass->members = member;
+		}
+		last_member = member;
+	}
+	next_token(env);
+
+	return (namespace_entry_t*) typeclass;
+}
+
+static
+typeclass_member_instance_t *parse_typeclass_member_instance(parser_env_t *env)
+{
+	typeclass_member_instance_t *member_instance
+		= obstack_alloc(&env->obst, sizeof(member_instance[0]));
+	memset(member_instance, 0, sizeof(member_instance[0]));
+
+	if(env->token.type != T_func) {
+		parse_error_expected(env, "Problem while parsing typeclass member "
+		                     "instance", T_func, 0);
+		eat_until_newline(env);
+		maybe_eat_block(env);
+		return NULL;
+	}
+	namespace_entry_t *entry = parse_method(env);
+	if(entry == NULL)
+		return NULL;
+
+	assert(entry->type == NAMESPACE_ENTRY_METHOD);
+	member_instance->method = (method_t*) entry;
+
+	return member_instance;
+}
+
+static
+namespace_entry_t *parse_typeclass_instance(parser_env_t *env)
+{
+	eat(env, T_instance);
+
+	typeclass_instance_t *instance 
+		= obstack_alloc(&env->obst, sizeof(instance[0]));
+	memset(instance, 0, sizeof(instance[0]));
+	instance->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS_INSTANCE;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing typeclass instance",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+	} else {
+		instance->typeclass_symbol = env->token.v.symbol;
+		next_token(env);
+
+		expect(env, '<');
+		instance->type_arguments = parse_type_arguments(env);
+		expect(env, '>');
+		
+		expect(env, ':');
+		expect(env, T_NEWLINE);
+	}
+
+	if(env->token.type != T_INDENT)
+		return (namespace_entry_t*) instance;
+	next_token(env);
+
+	typeclass_member_instance_t *last_member = NULL;
+	while(env->token.type != T_DEDENT) {
+		if(env->token.type == T_EOF) {
+			parse_error(env, "EOF while parsing typeclass instance");
+			return NULL;
+		}
+
+		typeclass_member_instance_t *member 
+			= parse_typeclass_member_instance(env);
+
+		if(last_member != NULL) {
+			last_member->next = member;
+		} else {
+			instance->member_instances = member;
+		}
+		last_member = member;
+	}
+	next_token(env);
+	
+	return (namespace_entry_t*) instance;
+}
+
+static
 namespace_t *parse_namespace(parser_env_t *env)
 {
 	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
@@ -1311,16 +1472,12 @@ namespace_t *parse_namespace(parser_env_t *env)
 		source_position_t  source_position = env->source_position;
 
 		switch(env->token.type) {
-		case T_unsigned:
-		case T_signed:
-		case T_int:
-		case T_byte:
-		case T_short:
-		case T_float:
-		case T_double:
-		case T_void:
-		case T_IDENTIFIER:
-			entry = parse_method_or_var(env);
+		case T_func:
+			entry = parse_method(env);
+			break;
+
+		case T_var:
+			entry = parse_variable(env);
 			break;
 
 		case T_extern:
@@ -1329,6 +1486,14 @@ namespace_t *parse_namespace(parser_env_t *env)
 
 		case T_struct:
 			entry = parse_struct(env);
+			break;
+
+		case T_typeclass:
+			entry = parse_typeclass(env);
+			break;
+
+		case T_instance:
+			entry = parse_typeclass_instance(env);
 			break;
 
 		case T_NEWLINE:
@@ -1340,8 +1505,11 @@ namespace_t *parse_namespace(parser_env_t *env)
 			return namespace;
 
 		default:
-			parse_error(env, "Couldn't parse compilation unit entry");
-			next_token(env);
+			parse_error_expected(env, "Couldn't parse compilation unit entry",
+			                     T_func, T_var, T_extern, T_struct, T_typeclass,
+			                     T_instance, 0);
+			eat_until_newline(env);
+			maybe_eat_block(env);
 			break;
 		}
 

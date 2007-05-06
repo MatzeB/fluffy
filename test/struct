@@ -1,11 +1,8 @@
-struct Hello {
-	int bla;
-	unsigned long long* long_ptr;
-	float a_float;
-	Hello* hello;
-}
+struct Hello:
+	int bla
+	unsigned long long* long_ptr
+	float a_float
+	Hello* hello
 
-int main()
-{
-	return 0;
-}
+func int main():
+	return 0

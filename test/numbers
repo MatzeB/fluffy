@@ -1,6 +1,6 @@
-extern void print_int(int v)
+extern func void print_int(int v)
 
-int main():
+func int main():
 	print_int(42)
 	print_int(00042)
 	print_int(0x02a)

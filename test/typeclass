@@ -1,0 +1,12 @@
+extern func void print_int(int bla)
+
+typeclass Print<T>:
+	func byte* print(T* object)
+
+instance Print<int>:
+	func byte* print(int* object):
+		print_int(*object)
+		return 0
+
+func int main():
+	return 0

@@ -71,8 +71,8 @@ struct method_parameter_type_t {
 };
 
 struct type_constraint_t {
-	symbol_t          *type_class_symbol;
-	type_class_t      *type_class;
+	symbol_t          *typeclass_symbol;
+	typeclass_t       *typeclass;
 	type_constraint_t *next;
 };
 
@@ -287,7 +287,9 @@ enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
 	NAMESPACE_ENTRY_EXTERN_METHOD,
-	NAMESPACE_ENTRY_STRUCT
+	NAMESPACE_ENTRY_STRUCT,
+	NAMESPACE_ENTRY_TYPECLASS,
+	NAMESPACE_ENTRY_TYPECLASS_INSTANCE
 };
 
 struct namespace_entry_t {
@@ -335,13 +337,6 @@ struct extern_method_t {
 	ir_entity         *entity;
 };
 
-struct builtin_method_t {
-	symbol_t          *symbol;
-	method_type_t     *type;
-
-	ir_node * (*construct_node_func) (call_expression_t *call_expression);
-};
-
 struct variable_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
@@ -354,19 +349,38 @@ struct struct_t {
 	struct_type_t     *type;
 };
 
-struct type_class_member_t {
-	method_type_t       *method;
-	method_t            *default_implementation;
+struct typeclass_member_instance_t {
+	method_t                    *method;
+	typeclass_member_instance_t *next;
 
-	type_class_member_t *next;
+	typeclass_member_t          *member;
 };
 
-struct type_class_t {
-	namespace_entry_t    namespace_entry;
-	symbol_t            *symbol;
-	symbol_t            *type_variable;
-	type_constraint_t   *type_constraints;
-	type_class_member_t *members;
+struct typeclass_instance_t {
+	namespace_entry_t            namespace_entry;
+
+	symbol_t                    *typeclass_symbol;
+	typeclass_t                 *typeclass;
+	type_argument_t             *type_arguments;
+	typeclass_member_instance_t *member_instances;
+	typeclass_instance_t        *next;
+};
+
+struct typeclass_member_t {
+	symbol_t           *symbol;
+	method_type_t      *method;
+	method_parameter_t *parameters;
+
+	typeclass_member_t *next;
+};
+
+struct typeclass_t {
+	namespace_entry_t     namespace_entry;
+	symbol_t             *symbol;
+
+	type_variable_t      *type_variables;
+	typeclass_member_t   *members;
+	typeclass_instance_t *instances;
 };
 
 struct namespace_t {

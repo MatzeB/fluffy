@@ -30,7 +30,8 @@ typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;
 typedef struct return_statement_t       return_statement_t;
 typedef struct if_statement_t           if_statement_t;
-typedef struct variable_declaration_statement_t variable_declaration_statement_t;
+typedef struct variable_declaration_statement_t
+                                        variable_declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
 typedef struct goto_statement_t         goto_statement_t;
 typedef struct label_statement_t        label_statement_t;
@@ -43,8 +44,11 @@ typedef struct method_t                 method_t;
 typedef struct extern_method_t          extern_method_t;
 typedef struct variable_t               variable_t;
 typedef struct struct_t                 struct_t;
-typedef struct type_class_t             type_class_t;
-typedef struct type_class_member_t      type_class_member_t;
+typedef struct typeclass_instance_t     typeclass_instance_t;
+typedef struct typeclass_member_instance_t
+                                        typeclass_member_instance_t;
+typedef struct typeclass_t              typeclass_t;
+typedef struct typeclass_member_t       typeclass_member_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;

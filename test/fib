@@ -1,19 +1,19 @@
-extern "cdecl" int get_int()
-extern "cdecl" void print_int(int someint)
-extern "cdecl" int atoi(byte* string)
+extern func "cdecl" int get_int()
+extern func "cdecl" void print_int(int someint)
+extern func "cdecl" int atoi(byte* string)
 
-int main(int argc, byte* * argv):
-	def number <- 10
+func int main(int argc, byte* * argv):
+	var number <- 10
 	if argc > 1:
 		number <- atoi(*(argv + cast<byte * * > 4))
 
-	def result <- fib(number)
+	var result <- fib(number)
 
 	print_int(result)
 
 	return 0
 
-int fib(int n):
+func int fib(int n):
 	if n = 0:
 		return 0
 	if n = 1:

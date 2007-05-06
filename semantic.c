@@ -15,6 +15,7 @@ enum environment_entry_type_t {
 	ENTRY_GLOBAL_VARIABLE,
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
+	ENTRY_TYPECLASS,
 	ENTRY_TYPE,
 	ENTRY_TYPE_VARIABLE,
 	ENTRY_EXTERN_METHOD,
@@ -36,6 +37,7 @@ struct environment_entry_t {
 		variable_declaration_statement_t *variable;
 		goto_statement_t                 *goto_statement;
 		label_statement_t                *label;
+		typeclass_t                      *typeclass;
 	} e;
 };
 
@@ -309,6 +311,12 @@ void check_reference_expression(semantic_env_t *env,
 		ref->r.method_parameter  = method_parameter;
 		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
 		ref->expression.datatype = method_parameter->type;
+		break;
+	case ENTRY_TYPECLASS:
+		print_error_prefix(env, ref->expression.source_position);
+		fprintf(stderr, "'%s' is a typeclass and can't be used as expression\n",
+		        ref->symbol->string);
+		env->found_errors = 1;
 		break;
 	case ENTRY_TYPE:
 		print_error_prefix(env, ref->expression.source_position);
@@ -981,14 +989,41 @@ void check_method(semantic_env_t *env, method_t *method)
 }
 
 static
+void resolve_typeclass_instance(semantic_env_t *env,
+                                typeclass_instance_t *instance)
+{
+	symbol_t            *symbol = instance->typeclass_symbol;
+	environment_entry_t *entry  = symbol->thing;
+
+	if(entry == NULL) {
+		print_error_prefix(env, instance->namespace_entry.source_position);
+		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
+		env->found_errors = 1;
+		return;
+	}
+	if(entry->type != ENTRY_TYPECLASS) {
+		print_error_prefix(env, instance->namespace_entry.source_position);
+		fprintf(stderr, "'%s' is not a typeclass\n", symbol->string);
+		env->found_errors = 1;
+		return;
+	}
+
+	typeclass_t *typeclass = entry->e.typeclass;
+	instance->typeclass    = typeclass;
+	instance->next         = typeclass->instances;
+	typeclass->instances   = instance;
+}
+
+static
 void check_namespace(semantic_env_t *env, namespace_t *namespace)
 {
-	variable_t          *variable;
-	method_t            *method;
-	extern_method_t     *extern_method;
-	environment_entry_t *env_entry;
-	struct_t            *the_struct;
-	int                  old_top        = environment_top(env);
+	variable_t           *variable;
+	method_t             *method;
+	extern_method_t      *extern_method;
+	environment_entry_t  *env_entry;
+	struct_t             *the_struct;
+	typeclass_t          *typeclass;
+	int                   old_top = environment_top(env);
 
 	/* record namespace entries in environment */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -1018,6 +1053,14 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry->type        = ENTRY_TYPE;
 			env_entry->e.stored_type = (type_t*) the_struct->type;
 			break;
+		case NAMESPACE_ENTRY_TYPECLASS:
+			typeclass              = (typeclass_t*) entry;
+			env_entry              = environment_push(env, typeclass->symbol);
+			env_entry->type        = ENTRY_TYPECLASS;
+			env_entry->e.typeclass = typeclass;
+			break;
+		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
+			break;
 		default:
 			panic("Unknown thing in namespace");
 			break;
@@ -1025,7 +1068,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		entry = entry->next;
 	}
 
-	/* normalize types */
+	/* normalize types, resolve typeclass instance references */
 	entry = namespace->first_entry;
 	while(entry != NULL) {
 		switch(entry->type) {
@@ -1055,6 +1098,9 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			assert(env_entry->e.stored_type == (type_t*) the_struct->type);
 			env_entry->e.stored_type 
 				= normalize_type(env, env_entry->e.stored_type);
+			break;
+		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
+			resolve_typeclass_instance(env, (typeclass_instance_t*) entry);
 			break;
 		default:
 			break;

@@ -26,7 +26,7 @@ struct lexer_t {
 	source_position_t source_position;
 	strset_t          stringset;
 	int               at_line_begin;
-	int               last_was_newline;
+	unsigned          not_returned_dedents;
 	unsigned          indent_levels[MAX_INDENT];
 	unsigned          indent_levels_len;
 	char              last_line_indent[MAX_INDENT];
