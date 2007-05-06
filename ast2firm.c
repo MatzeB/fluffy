@@ -814,6 +814,7 @@ ir_node *expression_to_firm(const expression_t *expression)
 		panic("reference expressions not lowered");
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 		panic("global variable references not handled yet");
+	case EXPR_REFERENCE_TYPECLASS_METHOD:
 	case EXPR_INVALID:
 		break;
 	}

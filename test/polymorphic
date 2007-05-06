@@ -1,22 +1,8 @@
-extern void* malloc(unsigned int size)
+extern func void* malloc(unsigned int size)
 
-/*
-class Initializable T:
-	void init(T* object)
-
-intance Initializable int:
-	void init(int* object):
-		*object = 42
-
-T* construct<Initializable T>():
-	T* ptr = cast<T* > malloc(sizeof<T> ())
-	init(ptr)
-	return ptr
-*/
-
-unsigned int sizeof<T>():
+func unsigned int sizeof<T>():
 	return __sizeof<T>
 
-int main():
+func int main():
 	return sizeof<int>()
 

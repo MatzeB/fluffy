@@ -45,10 +45,10 @@ typedef struct extern_method_t          extern_method_t;
 typedef struct variable_t               variable_t;
 typedef struct struct_t                 struct_t;
 typedef struct typeclass_instance_t     typeclass_instance_t;
-typedef struct typeclass_member_instance_t
-                                        typeclass_member_instance_t;
+typedef struct typeclass_method_instance_t
+                                        typeclass_method_instance_t;
 typedef struct typeclass_t              typeclass_t;
-typedef struct typeclass_member_t       typeclass_member_t;
+typedef struct typeclass_method_t       typeclass_method_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;

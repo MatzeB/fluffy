@@ -1301,12 +1301,12 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 }
 
 static
-typeclass_member_t *parse_typeclass_member(parser_env_t *env)
+typeclass_method_t *parse_typeclass_method(parser_env_t *env)
 {
 	expect(env, T_func);
 
-	typeclass_member_t *member = obstack_alloc(&env->obst, sizeof(member[0]));
-	memset(member, 0, sizeof(member[0]));
+	typeclass_method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	memset(method, 0, sizeof(method[0]));
 
 	method_type_t *method_type 
 		= obstack_alloc(&env->obst, sizeof(method_type[0]));
@@ -1316,22 +1316,24 @@ typeclass_member_t *parse_typeclass_member(parser_env_t *env)
 	method_type->result_type = parse_type(env);
 	
 	if(env->token.type != T_IDENTIFIER) {
-		parse_error_expected(env, "Problem while parsing typeclass member",
+		parse_error_expected(env, "Problem while parsing typeclass method",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline(env);
 		return NULL;
 	}
 
-	member->symbol = env->token.v.symbol;
+	method->symbol = env->token.v.symbol;
 	next_token(env);
 
 	expect(env, '(');
 	parse_parameter_declaration(env, &method_type->parameter_types,
-	                            &member->parameters);
+	                            &method->parameters);
 	expect(env, ')');
 	expect(env, T_NEWLINE);
 
-	return member;
+	method->method_type = method_type;
+
+	return method;
 }
 
 static
@@ -1364,21 +1366,21 @@ namespace_entry_t *parse_typeclass(parser_env_t *env)
 		return (namespace_entry_t*) typeclass;
 	next_token(env);
 
-	typeclass_member_t *last_member = NULL;
+	typeclass_method_t *last_method = NULL;
 	while(env->token.type != T_DEDENT) {
 		if(env->token.type == T_EOF) {
 			parse_error(env, "EOF while parsing typeclass");
 			return NULL;
 		}
 
-		typeclass_member_t *member = parse_typeclass_member(env);
+		typeclass_method_t *method = parse_typeclass_method(env);
 
-		if(last_member != NULL) {
-			last_member->next = member;
+		if(last_method != NULL) {
+			last_method->next = method;
 		} else {
-			typeclass->members = member;
+			typeclass->methods = method;
 		}
-		last_member = member;
+		last_method = method;
 	}
 	next_token(env);
 
@@ -1386,14 +1388,14 @@ namespace_entry_t *parse_typeclass(parser_env_t *env)
 }
 
 static
-typeclass_member_instance_t *parse_typeclass_member_instance(parser_env_t *env)
+typeclass_method_instance_t *parse_typeclass_method_intance(parser_env_t *env)
 {
-	typeclass_member_instance_t *member_instance
-		= obstack_alloc(&env->obst, sizeof(member_instance[0]));
-	memset(member_instance, 0, sizeof(member_instance[0]));
+	typeclass_method_instance_t *method_intance
+		= obstack_alloc(&env->obst, sizeof(method_intance[0]));
+	memset(method_intance, 0, sizeof(method_intance[0]));
 
 	if(env->token.type != T_func) {
-		parse_error_expected(env, "Problem while parsing typeclass member "
+		parse_error_expected(env, "Problem while parsing typeclass method "
 		                     "instance", T_func, 0);
 		eat_until_newline(env);
 		maybe_eat_block(env);
@@ -1404,9 +1406,9 @@ typeclass_member_instance_t *parse_typeclass_member_instance(parser_env_t *env)
 		return NULL;
 
 	assert(entry->type == NAMESPACE_ENTRY_METHOD);
-	member_instance->method = (method_t*) entry;
+	method_intance->method = (method_t*) entry;
 
-	return member_instance;
+	return method_intance;
 }
 
 static
@@ -1439,22 +1441,22 @@ namespace_entry_t *parse_typeclass_instance(parser_env_t *env)
 		return (namespace_entry_t*) instance;
 	next_token(env);
 
-	typeclass_member_instance_t *last_member = NULL;
+	typeclass_method_instance_t *last_method = NULL;
 	while(env->token.type != T_DEDENT) {
 		if(env->token.type == T_EOF) {
 			parse_error(env, "EOF while parsing typeclass instance");
 			return NULL;
 		}
 
-		typeclass_member_instance_t *member 
-			= parse_typeclass_member_instance(env);
+		typeclass_method_instance_t *method
+			= parse_typeclass_method_intance(env);
 
-		if(last_member != NULL) {
-			last_member->next = member;
+		if(last_method != NULL) {
+			last_method->next = method;
 		} else {
-			instance->member_instances = member;
+			instance->method_instances = method;
 		}
-		last_member = member;
+		last_method = method;
 	}
 	next_token(env);
 	

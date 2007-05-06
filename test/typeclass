@@ -9,4 +9,5 @@ instance Print<int>:
 		return 0
 
 func int main():
+	print(5)
 	return 0

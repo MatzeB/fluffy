@@ -20,7 +20,8 @@ enum environment_entry_type_t {
 	ENTRY_TYPE_VARIABLE,
 	ENTRY_EXTERN_METHOD,
 	ENTRY_GOTO,
-	ENTRY_LABEL
+	ENTRY_LABEL,
+	ENTRY_TYPECLASS_METHOD
 };
 
 struct environment_entry_t {
@@ -38,6 +39,7 @@ struct environment_entry_t {
 		goto_statement_t                 *goto_statement;
 		label_statement_t                *label;
 		typeclass_t                      *typeclass;
+		typeclass_method_t               *typeclass_method;
 	} e;
 };
 
@@ -270,6 +272,7 @@ void check_reference_expression(semantic_env_t *env,
 	method_parameter_t               *method_parameter;
 	extern_method_t                  *extern_method;
 	variable_t                       *global_variable;
+	typeclass_method_t               *typeclass_method;
 	symbol_t                         *symbol = ref->symbol;
 	environment_entry_t              *entry  = symbol->thing;
 
@@ -311,6 +314,12 @@ void check_reference_expression(semantic_env_t *env,
 		ref->r.method_parameter  = method_parameter;
 		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
 		ref->expression.datatype = method_parameter->type;
+		break;
+	case ENTRY_TYPECLASS_METHOD:
+		typeclass_method         = entry->e.typeclass_method;
+		ref->r.typeclass_method  = typeclass_method;
+		ref->expression.type     = EXPR_REFERENCE_TYPECLASS_METHOD;
+		ref->expression.datatype = (type_t*) typeclass_method->method_type;
 		break;
 	case ENTRY_TYPECLASS:
 		print_error_prefix(env, ref->expression.source_position);
@@ -989,6 +998,19 @@ void check_method(semantic_env_t *env, method_t *method)
 }
 
 static
+void push_typeclass_methods(semantic_env_t *env, typeclass_t *typeclass)
+{
+	typeclass_method_t *method = typeclass->methods;
+	while(method != NULL) {
+		environment_entry_t *entry = environment_push(env, method->symbol);
+		entry->type                = ENTRY_TYPECLASS_METHOD;
+		entry->e.typeclass_method  = method;
+
+		method = method->next;
+	}
+}
+
+static
 void resolve_typeclass_instance(semantic_env_t *env,
                                 typeclass_instance_t *instance)
 {
@@ -1058,6 +1080,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry              = environment_push(env, typeclass->symbol);
 			env_entry->type        = ENTRY_TYPECLASS;
 			env_entry->e.typeclass = typeclass;
+			push_typeclass_methods(env, typeclass);
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 			break;

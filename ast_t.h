@@ -116,6 +116,7 @@ typedef enum {
 	EXPR_REFERENCE_METHOD_PARAMETER,
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
+	EXPR_REFERENCE_TYPECLASS_METHOD,
 	EXPR_CALL,
 	EXPR_UNARY,
 	EXPR_BINARY,
@@ -148,6 +149,7 @@ struct reference_expression_t {
 		extern_method_t                  *extern_method;
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
+		typeclass_method_t               *typeclass_method;
 	} r;
 	type_argument_t *type_arguments;
 };
@@ -349,11 +351,11 @@ struct struct_t {
 	struct_type_t     *type;
 };
 
-struct typeclass_member_instance_t {
+struct typeclass_method_instance_t {
 	method_t                    *method;
-	typeclass_member_instance_t *next;
+	typeclass_method_instance_t *next;
 
-	typeclass_member_t          *member;
+	typeclass_method_t          *typeclass_method;
 };
 
 struct typeclass_instance_t {
@@ -362,16 +364,16 @@ struct typeclass_instance_t {
 	symbol_t                    *typeclass_symbol;
 	typeclass_t                 *typeclass;
 	type_argument_t             *type_arguments;
-	typeclass_member_instance_t *member_instances;
+	typeclass_method_instance_t *method_instances;
 	typeclass_instance_t        *next;
 };
 
-struct typeclass_member_t {
+struct typeclass_method_t {
 	symbol_t           *symbol;
-	method_type_t      *method;
+	method_type_t      *method_type;
 	method_parameter_t *parameters;
 
-	typeclass_member_t *next;
+	typeclass_method_t *next;
 };
 
 struct typeclass_t {
@@ -379,7 +381,7 @@ struct typeclass_t {
 	symbol_t             *symbol;
 
 	type_variable_t      *type_variables;
-	typeclass_member_t   *members;
+	typeclass_method_t   *methods;
 	typeclass_instance_t *instances;
 };
 
