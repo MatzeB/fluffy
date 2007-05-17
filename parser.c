@@ -342,13 +342,27 @@ void maybe_eat_block(parser_env_t *env)
 	next_token(env);
 
 static
+expression_t *parse_string_const(parser_env_t *env)
+{
+	string_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
+	memset(cnst, 0, sizeof(cnst));
+
+	cnst->expression.type = EXPR_STRING_CONST;
+	cnst->value           = env->token.v.string;
+
+	next_token(env);
+
+	return (expression_t*) cnst;
+}
+
+static
 expression_t *parse_int_const(parser_env_t *env)
 {
 	int_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
 	memset(cnst, 0, sizeof(cnst));
 
-	cnst->expression.type            = EXPR_INT_CONST;
-	cnst->value                      = env->token.v.intvalue;
+	cnst->expression.type = EXPR_INT_CONST;
+	cnst->value           = env->token.v.intvalue;
 
 	next_token(env);
 
@@ -460,6 +474,8 @@ expression_t *parse_primary_expression(parser_env_t *env)
 	switch(env->token.type) {
 	case T_INTEGER:
 		return parse_int_const(env);
+	case T_STRING_LITERAL:
+		return parse_string_const(env);
 	case T_IDENTIFIER:
 		return parse_reference(env);
 	case T___sizeof:

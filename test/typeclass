@@ -1,5 +1,6 @@
 extern func void print_int(int bla)
 extern func void* malloc(unsigned int size)
+extern func int puts(byte* string)
 
 /*
 typeclass Alloc<T>:
@@ -11,16 +12,20 @@ instance Alloc<T>:
 */
 
 typeclass Print<T>:
-	func byte* print(T object)
+	func void print(T object)
 
 instance Print<int>:
-	func byte* print(int object):
+	func void print(int object):
 		print_int(object)
-		return 0
+
+instance Print<byte* >:
+	func void print(byte* object):
+		puts(object)
 
 func int main():
 	// var dbl <- alloc<double>()
-	
+
+	print("Eine fünf:")
 	print(5)
 	return 0
 

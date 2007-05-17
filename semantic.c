@@ -533,6 +533,8 @@ typeclass_instance_t *find_typeclass_instance(semantic_env_t *env,
 		}
 		if(match == 1)
 			return instance;
+
+		instance = instance->next;
 	}
 
 	return NULL;
@@ -552,7 +554,7 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 	                                           ref->expression.source_position);
 	if(instance == NULL) {
 		print_error_prefix(env, ref->expression.source_position);
-		fprintf(stderr, "there's no instance of typeclass '%s' for types ",
+		fprintf(stderr, "there's no instance of typeclass '%s' for ",
 		        typeclass->symbol->string);
 		type_variable_t *typevar = typeclass->type_variables;
 		while(typevar != NULL) {
@@ -787,6 +789,9 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		expression->datatype = env->type_int;
+		break;
+	case EXPR_STRING_CONST:
+		expression->datatype = env->type_byte_ptr;
 		break;
 	case EXPR_REFERENCE:
 		check_reference_expression(env, (reference_expression_t*) expression);
@@ -1108,6 +1113,19 @@ void check_method(semantic_env_t *env, method_t *method)
 }
 
 static
+void check_typeclass_instance(semantic_env_t *env,
+                              typeclass_instance_t *instance)
+{
+	typeclass_method_instance_t *method_instance = instance->method_instances;
+	while(method_instance != NULL) {
+		method_t *method = method_instance->method;
+		check_method(env, method);
+
+		method_instance = method_instance->next;
+	}
+}
+
+static
 void resolve_typeclass_types(semantic_env_t *env, typeclass_t *typeclass)
 {
 	int old_top            = environment_top(env);
@@ -1174,6 +1192,14 @@ void resolve_typeclass_instance(semantic_env_t *env,
 	instance->next         = typeclass->instances;
 	typeclass->instances   = instance;
 
+	/* normalize argument types */
+	type_argument_t *type_argument = instance->type_arguments;
+	while(type_argument != NULL) {
+		type_argument->type = normalize_type(env, type_argument->type);
+
+		type_argument = type_argument->next;
+	}
+
 	/* link methods */
 	typeclass_method_t *method = typeclass->methods;
 	while(method != NULL) {
@@ -1196,8 +1222,9 @@ void resolve_typeclass_instance(semantic_env_t *env,
 				        "in instance of typeclass '%s'\n",
 				        method->symbol->string, typeclass->symbol->string);
 			} else {
-				found_instance                    = 1;
-				method_instance->typeclass_method = method;
+				found_instance                      = 1;
+				method_instance->typeclass_method   = method;
+				method_instance->typeclass_instance = instance;
 			}
 
 			method_instance = method_instance->next;
@@ -1320,6 +1347,9 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		case NAMESPACE_ENTRY_METHOD:
 			check_method(env, (method_t*) entry);
 			break;
+		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
+			check_typeclass_instance(env, (typeclass_instance_t*) entry);
+			break;
 		default:
 			break;
 		}
@@ -1376,9 +1406,11 @@ int check_static_semantic(namespace_t *namespace)
 	env.next_valnum   = 0;
 	env.found_errors  = 0;
 	env.type_bool     = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
+	env.type_byte     = make_atomic_type(&obst, ATOMIC_TYPE_BYTE);
 	env.type_int      = make_atomic_type(&obst, ATOMIC_TYPE_INT);
 	env.type_uint     = make_atomic_type(&obst, ATOMIC_TYPE_UINT);
 	env.type_void_ptr = make_pointer_type(&obst, type_void);
+	env.type_byte_ptr = make_pointer_type(&obst, env.type_byte);
 
 	check_namespace(&env, namespace);
 

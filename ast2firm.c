@@ -17,6 +17,8 @@
 static variable_declaration_statement_t **value_numbers = NULL;
 static label_statement_t                 *labels        = NULL;
 
+static ir_type *byte_array_type = NULL;
+
 typedef struct instantiate_method_t  instantiate_method_t;
 
 struct instantiate_method_t {
@@ -29,6 +31,9 @@ struct instantiate_method_t {
 
 static struct obstack obst;
 static instantiate_method_t *instantiate_methods = NULL;
+
+static
+ir_type *get_ir_type(type_t *type);
 
 static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
@@ -61,6 +66,16 @@ void initialize_firm(void)
 
 	/* intialize firm itself */
 	init_firm(&params);
+
+	atomic_type_t byte_type;
+	memset(&byte_type, 0, sizeof(byte_type));
+	byte_type.type.type = TYPE_ATOMIC;
+	byte_type.atype     = ATOMIC_TYPE_BYTE;
+
+	ir_type *byte_ir_type = get_ir_type((type_t*) &byte_type);
+	byte_array_type       = new_type_array(new_id_from_str("bytearray"), 1,
+	                                       byte_ir_type);
+	set_array_lower_bound_int(byte_array_type, 0, 0);
 }
 
 void exit_firm(void)
@@ -73,13 +88,10 @@ ident *unique_id(const char *tag)
 	static unsigned id = 0;
 	char            buf[256];
 
-	snprintf(buf, sizeof(buf), tag, id);
+	snprintf(buf, sizeof(buf), "%s%d", tag, id);
 	id++;
 	return new_id_from_str(buf);
 }
-
-static
-ir_type *get_ir_type(type_t *type);
 
 static
 ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
@@ -398,6 +410,57 @@ int is_polymorphic_method(const method_t *method)
 }
 
 static
+ir_entity* get_typeclass_method_instance_entity(
+		typeclass_method_instance_t *method_instance)
+{
+	method_t *method = method_instance->method;
+	if(method->entity != NULL)
+		return method->entity;
+
+	method_type_t *method_type = method->type;
+	if(method_type->abi_style != NULL) {
+		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
+		        method_type->abi_style);
+	}
+
+	typeclass_method_t *typeclass_method = method_instance->typeclass_method;
+	typeclass_t        *typeclass        = typeclass_method->typeclass;
+	const char         *string           = typeclass->symbol->string;
+	size_t              len              = strlen(string);
+	obstack_printf(&obst, "_tcv%zu%s", len, string);
+
+	string = typeclass_method->symbol->string;
+	len    = strlen(string);
+	obstack_printf(&obst, "%zu%s", len, string);
+
+	typeclass_instance_t *instance = method_instance->typeclass_instance;
+	type_argument_t      *argument = instance->type_arguments;
+	while(argument != NULL) {
+		mangle_type(&obst, argument->type);
+		argument = argument->next;
+	}
+	obstack_1grow(&obst, 0);
+
+	char *str = obstack_finish(&obst);
+
+	fprintf(stderr, "Mangled Name: '%s'\n", str);
+
+	ident *id = new_id_from_str(str);
+	obstack_free(&obst, str);
+
+	/* create the entity */
+	ir_type *global_type    = get_glob_type();
+	ir_type *ir_method_type = get_ir_type((type_t*) method->type);
+
+	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
+	set_entity_ld_ident(entity, id);
+	set_entity_visibility(entity, visibility_external_visible);
+
+	method->entity = entity;
+	return entity;
+}
+
+static
 ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 {
 	if(method->entity != NULL)
@@ -423,6 +486,7 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 			mangle_type(&obst, argument->type);
 			argument = argument->next;
 		}
+		obstack_1grow(&obst, 0);
 
 		char *str = obstack_finish(&obst);
 
@@ -432,7 +496,7 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 		obstack_free(&obst, str);
 	}
 
-	/* first create an entity */
+	/* create the entity */
 	ir_type *global_type    = get_glob_type();
 	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
 
@@ -480,6 +544,30 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 	tarval *tv    = new_tarval_from_long(cnst->value, mode);
 
 	return new_Const(mode, tv);
+}
+
+static
+ir_node *string_const_to_firm(const string_const_t* cnst)
+{
+	ir_type   *global_type = get_glob_type();
+	ir_entity *ent         = new_entity(global_type, unique_id("str"),
+	                                    byte_array_type);
+
+	ir_type    *elem_type  = get_array_element_type(byte_array_type);
+	ir_mode    *mode       = get_type_mode(elem_type);
+
+	const char *string     = cnst->value;
+	size_t      slen       = strlen(string) + 1;
+	tarval    **tvs        = xmalloc(slen * sizeof(tvs[0]));
+	for(size_t i = 0; i < slen; ++i) {
+		tvs[i] = new_tarval_from_long(string[i], mode);
+	}
+
+	set_entity_variability(ent, variability_constant);
+	set_array_entity_values(ent, tvs, slen);
+	free(tvs);
+
+	return new_SymConst((union symconst_symbol) ent, symconst_addr_ent);
 }
 
 static
@@ -691,6 +779,19 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
+ir_node *typeclass_method_instance_reference_to_firm(
+		const reference_expression_t *ref)
+{
+	typeclass_method_instance_t *method_instance 
+		= ref->r.typeclass_method_instance;
+
+	ir_entity *entity   = get_typeclass_method_instance_entity(method_instance);
+	ir_node   *symconst	= new_SymConst((union symconst_symbol) entity,
+	                                   symconst_addr_ent);
+	return symconst;
+}
+
+static
 ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
 {
 	ir_entity *entity = get_extern_method_entity(ref->r.extern_method);
@@ -784,6 +885,8 @@ ir_node *expression_to_firm(const expression_t *expression)
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		return int_const_to_firm((const int_const_t*) expression);
+	case EXPR_STRING_CONST:
+		return string_const_to_firm((const string_const_t*) expression);
 	case EXPR_REFERENCE_VARIABLE:
 		return variable_reference_to_firm(
 				(const reference_expression_t*) expression);
@@ -797,8 +900,8 @@ ir_node *expression_to_firm(const expression_t *expression)
 		return method_parameter_reference_to_firm(
 				(const reference_expression_t*) expression);
 	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
-		panic("typeclass method not implemented yet.");
-		return NULL;
+		return typeclass_method_instance_reference_to_firm(
+				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
@@ -1054,6 +1157,21 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 	dump_ir_block_graph(irg, "-test");
 }
 
+static
+void create_typeclass_instance(typeclass_instance_t *instance)
+{
+	typeclass_method_instance_t *method_instance = instance->method_instances;
+	while(method_instance != NULL) {
+		method_t *method  = method_instance->method;
+		/* make sure the method entity is set */
+		get_typeclass_method_instance_entity(method_instance);
+		/* we can emit it like a normal method */
+		create_method(method, NULL);
+
+		method_instance  = method_instance->next;
+	}
+}
+
 /**
  * Build a firm representation of an AST programm
  */
@@ -1068,13 +1186,15 @@ void ast2firm(namespace_t *namespace)
 		case NAMESPACE_ENTRY_METHOD:
 			create_method((method_t*) entry, NULL);
 			break;
+		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
+			create_typeclass_instance((typeclass_instance_t*) entry);
+			break;
 		case NAMESPACE_ENTRY_VARIABLE:
 			fprintf(stderr, "Global vars not handled yet\n");
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
 		case NAMESPACE_ENTRY_TYPECLASS:
 		case NAMESPACE_ENTRY_EXTERN_METHOD:
-		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 			break;
 		default:
 			panic("Unknown namespace entry type found");

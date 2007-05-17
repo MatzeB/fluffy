@@ -110,6 +110,7 @@ struct struct_type_t {
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
+	EXPR_STRING_CONST,
 	EXPR_REFERENCE,
 	EXPR_REFERENCE_VARIABLE,
 	EXPR_REFERENCE_METHOD,
@@ -134,6 +135,11 @@ struct expression_t {
 struct int_const_t {
 	expression_t  expression;
 	int           value;
+};
+
+struct string_const_t {
+	expression_t  expression;
+	const char   *value;
 };
 
 struct type_argument_t {
@@ -358,6 +364,7 @@ struct typeclass_method_instance_t {
 	typeclass_method_instance_t *next;
 
 	typeclass_method_t          *typeclass_method;
+	typeclass_instance_t        *typeclass_instance;
 };
 
 struct typeclass_instance_t {

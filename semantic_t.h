@@ -19,9 +19,11 @@ struct semantic_env_t {
 	method_t             *current_method;
 	int                   last_statement_was_return;
 	type_t               *type_bool;
+	type_t               *type_byte;
 	type_t               *type_int;
 	type_t               *type_uint;
 	type_t               *type_void_ptr;
+	type_t               *type_byte_ptr;
 };
 
 void print_error_prefix(semantic_env_t *env, const source_position_t position);
