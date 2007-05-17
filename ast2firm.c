@@ -796,6 +796,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_REFERENCE_METHOD_PARAMETER:
 		return method_parameter_reference_to_firm(
 				(const reference_expression_t*) expression);
+	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
+		panic("typeclass method not implemented yet.");
+		return NULL;
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);

@@ -67,6 +67,34 @@ void print_type_reference(FILE *out, const type_reference_t *type)
 	fprintf(out, "<%s>", type->symbol->string);
 }
 
+static
+void print_type_reference_variable(FILE *out, const type_reference_t *type)
+{
+	type_variable_t *type_variable = type->r.type_variable;
+
+	fprintf(out, "<%s:", type_variable->symbol->string);
+
+	type_constraint_t *constraint = type_variable->constraints;
+	int first = 1;
+	while(constraint != NULL) {
+		if(first) {
+			first = 0;
+		} else {
+			fprintf(out, ", ");
+		}
+		fprintf(out, "%s", constraint->typeclass_symbol->string);
+		
+		constraint = constraint->next;
+	}
+	fprintf(out, ">");
+}
+
+static
+void print_type_reference_type(FILE *out, const type_reference_t *type)
+{
+	fprintf(out, "<%s>", type->symbol->string);
+}
+
 void print_type(FILE *out, const type_t *type)
 {
 	switch(type->type) {
@@ -91,6 +119,12 @@ void print_type(FILE *out, const type_t *type)
 	case TYPE_REFERENCE:
 		print_type_reference(out, (const type_reference_t*) type);
 		break;
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		print_type_reference_variable(out, (const type_reference_t*) type);
+		break;
+	case TYPE_REFERENCE_TYPE:
+		print_type_reference_type(out, (const type_reference_t*) type);
+		break;
 	default:
 		fputs("unknown", out);
 		break;
@@ -101,5 +135,24 @@ void print_expression(FILE *out, const expression_t *expression)
 {
 	/* TODO */
 	fprintf(out, "some expression of type %d", expression->type);
+}
+
+int type_valid(const type_t *type)
+{
+	switch(type->type) {
+	case TYPE_INVALID:
+	case TYPE_REFERENCE:
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+static __attribute__((unused))
+void dbg_type(const type_t *type)
+{
+	print_type(stdout,type);
+	puts("\n");
+	fflush(stdout);
 }
 

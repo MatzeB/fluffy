@@ -17,6 +17,7 @@ SOURCES := \
 	lexer.c \
 	main.c \
 	mangle_type.c \
+	match_type.c \
 	parser.c \
 	semantic.c \
 	symbol_table.c \

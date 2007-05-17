@@ -1374,6 +1374,7 @@ namespace_entry_t *parse_typeclass(parser_env_t *env)
 		}
 
 		typeclass_method_t *method = parse_typeclass_method(env);
+		method->typeclass          = typeclass;
 
 		if(last_method != NULL) {
 			last_method->next = method;

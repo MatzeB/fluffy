@@ -56,13 +56,13 @@ extern func void print_int(int val)
 extern func void print_string(byte * val)
 
 func int main(int argc, byte * * argv):
-	SDL_Init(0x0000FFFF)
+	SDL_Init(cast<unsigned int> 0x0000FFFF)
 
 	var image_count <- argc - 1
 	var screen      <- SDL_SetVideoMode(640, 480, 0, 0)
 	var filename    <- argv + cast<byte * * > 4
 	var i           <- 0
-	var rect        <- cast<Rect> (malloc(8))
+	var rect        <- cast<Rect> (malloc(cast<unsigned int> 8))
 
 	print_int(screen.w)
 	print_int(screen.h)
@@ -76,13 +76,13 @@ func int main(int argc, byte * * argv):
 	if image = 0:
 		return 1
 	
-	SDL_FillRect(screen, 0, 0)
+	SDL_FillRect(screen, cast<Rect> 0, cast<unsigned int> 0)
 	rect.x <- (screen.w - image.w) >> 1
 	rect.y <- (screen.h - image.h) >> 1
-	SDL_UpperBlit(image, 0, screen, rect)
+	SDL_UpperBlit(image, cast<Rect> 0, screen, rect)
 	SDL_Flip(screen)
 
-	SDL_Delay(1500)
+	SDL_Delay(cast<unsigned int> 1500)
 	i        <- i + 1
 	filename <- filename + cast<byte * * > 4
 	goto loop

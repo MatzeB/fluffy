@@ -117,6 +117,7 @@ typedef enum {
 	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_REFERENCE_TYPECLASS_METHOD,
+	EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE,
 	EXPR_CALL,
 	EXPR_UNARY,
 	EXPR_BINARY,
@@ -150,6 +151,7 @@ struct reference_expression_t {
 		variable_t                       *global_variable;
 		method_parameter_t               *method_parameter;
 		typeclass_method_t               *typeclass_method;
+		typeclass_method_instance_t      *typeclass_method_instance;
 	} r;
 	type_argument_t *type_arguments;
 };
@@ -372,6 +374,7 @@ struct typeclass_method_t {
 	symbol_t           *symbol;
 	method_type_t      *method_type;
 	method_parameter_t *parameters;
+	typeclass_t        *typeclass;
 
 	typeclass_method_t *next;
 };

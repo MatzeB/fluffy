@@ -56,4 +56,6 @@ extern type_t *type_invalid;
 void print_type(FILE* out, const type_t *type);
 void print_expression(FILE *out, const expression_t *expression);
 
+int type_valid(const type_t *type);
+
 #endif

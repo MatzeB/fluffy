@@ -10,10 +10,11 @@
 
 #define MAX_INDENT               256
 
-typedef struct source_position_t {
+typedef struct source_position_t source_position_t;
+struct source_position_t {
 	const char *input_name;
 	unsigned    linenr;
-} source_position_t;
+};
 
 struct lexer_t {
 	int               c;
