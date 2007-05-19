@@ -1,0 +1,27 @@
+/* TODO... doesn't work yet */
+
+typeclass Ordered<T>:
+	/* TODO use bool as return type... */
+	func int less(T obj1, T obj2)
+
+instance Ordered<int>:
+	func int less(int obj1, int obj2):
+		if obj1 < obj2:
+			return 1
+		return 0
+
+func void quicksort<Ordered T> (T* array, int l, int r):
+	if r <= l:
+		return
+	
+	var i <- l-1
+	var j <- r
+
+	:loop
+	:loop1
+	i <- i + 1
+
+	array[j] <- 20
+
+func int main():
+	return 0

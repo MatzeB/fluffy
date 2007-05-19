@@ -25,6 +25,7 @@ typedef struct call_expression_t        call_expression_t;
 typedef struct binary_expression_t      binary_expression_t;
 typedef struct unary_expression_t       unary_expression_t;
 typedef struct select_expression_t      select_expression_t;
+typedef struct array_access_expression_t array_access_expression_t;
 typedef struct sizeof_expression_t      sizeof_expression_t;
 
 typedef struct statement_t              statement_t;
@@ -57,6 +58,7 @@ extern type_t *type_invalid;
 void print_type(FILE* out, const type_t *type);
 void print_expression(FILE *out, const expression_t *expression);
 
+int is_type_int(const type_t *type);
 int type_valid(const type_t *type);
 
 #endif

@@ -18,7 +18,7 @@
 
 //#define ABORT_ON_ERROR
 #define LOOKAHEAD	1
-#define PRINT_TOKENS
+//#define PRINT_TOKENS
 
 typedef struct lexer_state_t {
 	token_t            token;
@@ -182,6 +182,9 @@ static
 atomic_type_type_t parse_signed_atomic_type(parser_env_t *env)
 {
 	switch(env->token.type) {
+	case T_bool:
+		next_token(env);
+		return ATOMIC_TYPE_BOOL;
 	case T_byte:
 		next_token(env);
 		return ATOMIC_TYPE_BYTE;
@@ -266,6 +269,7 @@ type_t *parse_type(parser_env_t *env)
 	switch(env->token.type) {
 	case T_unsigned:
 	case T_signed:
+	case T_bool:
 	case T_int:
 	case T_byte:
 	case T_short:
@@ -407,11 +411,14 @@ expression_t *parse_reference(parser_env_t *env)
 
 	next_token(env);
 
+	/* this is ambiguous with the less binary expression... */
+#if 0
 	if(env->token.type == '<') {
 		next_token(env);
 		ref->type_arguments = parse_type_arguments(env);
 		expect(env, '>');
 	}
+#endif
 
 	return (expression_t*) ref;
 }
@@ -588,6 +595,32 @@ expression_t *parse_select_expression(parser_env_t *env, unsigned precedence,
 	return (expression_t*) select;
 }
 
+static
+expression_t *parse_array_expression(parser_env_t *env, unsigned precedence,
+                                     expression_t *array_ref)
+{
+	(void) precedence;
+
+	eat(env, '[');
+
+	array_access_expression_t *array_access
+		= obstack_alloc(&env->obst, sizeof(array_access[0]));
+	memset(array_access, 0, sizeof(array_access[0]));
+
+	array_access->expression.type = EXPR_ARRAY_ACCESS;
+	array_access->array_ref       = array_ref;
+	array_access->index           = parse_expression(env);
+
+	if(env->token.type != ']') {
+		parse_error_expected(env, "Problem while parsing array access",
+		                     ']', 0);
+		return NULL;
+	}
+	next_token(env);
+
+	return (expression_t*) array_access;
+}
+
 #define CREATE_UNARY_EXPRESSION_PARSER(token_type, unexpression_type) \
 static                                                           \
 expression_t *parse_##unexpression_type(parser_env_t *env,       \
@@ -669,6 +702,8 @@ static void register_expression_parsers(parser_env_t *env)
 	register_expression_infix_parser(env, parse_BINEXPR_XOR,       '^', 11);
 	register_expression_infix_parser(env, parse_BINEXPR_OR,        '|', 10);
 	register_expression_infix_parser(env, parse_BINEXPR_ASSIGN, T_ASSIGN, 2);
+
+	register_expression_infix_parser(env, parse_array_expression,  '[', 25);
 
 	register_expression_infix_parser(env, parse_call_expression,   '(', 30);
 	register_expression_infix_parser(env, parse_select_expression, '.', 30);

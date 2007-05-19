@@ -5,7 +5,7 @@ extern func "cdecl" int atoi(byte* string)
 func int main(int argc, byte* * argv):
 	var number <- 10
 	if argc > 1:
-		number <- atoi(*(argv + cast<byte * * > 4))
+		number <- atoi(argv[1])
 
 	var result <- fib(number)
 

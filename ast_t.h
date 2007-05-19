@@ -123,6 +123,7 @@ typedef enum {
 	EXPR_UNARY,
 	EXPR_BINARY,
 	EXPR_SELECT,
+	EXPR_ARRAY_ACCESS,
 	EXPR_SIZEOF
 } expresion_type_t;
 
@@ -224,6 +225,12 @@ struct select_expression_t {
 	symbol_t       *symbol;
 
 	struct_entry_t *struct_entry;
+};
+
+struct array_access_expression_t {
+	expression_t  expression;
+	expression_t *array_ref;
+	expression_t *index;
 };
 
 struct sizeof_expression_t {

@@ -122,7 +122,7 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 	case ATOMIC_TYPE_DOUBLE:
 		return mode_D;
 	case ATOMIC_TYPE_BOOL:
-		return mode_b;
+		return mode_Is;
 	default:
 		panic("Encountered unknown atomic type");
 	}
@@ -582,7 +582,7 @@ ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
-ir_node *get_select_address_node(const select_expression_t *select)
+ir_node *select_expression_addr(const select_expression_t *select)
 {
 	expression_t *compound_ptr      = select->compound;
 	/* make sure the firm type for the struct is constructed */
@@ -594,6 +594,46 @@ ir_node *get_select_address_node(const select_expression_t *select)
 	                                                entity);
 
 	return addr;
+}
+
+static
+ir_node *array_access_expression_addr(const array_access_expression_t* access)
+{
+	expression_t *array_ref  = access->array_ref;
+	expression_t *index      = access->index;
+	ir_node      *base_addr  = expression_to_firm(array_ref);
+	ir_node      *index_node = expression_to_firm(index);
+
+	int           elem_size       = get_type_size(access->expression.datatype);
+	tarval       *elem_size_tv    = new_tarval_from_long(elem_size, mode_Is);
+	ir_node      *elem_size_const = new_Const(mode_Is, elem_size_tv);
+
+	ir_node      *mul = new_Mul(index_node, elem_size_const, mode_Is);
+	ir_node      *add = new_Add(base_addr, mul, mode_P_data);
+	return add;
+}
+
+static
+ir_node *expression_addr(const expression_t *expression)
+{
+	const unary_expression_t *unexpr;
+
+	switch(expression->type) {
+	case EXPR_SELECT:
+		return select_expression_addr((const select_expression_t*) expression);
+	case EXPR_ARRAY_ACCESS:
+		return array_access_expression_addr(
+				(const array_access_expression_t*) expression);
+	case EXPR_UNARY:
+		unexpr = (const unary_expression_t*) expression;
+		if(unexpr->type == UNEXPR_DEREFERENCE) {
+			return expression_to_firm(unexpr->value);
+		}
+		break;
+	default:
+		break;
+	}
+	panic("trying to get address from non lvalue construct");
 }
 
 static
@@ -610,28 +650,12 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 
 		value_numbers[variable->value_number] = variable;
 		set_value(variable->value_number, value);
-	} else if(left->type == EXPR_SELECT) {
-		const select_expression_t *select
-			= (const select_expression_t*) left;
-		ir_node *addr       = get_select_address_node(select);
+	} else {
+		ir_node *addr       = expression_addr(left);
 		ir_node *store      = get_store();
 		ir_node *store_node = new_Store(store, addr, value);
 		ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
 		set_store(mem);
-	} else if(left->type == EXPR_UNARY) {
-		const unary_expression_t *dereference
-			= (const unary_expression_t*) left;
-		if(dereference->type == UNEXPR_DEREFERENCE) {
-			ir_node *addr       = expression_to_firm(dereference->value);
-			ir_node *store      = get_store();
-			ir_node *store_node = new_Store(store, addr, value);
-			ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
-			set_store(mem);
-		} else {
-			abort();
-		}
-	} else {
-		abort();
 	}
 
 	return value;
@@ -733,10 +757,10 @@ ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 }
 
 static
-ir_node *dereference_expression_to_firm(const unary_expression_t *dereference)
+ir_node *load_from_expression_addr(const expression_t *expression,
+                                   ir_node *addr)
 {
-	ir_node *addr  = expression_to_firm(dereference->value);
-	ir_mode *mode  = get_ir_mode(dereference->expression.datatype);
+	ir_mode *mode  = get_ir_mode(expression->datatype);
 	ir_node *store = get_store();
 	ir_node *load  = new_Load(store, addr, mode);
 	ir_node *mem   = new_Proj(load, mode_M, pn_Load_M);
@@ -749,11 +773,14 @@ ir_node *dereference_expression_to_firm(const unary_expression_t *dereference)
 static
 ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 {
+	ir_node *addr;
+
 	switch(unary_expression->type) {
 	case UNEXPR_CAST:
 		return cast_expression_to_firm(unary_expression);
 	case UNEXPR_DEREFERENCE:
-		return dereference_expression_to_firm(unary_expression);
+		addr = expression_addr(&unary_expression->expression);
+		return load_from_expression_addr(&unary_expression->expression, addr);
 	default:
 		abort();
 	}
@@ -814,22 +841,6 @@ ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
-ir_node *select_expression_to_firm(const select_expression_t *select)
-{
-	ir_node *addr  = get_select_address_node(select);
-	ir_node *store = get_store();
-	type_t  *type  = select->expression.datatype;
-	ir_mode *mode  = get_ir_mode(type);
-
-	ir_node *load  = new_Load(store, addr, mode);
-	ir_node *mem   = new_Proj(load, mode_M, pn_Load_M);
-	ir_node *res   = new_Proj(load, mode, pn_Load_res);
-	set_store(mem);
-
-	return res;
-}
-
-static
 ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 {
 	ir_mode  *mode = get_ir_mode(expression->expression.datatype);
@@ -882,6 +893,8 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 static
 ir_node *expression_to_firm(const expression_t *expression)
 {
+	ir_node *addr;
+
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		return int_const_to_firm((const int_const_t*) expression);
@@ -908,9 +921,10 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_UNARY:
 		return unary_expression_to_firm(
 				(const unary_expression_t*) expression);
+	case EXPR_ARRAY_ACCESS:
 	case EXPR_SELECT:
-		return select_expression_to_firm(
-				(const select_expression_t*) expression);
+		addr = expression_addr(expression);
+		return load_from_expression_addr(expression, addr);
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
 	case EXPR_SIZEOF:

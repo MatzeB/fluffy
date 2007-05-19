@@ -205,6 +205,10 @@ type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
 static
 type_t *normalize_type(semantic_env_t *env, type_t *type)
 {
+	/* happens sometimes on semantic errors */
+	if(type == NULL)
+		return NULL;
+
 	switch(type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
@@ -318,13 +322,34 @@ void check_reference_expression(semantic_env_t *env,
 }
 
 static
+int is_lvalue(const expression_t *expression)
+{
+	unary_expression_t *unexpr;
+
+	switch(expression->type) {
+	case EXPR_REFERENCE_VARIABLE:
+	case EXPR_SELECT:
+	case EXPR_ARRAY_ACCESS:
+		return 1;
+	case EXPR_UNARY:
+		unexpr = (unary_expression_t*) expression;
+		if(unexpr->type == UNEXPR_DEREFERENCE)
+			return 1;
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static
 void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
 	expression_t *right = assign->right;
 
-	if(left->type != EXPR_REFERENCE_VARIABLE &&
-			left->type != EXPR_SELECT) {
+	if(!is_lvalue(left)) {
 		error_at(env, assign->expression.source_position,
 		         "left side of assign is not an lvalue.\n");
 		return;
@@ -749,7 +774,8 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	type_t *compound_type = compound->datatype;
 	if(compound_type->type != TYPE_STRUCT) {
 		print_error_prefix(env, select->expression.source_position);
-		fprintf(stderr, "can't component from non-compound value of type ");
+		fprintf(stderr, "can't select component from non-compound value of "
+		        "type ");
 		print_type(stderr, compound_type);
 		fprintf(stderr, "\n");
 		return;
@@ -773,6 +799,40 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	}
 	select->struct_entry        = entry;
 	select->expression.datatype = entry->type;
+}
+
+static
+void check_array_access_expression(semantic_env_t *env,
+                                   array_access_expression_t *access)
+{
+	expression_t *array_ref = access->array_ref;
+	expression_t *index     = access->index;
+
+	check_expression(env, array_ref);
+	check_expression(env, index);
+	type_t *array_type = array_ref->datatype;
+	if(array_type == NULL || array_type->type != TYPE_POINTER) {
+		print_error_prefix(env, access->expression.source_position);
+		fprintf(stderr, "expected pointer type for array access, got ");
+		print_type(stderr, array_type);
+		fprintf(stderr, "\n");
+		return;
+	}
+	pointer_type_t *array_pointer_type = (pointer_type_t*) array_type;
+	access->expression.datatype        = array_pointer_type->points_to;
+
+	if(index->datatype == NULL || !is_type_int(index->datatype)) {
+		print_error_prefix(env, access->expression.source_position);
+		fprintf(stderr, "expected integer type for array index, got ");
+		print_type(stderr, index->datatype);
+		fprintf(stderr, "\n");
+		return;
+	}
+
+	if(index->datatype != NULL && index->datatype != env->type_int) {
+		access->index = make_cast(env, index, env->type_int,
+		                          access->expression.source_position);
+	}
 }
 
 static
@@ -810,6 +870,10 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		break;
 	case EXPR_CALL:
 		check_call_expression(env, (call_expression_t*) expression);
+		break;
+	case EXPR_ARRAY_ACCESS:
+		check_array_access_expression(env,
+				(array_access_expression_t*) expression);
 		break;
 	default:
 		panic("Invalid expression encountered");

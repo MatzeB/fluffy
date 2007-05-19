@@ -148,6 +148,29 @@ int type_valid(const type_t *type)
 	}
 }
 
+int is_type_int(const type_t *type)
+{
+	if(type->type != TYPE_ATOMIC)
+		return 0;
+
+	atomic_type_t *atomic_type = (atomic_type_t*) type;
+	switch(atomic_type->atype) {
+	case ATOMIC_TYPE_BYTE:
+	case ATOMIC_TYPE_UBYTE:
+	case ATOMIC_TYPE_SHORT:
+	case ATOMIC_TYPE_USHORT:
+	case ATOMIC_TYPE_INT:
+	case ATOMIC_TYPE_UINT:
+	case ATOMIC_TYPE_LONG:
+	case ATOMIC_TYPE_ULONG:
+	case ATOMIC_TYPE_LONGLONG:
+	case ATOMIC_TYPE_ULONGLONG:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 static __attribute__((unused))
 void dbg_type(const type_t *type)
 {
