@@ -322,6 +322,7 @@ struct method_parameter_t {
 	int                 num;
 };
 
+#if 0
 struct method_instance_t {
 	type_t             *concrete_type;
 	method_t           *method;
@@ -332,6 +333,7 @@ struct method_instance_t {
 	int                 n_local_vars;
 	ir_entity          *entity;
 };
+#endif
 
 struct method_t {
 	namespace_entry_t   namespace_entry;

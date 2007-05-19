@@ -1,4 +1,5 @@
 /* TODO... doesn't work yet */
+extern func void* malloc(unsigned int size)
 
 typeclass Ordered<T>:
 	/* TODO use bool as return type... */
@@ -22,6 +23,12 @@ func void quicksort<Ordered T> (T* array, int l, int r):
 	i <- i + 1
 
 	array[j] <- 20
+	/*
+	if less(array[j], array[j+1]) /= 0:
+		return
+	*/
 
 func int main():
+	var intarr <- cast<int* > malloc(__sizeof<int> * cast<unsigned int> 20)
+	quicksort(intarr, 0, 19)
 	return 0
