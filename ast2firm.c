@@ -11,8 +11,11 @@
 #include "semantic.h"
 #include "mangle_type.h"
 #include "adt/obst.h"
+#include "adt/strset.h"
 #include "adt/error.h"
 #include "adt/xmalloc.h"
+
+#define DEBUG_TYPEVAR_BINDING
 
 static variable_declaration_statement_t **value_numbers = NULL;
 static label_statement_t                 *labels        = NULL;
@@ -37,6 +40,7 @@ struct type2firm_env_t {
 
 static struct obstack obst;
 static instantiate_method_t *instantiate_methods = NULL;
+static strset_t             instantiated_methods;
 
 static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
@@ -184,8 +188,9 @@ unsigned get_type_reference_type_var_size(const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->r.type_variable;
 
+
 	if(type_variable->current_type == NULL) {
-		panic("Taking size of unbound type variable");
+		panic("taking size of unbound type variable");
 		return 0;
 	}
 	return get_type_size(type_variable->current_type);
@@ -515,7 +520,8 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 	if(method->entity != NULL)
 		return method->entity;
 
-	method_type_t *method_type = method->type;
+	method_type_t *method_type    = method->type;
+	int            is_polymorphic = is_polymorphic_method(method);
 
 	if(method_type->abi_style != NULL) {
 		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
@@ -551,9 +557,13 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	set_entity_visibility(entity, visibility_external_visible);
+	if(!is_polymorphic) {
+		set_entity_visibility(entity, visibility_external_visible);
+	} else {
+		set_entity_visibility(entity, visibility_external_visible);
+	}
 
-	if(!is_polymorphic_method(method)) {
+	if(!is_polymorphic) {
 		method->entity = entity;
 	}
 	return entity;
@@ -627,6 +637,7 @@ ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 	variable_declaration_statement_t *variable = ref->r.variable;
 	ir_mode                          *mode     = get_ir_mode(variable->type);
 
+	assert(variable->value_number < get_irg_n_locs(current_ir_graph));
 	value_numbers[variable->value_number] = variable;
 
 	return get_value(variable->value_number, mode);
@@ -840,14 +851,24 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 static
 ir_node *method_reference_to_firm(const reference_expression_t *ref)
 {
-	method_t  *method = ref->r.method;
-	ir_entity *entity = get_method_entity(method, ref->type_arguments);
+	method_t   *method         = ref->r.method;
+	ir_entity  *entity         = get_method_entity(method, ref->type_arguments);
+	const char *name           = get_entity_name(entity);
+	int        needs_instance = is_polymorphic_method(method);
 
-	if(is_polymorphic_method(method)) {
+	if(needs_instance) {
+		const char *name = get_entity_name(entity);
+		if(strset_find(&instantiated_methods, name) != NULL)
+			needs_instance = 0;
+	}
+
+	if(needs_instance) {
 		instantiate_method_t *instantiate =
 			queue_method_instantiation(ref->r.method);
 		instantiate->type_arguments = ref->type_arguments;
 		instantiate->entity         = entity;
+
+		strset_insert(&instantiated_methods, name);
 	}
 
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
@@ -1212,11 +1233,12 @@ void label_statement_to_firm(label_statement_t *label)
 
 	if(block == NULL) {
 		ir_node *temp = get_cur_block();
-		block        = new_immBlock();
+		block         = new_immBlock();
+		label->block  = block;
+		label->next   = labels;
+		labels        = label;
+
 		set_cur_block(temp);
-		label->block = block;
-		label->next  = labels;
-		labels       = label;
 	}
 
 	if(get_cur_block() != NULL) {
@@ -1338,6 +1360,7 @@ void ast2firm(namespace_t *namespace)
 {
 	method_t *method;
 	obstack_init(&obst);
+	strset_init(&instantiated_methods);
 
 	/* scan compilation unit for functions */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -1376,5 +1399,6 @@ void ast2firm(namespace_t *namespace)
 	}
 
 	obstack_free(&obst, NULL);
+	strset_destroy(&instantiated_methods);
 }
 

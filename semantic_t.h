@@ -13,7 +13,6 @@ struct semantic_env_t {
 	environment_entry_t **symbol_stack;
 	struct obstack        label_obstack;
 	symbol_t            **label_stack;
-	int                   next_valnum;
 	int                   found_errors;
 
 	method_t             *current_method;

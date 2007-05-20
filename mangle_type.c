@@ -2,6 +2,7 @@
 
 #include "mangle_type.h"
 #include "ast_t.h"
+#include "adt/error.h"
 
 static
 void mangle_atomic_type(struct obstack *obst, const atomic_type_t *type)
@@ -87,6 +88,19 @@ void mangle_method_type(struct obstack *obst, const method_type_t *type)
 	obstack_1grow(obst, 'E');
 }
 
+static
+void mangle_reference_type_variable(struct obstack *obst, 
+                                    const type_reference_t* ref)
+{
+	type_variable_t *type_var     = ref->r.type_variable;
+	type_t          *current_type = type_var->current_type;
+
+	if(current_type == NULL) {
+		panic("can't mangle unbound type variable");
+	}
+	mangle_type(obst, current_type);
+}
+
 void mangle_type(struct obstack *obst, const type_t *type)
 {
 	switch(type->type) {
@@ -107,6 +121,9 @@ void mangle_type(struct obstack *obst, const type_t *type)
 		break;
 	case TYPE_POINTER:
 		mangle_pointer_type(obst, (const pointer_type_t*) type);
+		break;
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		mangle_reference_type_variable(obst, (const type_reference_t*) type);
 		break;
 
 	default:

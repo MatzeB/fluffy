@@ -279,6 +279,15 @@ void check_local_variable_type(semantic_env_t *env,
 {
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
 			&& type->type != TYPE_STRUCT) {
+		if(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			/* TODO: we need to be able to handle all types in local vars... */
+			type_reference_t *ref           = (type_reference_t*) type;
+			type_variable_t  *type_variable = ref->r.type_variable;
+			print_warning_prefix(env, declaration->statement.source_position);
+			fprintf(stderr, "can't decide whether type variable '%s' is atomic "
+			        "or pointer.\n", type_variable->symbol->string);
+			return;
+		}
 		print_error_prefix(env, declaration->statement.source_position);
 		fprintf(stderr, "only atomic or pointer types allowed for local "
 		        "variables (at variable '%s')\n", declaration->symbol->string);
@@ -724,13 +733,30 @@ void check_type_constraints(semantic_env_t *env,
                             const method_t *method_context,
                             const source_position_t source_position)
 {
-	type_variable_t *type_var = type_variables;
+	type_variable_t *type_var     = type_variables;
 	while(type_var != NULL) {
-		type_constraint_t *constraint = type_var->constraints;
-		while(constraint != NULL) {
-			if(constraint->typeclass == NULL)
-				continue;
+		type_constraint_t *constraint   = type_var->constraints;
+		type_t            *current_type = type_var->current_type;
+
+		for( ;constraint != NULL; constraint = constraint->next) {
 			typeclass_t *typeclass = constraint->typeclass;
+
+			if(typeclass == NULL)
+				continue;
+
+			if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+				type_reference_t *ref      = (type_reference_t*) current_type;
+				type_variable_t  *type_var = ref->r.type_variable;
+
+				if(!type_variable_has_constraint(type_var, typeclass)) {
+					print_error_prefix(env, source_position);
+					fprintf(stderr, "type variable '%s' needs constraint "
+					        "'%s'\n", type_var->symbol->string,
+					        typeclass->symbol->string);
+				}
+				continue;
+			}
+
 			/* set typevariable values for the typeclass
 			 * This currently only works for typeclasses with 1 parameter */
 			typeclass->type_parameters->current_type = type_var->current_type;
@@ -739,8 +765,9 @@ void check_type_constraints(semantic_env_t *env,
 				= _find_typeclass_instance(env, typeclass, & source_position);
 			if(instance == NULL) {
 				print_error_prefix(env, source_position);
-				fprintf(stderr, "concrete type for type variable '%s' of method '%s' doesn't "
-				        "match type constraints:\n", type_var->symbol->string,
+				fprintf(stderr, "concrete type for type variable '%s' of "
+				        "method '%s' doesn't match type constraints:\n",
+				        type_var->symbol->string,
 				        method_context->symbol->string);
 				print_error_prefix(env, source_position);
 				fprintf(stderr, "type ");
@@ -751,8 +778,6 @@ void check_type_constraints(semantic_env_t *env,
 
 			/* reset typevar binding */
 			typeclass->type_parameters->current_type = NULL;
-
-			constraint = constraint->next;
 		}
 
 		type_var = type_var->next;
@@ -1163,8 +1188,11 @@ static
 void check_variable_declaration(semantic_env_t *env,
                                 variable_declaration_statement_t *statement)
 {
-	statement->value_number = env->next_valnum;
-	env->next_valnum++;
+	assert(env->current_method != NULL);
+	method_t *method = env->current_method;
+
+	statement->value_number = method->n_local_vars;
+	method->n_local_vars++;
 
 	statement->refs         = 0;
 	if(statement->type != NULL) {
@@ -1176,10 +1204,6 @@ void check_variable_declaration(semantic_env_t *env,
 	environment_entry_t *entry = environment_push(env, statement->symbol);
 	entry->type                = ENTRY_LOCAL_VARIABLE;
 	entry->e.variable          = statement;
-
-	if(env->current_method != NULL) {
-		env->current_method->n_local_vars++;
-	}
 }
 
 static
@@ -1372,7 +1396,8 @@ void check_method(semantic_env_t *env, method_t *method)
 			assert(entry->type == ENTRY_GOTO);
 			goto_statement_t *goto_statement = entry->e.goto_statement;
 			print_error_prefix(env, goto_statement->statement.source_position);
-			fprintf(stderr, "no label '%s' defined\n", symbol->string);
+			fprintf(stderr, "no label '%s' defined in method '%s'\n",
+			        symbol->string, env->current_method->symbol->string);
 		}
 		symbol->label = NULL;
 	}
@@ -1747,7 +1772,6 @@ int check_static_semantic(namespace_t *namespace)
 	obstack_init(&env.symbol_obstack);
 	env.label_stack   = NEW_ARR_F(symbol_t*, 0);
 	obstack_init(&env.label_obstack);
-	env.next_valnum   = 0;
 	env.found_errors  = 0;
 	env.type_bool     = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
 	env.type_byte     = make_atomic_type(&obst, ATOMIC_TYPE_BYTE);

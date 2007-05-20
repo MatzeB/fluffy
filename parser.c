@@ -18,7 +18,7 @@
 
 //#define ABORT_ON_ERROR
 #define LOOKAHEAD	1
-#define PRINT_TOKENS
+//#define PRINT_TOKENS
 
 typedef struct lexer_state_t {
 	token_t            token;

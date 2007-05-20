@@ -6,10 +6,7 @@
 #include <string.h>
 
 #include <libfirm/be.h>
-#include <libfirm/irprog.h>
-#include <libfirm/irgopt.h>
-#include <libfirm/iropt.h>
-#include <libfirm/irdump.h>
+#include <libfirm/firm.h>
 #include <libfirm/lower_hl.h>
 
 #include "parser.h"
@@ -19,6 +16,17 @@
 static
 void optimize()
 {
+	ir_entity **keep_methods;
+	int arr_len;
+#if 0
+	cgana(&arr_len, &keep_methods);
+	gc_irgs(arr_len, keep_methods);
+	free(keep_methods);
+#endif
+
+	optimize_funccalls(1);
+	inline_leave_functions(500, 80, 30, 0);
+
 	int i;
 	int n_irgs      = get_irp_n_irgs();
 	for(i = 0; i < n_irgs; ++i) {
@@ -27,13 +35,29 @@ void optimize()
 		dump_consts_local(1);
 		dump_ir_block_graph(irg, "-lower");
 
-		/* do some simple optimisations... */
-		place_code(irg);
+		/* TODO: improve this and make it configurabble */
+
 		optimize_graph_df(irg);
-		dead_node_elimination(irg);
+		optimize_reassociation(irg);
+		optimize_cf(irg);
+		construct_confirms(irg);
+		optimize_graph_df(irg);
+		set_opt_global_cse(1);
+		optimize_graph_df(irg);
+		place_code(irg);
+		set_opt_global_cse(0);
+
+		optimize_cf(irg);
+		remove_confirms(irg);
+
+		optimize_load_store(irg);
 
 		dump_ir_block_graph(irg, "-opt");
 	}
+
+	cgana(&arr_len, &keep_methods);
+	gc_irgs(arr_len, keep_methods);
+	free(keep_methods);
 }
 
 static

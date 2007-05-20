@@ -24,6 +24,38 @@ instance Printable<int>:
 	func void print(int obj):
 		print_int(obj)
 
+func void bubblesort<Ordered T> (T* array, int len):
+	var sorted <- 1
+
+	var i <- 0
+	:loop
+	if i >= len - 1:
+		/* until recursive typevar binding bug is fixed... 
+		if sorted /= 1:
+			bubblesort(array, len)
+		*/
+		return
+	
+	if array[i] > array[i+1]:
+		var temp   <- array[i]
+		array[i]   <- array[i+1]
+		array[i+1] <- temp
+		sorted     <- 0
+	
+	i <- i + 1
+	goto loop
+
+func void print_array<Printable T>(T* array, int len):
+	var i <- 0
+	:loop
+	if i >= len:
+		return
+
+	print(array[i])
+	
+	i <- i + 1
+	goto loop
+
 /*
 func void quicksort<Ordered Printable T> (T* array, int l, int r):
 	print(array[l+r])
@@ -33,7 +65,21 @@ func void printi<Printable T>(T obj):
 	print(obj)
 
 func int main():
-	printi(2)
-	printi("blup")
+	var array <- cast<int* > malloc(cast<unsigned int> 10 * __sizeof<int>)
+	array[0] <- 20
+	array[1] <- 10
+	array[2] <- 5
+	array[3] <- 89
+	array[4] <- 24
+	array[5] <- 43
+	array[6] <- 13
+	array[7] <- 99
+	array[8] <- 66
+	array[9] <- 5
+
+	print_array(array, 10)
+	bubblesort(array, 10)
+	print_array(array, 10)
+	
 	return 0
 
