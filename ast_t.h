@@ -399,7 +399,7 @@ struct typeclass_t {
 	namespace_entry_t     namespace_entry;
 	symbol_t             *symbol;
 
-	type_variable_t      *type_variables;
+	type_variable_t      *type_parameters;
 	typeclass_method_t   *methods;
 	typeclass_instance_t *instances;
 };

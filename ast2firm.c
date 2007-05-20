@@ -29,9 +29,17 @@ struct instantiate_method_t {
 	instantiate_method_t *next;
 };
 
+typedef struct type2firm_env_t type2firm_env_t;
+struct type2firm_env_t {
+	int can_cache;       /* nonzero if type can safely be cached because
+	                        no typevariables are in the hierarchy */
+};
+
 static struct obstack obst;
 static instantiate_method_t *instantiate_methods = NULL;
 
+static
+ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
 static
 ir_type *get_ir_type(type_t *type);
 
@@ -128,15 +136,7 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 	}
 }
 
-static
-ir_type *get_atomic_type(const atomic_type_t *type)
-{
-	ir_mode *mode   = get_atomic_mode(type);
-	ident *id       = get_mode_ident(mode);
-	ir_type *irtype = new_type_primitive(id, mode);
 
-	return irtype;
-}
 
 static
 unsigned get_type_size(const type_t *type);
@@ -233,10 +233,24 @@ int count_parameters(const method_type_t *method_type)
 	return count;
 }
 
+
+
+
 static
-ir_type *get_struct_as_pointer_type(type_t *type)
+ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 {
-	ir_type *ir_type = get_ir_type(type);
+	(void) env;
+	ir_mode *mode   = get_atomic_mode(type);
+	ident   *id     = get_mode_ident(mode);
+	ir_type *irtype = new_type_primitive(id, mode);
+
+	return irtype;
+}
+
+static
+ir_type *get_struct_as_pointer_type(type2firm_env_t *env, type_t *type)
+{
+	ir_type *ir_type = _get_ir_type(env, type);
 
 	if(type->type == TYPE_STRUCT) {
 		ident *id = unique_id("struct_ptr");
@@ -246,7 +260,7 @@ ir_type *get_struct_as_pointer_type(type_t *type)
 }
 
 static
-ir_type *get_method_type(const method_type_t *method_type)
+ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
 
@@ -256,14 +270,14 @@ ir_type *get_method_type(const method_type_t *method_type)
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
 	if(result_type->type != TYPE_VOID) {
-		ir_type *restype = get_struct_as_pointer_type(result_type);
+		ir_type *restype = get_struct_as_pointer_type(env, result_type);
 		set_method_res_type(irtype, 0, restype);
 	}
 
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	int n = 0;
 	while(param_type != NULL) {
-		ir_type *p_irtype = get_struct_as_pointer_type(param_type->type);
+		ir_type *p_irtype = get_struct_as_pointer_type(env, param_type->type);
 		set_method_param_type(irtype, n, p_irtype);
 
 		param_type = param_type->next;
@@ -274,7 +288,7 @@ ir_type *get_method_type(const method_type_t *method_type)
 }
 
 static
-ir_type *get_pointer_type(pointer_type_t *type)
+ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 {
 	type_t  *points_to = type->points_to;
 	ir_type *ir_points_to;
@@ -282,12 +296,12 @@ ir_type *get_pointer_type(pointer_type_t *type)
 	 * again (might be a struct). We therefore first create a void* pointer
 	 * and then set the real points_to type
 	 */
-	ir_type *ir_type_void = get_ir_type(type_void);
+	ir_type *ir_type_void = _get_ir_type(env, type_void);
 	ir_type *ir_type      = new_type_pointer(unique_id("pointer"),
 	                                         ir_type_void, mode_P_data);
 	type->type.firm_type = ir_type;
 
-	ir_points_to = get_ir_type(points_to);
+	ir_points_to = _get_ir_type(env, points_to);
 	set_pointer_points_to_type(ir_type, ir_points_to);
 
 	return ir_type;
@@ -296,7 +310,7 @@ ir_type *get_pointer_type(pointer_type_t *type)
 #define INVALID_TYPE ((ir_type_ptr)-1)
 
 static
-ir_type *get_struct_type(struct_type_t *type)
+ir_type *get_struct_type(type2firm_env_t *env, struct_type_t *type)
 {
 	ir_type *ir_type = new_type_struct(unique_id(type->symbol->string));
 #ifndef NDEBUG
@@ -310,7 +324,8 @@ ir_type *get_struct_type(struct_type_t *type)
 	struct_entry_t *entry = type->entries;
 	while(entry != NULL) {
 		ident       *ident         = new_id_from_str(entry->symbol->string);
-		ir_type_ptr  entry_ir_type = get_struct_as_pointer_type(entry->type);
+		ir_type_ptr  entry_ir_type = get_struct_as_pointer_type(env,
+		                                                        entry->type);
 
 		int entry_size      = get_type_size_bytes(entry_ir_type);
 		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
@@ -342,7 +357,26 @@ ir_type *get_struct_type(struct_type_t *type)
 }
 
 static
-ir_type *get_ir_type(type_t *type)
+ir_type *get_type_for_type_variable(type2firm_env_t *env,
+                                    type_reference_t *ref)
+{
+	assert(ref->type.type == TYPE_REFERENCE_TYPE_VARIABLE);
+	type_variable_t *type_variable = ref->r.type_variable;
+	type_t          *current_type  = type_variable->current_type;
+
+	if(current_type == NULL) {
+		fprintf(stderr, "Panic: trying to transform unbound type variable "
+		        "'%s'\n", type_variable->symbol->string);
+		abort();
+	}
+	ir_type *ir_type = _get_ir_type(env, current_type);
+	env->can_cache   = 0;
+
+	return ir_type;
+}
+
+static
+ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
 
@@ -354,27 +388,42 @@ ir_type *get_ir_type(type_t *type)
 	ir_type *firm_type = NULL;
 	switch(type->type) {
 	case TYPE_ATOMIC:
-		firm_type = get_atomic_type((atomic_type_t*) type);
+		firm_type = get_atomic_type(env, (atomic_type_t*) type);
 		break;
 	case TYPE_METHOD:
-		firm_type = get_method_type((method_type_t*) type);
+		firm_type = get_method_type(env, (method_type_t*) type);
 		break;
 	case TYPE_POINTER:
-		firm_type = get_pointer_type((pointer_type_t*) type);
+		firm_type = get_pointer_type(env, (pointer_type_t*) type);
 		break;
 	case TYPE_VOID:
 		/* there is no mode_VOID in firm, use mode_C */
 		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
 		break;
 	case TYPE_STRUCT:
-		firm_type = get_struct_type((struct_type_t*) type);
+		firm_type = get_struct_type(env, (struct_type_t*) type);
+		break;
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
 		break;
 	default:
 		panic("unknown type");
 	}
 
-	type->firm_type = firm_type;
+	if(env->can_cache) {
+		type->firm_type = firm_type;
+	}
 	return firm_type;
+
+}
+
+static
+ir_type *get_ir_type(type_t *type)
+{
+	type2firm_env_t env;
+	env.can_cache = 1;
+
+	return _get_ir_type(&env, type);
 }
 
 static inline
@@ -819,6 +868,36 @@ ir_node *typeclass_method_instance_reference_to_firm(
 }
 
 static
+ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
+{
+	typeclass_method_t *method    = ref->r.typeclass_method;
+	typeclass_t        *typeclass = method->typeclass;
+
+	typeclass_instance_t *instance = find_typeclass_instance(typeclass);
+	if(instance == NULL) {
+		fprintf(stderr, "while looking at method '%s' from '%s'\n",
+		        method->symbol->string, typeclass->symbol->string);
+		print_type(stderr, typeclass->type_parameters->current_type);
+		panic("no typeclass instance found in ast2firm phase");
+		return NULL;
+	}
+
+	typeclass_method_instance_t *method_instance 
+		= get_method_from_typeclass_instance(instance, method);
+	if(method_instance == NULL) {
+		fprintf(stderr, "panic: no method '%s' in instance of typeclass '%s'\n",
+		        method->symbol->string, typeclass->symbol->string);
+		panic("panic");
+		return NULL;
+	}
+
+	ir_entity *entity = get_typeclass_method_instance_entity(method_instance);
+	ir_node   *symconst = new_SymConst((union symconst_symbol) entity,
+	                                   symconst_addr_ent);
+	return symconst;
+}
+
+static
 ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
 {
 	ir_entity *entity = get_extern_method_entity(ref->r.extern_method);
@@ -852,17 +931,80 @@ ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 }
 
 static
+void bind_type_variables(type_variable_t *type_parameters,
+                         type_argument_t *type_arguments)
+{
+	type_variable_t *type_var = type_parameters;
+	type_argument_t *argument = type_arguments;
+
+	while(type_var != NULL && argument != NULL) {
+		type_t *type = argument->type;
+		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			type_reference_t *ref = (type_reference_t*) type;
+			type_variable_t  *var = ref->r.type_variable;
+
+			if(var->current_type == NULL) {
+				panic("type variable not bound in sequence");
+			}
+			type = var->current_type;
+		}
+		type_var->current_type = type;
+
+		type_var = type_var->next;
+		argument = argument->next;
+	}
+	assert(type_var == NULL && argument == NULL);
+}
+
+static
+void clear_type_variables(type_variable_t *type_parameters)
+{
+	type_variable_t *type_var = type_parameters;
+	while(type_var != NULL) {
+		type_var->current_type = NULL;
+
+		type_var = type_var->next;
+	}
+}
+
+static
+void bind_type_variables_expr(expression_t *expression, int clear)
+{
+	type_variable_t *type_parameters;
+	reference_expression_t *ref;
+
+	if(expression->type == EXPR_REFERENCE_METHOD) {
+		ref             = (reference_expression_t*) expression;
+		type_parameters = ref->r.method->type_parameters;
+	} else if(expression->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
+		ref             = (reference_expression_t*) expression;
+		type_parameters = ref->r.typeclass_method->typeclass->type_parameters;
+	} else {
+		return;
+	}
+
+	if(!clear) {
+		bind_type_variables(type_parameters, ref->type_arguments);
+	} else {
+		clear_type_variables(type_parameters);
+	}
+}
+
+static
 ir_node *call_expression_to_firm(const call_expression_t *call)
 {
 	ir_node       *result         = NULL;
 	expression_t  *method         = call->method;
+
+	bind_type_variables_expr(method, 0);
+
 	assert(method->datatype->type == TYPE_METHOD);
 	method_type_t *method_type    = (method_type_t*) method->datatype;
 	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
 
-	ir_node       *callee         = expression_to_firm(method);
-	int            n_parameters   = get_method_n_params(ir_method_type);
-	ir_node       *in[n_parameters];
+	int      n_parameters = get_method_n_params(ir_method_type);
+	ir_node *in[n_parameters];
+	ir_node *callee       = expression_to_firm(method);
 
 	call_argument_t *argument     = call->arguments;
 	int n = 0;
@@ -886,6 +1028,9 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
 		result           = new_Proj(resproj, mode, 0);
 	}
+
+	/* clear type variables */
+	bind_type_variables_expr(method, 1);
 
 	return result;
 }
@@ -915,6 +1060,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
 		return typeclass_method_instance_reference_to_firm(
 				(const reference_expression_t*) expression);
+	case EXPR_REFERENCE_TYPECLASS_METHOD:
+		return typeclass_method_reference_to_firm(
+				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
@@ -934,7 +1082,6 @@ ir_node *expression_to_firm(const expression_t *expression)
 		panic("reference expressions not lowered");
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 		panic("global variable references not handled yet");
-	case EXPR_REFERENCE_TYPECLASS_METHOD:
 	case EXPR_INVALID:
 		break;
 	}
@@ -1108,24 +1255,8 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 	if(is_polymorphic_method(method)) {
 		if(type_arguments == NULL)
 			return;
-		
-		type_argument_t *type_argument = type_arguments;
-		type_variable_t *type_variable = method->type_parameters;
-		while(type_argument != NULL) {
-			if(type_variable == NULL) {
-				panic("type arguments and type variables don't match");
-				return;
-			}
-
-			type_variable->current_type = type_argument->type;
-
-			type_argument = type_argument->next;
-			type_variable = type_variable->next;
-		}
-		if(type_variable != NULL) {
-			panic("type arguments and type variables don't match");
-			return;
-		}
+	
+		bind_type_variables(method->type_parameters, type_arguments);
 	}
 	
 	ir_entity *entity = get_method_entity(method, NULL);
@@ -1168,6 +1299,8 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 
 	free(value_numbers);
 	value_numbers = NULL;
+
+	clear_type_variables(method->type_parameters);
 
 	dump_ir_block_graph(irg, "-test");
 }

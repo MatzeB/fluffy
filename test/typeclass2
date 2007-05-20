@@ -16,13 +16,13 @@ instance Ordered<int>:
 typeclass Printable<T>:
 	func void print(T obj)
 
-instance Printable<int>:
-	func void print(int obj):
-		print_int(obj)
-
 instance Printable<byte* >:
 	func void print(byte* obj):
 		puts(obj)
+
+instance Printable<int>:
+	func void print(int obj):
+		print_int(obj)
 
 /*
 func void quicksort<Ordered Printable T> (T* array, int l, int r):
@@ -39,5 +39,6 @@ func int main():
 	printi(2)
 	printi("blup\n")
 	*/
+	printi("blup")
 	return 0
 

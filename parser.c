@@ -1428,7 +1428,7 @@ namespace_entry_t *parse_typeclass(parser_env_t *env)
 
 		if(env->token.type == '<') {
 			next_token(env);
-			typeclass->type_variables = parse_type_parameters(env);
+			typeclass->type_parameters = parse_type_parameters(env);
 			expect(env, '>');
 		}
 		expect(env, ':');

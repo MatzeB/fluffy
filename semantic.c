@@ -342,15 +342,11 @@ void check_reference_expression(semantic_env_t *env,
 		ref->expression.type     = EXPR_REFERENCE_TYPECLASS_METHOD;
 		ref->expression.datatype = (type_t*) typeclass_method->method_type;
 		break;
+	case ENTRY_TYPE:
 	case ENTRY_TYPECLASS:
 		print_error_prefix(env, ref->expression.source_position);
-		fprintf(stderr, "'%s' is a typeclass and can't be used as expression\n",
-		        ref->symbol->string);
-		break;
-	case ENTRY_TYPE:
-		print_error_prefix(env, ref->expression.source_position);
-		fprintf(stderr, "'%s' is a type and can't be used as expression\n",
-		        ref->symbol->string);
+		fprintf(stderr, "'%s' is a '%s' and can't be used as expression\n",
+		        ref->symbol->string, get_entry_type_name(entry->type));
 		break;
 	default:
 		panic("Unknown reference type encountered");
@@ -563,22 +559,26 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
  * find a typeclass instance matching the current type_variable configuration
  */
 static
-typeclass_instance_t *find_typeclass_instance(semantic_env_t *env,
-                                              typeclass_t *typeclass,
-                                              const source_position_t pos)
+typeclass_instance_t *_find_typeclass_instance(semantic_env_t *env,
+                                               typeclass_t *typeclass,
+                                               const source_position_t *pos)
 {
 	typeclass_instance_t *instance = typeclass->instances;
 	while(instance != NULL) {
 		assert(instance->typeclass = typeclass);
 
 		type_argument_t *argument  = instance->type_arguments;
-		type_variable_t *parameter = typeclass->type_variables;
+		type_variable_t *parameter = typeclass->type_parameters;
 		int              match     = 1;
 		while(argument != NULL && parameter != NULL) {
 			if(parameter->current_type == NULL) {
-				print_error_prefix(env, pos);
-				panic("type variable has no type set while searching typeclass "
-				      "instance");
+				if(env != NULL) {
+					print_error_prefix(env, *pos);
+					panic("type variable has no type set while searching "
+					      "typeclass instance");
+				} else {
+					abort();
+				}
 			}
 			if(parameter->current_type != argument->type) {
 				match = 0;
@@ -589,9 +589,14 @@ typeclass_instance_t *find_typeclass_instance(semantic_env_t *env,
 			parameter = parameter->next;
 		}
 		if(match == 1 && (argument != NULL || parameter != NULL)) {
-			print_error_prefix(env, instance->namespace_entry.source_position);
-			panic("type argument count of typeclass instance doesn't match "
-			      "type parameter count of typeclass");
+			if(env != NULL) {
+				print_error_prefix(env,
+				                   instance->namespace_entry.source_position);
+				panic("type argument count of typeclass instance doesn't match "
+				      "type parameter count of typeclass");
+			} else {
+				abort();
+			}
 		}
 		if(match == 1)
 			return instance;
@@ -602,23 +607,92 @@ typeclass_instance_t *find_typeclass_instance(semantic_env_t *env,
 	return NULL;
 }
 
+typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass)
+{
+	return _find_typeclass_instance(NULL, typeclass, NULL);
+}
+
+/** tests whether a type variable has a typeclass as constraint */
+static
+int type_variable_has_constraint(const type_variable_t *type_variable,
+                                 const typeclass_t *typeclass)
+{
+	type_constraint_t *constraint = type_variable->constraints;
+	while(constraint != NULL) {
+		if(constraint->typeclass == typeclass)
+			return 1;
+
+		constraint = constraint->next;
+	}
+
+	return 0;
+}
+
+typeclass_method_instance_t *get_method_from_typeclass_instance(
+		typeclass_instance_t *instance, typeclass_method_t *method)
+{
+	typeclass_method_instance_t *method_instance = instance->method_instances;
+	while(method_instance != NULL) {
+		if(method_instance->typeclass_method == method) {
+			return method_instance;
+		}
+
+		method_instance = method_instance->next;
+	}
+
+	return NULL;
+}
+
 static
 void resolve_typeclass_method_instance(semantic_env_t *env,
                                        reference_expression_t *ref)
 {
-	assert(ref->expression.type = EXPR_REFERENCE_TYPECLASS_METHOD);
+	assert(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD);
 
 	typeclass_method_t *typeclass_method = ref->r.typeclass_method;
 	typeclass_t        *typeclass        = typeclass_method->typeclass;
 
+	/* test whether 1 of the type variables points to another type variable.
+	 * this can happen when typeclass methods are invoked inside polymorphic
+	 * methods. We can't resolve the method right now, but we have to check
+	 * the constraints of the type variable */
+	int cant_resolve = 0;
+	type_variable_t *type_var = typeclass->type_parameters;
+	while(type_var != NULL) {
+		type_t *current_type = type_var->current_type;
+
+		if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			type_reference_t *type_ref      = (type_reference_t*) current_type;
+			type_variable_t  *type_variable = type_ref->r.type_variable;
+
+			if(!type_variable_has_constraint(type_variable, typeclass)) {
+				print_error_prefix(env, ref->expression.source_position);
+				fprintf(stderr, "type variable '%s' needs a constraint for "
+				        "typeclass '%s' when using method '%s'.\n",
+				        type_variable->symbol->string,
+				        typeclass->symbol->string,
+				        typeclass_method->symbol->string);
+				return;
+			}
+			cant_resolve = 1;
+		}
+
+		type_var = type_var->next;
+	}
+	/* we have to defer the resolving for the ast2firm phase */
+	if(cant_resolve) {
+		return;
+	}
+
 	/* we assume that all typevars have current_type set */
-	typeclass_instance_t *instance = find_typeclass_instance(env, typeclass,
-	                                           ref->expression.source_position);
+	const source_position_t *pos = &ref->expression.source_position;
+	typeclass_instance_t *instance = _find_typeclass_instance(env, typeclass,
+	                                                          pos);
 	if(instance == NULL) {
 		print_error_prefix(env, ref->expression.source_position);
 		fprintf(stderr, "there's no instance of typeclass '%s' for ",
 		        typeclass->symbol->string);
-		type_variable_t *typevar = typeclass->type_variables;
+		type_variable_t *typevar = typeclass->type_parameters;
 		while(typevar != NULL) {
 			if(typevar->current_type != NULL) {
 				print_type(stderr, typevar->current_type);
@@ -630,23 +704,18 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 		return;
 	}
 
-	typeclass_method_instance_t *method_instance = instance->method_instances;
-	while(method_instance != NULL) {
-		if(method_instance->typeclass_method == typeclass_method) {
-			ref->expression.type
-				= EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE;
-			ref->expression.datatype
-				= (type_t*) method_instance->method->type;
-			ref->r.typeclass_method_instance = method_instance;
-			return;
-		}
-
-		method_instance = method_instance->next;
+	typeclass_method_instance_t *method_instance 
+		= get_method_from_typeclass_instance(instance, typeclass_method);
+	if(method_instance == NULL) {
+		print_error_prefix(env, ref->expression.source_position);
+		fprintf(stderr, "no instance of method '%s' found in typeclass "
+		        "instance?\n", typeclass_method->symbol->string);
+		panic("panic");
 	}
 
-	print_error_prefix(env, ref->expression.source_position);
-	fprintf(stderr, "no instance of method '%s' found in typeclass instance?\n",
-	        typeclass_method->symbol->string);
+	ref->expression.type             = EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE;
+	ref->expression.datatype         = (type_t*) method_instance->method->type;
+	ref->r.typeclass_method_instance = method_instance;
 }
 
 static
@@ -664,10 +733,10 @@ void check_type_constraints(semantic_env_t *env,
 			typeclass_t *typeclass = constraint->typeclass;
 			/* set typevariable values for the typeclass
 			 * This currently only works for typeclasses with 1 parameter */
-			typeclass->type_variables->current_type = type_var->current_type;
+			typeclass->type_parameters->current_type = type_var->current_type;
 		
 			typeclass_instance_t *instance 
-				= find_typeclass_instance(env, typeclass, source_position);
+				= _find_typeclass_instance(env, typeclass, & source_position);
 			if(instance == NULL) {
 				print_error_prefix(env, source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of method '%s' doesn't "
@@ -679,7 +748,9 @@ void check_type_constraints(semantic_env_t *env,
 				fprintf(stderr, " is no instance of typeclass '%s'\n",
 				        typeclass->symbol->string);
 			}
-			typeclass->type_variables->current_type = NULL;
+
+			/* reset typevar binding */
+			typeclass->type_parameters->current_type = NULL;
 
 			constraint = constraint->next;
 		}
@@ -719,10 +790,9 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		typeclass_method_t     *typeclass_method = ref->r.typeclass_method;
 		typeclass_t            *typeclass        = typeclass_method->typeclass;
 		
-		type_variables = typeclass->type_variables;
+		type_variables = typeclass->type_parameters;
 	} else if(method->type == EXPR_REFERENCE_METHOD) {
-		reference_expression_t *ref
-			= (reference_expression_t*) method;
+		reference_expression_t *ref	= (reference_expression_t*) method;
 		method_t *referenced_method = ref->r.method;
 		type_variables              = referenced_method->type_parameters;
 	}
@@ -732,6 +802,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		type_variable_t *type_var = type_variables;
 		while(type_var != NULL) {
 			type_var->current_type = NULL;
+
 			type_var = type_var->next;
 		}
 	}
@@ -794,41 +865,57 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = method_type->result_type;
 	if(type_variables != NULL) {
+		int set_type_arguments = 1;
+		reference_expression_t *ref = (reference_expression_t*) method;
+		type_variable_t        *type_parameters;
 		result_type = normalize_type(env, result_type);
 
 		if(method->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
-			/* we can resolve the typeclass_method_instance now */
-			assert(method->type == EXPR_REFERENCE_TYPECLASS_METHOD);
-			reference_expression_t *ref = (reference_expression_t*) method;
+			/* we might be able to resolve the typeclass_method_instance now */
 			resolve_typeclass_method_instance(env, ref);
+			if(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE)
+				set_type_arguments = 0;
+
+			typeclass_t *typeclass = ref->r.typeclass_method->typeclass;
+			type_parameters        = typeclass->type_parameters;
 		} else {
 			/* check type constraints */
-			reference_expression_t *ref = (reference_expression_t*) method;
+			assert(method->type == EXPR_REFERENCE_METHOD);
 			check_type_constraints(env, type_variables, ref->r.method,
 			                       call->expression.source_position);
 
-			/* set type arguments on the reference expression */
-			if(ref->type_arguments == NULL) {
-				method_t        *referenced_method = ref->r.method;
-				type_variable_t *type_var
-					= referenced_method->type_parameters;
-				type_argument_t *last_argument = NULL;
-				while(type_var != NULL) {
-					type_argument_t *argument 
-						= obstack_alloc(env->obst, sizeof(argument[0]));
-					memset(argument, 0, sizeof(argument[0]));
+			type_parameters = ref->r.method->type_parameters;
+		}
 
-					argument->type = type_var->current_type;
+		/* set type arguments on the reference expression */
+		if(set_type_arguments && ref->type_arguments == NULL) {
+			type_variable_t *type_var          = type_parameters;
+			type_argument_t *last_argument     = NULL;
+			while(type_var != NULL) {
+				type_argument_t *argument 
+					= obstack_alloc(env->obst, sizeof(argument[0]));
+				memset(argument, 0, sizeof(argument[0]));
 
-					if(last_argument != NULL) {
-						last_argument->next = argument;
-					} else {
-						ref->type_arguments = argument;
-					}
-					last_argument = argument;
-					type_var      = type_var->next;
+				argument->type = type_var->current_type;
+
+				if(last_argument != NULL) {
+					last_argument->next = argument;
+				} else {
+					ref->type_arguments = argument;
 				}
+				last_argument = argument;
+				type_var      = type_var->next;
 			}
+		}
+	}
+
+	/* clear typevariable configuration */
+	if(type_variables != NULL) {
+		type_variable_t *type_var = type_variables;
+		while(type_var != NULL) {
+			type_var->current_type = NULL;
+
+			type_var = type_var->next;
 		}
 	}
 
@@ -1241,6 +1328,7 @@ void check_method(semantic_env_t *env, method_t *method)
 		entry->type                 = ENTRY_TYPE_VARIABLE;
 		entry->e.type_variable      = type_parameter;
 
+		assert(type_parameter->current_type == NULL);
 		type_parameter = type_parameter->next;
 	}
 
@@ -1385,7 +1473,7 @@ void resolve_typeclass_types(semantic_env_t *env, typeclass_t *typeclass)
 	int old_top            = environment_top(env);
 
 	/* push type variables */
-	type_variable_t *type_parameter = typeclass->type_variables;
+	type_variable_t *type_parameter = typeclass->type_parameters;
 	while(type_parameter != NULL) {
 		symbol_t            *symbol = type_parameter->symbol;
 		environment_entry_t *entry  = environment_push(env, symbol);
@@ -1394,7 +1482,7 @@ void resolve_typeclass_types(semantic_env_t *env, typeclass_t *typeclass)
 
 		type_parameter = type_parameter->next;
 	}
-	resolve_type_variable_constraints(env, typeclass->type_variables,
+	resolve_type_variable_constraints(env, typeclass->type_parameters,
 	                                typeclass->namespace_entry.source_position);
 
 	/* normalize method types */
