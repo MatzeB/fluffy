@@ -790,7 +790,7 @@ static
 ir_node *method_reference_to_firm(const reference_expression_t *ref)
 {
 	method_t  *method = ref->r.method;
-	ir_entity *entity = get_method_entity(ref->r.method, ref->type_arguments);
+	ir_entity *entity = get_method_entity(method, ref->type_arguments);
 
 	if(is_polymorphic_method(method)) {
 		instantiate_method_t *instantiate =
@@ -1137,7 +1137,8 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 
 	ir_node *firstblock = get_cur_block();
 
-	statement_to_firm(method->statement);
+	if(method->statement)
+		statement_to_firm(method->statement);
 
 	/* no return statement seen yet? */
 	ir_node *end_block     = get_irg_end_block(irg);

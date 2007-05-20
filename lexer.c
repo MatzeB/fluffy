@@ -66,6 +66,7 @@ void init_tables()
 	}
 
 	char_type['\n'] = START_NEWLINE;
+	char_type['\\'] = START_BACKSLASH;
 
 	tables_init = 1;
 }
@@ -501,15 +502,21 @@ void parse_indent(lexer_t *this, token_t *token)
 		return;
 	} else if(this->last_line_indent_len > indent_len) {
 		/* less indentation */
-		this->indent_levels_len--;
-		unsigned lower_level = this->indent_levels[this->indent_levels_len];
+		unsigned lower_level;
+		unsigned dedents = 0;
+		do {
+			dedents++;
+			this->indent_levels_len--;
+			lower_level = this->indent_levels[this->indent_levels_len - 1];
+		} while(lower_level > indent_len);
+
 		if(lower_level < indent_len) {
-			parse_error(this, "returning to unknown indentation level");
+			parse_error(this, "returning to invalid indentation level");
 			token->type = T_ERROR;
 			return;
 		}
-		this->not_returned_dedents 
-			= this->last_line_indent_len - indent_len - 1;
+		assert(dedents >= 1);
+		this->not_returned_dedents  = dedents - 1;
 		if(this->not_returned_dedents > 0)
 			this->at_line_begin = 1;
 
@@ -538,6 +545,15 @@ void lexer_next_token(lexer_t *this, token_t *token)
 	}
 
 	if(this->c < 0 || this->c >= 256) {
+		/* if we're indented at end of file, then emit a newline, dedent, ...
+		 * sequence of tokens */
+		if(this->indent_levels_len > 1) {
+			this->not_returned_dedents = this->indent_levels_len - 1;
+			this->at_line_begin        = 1;
+			this->indent_levels_len    = 1;
+			token->type                = T_NEWLINE;
+			return;
+		}
 		token->type = T_EOF;
 		return;
 	}
@@ -596,19 +612,11 @@ void lexer_next_token(lexer_t *this, token_t *token)
 
 	case START_BACKSLASH:
 		next_char(this);
-		if(this->c == ' ' || this->c == '\t') {
-			parse_operator(this, token, '\\');
-			return;
-		}
-		do {
-			next_char(this);
-		} while(this->c == ' ' || this->c == '\t');
-
 		if(this->c == '\n') {
 			next_char(this);
 			this->source_position.linenr++;
 		} else {
-			token->type = '\\';
+			parse_operator(this, token, '\\');
 			return;
 		}
 		lexer_next_token(this, token);
@@ -635,6 +643,8 @@ void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
 	this->source_position.linenr     = 1;
 	this->source_position.input_name = input_name;
 	this->at_line_begin              = 1;
+	this->indent_levels[0]           = 0;
+	this->indent_levels_len          = 1;
 	strset_init(&this->stringset);
 
 	if(!tables_init) {

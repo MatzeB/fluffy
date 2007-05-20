@@ -1,5 +1,7 @@
 /* TODO... doesn't work yet */
 extern func void* malloc(unsigned int size)
+extern func void print_int(int val)
+extern func void puts(byte* val)
 
 typeclass Ordered<T>:
 	/* TODO use bool as return type... */
@@ -11,24 +13,31 @@ instance Ordered<int>:
 			return 1
 		return 0
 
-func void quicksort<Ordered T> (T* array, int l, int r):
-	if r <= l:
-		return
-	
-	var i <- l-1
-	var j <- r
+typeclass Printable<T>:
+	func void print(T obj)
 
-	:loop
-	:loop1
-	i <- i + 1
+instance Printable<int>:
+	func void print(int obj):
+		print_int(obj)
 
-	array[j] <- 20
-	/*
-	if less(array[j], array[j+1]) /= 0:
-		return
-	*/
+instance Printable<byte* >:
+	func void print(byte* obj):
+		puts(obj)
+
+/*
+func void quicksort<Ordered Printable T> (T* array, int l, int r):
+	print(array[l+r])
+*/
+
+func void printi<Printable T>(T obj):
+	print(obj)
 
 func int main():
+	/*
 	var intarr <- cast<int* > malloc(__sizeof<int> * cast<unsigned int> 20)
 	quicksort(intarr, 0, 19)
+	*/
+	printi(2)
+	printi("blup\n")
 	return 0
+

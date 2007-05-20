@@ -18,7 +18,7 @@
 
 //#define ABORT_ON_ERROR
 #define LOOKAHEAD	1
-//#define PRINT_TOKENS
+#define PRINT_TOKENS
 
 typedef struct lexer_state_t {
 	token_t            token;
@@ -474,10 +474,24 @@ void register_expression_infix_parser(parser_env_t *env,
 }
 
 static
+expression_t *expected_expression_error(parser_env_t *env)
+{
+	print_error_prefix(env, ERR_ERROR);
+	fprintf(stderr, "expected expression, got token ");
+	print_token(stderr, & env->token);
+	fprintf(stderr, "\n");
+
+	expression_t *expression = obstack_alloc(&env->obst, sizeof(expression[0]));
+	memset(expression, 0, sizeof(expression[0]));
+	expression->type = EXPR_INVALID;
+	next_token(env);
+
+	return expression;
+}
+
+static
 expression_t *parse_primary_expression(parser_env_t *env)
 {
-	expression_t *expression;
-
 	switch(env->token.type) {
 	case T_INTEGER:
 		return parse_int_const(env);
@@ -488,14 +502,8 @@ expression_t *parse_primary_expression(parser_env_t *env)
 	case T___sizeof:
 		return parse_sizeof(env);
 	default:
-		parse_error_expected(env, "Expected expression", 0);
-		expression = obstack_alloc(&env->obst, sizeof(expression[0]));
-		memset(expression, 0, sizeof(expression[0]));
-		expression->type = EXPR_INVALID;
-		break;
+		return expected_expression_error(env);
 	}
-
-	return expression;
 }
 
 static
@@ -718,6 +726,10 @@ static void register_expression_parsers(parser_env_t *env)
 
 expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 {
+	if(env->token.type < 0) {
+		return expected_expression_error(env);
+	}
+
 	expression_parse_function_t *parser
 		= & env->expression_parsers[env->token.type];
 	source_position_t  source_position = env->source_position;
@@ -732,6 +744,10 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 		left->source_position = source_position;
 
 	while(1) {
+		if(env->token.type < 0) {
+			return expected_expression_error(env);
+		}
+
 		parser = &env->expression_parsers[env->token.type];
 		if(parser->infix_parser == NULL)
 			break;
@@ -991,6 +1007,12 @@ statement_t *parse_statement(parser_env_t *env)
 
 		return NULL;
 
+	case T_EOF:
+		/* this shouldn't happen if the lexer is correct... */
+		parse_error_expected(env, "problem while parsing statement",
+		                     T_DEDENT, 0);
+		return NULL;
+
 	default:
 		statement = parse_expression_statement(env);
 		break;
@@ -1019,7 +1041,7 @@ statement_t *parse_block(parser_env_t *env)
 
 	eat(env, T_INDENT);
 
-	while(env->token.type != T_DEDENT) {
+	while(env->token.type != T_DEDENT && env->token.type != T_EOF) {
 		/* parse statement */
 		statement_t *statement = parse_statement(env);
 		if(statement == NULL)

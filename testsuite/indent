@@ -1,0 +1,14 @@
+func int somefunc():
+  return 0
+
+func void blo(int a):
+			if \
+a = 2 \
+		:
+				return
+
+func int main(int argc, byte * * argv):
+ 	 if argc > 1:
+ 	    return 1
+ 	 else:
+ 	 					 return 0

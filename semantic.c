@@ -791,7 +791,27 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			                       call->expression.source_position);
 
 			/* set type arguments on the reference expression */
-			/* TODO */
+			if(ref->type_arguments == NULL) {
+				method_t        *referenced_method = ref->r.method;
+				type_variable_t *type_var
+					= referenced_method->type_parameters;
+				type_argument_t *last_argument = NULL;
+				while(type_var != NULL) {
+					type_argument_t *argument 
+						= obstack_alloc(env->obst, sizeof(argument[0]));
+					memset(argument, 0, sizeof(argument[0]));
+
+					argument->type = type_var->current_type;
+
+					if(last_argument != NULL) {
+						last_argument->next = argument;
+					} else {
+						ref->type_arguments = argument;
+					}
+					last_argument = argument;
+					type_var      = type_var->next;
+				}
+			}
 		}
 	}
 
