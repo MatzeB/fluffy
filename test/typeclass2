@@ -33,12 +33,7 @@ func void printi<Printable T>(T obj):
 	print(obj)
 
 func int main():
-	/*
-	var intarr <- cast<int* > malloc(__sizeof<int> * cast<unsigned int> 20)
-	quicksort(intarr, 0, 19)
 	printi(2)
-	printi("blup\n")
-	*/
 	printi("blup")
 	return 0
 

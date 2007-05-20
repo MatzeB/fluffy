@@ -553,7 +553,9 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 	set_entity_ld_ident(entity, id);
 	set_entity_visibility(entity, visibility_external_visible);
 
-	method->entity = entity;
+	if(!is_polymorphic_method(method)) {
+		method->entity = entity;
+	}
 	return entity;
 }
 
@@ -948,6 +950,13 @@ void bind_type_variables(type_variable_t *type_parameters,
 			}
 			type = var->current_type;
 		}
+
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "binding '%s'(%p) to ", type_var->symbol->string,
+		        type_var);
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+#endif
 		type_var->current_type = type;
 
 		type_var = type_var->next;
@@ -962,6 +971,10 @@ void clear_type_variables(type_variable_t *type_parameters)
 	type_variable_t *type_var = type_parameters;
 	while(type_var != NULL) {
 		type_var->current_type = NULL;
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "unbind '%s'(%p)\n", type_var->symbol->string,
+		        type_var);
+#endif
 
 		type_var = type_var->next;
 	}
@@ -1253,13 +1266,11 @@ static
 void create_method(method_t *method, type_argument_t *type_arguments)
 {
 	if(is_polymorphic_method(method)) {
-		if(type_arguments == NULL)
-			return;
-	
+		assert(type_arguments != NULL);
 		bind_type_variables(method->type_parameters, type_arguments);
 	}
 	
-	ir_entity *entity = get_method_entity(method, NULL);
+	ir_entity *entity = get_method_entity(method, type_arguments);
 
 	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
 
@@ -1272,7 +1283,7 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 		statement_to_firm(method->statement);
 
 	/* no return statement seen yet? */
-	ir_node *end_block     = get_irg_end_block(irg);
+	ir_node *end_block = get_irg_end_block(irg);
 	if(get_cur_block() != NULL) {
 		ir_node *ret = new_Return(get_store(), 0, NULL);
 		add_immBlock_pred(end_block, ret);
@@ -1325,6 +1336,7 @@ void create_typeclass_instance(typeclass_instance_t *instance)
  */
 void ast2firm(namespace_t *namespace)
 {
+	method_t *method;
 	obstack_init(&obst);
 
 	/* scan compilation unit for functions */
@@ -1332,7 +1344,11 @@ void ast2firm(namespace_t *namespace)
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_METHOD:
-			create_method((method_t*) entry, NULL);
+			method = (method_t*) entry;
+
+			if(!is_polymorphic_method(method)) {
+				create_method(method, NULL);
+			}
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 			create_typeclass_instance((typeclass_instance_t*) entry);

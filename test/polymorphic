@@ -1,8 +1,10 @@
 extern func void* malloc(unsigned int size)
+extern func void print_int(int val)
 
 func unsigned int sizeof<T>():
 	return __sizeof<T>
 
 func int main():
-	return sizeof<int>()
+	print_int(sizeof<int>())
+	print_int(sizeof<double>())
 
