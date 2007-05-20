@@ -70,9 +70,9 @@ unsigned hash_method_type(const method_type_t *type)
 }
 
 static
-unsigned hash_type_reference(const type_reference_t *type)
+unsigned hash_type_reference_type_variable(const type_reference_t *type)
 {
-	return hash_ptr(type->symbol);
+	return hash_ptr(type->r.type_variable);
 }
 
 static
@@ -85,7 +85,8 @@ unsigned hash_type(const type_t *type)
 	case TYPE_REFERENCE_TYPE:
 		panic("internalizing void or invalid types not possible");
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		return hash_type_reference((const type_reference_t*) type);
+		return hash_type_reference_type_variable(
+				(const type_reference_t*) type);
 	case TYPE_ATOMIC:
 		return hash_atomic_type((const atomic_type_t*) type);
 	case TYPE_STRUCT:
@@ -156,10 +157,10 @@ int pointer_types_equal(const pointer_type_t *type1,
 }
 
 static
-int type_references_equal(const type_reference_t *type1,
-                          const type_reference_t *type2)
+int type_references_type_variable_equal(const type_reference_t *type1,
+                                        const type_reference_t *type2)
 {
-	return type1->symbol == type2->symbol;
+	return type1->r.type_variable == type2->r.type_variable;
 }
 
 static
@@ -177,8 +178,9 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_REFERENCE_TYPE:
 		return 0;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		return type_references_equal((const type_reference_t*) type1,
-		                             (const type_reference_t*) type2);
+		return type_references_type_variable_equal(
+				(const type_reference_t*) type1,
+		        (const type_reference_t*) type2);
 	case TYPE_ATOMIC:
 		return atomic_types_equal((const atomic_type_t*) type1,
 		                          (const atomic_type_t*) type2);

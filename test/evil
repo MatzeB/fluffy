@@ -1,0 +1,25 @@
+extern func void print_int(int bla)
+extern func void* malloc(unsigned int size)
+extern func int puts(byte* string)
+
+typeclass Print<T>:
+	func void print(T object)
+
+instance Print<int>:
+	func void print(int object):
+		print_int(object)
+
+instance Print<byte* >:
+	func void print(byte* object):
+		puts(object)
+
+func void swap<Print T, Print T2>(T obj1, T2 obj2):
+	print(obj1)
+	print(obj2)
+	swap(obj2, obj1)
+
+func void callit():
+	swap(1, "blup")
+
+func int main():
+	return 0

@@ -168,6 +168,9 @@ type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 		type_variable_t *type_variable = entry->e.type_variable;
 
 		if(type_variable->current_type != NULL) {
+			/* not sure if this is really a problem... */
+			fprintf(stderr, "Debug warning: unresolved type var ref found "
+			        "a concrete type...\n");
 			return type_variable->current_type;
 		}
 		type_ref->type.type       = TYPE_REFERENCE_TYPE_VARIABLE;
@@ -183,6 +186,18 @@ type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 	}
 
 	return entry->e.stored_type;
+}
+
+static
+type_t *resolve_type_reference_type_var(semantic_env_t *env,
+                                        type_reference_t *type_ref)
+{
+	type_variable_t *type_variable = type_ref->r.type_variable;
+	if(type_variable->current_type != NULL) {
+		return normalize_type(env, type_variable->current_type);
+	}
+
+	return typehash_insert((type_t*) type_ref);
 }
 
 static
@@ -235,8 +250,10 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 		return type;
 
 	case TYPE_REFERENCE:
-	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return resolve_type_reference(env, (type_reference_t*) type);
+
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		return resolve_type_reference_type_var(env, (type_reference_t*) type);
 
 	case TYPE_POINTER:
 		return normalize_pointer_type(env, (pointer_type_t*) type);
@@ -677,7 +694,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	expression_t  *method = call->method;
 
 	check_expression(env, method);
-	type_t *type          = method->datatype;
+	type_t *type = method->datatype;
 
 	/* can happen if we had a deeper semantic error */
 	if(type == NULL)
@@ -731,10 +748,10 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			break;
 		}
 
-		expression_t *expression      = argument->expression;
-		type_t       *wanted_type     = param_type->type;
-
+		expression_t *expression = argument->expression;
 		check_expression(env, expression);
+
+		type_t       *wanted_type     = param_type->type;
 		type_t       *expression_type = expression->datatype;
 
 		/* match type of argument against type variables */
