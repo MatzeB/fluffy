@@ -10,6 +10,7 @@
 #include "ast_t.h"
 #include "semantic.h"
 #include "mangle_type.h"
+#include "adt/array.h"
 #include "adt/obst.h"
 #include "adt/strset.h"
 #include "adt/error.h"
@@ -38,9 +39,16 @@ struct type2firm_env_t {
 	                        no typevariables are in the hierarchy */
 };
 
+typedef struct typevar_binding_t typevar_binding_t;
+struct typevar_binding_t {
+	type_variable_t *type_variable;
+	type_t          *old_current_type;
+};
+
 static struct obstack obst;
-static instantiate_method_t *instantiate_methods = NULL;
-static strset_t             instantiated_methods;
+static instantiate_method_t *instantiate_methods   = NULL;
+static strset_t              instantiated_methods;
+static typevar_binding_t    *typevar_binding_stack = NULL;
 
 static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
@@ -409,6 +417,7 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		firm_type = get_struct_type(env, (struct_type_t*) type);
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
+		abort();
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
 		break;
 	default:
@@ -464,6 +473,89 @@ int is_polymorphic_method(const method_t *method)
 }
 
 static
+int typevar_binding_stack_top()
+{
+	return ARR_LEN(typevar_binding_stack);
+}
+
+static
+void push_type_variable_bindings(type_variable_t *type_parameters,
+                                 type_argument_t *type_arguments)
+{
+	type_variable_t *type_var;
+	type_argument_t *argument;
+
+	/* we have to take care that all rebinding happens atomically, so we first
+	 * create the structures on the binding stack and misuse the
+	 * old_current_type value to temporarily save the new! current_type.
+	 * We can then walk the list and set the new types */
+	type_var = type_parameters;
+	argument = type_arguments;
+	int old_top = typevar_binding_stack_top();
+	int top;
+	while(type_var != NULL) {
+		/* TODO: we have to create a copy of the type... */
+		type_t *type = argument->type;
+		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			type_reference_t *ref = (type_reference_t*) type;
+			type_variable_t  *var = ref->r.type_variable;
+
+			if(var->current_type == NULL) {
+				panic("type variable not bound in sequence");
+			}
+			type = var->current_type;
+		}
+
+		top = ARR_LEN(typevar_binding_stack) + 1;
+		ARR_RESIZE(typevar_binding_t, typevar_binding_stack, top);
+
+		typevar_binding_t *binding = & typevar_binding_stack[top-1];
+		binding->type_variable     = type_var;
+		binding->old_current_type  = type;
+
+		type_var = type_var->next;
+		argument = argument->next;
+	}
+	assert(type_var == NULL && argument == NULL);
+
+	for(int i = old_top+1; i <= top; ++i) {
+		typevar_binding_t *binding       = & typevar_binding_stack[i-1];
+		type_variable_t   *type_variable = binding->type_variable;
+		type_t            *new_type      = binding->old_current_type;
+
+		binding->old_current_type   = type_variable->current_type;
+		type_variable->current_type = new_type;
+
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "binding '%s'(%p) to ", type_variable->symbol->string,
+		        type_variable);
+		print_type(stderr, type_variable->current_type);
+		fprintf(stderr, "\n");
+#endif
+	}
+}
+
+static
+void pop_type_variable_bindings(int new_top)
+{
+	int top = ARR_LEN(typevar_binding_stack) - 1;
+	for(int i = top; i >= new_top; --i) {
+		typevar_binding_t *binding       = & typevar_binding_stack[i];
+		type_variable_t   *type_variable = binding->type_variable;
+		type_variable->current_type      = binding->old_current_type;
+
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "reset binding of '%s'(%p) to ",
+		        type_variable->symbol->string, type_variable);
+		print_type(stderr, binding->old_current_type);
+		fprintf(stderr, "\n");
+#endif
+	}
+
+	ARR_SHRINKLEN(typevar_binding_stack, new_top);
+}
+
+static
 ir_entity* get_typeclass_method_instance_entity(
 		typeclass_method_instance_t *method_instance)
 {
@@ -515,10 +607,11 @@ ir_entity* get_typeclass_method_instance_entity(
 }
 
 static
-ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
+ir_entity* get_method_entity(method_t *method)
 {
-	if(method->entity != NULL)
+	if(method->entity != NULL) {
 		return method->entity;
+	}
 
 	method_type_t *method_type    = method->type;
 	int            is_polymorphic = is_polymorphic_method(method);
@@ -529,17 +622,18 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 	}
 
 	ident *id;
-	if(type_arguments == NULL) {
+	if(!is_polymorphic) {
 		id = new_id_from_str(method->symbol->string);
 	} else {
 		const char *string = method->symbol->string;
 		size_t      len    = strlen(string);
 		obstack_printf(&obst, "_v%zu%s", len, string);
 
-		type_argument_t *argument = type_arguments;
-		while(argument != NULL) {
-			mangle_type(&obst, argument->type);
-			argument = argument->next;
+		type_variable_t *type_variable = method->type_parameters;
+		while(type_variable != NULL) {
+			mangle_type(&obst, type_variable->current_type);
+			
+			type_variable = type_variable->next;
 		}
 		obstack_1grow(&obst, 0);
 
@@ -560,6 +654,7 @@ ir_entity* get_method_entity(method_t *method, type_argument_t *type_arguments)
 	if(!is_polymorphic) {
 		set_entity_visibility(entity, visibility_external_visible);
 	} else {
+		/* TODO find out why visibility_local doesn't work */
 		set_entity_visibility(entity, visibility_external_visible);
 	}
 
@@ -755,7 +850,7 @@ long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 	case BINEXPR_EQUAL:
 		return pn_Cmp_Eq;
 	case BINEXPR_NOTEQUAL:
-		return pn_Cmp_Leg;
+		return pn_Cmp_Lg;
 	case BINEXPR_LESS:
 		return pn_Cmp_Lt;
 	case BINEXPR_LESSEQUAL:
@@ -851,9 +946,12 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 static
 ir_node *method_reference_to_firm(const reference_expression_t *ref)
 {
-	method_t   *method         = ref->r.method;
-	ir_entity  *entity         = get_method_entity(method, ref->type_arguments);
-	const char *name           = get_entity_name(entity);
+	method_t   *method = ref->r.method;
+	int old_top        = typevar_binding_stack_top();
+	push_type_variable_bindings(method->type_parameters, ref->type_arguments);
+
+	ir_entity  *entity        = get_method_entity(method);
+	const char *name          = get_entity_name(entity);
 	int        needs_instance = is_polymorphic_method(method);
 
 	if(needs_instance) {
@@ -873,6 +971,8 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
+
+	pop_type_variable_bindings(old_top);
 
 	return symconst;
 }
@@ -896,6 +996,10 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 	typeclass_method_t *method    = ref->r.typeclass_method;
 	typeclass_t        *typeclass = method->typeclass;
 
+	int old_top        = typevar_binding_stack_top();
+	push_type_variable_bindings(typeclass->type_parameters,
+	                            ref->type_arguments);
+
 	typeclass_instance_t *instance = find_typeclass_instance(typeclass);
 	if(instance == NULL) {
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
@@ -917,6 +1021,8 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 	ir_entity *entity = get_typeclass_method_instance_entity(method_instance);
 	ir_node   *symconst = new_SymConst((union symconst_symbol) entity,
 	                                   symconst_addr_ent);
+
+	pop_type_variable_bindings(old_top);
 	return symconst;
 }
 
@@ -954,83 +1060,10 @@ ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 }
 
 static
-void bind_type_variables(type_variable_t *type_parameters,
-                         type_argument_t *type_arguments)
-{
-	type_variable_t *type_var = type_parameters;
-	type_argument_t *argument = type_arguments;
-
-	while(type_var != NULL && argument != NULL) {
-		type_t *type = argument->type;
-		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
-			type_reference_t *ref = (type_reference_t*) type;
-			type_variable_t  *var = ref->r.type_variable;
-
-			if(var->current_type == NULL) {
-				panic("type variable not bound in sequence");
-			}
-			type = var->current_type;
-		}
-
-#ifdef DEBUG_TYPEVAR_BINDING
-		fprintf(stderr, "binding '%s'(%p) to ", type_var->symbol->string,
-		        type_var);
-		print_type(stderr, type);
-		fprintf(stderr, "\n");
-#endif
-		type_var->current_type = type;
-
-		type_var = type_var->next;
-		argument = argument->next;
-	}
-	assert(type_var == NULL && argument == NULL);
-}
-
-static
-void clear_type_variables(type_variable_t *type_parameters)
-{
-	type_variable_t *type_var = type_parameters;
-	while(type_var != NULL) {
-		type_var->current_type = NULL;
-#ifdef DEBUG_TYPEVAR_BINDING
-		fprintf(stderr, "unbind '%s'(%p)\n", type_var->symbol->string,
-		        type_var);
-#endif
-
-		type_var = type_var->next;
-	}
-}
-
-static
-void bind_type_variables_expr(expression_t *expression, int clear)
-{
-	type_variable_t *type_parameters;
-	reference_expression_t *ref;
-
-	if(expression->type == EXPR_REFERENCE_METHOD) {
-		ref             = (reference_expression_t*) expression;
-		type_parameters = ref->r.method->type_parameters;
-	} else if(expression->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
-		ref             = (reference_expression_t*) expression;
-		type_parameters = ref->r.typeclass_method->typeclass->type_parameters;
-	} else {
-		return;
-	}
-
-	if(!clear) {
-		bind_type_variables(type_parameters, ref->type_arguments);
-	} else {
-		clear_type_variables(type_parameters);
-	}
-}
-
-static
 ir_node *call_expression_to_firm(const call_expression_t *call)
 {
-	ir_node       *result         = NULL;
-	expression_t  *method         = call->method;
-
-	bind_type_variables_expr(method, 0);
+	expression_t  *method = call->method;
+	ir_node       *callee = expression_to_firm(method);
 
 	assert(method->datatype->type == TYPE_METHOD);
 	method_type_t *method_type    = (method_type_t*) method->datatype;
@@ -1038,9 +1071,8 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 
 	int      n_parameters = get_method_n_params(ir_method_type);
 	ir_node *in[n_parameters];
-	ir_node *callee       = expression_to_firm(method);
 
-	call_argument_t *argument     = call->arguments;
+	call_argument_t *argument = call->arguments;
 	int n = 0;
 	while(argument != NULL) {
 		assert(n < n_parameters);
@@ -1056,15 +1088,13 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
 	set_store(mem);
 
-	type_t *result_type = method_type->result_type;
+	type_t  *result_type = method_type->result_type;
+	ir_node *result      = NULL;
 	if(result_type->type != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
 		result           = new_Proj(resproj, mode, 0);
 	}
-
-	/* clear type variables */
-	bind_type_variables_expr(method, 1);
 
 	return result;
 }
@@ -1287,14 +1317,14 @@ void statement_to_firm(statement_t *statement)
 static
 void create_method(method_t *method, type_argument_t *type_arguments)
 {
+	int old_top = typevar_binding_stack_top();
 	if(is_polymorphic_method(method)) {
 		assert(type_arguments != NULL);
-		bind_type_variables(method->type_parameters, type_arguments);
+		push_type_variable_bindings(method->type_parameters, type_arguments);
 	}
 	
-	ir_entity *entity = get_method_entity(method, type_arguments);
-
-	ir_graph *irg = new_ir_graph(entity, method->n_local_vars);
+	ir_entity *entity = get_method_entity(method);
+	ir_graph *irg     = new_ir_graph(entity, method->n_local_vars);
 
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
@@ -1333,7 +1363,7 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 	free(value_numbers);
 	value_numbers = NULL;
 
-	clear_type_variables(method->type_parameters);
+	pop_type_variable_bindings(old_top);
 
 	dump_ir_block_graph(irg, "-test");
 }
@@ -1361,6 +1391,7 @@ void ast2firm(namespace_t *namespace)
 	method_t *method;
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
+	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
 
 	/* scan compilation unit for functions */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -1398,6 +1429,7 @@ void ast2firm(namespace_t *namespace)
 		instantiate_method = instantiate_method->next;
 	}
 
+	DEL_ARR_F(typevar_binding_stack);
 	obstack_free(&obst, NULL);
 	strset_destroy(&instantiated_methods);
 }

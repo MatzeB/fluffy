@@ -30,10 +30,8 @@ func void bubblesort<Ordered T> (T* array, int len):
 	var i <- 0
 	:loop
 	if i >= len - 1:
-		/* until recursive typevar binding bug is fixed... 
 		if sorted /= 1:
 			bubblesort(array, len)
-		*/
 		return
 	
 	if array[i] > array[i+1]:

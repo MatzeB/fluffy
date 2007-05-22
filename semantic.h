@@ -10,6 +10,7 @@ typedef struct semantic_env_t      semantic_env_t;
 int check_static_semantic(namespace_t *namespace);
 
 typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass);
+
 typeclass_method_instance_t *get_method_from_typeclass_instance(
 		typeclass_instance_t *instance, typeclass_method_t *method);
 

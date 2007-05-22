@@ -97,6 +97,11 @@ void print_type_reference_type(FILE *out, const type_reference_t *type)
 
 void print_type(FILE *out, const type_t *type)
 {
+	if(type == NULL) {
+		fputs("<nil>", out);
+		return;
+	}
+
 	switch(type->type) {
 	case TYPE_INVALID:
 		fputs("invalid", out);

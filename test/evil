@@ -13,13 +13,13 @@ instance Print<byte* >:
 	func void print(byte* object):
 		puts(object)
 
-func void swap<Print T, Print T2>(T obj1, T2 obj2):
+func void swap<Print ST, Print ST2>(ST obj1, ST2 obj2):
 	print(obj1)
 	print(obj2)
 	swap(obj2, obj1)
 
 func void callit():
-	swap(1, "blup")
+	swap("blup", 1)
 
 func int main():
 	return 0

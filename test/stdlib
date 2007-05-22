@@ -2,7 +2,7 @@
  * Streams ...
  */
 
-class InputStream<Character, T>:
+typeclass InputStream<Character, T>:
 	Character get(T* object)
 	
 	size_t    read(T* object, Character* buffer, size_t buffer_size)
@@ -10,16 +10,22 @@ class InputStream<Character, T>:
 	/* TODO: Wie EOF anzeigen? exception oder ein EOF Zeichen? */
 
 
-class OutputStream<Character, T>:
-	void put(T* object, Character c)
+typeclass OutputStream<Character, T>:
+	func void put(T* object, Character c)
 
-	void write(T* object, const Character* buffer, size_t buffer_size)
+	func void write(T* object, const Character* buffer, size_t buffer_size)
 	/* Fehlerzustände? Exceptions oder? */
 
 /**
  * Formatting
  */
+typeclass Printable<T, OutputStream Stream>:
+	func void print(Stream* stream, T object)
 
-class Printable<T, OutputStream Stream>:
-	void print(Stream* stream, T object)
+instance Printable<int, OutputStream Stream>:
+	func void print(Stream* stream, int object):
+		put(Stream, '9')
+
+int main():
+	print(stderr, 20)
 
