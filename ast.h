@@ -3,17 +3,6 @@
 
 #include <stdio.h>
 
-typedef struct type_t                   type_t;
-typedef struct atomic_type_t            atomic_type_t;
-typedef struct type_reference_t         type_reference_t;
-typedef struct struct_entry_t           struct_entry_t;
-typedef struct struct_type_t            struct_type_t;
-typedef struct type_constraint_t        type_constraint_t;
-typedef struct type_variable_t          type_variable_t;
-typedef struct method_parameter_type_t  method_parameter_type_t;
-typedef struct method_type_t            method_type_t;
-typedef struct pointer_type_t           pointer_type_t;
-
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;
 typedef struct string_const_t           string_const_t;
@@ -52,13 +41,8 @@ typedef struct typeclass_method_instance_t
 typedef struct typeclass_t              typeclass_t;
 typedef struct typeclass_method_t       typeclass_method_t;
 
-extern type_t *type_void;
-extern type_t *type_invalid;
-
-void print_type(FILE* out, const type_t *type);
 void print_expression(FILE *out, const expression_t *expression);
-
-int is_type_int(const type_t *type);
-int type_valid(const type_t *type);
+void print_statement(FILE *out, int indent, const statement_t *statement);
+void print_ast(FILE *out, const namespace_t *namespace);
 
 #endif

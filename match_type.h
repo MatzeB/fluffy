@@ -1,8 +1,8 @@
 #ifndef MATCH_TYPE_H
 #define MATCH_TYPE_H
 
-#include "ast.h"
 #include "semantic.h"
+#include "type.h"
 #include "lexer_t.h"
 
 void match_variant_to_concrete_type(semantic_env_t *env,

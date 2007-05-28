@@ -3,6 +3,7 @@
 
 #include "semantic.h"
 #include "ast.h"
+#include "type.h"
 #include "adt/obst.h"
 #include "symbol.h"
 #include "lexer_t.h"

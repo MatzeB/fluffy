@@ -658,3 +658,11 @@ void lexer_destroy(lexer_t *this)
 {
 	(void) this;
 }
+
+static __attribute__((unused))
+void dbg_pos(const source_position_t source_position)
+{
+	fprintf(stdout, "%s:%d\n", source_position.input_name, source_position.linenr);
+	fflush(stdout);
+}
+

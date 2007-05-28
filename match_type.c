@@ -4,7 +4,7 @@
 
 #include <assert.h>
 
-#include "ast_t.h"
+#include "type_t.h"
 #include "semantic_t.h"
 
 static inline

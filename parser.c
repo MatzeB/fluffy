@@ -11,6 +11,7 @@
 #include "symbol.h"
 #include "type_hash.h"
 #include "ast_t.h"
+#include "type_t.h"
 #include "parse_expression.h"
 #include "adt/obst.h"
 #include "adt/util.h"
@@ -146,11 +147,6 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 }
 
 
-static type_t type_void_    = { TYPE_VOID, NULL };
-static type_t type_invalid_ = { TYPE_INVALID, NULL };
-type_t *type_void    = &type_void_;
-type_t *type_invalid = &type_invalid_;
-
 static
 atomic_type_type_t parse_unsigned_atomic_type(parser_env_t *env)
 {
@@ -232,14 +228,14 @@ type_t *parse_atomic_type(parser_env_t *env)
 		break;
 	}
 
-	atomic_type_t *type = obstack_alloc(&env->obst, sizeof(type[0]));
+	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
 	memset(type, 0, sizeof(type[0]));
 	type->type.type = TYPE_ATOMIC;
 	type->atype = atype;
 
 	type_t *result = typehash_insert((type_t*) type);
 	if(result != (type_t*) type) {
-		obstack_free(&env->obst, type);
+		obstack_free(type_obst, type);
 	}
 
 	return result;
@@ -250,7 +246,7 @@ type_t *parse_type_ref(parser_env_t *env)
 {
 	assert(env->token.type == T_IDENTIFIER);
 
-	type_reference_t *type_ref = obstack_alloc(&env->obst, sizeof(type_ref[0]));
+	type_reference_t *type_ref = obstack_alloc(type_obst, sizeof(type_ref[0]));
 	memset(type_ref, 0, sizeof(type_ref[0]));
 
 	type_ref->type.type       = TYPE_REFERENCE;
@@ -294,7 +290,7 @@ type_t *parse_type(parser_env_t *env)
 		next_token(env);
 
 		pointer_type_t *pointer_type 
-			= obstack_alloc(&env->obst, sizeof(pointer_type[0]));
+			= obstack_alloc(type_obst, sizeof(pointer_type[0]));
 		memset(pointer_type, 0, sizeof(pointer_type[0]));
 
 		pointer_type->type.type = TYPE_POINTER;
@@ -1209,7 +1205,7 @@ namespace_entry_t *parse_method(parser_env_t *env)
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 
 	method_type_t *method_type
-		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+		= obstack_alloc(type_obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
@@ -1282,7 +1278,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_METHOD;
 
 	method_type_t *method_type
-		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+		= obstack_alloc(type_obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
@@ -1382,7 +1378,7 @@ typeclass_method_t *parse_typeclass_method(parser_env_t *env)
 	memset(method, 0, sizeof(method[0]));
 
 	method_type_t *method_type 
-		= obstack_alloc(&env->obst, sizeof(method_type[0]));
+		= obstack_alloc(type_obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 

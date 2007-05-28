@@ -2,7 +2,7 @@
 #define MANGLE_TYPE_H
 
 #include "adt/obst.h"
-#include "ast.h"
+#include "type.h"
 
 /**
  * Pushes type mangled as string onto the obstack.

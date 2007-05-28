@@ -9,23 +9,27 @@
 #include <libfirm/firm.h>
 #include <libfirm/lower_hl.h>
 
+#include "type.h"
 #include "parser.h"
 #include "semantic.h"
 #include "ast2firm.h"
 
+#define PRINT_AST
+
 static
 void optimize()
 {
+#if 0
 	ir_entity **keep_methods;
 	int arr_len;
-#if 0
+
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
-#endif
 
 	optimize_funccalls(1);
 	inline_leave_functions(500, 80, 30, 0);
+#endif
 
 	int i;
 	int n_irgs      = get_irp_n_irgs();
@@ -55,9 +59,11 @@ void optimize()
 		dump_ir_block_graph(irg, "-opt");
 	}
 
+#if 0
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
+#endif
 }
 
 static
@@ -90,10 +96,21 @@ void compile(const char *fname)
 		exit(1);
 	}
 
+#ifdef PRINT_AST
+	fprintf(stderr, "--------- After parsing: ------------\n");
+	print_ast(stderr, namespace);
+#endif
+
 	if(!check_static_semantic(namespace)) {
 		fprintf(stderr, "Semantic errors found\n");
 		exit(1);
 	}
+
+#ifdef PRINT_AST
+	fprintf(stderr, "--------- After semantic analysis: ------------\n");
+	print_ast(stderr, namespace);
+#endif
+
 	ast2firm(namespace);
 
     lower_highlevel();
@@ -107,12 +124,14 @@ int main(int argc, char **argv)
 {
 	int i;
 	initialize_firm();
+	init_type_module();
 
 	for(i = 1; i < argc; ++i) {
 		compile(argv[i]);
 	}
 
 	exit_firm();
+	exit_type_module();
 
 	return 0;
 }

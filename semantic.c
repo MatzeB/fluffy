@@ -3,6 +3,7 @@
 #include "semantic_t.h"
 
 #include "ast_t.h"
+#include "type_t.h"
 #include "type_hash.h"
 #include "match_type.h"
 #include "adt/obst.h"
@@ -914,14 +915,16 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 
 		/* set type arguments on the reference expression */
 		if(set_type_arguments && ref->type_arguments == NULL) {
-			type_variable_t *type_var          = type_parameters;
-			type_argument_t *last_argument     = NULL;
+			type_variable_t *type_var      = type_parameters;
+			type_argument_t *last_argument = NULL;
 			while(type_var != NULL) {
 				type_argument_t *argument 
 					= obstack_alloc(env->obst, sizeof(argument[0]));
 				memset(argument, 0, sizeof(argument[0]));
 
-				argument->type = type_var->current_type;
+				type_t *current_type  = type_var->current_type;
+				type_t *concrete_type = create_concrete_type(current_type);
+				argument->type        = concrete_type;
 
 				if(last_argument != NULL) {
 					last_argument->next = argument;
@@ -932,6 +935,9 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 				type_var      = type_var->next;
 			}
 		}
+
+		ref->expression.datatype 
+			= create_concrete_type(ref->expression.datatype);
 	}
 
 	/* clear typevariable configuration */
@@ -944,7 +950,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		}
 	}
 
-	call->expression.datatype  = result_type;
+	call->expression.datatype = result_type;
 }
 
 static
@@ -1730,32 +1736,32 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 }
 
 static
-type_t* make_atomic_type(struct obstack *obst, atomic_type_type_t atype)
+type_t* make_atomic_type(atomic_type_type_t atype)
 {
-	atomic_type_t *type = obstack_alloc(obst, sizeof(type[0]));
+	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
 	memset(type, 0, sizeof(type[0]));
 	type->type.type = TYPE_ATOMIC;
 	type->atype     = atype;
 
 	type_t *normalized_type = typehash_insert((type_t*) type);
 	if(normalized_type != (type_t*) type) {
-		obstack_free(obst, type);
+		obstack_free(type_obst, type);
 	}
 
 	return normalized_type;
 }
 
 static
-type_t* make_pointer_type(struct obstack *obst, type_t *points_to)
+type_t* make_pointer_type(type_t *points_to)
 {
-	pointer_type_t *type = obstack_alloc(obst, sizeof(type[0]));
+	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
 	memset(type, 0, sizeof(type[0]));
 	type->type.type = TYPE_POINTER;
 	type->points_to = points_to;
 
 	type_t *normalized_type = typehash_insert((type_t*) type);
 	if(normalized_type != (type_t*) type) {
-		obstack_free(obst, type);
+		obstack_free(type_obst, type);
 	}
 
 	return normalized_type;
@@ -1773,12 +1779,12 @@ int check_static_semantic(namespace_t *namespace)
 	env.label_stack   = NEW_ARR_F(symbol_t*, 0);
 	obstack_init(&env.label_obstack);
 	env.found_errors  = 0;
-	env.type_bool     = make_atomic_type(&obst, ATOMIC_TYPE_BOOL);
-	env.type_byte     = make_atomic_type(&obst, ATOMIC_TYPE_BYTE);
-	env.type_int      = make_atomic_type(&obst, ATOMIC_TYPE_INT);
-	env.type_uint     = make_atomic_type(&obst, ATOMIC_TYPE_UINT);
-	env.type_void_ptr = make_pointer_type(&obst, type_void);
-	env.type_byte_ptr = make_pointer_type(&obst, env.type_byte);
+	env.type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
+	env.type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
+	env.type_int      = make_atomic_type(ATOMIC_TYPE_INT);
+	env.type_uint     = make_atomic_type(ATOMIC_TYPE_UINT);
+	env.type_void_ptr = make_pointer_type(type_void);
+	env.type_byte_ptr = make_pointer_type(env.type_byte);
 
 	check_namespace(&env, namespace);
 

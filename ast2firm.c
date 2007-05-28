@@ -8,6 +8,7 @@
 #include <libfirm/be.h>
 
 #include "ast_t.h"
+#include "type_t.h"
 #include "semantic.h"
 #include "mangle_type.h"
 #include "adt/array.h"
@@ -15,6 +16,7 @@
 #include "adt/strset.h"
 #include "adt/error.h"
 #include "adt/xmalloc.h"
+#include <libfirm/adt/pdeq.h>
 
 #define DEBUG_TYPEVAR_BINDING
 
@@ -29,8 +31,6 @@ struct instantiate_method_t {
 	method_t             *method;
 	type_argument_t      *type_arguments;
 	ir_entity            *entity;
-
-	instantiate_method_t *next;
 };
 
 typedef struct type2firm_env_t type2firm_env_t;
@@ -46,8 +46,8 @@ struct typevar_binding_t {
 };
 
 static struct obstack obst;
-static instantiate_method_t *instantiate_methods   = NULL;
 static strset_t              instantiated_methods;
+static pdeq                 *instantiate_methods  = NULL;
 static typevar_binding_t    *typevar_binding_stack = NULL;
 
 static
@@ -222,8 +222,6 @@ unsigned get_type_size(const type_t *type)
 	case TYPE_REFERENCE:
 		panic("Type reference not resolved");
 		break;
-	case TYPE_REFERENCE_TYPE:
-		return get_type_size( ((const type_reference_t*) type)->r.type );
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return get_type_reference_type_var_size((type_reference_t*) type);
 	case TYPE_INVALID:
@@ -417,7 +415,6 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		firm_type = get_struct_type(env, (struct_type_t*) type);
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		abort();
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
 		break;
 	default:
@@ -460,8 +457,7 @@ instantiate_method_t *queue_method_instantiation(method_t *method)
 	memset(instantiate, 0, sizeof(instantiate[0]));
 
 	instantiate->method = method;
-	instantiate->next   = instantiate_methods;
-	instantiate_methods = instantiate;
+	pdeq_putr(instantiate_methods, instantiate);
 
 	return instantiate;
 }
@@ -494,14 +490,15 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	int old_top = typevar_binding_stack_top();
 	int top;
 	while(type_var != NULL) {
-		/* TODO: we have to create a copy of the type... */
 		type_t *type = argument->type;
 		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *ref = (type_reference_t*) type;
 			type_variable_t  *var = ref->r.type_variable;
 
 			if(var->current_type == NULL) {
-				panic("type variable not bound in sequence");
+				fprintf(stderr, "Type variable '%s' not bound\n",
+				        var->symbol->string);
+				abort();
 			}
 			type = var->current_type;
 		}
@@ -963,8 +960,27 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 	if(needs_instance) {
 		instantiate_method_t *instantiate =
 			queue_method_instantiation(ref->r.method);
-		instantiate->type_arguments = ref->type_arguments;
+		printf("Queue '%s'\n", ref->r.method->symbol->string);
 		instantiate->entity         = entity;
+
+		type_argument_t *type_argument = ref->type_arguments;
+		type_argument_t *last_argument = NULL;
+		while(type_argument != NULL) {
+			type_t          *type         = type_argument->type;
+			type_argument_t *new_argument
+				= obstack_alloc(&obst, sizeof(new_argument[0]));
+			memset(new_argument, 0, sizeof(new_argument[0]));
+
+			new_argument->type = create_concrete_type(type);
+			if(last_argument != NULL) {
+				last_argument->next = new_argument;
+			} else {
+				instantiate->type_arguments = new_argument;
+			}
+			last_argument = new_argument;
+
+			type_argument = type_argument->next;
+		}
 
 		strset_insert(&instantiated_methods, name);
 	}
@@ -996,7 +1012,7 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 	typeclass_method_t *method    = ref->r.typeclass_method;
 	typeclass_t        *typeclass = method->typeclass;
 
-	int old_top        = typevar_binding_stack_top();
+	int old_top = typevar_binding_stack_top();
 	push_type_variable_bindings(typeclass->type_parameters,
 	                            ref->type_arguments);
 
@@ -1018,7 +1034,7 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 		return NULL;
 	}
 
-	ir_entity *entity = get_typeclass_method_instance_entity(method_instance);
+	ir_entity *entity   = get_typeclass_method_instance_entity(method_instance);
 	ir_node   *symconst = new_SymConst((union symconst_symbol) entity,
 	                                   symconst_addr_ent);
 
@@ -1317,6 +1333,8 @@ void statement_to_firm(statement_t *statement)
 static
 void create_method(method_t *method, type_argument_t *type_arguments)
 {
+	printf("***Create Method '%s'\n", method->symbol->string);
+
 	int old_top = typevar_binding_stack_top();
 	if(is_polymorphic_method(method)) {
 		assert(type_arguments != NULL);
@@ -1392,6 +1410,7 @@ void ast2firm(namespace_t *namespace)
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
 	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
+	instantiate_methods   = new_pdeq();
 
 	/* scan compilation unit for functions */
 	namespace_entry_t *entry = namespace->first_entry;
@@ -1421,14 +1440,15 @@ void ast2firm(namespace_t *namespace)
 		entry = entry->next;
 	}
 
-	instantiate_method_t *instantiate_method = instantiate_methods;
-	while(instantiate_method != NULL) {
+	while(!pdeq_empty(instantiate_methods)) {
+		instantiate_method_t *instantiate_method 
+			= pdeq_getl(instantiate_methods);
+
 		create_method(instantiate_method->method,
 		              instantiate_method->type_arguments);
-
-		instantiate_method = instantiate_method->next;
 	}
 
+	del_pdeq(instantiate_methods);
 	DEL_ARR_F(typevar_binding_stack);
 	obstack_free(&obst, NULL);
 	strset_destroy(&instantiated_methods);

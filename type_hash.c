@@ -3,7 +3,7 @@
 #include "type_hash.h"
 
 #include "adt/error.h"
-#include "ast_t.h"
+#include "type_t.h"
 
 #include <assert.h>
 
@@ -82,7 +82,6 @@ unsigned hash_type(const type_t *type)
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_REFERENCE:
-	case TYPE_REFERENCE_TYPE:
 		panic("internalizing void or invalid types not possible");
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return hash_type_reference_type_variable(
@@ -175,7 +174,6 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_REFERENCE:
-	case TYPE_REFERENCE_TYPE:
 		return 0;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return type_references_type_variable_equal(

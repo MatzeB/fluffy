@@ -22,6 +22,7 @@ SOURCES := \
 	semantic.c \
 	symbol_table.c \
 	token.c \
+	type.c \
 	type_hash.c
 
 OBJECTS = $(SOURCES:%.c=build/%.o)

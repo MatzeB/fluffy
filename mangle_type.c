@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include "mangle_type.h"
-#include "ast_t.h"
+#include "type_t.h"
 #include "adt/error.h"
 
 static
