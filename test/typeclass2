@@ -75,8 +75,12 @@ func int main():
 	array[8] <- 66
 	array[9] <- 5
 
+	print("Initial array:")
 	print_array(array, 10)
+	
 	bubblesort(array, 10)
+
+	print("Sorted array:")
 	print_array(array, 10)
 	
 	return 0

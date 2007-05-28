@@ -951,16 +951,21 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 	const char *name          = get_entity_name(entity);
 	int        needs_instance = is_polymorphic_method(method);
 
+	pop_type_variable_bindings(old_top);
+
 	if(needs_instance) {
 		const char *name = get_entity_name(entity);
-		if(strset_find(&instantiated_methods, name) != NULL)
+		if(strset_find(&instantiated_methods, name) != NULL) {
+			fprintf(stderr, "already have an instance for '%s'\n", name);
 			needs_instance = 0;
+		} else {
+			fprintf(stderr, "queue creation of '%s'\n", name);
+		}
 	}
 
 	if(needs_instance) {
 		instantiate_method_t *instantiate =
 			queue_method_instantiation(ref->r.method);
-		printf("Queue '%s'\n", ref->r.method->symbol->string);
 		instantiate->entity         = entity;
 
 		type_argument_t *type_argument = ref->type_arguments;
@@ -972,6 +977,13 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 			memset(new_argument, 0, sizeof(new_argument[0]));
 
 			new_argument->type = create_concrete_type(type);
+
+			fprintf(stderr, "resolve ");
+			print_type(stderr, type);
+			fprintf(stderr, " -> ");
+			print_type(stderr, new_argument->type);
+			fprintf(stderr, "\n");
+
 			if(last_argument != NULL) {
 				last_argument->next = new_argument;
 			} else {
@@ -987,8 +999,6 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
-
-	pop_type_variable_bindings(old_top);
 
 	return symconst;
 }

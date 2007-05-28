@@ -884,6 +884,9 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 					"variable '%s' in call expression\n",
 			        type_var->symbol->string);
 		}
+		fprintf(stderr, "TypeVar '%s' bound to ", type_var->symbol->string);
+		print_type(stderr, type_var->current_type);
+		fprintf(stderr, "\n");
 
 		type_var = type_var->next;
 	}
@@ -922,9 +925,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 					= obstack_alloc(env->obst, sizeof(argument[0]));
 				memset(argument, 0, sizeof(argument[0]));
 
-				type_t *current_type  = type_var->current_type;
-				type_t *concrete_type = create_concrete_type(current_type);
-				argument->type        = concrete_type;
+				type_t *current_type = type_var->current_type;
+				argument->type       = current_type;
 
 				if(last_argument != NULL) {
 					last_argument->next = argument;

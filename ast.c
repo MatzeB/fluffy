@@ -70,6 +70,31 @@ void print_reference_expression(FILE *out, const reference_expression_t *ref)
 		fprintf(out, ">");
 }
 
+static
+void print_binary_expression(FILE *out, const binary_expression_t *binexpr)
+{
+	fprintf(out, "(");
+	print_expression(out, binexpr->left);
+	fprintf(out, " ");
+	switch(binexpr->type) {
+	case BINEXPR_INVALID:
+		fprintf(out, "INVOP");
+		break;
+	case BINEXPR_ASSIGN:
+		fprintf(out, "<-");
+		break;
+	case BINEXPR_ADD:
+		fprintf(out, "+");
+		break;
+	default:
+		fprintf(out, "op%d", binexpr->type);
+		break;
+	}
+	fprintf(out, " ");
+	print_expression(out, binexpr->right);
+	fprintf(out, ")");
+}
+
 void print_expression(FILE *out, const expression_t *expression)
 {
 	switch(expression->type) {
@@ -85,6 +110,9 @@ void print_expression(FILE *out, const expression_t *expression)
 	case EXPR_CALL:
 		print_call_expression(out, (const call_expression_t*) expression);
 		break;
+	case EXPR_BINARY:
+		print_binary_expression(out, (const binary_expression_t*) expression);
+		break;
 	case EXPR_REFERENCE:
 	case EXPR_REFERENCE_VARIABLE:
 	case EXPR_REFERENCE_METHOD:
@@ -97,7 +125,6 @@ void print_expression(FILE *out, const expression_t *expression)
 		                           (const reference_expression_t*) expression);
 		break;
 	case EXPR_UNARY:
-	case EXPR_BINARY:
 	case EXPR_SELECT:
 	case EXPR_ARRAY_ACCESS:
 	case EXPR_SIZEOF:
@@ -134,6 +161,51 @@ void print_expression_statement(FILE *out,
 	print_expression(out, statement->expression);
 }
 
+static
+void print_goto_statement(FILE *out, const goto_statement_t *statement)
+{
+	fprintf(out, "goto ");
+	if(statement->label != NULL) {
+		fprintf(out, "%s", statement->label->symbol->string);
+	} else {
+		fprintf(out, "?%s", statement->label_symbol->string);
+	}
+}
+
+static
+void print_label_statement(FILE *out, const label_statement_t *statement)
+{
+	fprintf(out, ":%s", statement->symbol->string);
+}
+
+static
+void print_if_statement(FILE *out, int indent, const if_statement_t *statement)
+{
+	fprintf(out, "if ");
+	print_expression(out, statement->condition);
+	fprintf(out, ":\n");
+	if(statement->true_statement != NULL)
+		print_statement(out, indent, statement->true_statement);
+
+	if(statement->false_statement != NULL) {
+		fprintf(out, "else:\n");
+		print_statement(out, indent, statement->false_statement);
+	}
+}
+
+static
+void print_variable_declaration_statement(FILE *out,
+                     const variable_declaration_statement_t *statement)
+{
+	fprintf(out, "var");
+	if(statement->type != NULL) {
+		fprintf(out, "<");
+		print_type(out, statement->type);
+		fprintf(out, ">");
+	}
+	fprintf(out, " %s", statement->symbol->string);
+}
+
 void print_statement(FILE *out, int indent, const statement_t *statement)
 {
 	for(int i = 0; i < indent; ++i)
@@ -154,12 +226,18 @@ void print_statement(FILE *out, int indent, const statement_t *statement)
 		print_expression_statement(out,
 		                           (const expression_statement_t*) statement);
 		break;
-	case STATEMENT_VARIABLE_DECLARATION:
-	case STATEMENT_IF:
-	case STATEMENT_GOTO:
 	case STATEMENT_LABEL:
-		/* TODO */
-		fprintf(out, "some statement of type %d", statement->type);
+		print_label_statement(out, (const label_statement_t*) statement);
+		break;
+	case STATEMENT_GOTO:
+		print_goto_statement(out, (const goto_statement_t*) statement);
+		break;
+	case STATEMENT_IF:
+		print_if_statement(out, indent, (const if_statement_t*) statement);
+		break;
+	case STATEMENT_VARIABLE_DECLARATION:
+		print_variable_declaration_statement(out,
+		        (const variable_declaration_statement_t*) statement);
 		break;
 	}
 	fprintf(out, "\n");
