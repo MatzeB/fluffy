@@ -58,7 +58,7 @@ struct reference_expression_t {
 		variable_declaration_statement_t *variable;
 		method_t                         *method;
 		extern_method_t                  *extern_method;
-		variable_t                       *global_variable;
+		global_variable_t                *global_variable;
 		method_parameter_t               *method_parameter;
 		typeclass_method_t               *typeclass_method;
 		typeclass_method_instance_t      *typeclass_method_instance;
@@ -231,6 +231,7 @@ struct method_t {
 	method_type_t      *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
+	int                 is_constructor;
 
 	statement_t        *statement;
 
@@ -246,10 +247,13 @@ struct extern_method_t {
 	ir_entity         *entity;
 };
 
-struct variable_t {
+struct global_variable_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
 	type_t            *type;
+	int                is_extern;
+
+	ir_entity         *entity;
 };
 
 struct struct_t {

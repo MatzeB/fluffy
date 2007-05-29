@@ -32,7 +32,7 @@ struct environment_entry_t {
 	environment_entry_t      *up;
 	union {
 		method_t                         *method;
-		variable_t                       *global_variable;
+		global_variable_t                *global_variable;
 		method_parameter_t               *method_parameter;
 		extern_method_t                  *extern_method;
 		type_t                           *stored_type;
@@ -303,7 +303,7 @@ void check_reference_expression(semantic_env_t *env,
 	method_t                         *method;
 	method_parameter_t               *method_parameter;
 	extern_method_t                  *extern_method;
-	variable_t                       *global_variable;
+	global_variable_t                *global_variable;
 	typeclass_method_t               *typeclass_method;
 	symbol_t                         *symbol = ref->symbol;
 	environment_entry_t              *entry  = symbol->thing;
@@ -1621,7 +1621,7 @@ void resolve_typeclass_instance(semantic_env_t *env,
 static
 void check_namespace(semantic_env_t *env, namespace_t *namespace)
 {
-	variable_t           *variable;
+	global_variable_t    *variable;
 	method_t             *method;
 	extern_method_t      *extern_method;
 	environment_entry_t  *env_entry;
@@ -1634,7 +1634,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_VARIABLE:
-			variable            = (variable_t*) entry;
+			variable            = (global_variable_t*) entry;
 			env_entry           = environment_push(env, variable->symbol);
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
 			env_entry->e.global_variable = variable;
@@ -1678,7 +1678,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_VARIABLE:
-			variable            = (variable_t*) entry;
+			variable            = (global_variable_t*) entry;
 			env_entry           = variable->symbol->thing;
 			assert(env_entry->e.global_variable == variable);
 			variable->type      = normalize_type(env, variable->type);

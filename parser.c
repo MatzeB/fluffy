@@ -12,6 +12,7 @@
 #include "type_hash.h"
 #include "ast_t.h"
 #include "type_t.h"
+#include "plugins.h"
 #include "parse_expression.h"
 #include "adt/obst.h"
 #include "adt/util.h"
@@ -1209,6 +1210,11 @@ namespace_entry_t *parse_method(parser_env_t *env)
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
+	if(env->token.type == T___constructor) {
+		method->is_constructor = 1;
+		next_token(env);
+	}
+
 	method_type->result_type = parse_type(env);
 	
 	if(env->token.type != T_IDENTIFIER) {
@@ -1242,13 +1248,19 @@ namespace_entry_t *parse_method(parser_env_t *env)
 }
 
 static
-namespace_entry_t *parse_variable(parser_env_t *env)
+namespace_entry_t *parse_global_variable(parser_env_t *env)
 {
 	eat(env, T_var);
 
-	variable_t *variable = obstack_alloc(&env->obst, sizeof(variable[0]));
+	global_variable_t *variable 
+		= obstack_alloc(&env->obst, sizeof(variable[0]));
 	memset(variable, 0, sizeof(variable[0]));
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
+
+	if(env->token.type == T_extern) {
+		variable->is_extern = 1;
+		next_token(env);
+	}
 
 	variable->type = parse_type(env);
 	if(env->token.type != T_IDENTIFIER) {
@@ -1549,7 +1561,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 			break;
 
 		case T_var:
-			entry = parse_variable(env);
+			entry = parse_global_variable(env);
 			break;
 
 		case T_extern:
@@ -1608,6 +1620,9 @@ namespace_t *parse(FILE *in, const char *input_name)
 	register_expression_parsers(&env);
 
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
+
+	initialize_plugins();
+
 	for(i = 0; i < LOOKAHEAD + 1; ++i) {
 		next_token(&env);
 	}

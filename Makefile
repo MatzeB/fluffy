@@ -5,7 +5,7 @@ CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
 CFLAGS += `pkg-config --cflags libfirm`
 
-LFLAGS = `pkg-config --libs libfirm`
+LFLAGS = `pkg-config --libs libfirm` -ldl --export-dynamic
 
 SOURCES := \
 	adt/hashset.c \
@@ -19,6 +19,7 @@ SOURCES := \
 	mangle_type.c \
 	match_type.c \
 	parser.c \
+	plugins.c \
 	semantic.c \
 	symbol_table.c \
 	token.c \
@@ -43,7 +44,7 @@ endif
 
 $(GOAL): build/adt $(OBJECTS)
 	@echo "===> LD $@"
-	$(Q)$(CC) $(OBJECTS) $(LFLAGS) -o $(GOAL)
+	$(Q)$(CC) -rdynamic $(OBJECTS) $(LFLAGS) -o $(GOAL)
 
 build/adt:
 	@echo "===> MKDIR $@"

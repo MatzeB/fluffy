@@ -654,6 +654,9 @@ ir_entity* get_method_entity(method_t *method)
 		/* TODO find out why visibility_local doesn't work */
 		set_entity_visibility(entity, visibility_external_visible);
 	}
+	if(method->is_constructor) {
+		set_method_img_section(entity, section_constructors);
+	}
 
 	if(!is_polymorphic) {
 		method->entity = entity;
@@ -768,6 +771,45 @@ ir_node *array_access_expression_addr(const array_access_expression_t* access)
 }
 
 static
+void create_global_variable(global_variable_t *variable)
+{
+	if(variable->entity != NULL)
+		return;
+
+	ir_type *global_type = get_glob_type();
+	ident   *ident       = new_id_from_str(variable->symbol->string);
+	type_t  *type        = variable->type;
+	ir_type *irtype      = get_ir_type(type);
+
+	ir_entity *entity = new_entity(global_type, ident, irtype);
+	set_entity_ld_ident(entity, ident);
+	set_entity_variability(entity, variability_uninitialized);
+	if(variable->is_extern) {
+		set_entity_visibility(entity, visibility_external_visible);
+	} else {
+		set_entity_visibility(entity, visibility_external_allocated);
+	}
+	set_entity_allocation(entity, allocation_static);
+
+	variable->entity = entity;
+}
+
+static
+ir_node *global_variable_reference_addr(const reference_expression_t *ref)
+{
+	global_variable_t *variable = ref->r.global_variable;
+	create_global_variable(variable);
+
+	ir_entity *entity = variable->entity;
+	assert(entity != NULL);
+
+	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	                                 symconst_addr_ent);
+
+	return symconst;
+}
+
+static
 ir_node *expression_addr(const expression_t *expression)
 {
 	const unary_expression_t *unexpr;
@@ -778,6 +820,9 @@ ir_node *expression_addr(const expression_t *expression)
 	case EXPR_ARRAY_ACCESS:
 		return array_access_expression_addr(
 				(const array_access_expression_t*) expression);
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
+		return global_variable_reference_addr(
+				(const reference_expression_t*) expression);
 	case EXPR_UNARY:
 		unexpr = (const unary_expression_t*) expression;
 		if(unexpr->type == UNEXPR_DEREFERENCE) {
@@ -1055,7 +1100,9 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 static
 ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
 {
-	ir_entity *entity = get_extern_method_entity(ref->r.extern_method);
+	extern_method_t *method = ref->r.extern_method;
+	ir_entity       *entity = get_extern_method_entity(method);
+
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
 
@@ -1159,6 +1206,7 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_UNARY:
 		return unary_expression_to_firm(
 				(const unary_expression_t*) expression);
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 	case EXPR_ARRAY_ACCESS:
 	case EXPR_SELECT:
 		addr = expression_addr(expression);
@@ -1170,8 +1218,6 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const sizeof_expression_t*) expression);
 	case EXPR_REFERENCE:
 		panic("reference expressions not lowered");
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
-		panic("global variable references not handled yet");
 	case EXPR_INVALID:
 		break;
 	}
@@ -1437,7 +1483,7 @@ void ast2firm(namespace_t *namespace)
 			create_typeclass_instance((typeclass_instance_t*) entry);
 			break;
 		case NAMESPACE_ENTRY_VARIABLE:
-			fprintf(stderr, "Global vars not handled yet\n");
+			create_global_variable((global_variable_t*) entry);
 			break;
 		case NAMESPACE_ENTRY_STRUCT:
 		case NAMESPACE_ENTRY_TYPECLASS:

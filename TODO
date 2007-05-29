@@ -4,10 +4,8 @@ about the right way to do it yet.
 
 - Declaring a variable, function, etc. twice is not detected in semantic phase
 - having the same entry twice in a struct is not detected
-- lexer does not produce multiple DEDENTS yet
-- array access
 - correct pointer arithmetic
-- A typeof operator
+- A typeof operator (resulting in the type of the enclosed expression)
 - change lexer to build a decision tree for the operators (so we can write
   <void*> again...)
 
@@ -18,7 +16,6 @@ because they need no deep understanding of the design.
 - Add option parsing to the compiler, pass options to backend as well
 - Use more firm optimisations
 - Create an eccp like wrapper script
-- Add a sizeof operator
 - Add an alloca operator
 - forward source references to firm nodes
 

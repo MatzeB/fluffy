@@ -26,6 +26,7 @@ S(typeclass)
 S(instance)
 S(goto)
 S(__sizeof)
+S(__constructor)
 #undef S
 T(DOTDOT, "..",)
 T(DOTDOTDOT, "...",)

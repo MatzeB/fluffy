@@ -631,6 +631,31 @@ void lexer_next_token(lexer_t *this, token_t *token)
 	}
 }
 
+int register_new_token(lexer_t *lexer, const char *token)
+{
+	static int next_token_id = T_LAST_TOKEN;
+
+	int token_id = next_token_id;
+	next_token_id++;
+	
+	symbol_t *symbol = symbol_table_insert(lexer->symbol_table, token);
+	symbol->ID       = token_id;
+
+	return token_id;
+}
+
+int register_new_operator(lexer_t *lexer, const char *token)
+{
+	int token_id = register_new_token(lexer, token);
+
+	/* TODO do special operator stuff... */
+
+	return token_id;
+}
+
+/* hack for now... */
+lexer_t *current_lexer = NULL;
+
 void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
                 FILE *stream, const char *input_name)
 {
@@ -652,6 +677,8 @@ void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
 	}
 
 	next_char(this);
+
+	current_lexer = this;
 }
 
 void lexer_destroy(lexer_t *this)

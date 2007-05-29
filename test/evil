@@ -14,8 +14,8 @@ instance Print<byte* >:
 		puts(object)
 
 func void swap<Print ST, Print ST2>(ST obj1, ST2 obj2):
-	/*print(obj1)
-	print(obj2)*/
+	print(obj1)
+	print(obj2)
 	swap(obj2, obj1)
 
 func void callit():

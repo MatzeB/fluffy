@@ -13,13 +13,14 @@
 #include "parser.h"
 #include "semantic.h"
 #include "ast2firm.h"
+#include "plugins.h"
 
 #define PRINT_AST
 
 static
 void optimize()
 {
-#if 0
+#if 1
 	ir_entity **keep_methods;
 	int arr_len;
 
@@ -59,7 +60,7 @@ void optimize()
 		dump_ir_block_graph(irg, "-opt");
 	}
 
-#if 0
+#if 1
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
@@ -125,11 +126,13 @@ int main(int argc, char **argv)
 	int i;
 	initialize_firm();
 	init_type_module();
+	search_plugins();
 
 	for(i = 1; i < argc; ++i) {
 		compile(argv[i]);
 	}
 
+	free_plugins();
 	exit_firm();
 	exit_type_module();
 
