@@ -2,17 +2,54 @@
 
 #include "token_t.h"
 
+#include <assert.h>
 #include <stdio.h>
 
-void put_known_symbols_into_symbol_table(symbol_table_t *symbol_table)
+#include "symbol.h"
+#include "globals.h"
+#include "adt/array.h"
+
+static symbol_t **token_symbols = NULL;
+
+void init_tokens(void)
 {
 	symbol_t *symbol;
 
-#define T(x,str,val)                                 \
-	symbol = symbol_table_insert(symbol_table, str); \
-	symbol->ID = T_##x;
+	token_symbols = NEW_ARR_F(symbol_t*, T_LAST_TOKEN);
+	memset(token_symbols, 0, T_LAST_TOKEN * sizeof(token_symbols[0]));
+
+#define T(x,str,val)                                               \
+	assert(T_##x >= 0 && T_##x < T_LAST_TOKEN);                    \
+	symbol               = symbol_table_insert(symbol_table, str); \
+	symbol->ID           = T_##x;                                  \
+	token_symbols[T_##x] = symbol;
+
+#define TS(x,str,val)                                              \
+	assert(T_##x >= 0 && T_##x < T_LAST_TOKEN);                    \
+	symbol               = symbol_table_insert(symbol_table, str); \
+	token_symbols[T_##x] = symbol;
+
 #include "tokens.inc"
+
+#undef TS
 #undef T
+}
+
+void quit_tokens(void)
+{
+	DEL_ARR_F(token_symbols);
+	token_symbols = NULL;
+}
+
+int register_new_token(const char *token)
+{
+	int token_id = ARR_LEN(token_symbols);
+	
+	symbol_t *symbol = symbol_table_insert(symbol_table, token);
+	symbol->ID       = token_id;
+	ARR_APP1(token_symbols, symbol);
+
+	return token_id;
 }
 
 void print_token_type(FILE *f, token_type_t token_type)
@@ -21,22 +58,22 @@ void print_token_type(FILE *f, token_type_t token_type)
 		fprintf(f, "'%c'", token_type);
 		return;
 	}
+	if(token_type == T_EOF) {
+		fputs("end of file", f);
+		return;
+	}
 
-	switch(token_type) {
-		case T_NEWLINE:        fputs("newline",         f); break;
-		case T_INDENT:         fputs("indent",          f); break;
-		case T_DEDENT:         fputs("dedent",          f); break;
-		case T_IDENTIFIER:     fputs("identifier",      f); break;
-		case T_INTEGER:        fputs("integer number",  f); break;
-		case T_STRING_LITERAL: fputs("string literal",  f); break;
-		case T_EOF:            fputs("end of file",     f); break;
-		case T_ERROR:          fputs("malformed token", f); break;
+	int token_symbols_len = ARR_LEN(token_symbols);
+	if(token_type < 0 || token_type >= token_symbols_len) {
+		fputs("invalid token", f);
+		return;
+	}
 
-#define T(x,str,val) case T_##x: fputs("'" str "'", f); break;
-#include "tokens.inc"
-#undef T
-
-		default: fputs("unknown token", f); break;
+	const symbol_t *symbol = token_symbols[token_type];
+	if(symbol != NULL) {
+		fputs(symbol->string, f);
+	} else {
+		fputs("unknown token", f);
 	}
 }
 
@@ -57,3 +94,4 @@ void print_token(FILE *f, const token_t *token)
 		break;
 	}
 }
+

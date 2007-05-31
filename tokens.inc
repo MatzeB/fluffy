@@ -1,3 +1,14 @@
+#ifndef TS
+#define TS(x,str,val)
+#endif
+
+TS(NEWLINE,        "newline", = 256)
+TS(INDENT,         "indent",)
+TS(DEDENT,         "dedent",)
+TS(IDENTIFIER,     "identifier",)
+TS(INTEGER,        "integer number",)
+TS(STRING_LITERAL, "string literal",)
+
 #define S(x)   T(x,#x,)
 S(void)
 S(extern)
@@ -28,6 +39,7 @@ S(goto)
 S(__sizeof)
 S(__constructor)
 #undef S
+
 T(DOTDOT, "..",)
 T(DOTDOTDOT, "...",)
 T(ASSIGN, "<-",)
@@ -57,3 +69,4 @@ T(QUESTION, "?", = '?')
 T(AND, "&", = '&')
 T(TILDE, "~", = '~')
 T(LINE, "|", = '|')
+

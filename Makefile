@@ -14,6 +14,7 @@ SOURCES := \
 	adt/xmalloc.c \
 	ast.c \
 	ast2firm.c \
+	globals.c \
 	lexer.c \
 	main.c \
 	mangle_type.c \

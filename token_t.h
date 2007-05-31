@@ -6,17 +6,14 @@
 #include "symbol_table.h"
 
 typedef enum {
-	T_NEWLINE = 256,
-	T_INDENT,
-	T_DEDENT,
-	T_IDENTIFIER,
-	T_INTEGER,
-	T_STRING_LITERAL,
 #define T(x,str,val) T_##x val,
+#define TS(x,str,val) T_##x val,
 #include "tokens.inc"
+#undef TS
 #undef T
-	T_EOF      = -1,
-	T_ERROR    = -2
+
+	T_EOF   = -1,
+	T_ERROR = -2
 } token_type_t;
 
 typedef struct {
@@ -28,8 +25,11 @@ typedef struct {
 	} v;
 } token_t;
 
-void put_known_symbols_into_symbol_table(symbol_table_t *symbol_table);
+void init_tokens(void);
+void quit_tokens(void);
 void print_token_type(FILE *out, token_type_t token_type);
 void print_token(FILE *out, const token_t *token);
+
+int register_new_token(const char *token);
 
 #endif

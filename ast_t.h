@@ -299,7 +299,7 @@ struct typeclass_t {
 };
 
 struct namespace_t {
-	namespace_entry_t *first_entry;
+	namespace_entry_t *entries;
 };
 
 #endif

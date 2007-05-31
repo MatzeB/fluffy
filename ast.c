@@ -335,7 +335,7 @@ void print_namespace_entry(FILE *out, const namespace_entry_t *entry)
 
 void print_ast(FILE *out, const namespace_t *namespace)
 {
-	namespace_entry_t *entry = namespace->first_entry;
+	namespace_entry_t *entry = namespace->entries;
 
 	while(entry != NULL) {
 		print_namespace_entry(out, entry);

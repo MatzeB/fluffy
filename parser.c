@@ -13,6 +13,7 @@
 #include "ast_t.h"
 #include "type_t.h"
 #include "plugins.h"
+#include "globals.h"
 #include "parse_expression.h"
 #include "adt/obst.h"
 #include "adt/util.h"
@@ -1598,9 +1599,9 @@ namespace_t *parse_namespace(parser_env_t *env)
 		}
 
 		if(entry != NULL) {
-			entry->next            = namespace->first_entry;
+			entry->next            = namespace->entries;
 			entry->source_position = source_position;
-			namespace->first_entry = entry;
+			namespace->entries     = entry;
 		}
 	}
 }
@@ -1615,7 +1616,9 @@ namespace_t *parse(FILE *in, const char *input_name)
 	typehash_init();
 
 	symbol_table_init(&env.symbol_table);
-	put_known_symbols_into_symbol_table(&env.symbol_table);
+	symbol_table = &env.symbol_table;
+
+	init_tokens();
 
 	register_expression_parsers(&env);
 

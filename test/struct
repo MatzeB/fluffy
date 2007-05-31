@@ -1,8 +1,12 @@
+struct Subi:
+	int blo
+
 struct Hello:
-	int bla
-	unsigned long long* long_ptr
-	float a_float
-	Hello* hello
+	int                  bla
+	unsigned long long*  long_ptr
+	float                a_float
+	Subi                 subi
+	Hello*               hello
 
 func int main():
 	return 0

@@ -259,18 +259,6 @@ ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 }
 
 static
-ir_type *get_struct_as_pointer_type(type2firm_env_t *env, type_t *type)
-{
-	ir_type *ir_type = _get_ir_type(env, type);
-
-	if(type->type == TYPE_STRUCT) {
-		ident *id = unique_id("struct_ptr");
-		ir_type = new_type_pointer(id, ir_type, mode_P_data);
-	}
-	return ir_type;
-}
-
-static
 ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
@@ -281,14 +269,14 @@ ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
 	if(result_type->type != TYPE_VOID) {
-		ir_type *restype = get_struct_as_pointer_type(env, result_type);
+		ir_type *restype = _get_ir_type(env, result_type);
 		set_method_res_type(irtype, 0, restype);
 	}
 
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	int n = 0;
 	while(param_type != NULL) {
-		ir_type *p_irtype = get_struct_as_pointer_type(env, param_type->type);
+		ir_type *p_irtype = _get_ir_type(env, param_type->type);
 		set_method_param_type(irtype, n, p_irtype);
 
 		param_type = param_type->next;
@@ -335,8 +323,7 @@ ir_type *get_struct_type(type2firm_env_t *env, struct_type_t *type)
 	struct_entry_t *entry = type->entries;
 	while(entry != NULL) {
 		ident       *ident         = new_id_from_str(entry->symbol->string);
-		ir_type_ptr  entry_ir_type = get_struct_as_pointer_type(env,
-		                                                        entry->type);
+		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
 
 		int entry_size      = get_type_size_bytes(entry_ir_type);
 		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
@@ -504,7 +491,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 		}
 
 		top = ARR_LEN(typevar_binding_stack) + 1;
-		ARR_RESIZE(typevar_binding_t, typevar_binding_stack, top);
+		ARR_RESIZE(typevar_binding_stack, top);
 
 		typevar_binding_t *binding = & typevar_binding_stack[top-1];
 		binding->type_variable     = type_var;
@@ -1469,7 +1456,7 @@ void ast2firm(namespace_t *namespace)
 	instantiate_methods   = new_pdeq();
 
 	/* scan compilation unit for functions */
-	namespace_entry_t *entry = namespace->first_entry;
+	namespace_entry_t *entry = namespace->entries;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_METHOD:

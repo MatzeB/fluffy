@@ -1,5 +1,3 @@
 func int main():
 	return 0
 
-func void __mytoken():
-	return

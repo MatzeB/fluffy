@@ -95,7 +95,7 @@ environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
 	memset(entry, 0, sizeof(entry[0]));
 
 	int top = ARR_LEN(env->symbol_stack);
-	ARR_RESIZE(environment_entry_t*, env->symbol_stack, top + 1);
+	ARR_RESIZE(env->symbol_stack, top + 1);
 	env->symbol_stack[top] = entry;
 
 	entry->up     = symbol->thing;
@@ -1010,12 +1010,22 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	expression_t *compound = select->compound;
 	check_expression(env, compound);
 
-	type_t *compound_type = compound->datatype;
+	type_t *datatype = compound->datatype;
+	if(datatype->type != TYPE_POINTER) {
+		print_error_prefix(env, select->expression.source_position);
+		fprintf(stderr, "select needs a pointer to struct type but found ");
+		print_type(stderr, datatype);
+		fprintf(stderr, "\n");
+		return;
+	}
+
+	pointer_type_t *pointer_type = (pointer_type_t*) datatype;
+	
+	type_t *compound_type = pointer_type->points_to;
 	if(compound_type->type != TYPE_STRUCT) {
 		print_error_prefix(env, select->expression.source_position);
-		fprintf(stderr, "can't select component from non-compound value of "
-		        "type ");
-		print_type(stderr, compound_type);
+		fprintf(stderr, "select needs a pointer to struct type but found ");
+		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -1036,8 +1046,24 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
 		return;
 	}
+
+	/* we return a pointer to sub-structs instead of the struct itself */
+	type_t *result_type = entry->type;
+	if(result_type->type == TYPE_STRUCT) {
+		pointer_type_t *pointer = obstack_alloc(type_obst, sizeof(pointer[0]));
+		memset(pointer, 0, sizeof(pointer[0]));
+
+		pointer->type.type = TYPE_POINTER;
+		pointer->points_to = result_type;
+
+		result_type = normalize_type(env, (type_t*) pointer);
+		if(result_type != (type_t*) pointer) {
+			obstack_free(type_obst, pointer);
+		}
+	}
+
 	select->struct_entry        = entry;
-	select->expression.datatype = entry->type;
+	select->expression.datatype = result_type;
 }
 
 static
@@ -1257,7 +1283,7 @@ void check_label_statement(semantic_env_t *env, label_statement_t *label)
 	}
 
 	if(entry == NULL) {
-		ARR_APP1(symbol_t*, env->label_stack, symbol);
+		ARR_APP1(env->label_stack, symbol);
 	}
 
 	/* gotos prior to the label? */
@@ -1304,7 +1330,7 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 		symbol->label               = new_entry;
 
 		if(entry == NULL) {
-			ARR_APP1(symbol_t*, env->label_stack, symbol);
+			ARR_APP1(env->label_stack, symbol);
 		}
 	}
 }
@@ -1630,7 +1656,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	int                   old_top = environment_top(env);
 
 	/* record namespace entries in environment */
-	namespace_entry_t *entry = namespace->first_entry;
+	namespace_entry_t *entry = namespace->entries;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_VARIABLE:
@@ -1674,7 +1700,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	}
 
 	/* normalize types, resolve typeclass instance references */
-	entry = namespace->first_entry;
+	entry = namespace->entries;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_VARIABLE:
@@ -1718,7 +1744,7 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	}
 
 	/* check semantics in methods */
-	entry = namespace->first_entry;
+	entry = namespace->entries;
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_METHOD:

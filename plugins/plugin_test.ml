@@ -1,13 +1,15 @@
-struct Plugin:
-	void   *init_function
-	Plugin  next
-	
-extern func int register_new_token(void* lexer, byte* token)
-extern func int register_new_operator(void* lexer, byte* token)
-extern func int puts(byte* string)
+struct SourcePosition:
+	byte*         input_name
+	unsigned int  linenr
 
-var void* current_lexer
+struct Statement:
+	int             type
+	Statement*      next
+	SourcePosition  source_position
+	
+extern func int register_new_token(byte* token)
+extern func int puts(byte* string)
 
 func void init_plugin():
 	puts("init_plugin is here")
-	register_new_token(current_lexer, "__mytoken")
+	register_new_token("for")

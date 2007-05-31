@@ -12,7 +12,7 @@ struct Color:
 
 struct Surface:
 	unsigned int   flags
-	PixelFormat    format
+	PixelFormat*   format
 	int            w
 	int            h
 	unsigned short pitch
@@ -20,11 +20,7 @@ struct Surface:
 	int            offset
 	void*          hwdata
 
-	/*Rect           clip_rect; */
-	short r_x
-	short r_y
-	unsigned short r_w
-	unsigned short r_h
+	Rect           clip_rect
 
 	unsigned int   unused1
 	unsigned int   locked
@@ -42,15 +38,15 @@ extern func int  SDL_Init(unsigned int flags)
 extern func void SDL_Quit()
 extern func byte* SDL_GetError()
 
-extern func Surface SDL_SetVideoMode(int width, int height, int bpp, int flags)
-extern func int SDL_UpperBlit(Surface src, Rect srcrect, Surface dest, Rect destrect)
-extern func int SDL_FillRect(Surface dest, Rect destrect, unsigned int color)
-extern func Surface IMG_Load(byte* filename)
-extern func void SDL_FreeSurface(Surface surface)
+extern func Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags)
+extern func int SDL_UpperBlit(Surface* src, Rect* srcrect, Surface* dest, Rect* destrect)
+extern func int SDL_FillRect(Surface* dest, Rect* destrect, unsigned int color)
+extern func Surface* IMG_Load(byte* filename)
+extern func void SDL_FreeSurface(Surface* surface)
 extern func void SDL_Delay(unsigned int ms)
 extern func void* malloc(unsigned int size)
 extern func void free(void* ptr)
-extern func int SDL_Flip(Surface screen)
+extern func int SDL_Flip(Surface* screen)
 
 extern func void print_int(int val)
 extern func void print_string(byte * val)
@@ -62,7 +58,7 @@ func int main(int argc, byte * * argv):
 	var screen      <- SDL_SetVideoMode(640, 480, 0, 0)
 	var filename    <- argv + cast<byte * * > 4
 	var i           <- 0
-	var rect        <- cast<Rect> (malloc(cast<unsigned int> 8))
+	var rect        <- cast<Rect* > (malloc(cast<unsigned int> 8))
 
 	print_int(screen.w)
 	print_int(screen.h)
@@ -73,13 +69,13 @@ func int main(int argc, byte * * argv):
 
 	print_string(*filename)
 	var image <- IMG_Load(*filename)
-	if image = 0:
+	if image = cast<Surface* > 0:
 		return 1
 	
-	SDL_FillRect(screen, cast<Rect> 0, cast<unsigned int> 0)
+	SDL_FillRect(screen, cast<Rect* > 0, cast<unsigned int> 0)
 	rect.x <- (screen.w - image.w) >> 1
 	rect.y <- (screen.h - image.h) >> 1
-	SDL_UpperBlit(image, cast<Rect> 0, screen, rect)
+	SDL_UpperBlit(image, cast<Rect* > 0, screen, rect)
 	SDL_Flip(screen)
 
 	SDL_Delay(cast<unsigned int> 1500)
@@ -93,3 +89,4 @@ func int main(int argc, byte * * argv):
 	SDL_Quit()
 
 	return 0
+
