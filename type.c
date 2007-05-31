@@ -196,6 +196,7 @@ type_t *create_concrete_method_type(method_type_t *type)
 	int need_new_type = 0;
 
 	method_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
+	memset(new_type, 0, sizeof(new_type[0]));
 	new_type->type.type     = TYPE_METHOD;
 	
 	type_t *result_type = create_concrete_type(type->result_type);

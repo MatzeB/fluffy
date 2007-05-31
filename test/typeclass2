@@ -63,7 +63,9 @@ func void printi<Printable T>(T obj):
 	print(obj)
 
 func int main():
-	var array <- cast<int* > malloc(cast<unsigned int> 10 * __sizeof<int>)
+	var array <- cast<int* > malloc( \
+			(cast<unsigned int> 10) * \
+			__sizeof<int>)
 	array[0] <- 20
 	array[1] <- 10
 	array[2] <- 5

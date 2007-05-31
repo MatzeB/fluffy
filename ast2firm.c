@@ -468,6 +468,9 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	type_variable_t *type_var;
 	type_argument_t *argument;
 
+	if(type_parameters == NULL || type_arguments == NULL)
+		return;
+
 	/* we have to take care that all rebinding happens atomically, so we first
 	 * create the structures on the binding stack and misuse the
 	 * old_current_type value to temporarily save the new! current_type.

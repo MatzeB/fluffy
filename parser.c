@@ -1,6 +1,6 @@
 #include <config.h>
 
-#include "parser.h"
+#include "parser_t.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -14,73 +14,10 @@
 #include "type_t.h"
 #include "plugins.h"
 #include "globals.h"
-#include "parse_expression.h"
+#include "adt/array.h"
 #include "adt/obst.h"
 #include "adt/util.h"
 #include "adt/error.h"
-
-//#define ABORT_ON_ERROR
-#define LOOKAHEAD	1
-//#define PRINT_TOKENS
-
-typedef struct lexer_state_t {
-	token_t            token;
-	source_position_t  source_position;
-} lexer_state_t;
-
-typedef struct expression_parse_function_t {
-	unsigned                         precedence;
-	parse_expression_function        parser;
-	unsigned                         infix_precedence;
-	parse_expression_infix_function  infix_parser;
-} expression_parse_function_t;
-
-struct parser_env_t {
-	struct obstack               obst;
-	token_t                      token;
-	source_position_t            source_position;
-	lexer_state_t                lookahead[LOOKAHEAD];
-	expression_parse_function_t  expression_parsers[T_LAST_TOKEN];
-	lexer_t                      lexer;
-	symbol_table_t               symbol_table;
-	int                          error;
-};
-
-static inline
-void next_token(parser_env_t *env)
-{
-	env->token           = env->lookahead[0].token;
-	env->source_position = env->lookahead[0].source_position;
-#if LOOKAHEAD > 1
-	memmove(env->lookahead, env->lookahead + 1,
-	        (LOOKAHEAD - 1) * sizeof(env->lookahead[0]));
-#endif
-	lexer_state_t *state = &env->lookahead[LOOKAHEAD - 1];
-	lexer_next_token(&env->lexer, & state->token);
-	state->source_position = env->lexer.source_position;
-
-#ifdef PRINT_TOKENS
-	print_token(stderr, & env->token);
-	fprintf(stderr, "\n");
-#endif
-}
-
-static inline
-void eat(parser_env_t *env, token_type_t type)
-{
-	assert(env->token.type == type);
-	next_token(env);
-}
-
-/** look ahead some symbols */
-static inline
-const token_t* la(parser_env_t *env, int i)
-{
-	assert(i >= 1);
-	assert(i <= LOOKAHEAD);
-	return & env->lookahead[i - 1].token;
-}
-
 
 typedef enum {
 	ERR_WARNING,
@@ -441,16 +378,28 @@ expression_t *parse_sizeof(parser_env_t *env)
 static
 expression_t *parse_expression(parser_env_t *env);
 
+static
+expression_parse_function_t *get_expression_parser_entry(parser_env_t *env,
+                                                         int token_type)
+{
+	if(token_type < 0)
+		panic("can't register parser for negative token");
+
+	int len = ARR_LEN(env->expression_parsers);
+	if(token_type >= len) {
+		ARR_RESIZE(env->expression_parsers, token_type + 1);
+		memset(& env->expression_parsers[len], 0,
+				(token_type - len) * sizeof(env->expression_parsers[0]));
+	}
+	return &env->expression_parsers[token_type];
+}
+
 void register_expression_parser(parser_env_t *env,
                                 parse_expression_function parser,
                                 int token_type, unsigned precedence)
 {
-	assert(token_type >= 0 && token_type < T_LAST_TOKEN);
-	expression_parse_function_t *entry = &env->expression_parsers[token_type];
-	if(entry->parser != NULL) {
-		panic("Trying to register multiple expression parsers for token");
-		return;
-	}
+	expression_parse_function_t *entry
+		= get_expression_parser_entry(env, token_type);
 
 	entry->parser     = parser;
 	entry->precedence = precedence;
@@ -460,12 +409,8 @@ void register_expression_infix_parser(parser_env_t *env,
                                       parse_expression_infix_function parser,
                                       int token_type, unsigned precedence)
 {
-	assert(token_type >= 0 && token_type < T_LAST_TOKEN);
-	expression_parse_function_t *entry = &env->expression_parsers[token_type];
-	if(entry->infix_parser != NULL) {
-		panic("Trying to register multiple infix expression parsers for token");
-		return;
-	}
+	expression_parse_function_t *entry
+		= get_expression_parser_entry(env, token_type);
 
 	entry->infix_parser     = parser;
 	entry->infix_precedence = precedence;
@@ -869,6 +814,7 @@ static
 statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 {
 	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
+	memset(ref, 0, sizeof(ref[0]));
 	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = symbol;
 
@@ -1612,6 +1558,9 @@ namespace_t *parse(FILE *in, const char *input_name)
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
 
+	env.expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
+	env.statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
+
 	obstack_init(&env.obst);
 	typehash_init();
 
@@ -1638,6 +1587,8 @@ namespace_t *parse(FILE *in, const char *input_name)
 	obstack_free(&env.obst, NULL);
 	typehash_destroy();
 	*/
+	DEL_ARR_F(env.expression_parsers);
+	DEL_ARR_F(env.statement_parsers);
 
 	if(env.error) {
 		fprintf(stderr, "Errors happened...\n");
