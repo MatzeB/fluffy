@@ -35,9 +35,6 @@ struct Parser:
 		byte*   string
 	*/
 
-main <- func Statement* (Parser* parser):
-	blodeldo
-
 typealias Parser <- void
 typealias ParseStatementFunction <- func Statement* (Parser* parser)
 

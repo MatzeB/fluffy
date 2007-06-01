@@ -7,8 +7,7 @@
 #include "semantic.h"
 #include "lexer_t.h"
 #include "type.h"
-#include <libfirm/type.h>
-#include <libfirm/entity.h>
+#include <libfirm/typerep.h>
 
 typedef enum {
 	EXPR_INVALID = 0,

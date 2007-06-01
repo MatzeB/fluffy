@@ -6,9 +6,9 @@ extern func int puts(byte* string)
 typeclass Alloc<T>:
 	func T* alloc()
 
-instance Alloc<T>:
-	func T* alloc():
-		return cast<T* > malloc(__sizeof<T>)
+instance Alloc<int>:
+	func int* alloc():
+		return cast<int* > malloc(__sizeof<int>)
 */
 
 typeclass Print<T>:
@@ -23,7 +23,7 @@ instance Print<byte* >:
 		puts(object)
 
 func int main():
-	// var dbl <- alloc<double>()
+	var dbl <- alloc()
 
 	print("Eine fünf:")
 	print(5)

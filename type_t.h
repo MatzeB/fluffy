@@ -5,7 +5,7 @@
 #include "symbol.h"
 #include "lexer_t.h"
 #include "adt/obst.h"
-#include <libfirm/type.h>
+#include <libfirm/typerep.h>
 
 struct obstack *type_obst;
 
