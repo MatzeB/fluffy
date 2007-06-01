@@ -117,7 +117,6 @@ void print_expression(FILE *out, const expression_t *expression)
 	case EXPR_REFERENCE_VARIABLE:
 	case EXPR_REFERENCE_METHOD:
 	case EXPR_REFERENCE_METHOD_PARAMETER:
-	case EXPR_REFERENCE_EXTERN_METHOD:
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 	case EXPR_REFERENCE_TYPECLASS_METHOD:
 	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
@@ -272,6 +271,10 @@ void print_method(FILE *out, const method_t *method)
 {
 	method_type_t *type = method->type;
 
+	if(method->is_extern) {
+		fprintf(out, "extern ");
+	}
+
 	fprintf(out, "func ");
 	print_type(out, type->result_type);
 	fprintf(out, " %s", method->symbol->string);
@@ -311,8 +314,13 @@ void print_method(FILE *out, const method_t *method)
 	}
 	assert(parameter == NULL && parameter_type == NULL);
 
-	fprintf(out, "):\n");
-	print_statement(out, 0, method->statement);
+	fprintf(out, ")");
+	if(method->statement != NULL) {
+		fprintf(out, ":\n");
+		print_statement(out, 0, method->statement);
+	} else {
+		fprintf(out, "\n");
+	}
 }
 
 static
@@ -323,8 +331,7 @@ void print_namespace_entry(FILE *out, const namespace_entry_t *entry)
 		print_method(out, (const method_t*) entry);
 		break;
 	case NAMESPACE_ENTRY_VARIABLE:
-	case NAMESPACE_ENTRY_EXTERN_METHOD:
-	case NAMESPACE_ENTRY_STRUCT:
+	case NAMESPACE_ENTRY_TYPEALIAS:
 	case NAMESPACE_ENTRY_TYPECLASS:
 	case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 		/* TODO */

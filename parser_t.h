@@ -32,7 +32,6 @@ typedef struct expression_parse_function_t {
 } expression_parse_function_t;
 
 struct parser_env_t {
-	struct obstack               obst;
 	token_t                      token;
 	source_position_t            source_position;
 	lexer_state_t                lookahead[LOOKAHEAD];
@@ -41,6 +40,7 @@ struct parser_env_t {
 	lexer_t                      lexer;
 	symbol_table_t               symbol_table;
 	int                          error;
+	struct obstack               obst;
 };
 
 void register_expression_parser(parser_env_t *env,
@@ -51,8 +51,8 @@ void register_expression_infix_parser(parser_env_t *env,
                                       parse_expression_infix_function parser,
                                       int token_type, unsigned precedence);
 
-void register_parse_statement_function(parser_env_t *env,
-                                       parse_statement_function parser);
+void register_statement_parser(parser_env_t *env,
+                               parse_statement_function parser, int token_type);
 
 expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence);
 

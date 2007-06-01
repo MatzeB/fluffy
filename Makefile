@@ -1,11 +1,16 @@
 GOAL = mlang
 
+#FIRM_CFLAGS = `pkg-config --cflags libfirm`
+#FIRM_LIBS = `pkg-config --libs libfirm`
+FIRM_CFLAGS = -I$(HOME)/projects/firm/include
+FIRM_LIBS = -L$(HOME)/projects/firm/build/i686-pc-linux-gnu/debug -lfirm -llpp -lcore -lm
+
 CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
-CFLAGS += `pkg-config --cflags libfirm`
+CFLAGS += $(FIRM_CFLAGS)
 
-LFLAGS = `pkg-config --libs libfirm` -ldl --export-dynamic
+LFLAGS = $(FIRM_LIBS) -llpp -ldl --export-dynamic
 
 SOURCES := \
 	adt/hashset.c \

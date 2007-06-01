@@ -18,7 +18,6 @@ typedef enum {
 	EXPR_REFERENCE_VARIABLE,
 	EXPR_REFERENCE_METHOD,
 	EXPR_REFERENCE_METHOD_PARAMETER,
-	EXPR_REFERENCE_EXTERN_METHOD,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
 	EXPR_REFERENCE_TYPECLASS_METHOD,
 	EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE,
@@ -57,7 +56,6 @@ struct reference_expression_t {
 	union {
 		variable_declaration_statement_t *variable;
 		method_t                         *method;
-		extern_method_t                  *extern_method;
 		global_variable_t                *global_variable;
 		method_parameter_t               *method_parameter;
 		typeclass_method_t               *typeclass_method;
@@ -206,8 +204,7 @@ struct expression_statement_t {
 enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
-	NAMESPACE_ENTRY_EXTERN_METHOD,
-	NAMESPACE_ENTRY_STRUCT,
+	NAMESPACE_ENTRY_TYPEALIAS,
 	NAMESPACE_ENTRY_TYPECLASS,
 	NAMESPACE_ENTRY_TYPECLASS_INSTANCE
 };
@@ -232,19 +229,12 @@ struct method_t {
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
 	int                 is_constructor;
+	int                 is_extern;
 
 	statement_t        *statement;
 
 	int                 n_local_vars;
 	ir_entity          *entity;
-};
-
-struct extern_method_t {
-	namespace_entry_t  namespace_entry;
-	symbol_t          *symbol;
-	method_type_t     *type;
-
-	ir_entity         *entity;
 };
 
 struct global_variable_t {
@@ -256,10 +246,10 @@ struct global_variable_t {
 	ir_entity         *entity;
 };
 
-struct struct_t {
+struct typealias_t {
 	namespace_entry_t  namespace_entry;
 	symbol_t          *symbol;
-	struct_type_t     *type;
+	type_t            *type;
 };
 
 struct typeclass_method_instance_t {

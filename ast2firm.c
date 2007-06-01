@@ -215,10 +215,10 @@ unsigned get_type_size(const type_t *type)
 	case TYPE_STRUCT:
 		return get_struct_type_size((const struct_type_t*) type);
 	case TYPE_METHOD:
-		panic("It's not possible to determine the size of a method type");
-		break;
+		/* just a pointer to the method */
+		return get_mode_size_bytes(mode_P_code);
 	case TYPE_POINTER:
-		return 4;
+		return get_mode_size_bytes(mode_P_data);
 	case TYPE_REFERENCE:
 		panic("Type reference not resolved");
 		break;
@@ -638,12 +638,15 @@ ir_entity* get_method_entity(method_t *method)
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	if(!is_polymorphic) {
+	if(method->is_extern) {
+		set_entity_visibility(entity, visibility_external_allocated);
+	} else if(!is_polymorphic) {
 		set_entity_visibility(entity, visibility_external_visible);
 	} else {
 		/* TODO find out why visibility_local doesn't work */
 		set_entity_visibility(entity, visibility_external_visible);
 	}
+
 	if(method->is_constructor) {
 		set_method_img_section(entity, section_constructors);
 	}
@@ -651,32 +654,6 @@ ir_entity* get_method_entity(method_t *method)
 	if(!is_polymorphic) {
 		method->entity = entity;
 	}
-	return entity;
-}
-
-static
-ir_entity* get_extern_method_entity(extern_method_t *method)
-{
-	if(method->entity != NULL)
-		return method->entity;
-
-	method_type_t *method_type = method->type;
-
-	if(method_type->abi_style != NULL) {
-		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
-		        method_type->abi_style);
-	}
-
-	/* first create an entity */
-	ir_type *global_type    = get_glob_type();
-	ident   *id             = new_id_from_str(method->symbol->string);
-	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
-
-	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
-	set_entity_ld_ident(entity, id);
-	set_entity_visibility(entity, visibility_external_allocated);
-
-	method->entity = entity;
 	return entity;
 }
 
@@ -698,6 +675,7 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 	ir_type   *global_type = get_glob_type();
 	ir_entity *ent         = new_entity(global_type, unique_id("str"),
 	                                    byte_array_type);
+	set_entity_variability(ent, variability_constant);
 
 	ir_type    *elem_type  = get_array_element_type(byte_array_type);
 	ir_mode    *mode       = get_type_mode(elem_type);
@@ -709,7 +687,6 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 		tvs[i] = new_tarval_from_long(string[i], mode);
 	}
 
-	set_entity_variability(ent, variability_constant);
 	set_array_entity_values(ent, tvs, slen);
 	free(tvs);
 
@@ -775,11 +752,10 @@ void create_global_variable(global_variable_t *variable)
 	set_entity_ld_ident(entity, ident);
 	set_entity_variability(entity, variability_uninitialized);
 	if(variable->is_extern) {
-		set_entity_visibility(entity, visibility_external_visible);
-	} else {
 		set_entity_visibility(entity, visibility_external_allocated);
+	} else {
+		set_entity_visibility(entity, visibility_external_visible);
 	}
-	set_entity_allocation(entity, allocation_static);
 
 	variable->entity = entity;
 }
@@ -1088,18 +1064,6 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
-ir_node *extern_method_reference_to_firm(const reference_expression_t *ref)
-{
-	extern_method_t *method = ref->r.extern_method;
-	ir_entity       *entity = get_extern_method_entity(method);
-
-	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
-	                                 symconst_addr_ent);
-
-	return symconst;
-}
-
-static
 ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
@@ -1128,8 +1092,12 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	expression_t  *method = call->method;
 	ir_node       *callee = expression_to_firm(method);
 
-	assert(method->datatype->type == TYPE_METHOD);
-	method_type_t *method_type    = (method_type_t*) method->datatype;
+	assert(method->datatype->type == TYPE_POINTER);
+	pointer_type_t *pointer_type  = (pointer_type_t*) method->datatype;
+	type_t         *points_to     = pointer_type->points_to;
+
+	assert(points_to->type == TYPE_METHOD);
+	method_type_t *method_type    = (method_type_t*) points_to;
 	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
 
 	int      n_parameters = get_method_n_params(ir_method_type);
@@ -1177,9 +1145,6 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const reference_expression_t*) expression);
 	case EXPR_REFERENCE_METHOD:
 		return method_reference_to_firm(
-		        (const reference_expression_t*) expression);
-	case EXPR_REFERENCE_EXTERN_METHOD:
-		return extern_method_reference_to_firm(
 		        (const reference_expression_t*) expression);
 	case EXPR_REFERENCE_METHOD_PARAMETER:
 		return method_parameter_reference_to_firm(
@@ -1379,6 +1344,9 @@ void statement_to_firm(statement_t *statement)
 static
 void create_method(method_t *method, type_argument_t *type_arguments)
 {
+	if(method->is_extern)
+		return;
+
 	printf("***Create Method '%s'\n", method->symbol->string);
 
 	int old_top = typevar_binding_stack_top();
@@ -1475,9 +1443,8 @@ void ast2firm(namespace_t *namespace)
 		case NAMESPACE_ENTRY_VARIABLE:
 			create_global_variable((global_variable_t*) entry);
 			break;
-		case NAMESPACE_ENTRY_STRUCT:
+		case NAMESPACE_ENTRY_TYPEALIAS:
 		case NAMESPACE_ENTRY_TYPECLASS:
-		case NAMESPACE_ENTRY_EXTERN_METHOD:
 			break;
 		default:
 			panic("Unknown namespace entry type found");

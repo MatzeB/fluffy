@@ -41,13 +41,6 @@ unsigned hash_struct_type(const struct_type_t *type)
 {
 	unsigned result = hash_ptr(type->symbol);
 
-	struct_entry_t *entry = type->entries;
-	while(entry != NULL) {
-		result ^= hash_ptr(entry->type);
-
-		entry = entry->next;
-	}
-
 	return result;
 }
 
@@ -110,6 +103,7 @@ int struct_types_equal(const struct_type_t *type1, const struct_type_t *type2)
 	if(type1->symbol != type2->symbol)
 		return 0;
 
+#if 0
 	struct_entry_t *entry1 = type1->entries;
 	struct_entry_t *entry2 = type2->entries;
 
@@ -121,6 +115,7 @@ int struct_types_equal(const struct_type_t *type1, const struct_type_t *type2)
 	}
 	if(entry1 != NULL || entry2 != NULL)
 		return 0;
+#endif
 
 	return 1;
 }

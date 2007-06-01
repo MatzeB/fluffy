@@ -295,18 +295,8 @@ int parse_escape_sequence(lexer_t *this)
 	case 'x': /* TODO parse hex number ... */
 		parse_error(this, "hex escape sequences not implemented yet");
 		return EOF;
-	case 0:
-	case 1:
-	case 2:
-	case 3:
-	case 4:
-	case 5:
-	case 6:
-	case 7:
+	case 'o': /* TODO parse octal number ... */
 		parse_error(this, "octal escape sequences not implemented yet");
-		return EOF;
-	case '\n':
-		parse_error(this, "newline while parsing escape sequence");
 		return EOF;
 	case EOF:
 		parse_error(this, "reached end of file while parsing escape sequence");

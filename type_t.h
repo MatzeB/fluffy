@@ -103,6 +103,7 @@ struct struct_type_t {
 	struct_entry_t    *entries;
 	symbol_t          *symbol;
 	source_position_t  source_position;
+	int                is_union;
 };
 
 #endif

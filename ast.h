@@ -32,9 +32,8 @@ typedef struct namespace_entry_t        namespace_entry_t;
 typedef struct namespace_t              namespace_t;
 typedef struct method_parameter_t       method_parameter_t;
 typedef struct method_t                 method_t;
-typedef struct extern_method_t          extern_method_t;
 typedef struct global_variable_t        global_variable_t;
-typedef struct struct_t                 struct_t;
+typedef struct typealias_t              typealias_t;
 typedef struct typeclass_instance_t     typeclass_instance_t;
 typedef struct typeclass_method_instance_t
                                         typeclass_method_instance_t;

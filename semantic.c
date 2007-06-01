@@ -18,7 +18,7 @@ enum environment_entry_type_t {
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
 	ENTRY_TYPECLASS,
-	ENTRY_TYPE,
+	ENTRY_TYPEALIAS,
 	ENTRY_TYPE_VARIABLE,
 	ENTRY_EXTERN_METHOD,
 	ENTRY_GOTO,
@@ -34,7 +34,6 @@ struct environment_entry_t {
 		method_t                         *method;
 		global_variable_t                *global_variable;
 		method_parameter_t               *method_parameter;
-		extern_method_t                  *extern_method;
 		type_t                           *stored_type;
 		type_variable_t                  *type_variable;
 		variable_declaration_statement_t *variable;
@@ -53,7 +52,7 @@ const char *get_entry_type_name(environment_entry_type_t type)
 	case ENTRY_METHOD_PARAMETER: return "method parameter";
 	case ENTRY_METHOD:           return "method";
 	case ENTRY_TYPECLASS:        return "typeclass";
-	case ENTRY_TYPE:             return "type";
+	case ENTRY_TYPEALIAS:        return "type alias";
 	case ENTRY_TYPE_VARIABLE:    return "type variable";
 	case ENTRY_EXTERN_METHOD:    return "extern method";
 	case ENTRY_GOTO:             return "goto";
@@ -152,6 +151,38 @@ size_t environment_top(semantic_env_t *env)
 }
 
 static
+type_t* make_atomic_type(atomic_type_type_t atype)
+{
+	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_ATOMIC;
+	type->atype     = atype;
+
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(type_obst, type);
+	}
+
+	return normalized_type;
+}
+
+static
+type_t* make_pointer_type(type_t *points_to)
+{
+	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_POINTER;
+	type->points_to = points_to;
+
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(type_obst, type);
+	}
+
+	return normalized_type;
+}
+
+static
 type_t *normalize_type(semantic_env_t *env, type_t *type);
 
 static
@@ -179,12 +210,14 @@ type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 		return typehash_insert((type_t*) type_ref);
 	}	
 
-	if(entry->type != ENTRY_TYPE) {
+	if(entry->type != ENTRY_TYPEALIAS) {
 		print_error_prefix(env, type_ref->source_position);
-		fprintf(stderr, "expected a type, but '%s' is a '%s'\n",
+		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
 		        symbol->string, get_entry_type_name(entry->type));
 		return NULL;
 	}
+
+	entry->e.stored_type = normalize_type(env, entry->e.stored_type);
 
 	return entry->e.stored_type;
 }
@@ -225,7 +258,7 @@ type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
 }
 
 static
-type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
+void normalize_struct_entries(semantic_env_t *env, struct_type_t *struct_type)
 {
 	struct_entry_t *entry = struct_type->entries;
 	while(entry != NULL) {
@@ -233,7 +266,12 @@ type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
 
 		entry = entry->next;
 	}
+}
 
+static
+type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
+{
+	(void) env;
 	return typehash_insert((type_t*) struct_type);
 }
 
@@ -302,7 +340,6 @@ void check_reference_expression(semantic_env_t *env,
 	variable_declaration_statement_t *variable;
 	method_t                         *method;
 	method_parameter_t               *method_parameter;
-	extern_method_t                  *extern_method;
 	global_variable_t                *global_variable;
 	typeclass_method_t               *typeclass_method;
 	symbol_t                         *symbol = ref->symbol;
@@ -326,13 +363,7 @@ void check_reference_expression(semantic_env_t *env,
 		method                   = entry->e.method;
 		ref->r.method            = method;
 		ref->expression.type     = EXPR_REFERENCE_METHOD;
-		ref->expression.datatype = (type_t*) method->type;
-		break;
-	case ENTRY_EXTERN_METHOD:
-		extern_method            = entry->e.extern_method;
-		ref->r.extern_method     = extern_method;
-		ref->expression.type     = EXPR_REFERENCE_EXTERN_METHOD;
-		ref->expression.datatype = (type_t*) extern_method->type;
+		ref->expression.datatype = make_pointer_type((type_t*) method->type);
 		break;
 	case ENTRY_GLOBAL_VARIABLE:
 		global_variable          = entry->e.global_variable;
@@ -350,9 +381,9 @@ void check_reference_expression(semantic_env_t *env,
 		typeclass_method         = entry->e.typeclass_method;
 		ref->r.typeclass_method  = typeclass_method;
 		ref->expression.type     = EXPR_REFERENCE_TYPECLASS_METHOD;
-		ref->expression.datatype = (type_t*) typeclass_method->method_type;
+		ref->expression.datatype = make_pointer_type((type_t*) typeclass_method->method_type);
 		break;
-	case ENTRY_TYPE:
+	case ENTRY_TYPEALIAS:
 	case ENTRY_TYPECLASS:
 		print_error_prefix(env, ref->expression.source_position);
 		fprintf(stderr, "'%s' is a '%s' and can't be used as expression\n",
@@ -371,6 +402,7 @@ int is_lvalue(const expression_t *expression)
 
 	switch(expression->type) {
 	case EXPR_REFERENCE_VARIABLE:
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 	case EXPR_SELECT:
 	case EXPR_ARRAY_ACCESS:
 		return 1;
@@ -723,8 +755,11 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 		panic("panic");
 	}
 
+	type_t *type         = (type_t*) method_instance->method->type;
+	type_t *pointer_type = make_pointer_type(type);
+
 	ref->expression.type             = EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE;
-	ref->expression.datatype         = (type_t*) method_instance->method->type;
+	ref->expression.datatype         = pointer_type;
 	ref->r.typeclass_method_instance = method_instance;
 }
 
@@ -796,7 +831,16 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	/* can happen if we had a deeper semantic error */
 	if(type == NULL)
 		return;
+	if(type->type != TYPE_POINTER) {
+		print_error_prefix(env, call->expression.source_position);
+		fprintf(stderr, "trying to call non-pointer type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+		return;
+	}
+	pointer_type_t *pointer_type = (pointer_type_t*) type;
 
+	type = pointer_type->points_to;
 	if(type->type != TYPE_METHOD) {
 		print_error_prefix(env, call->expression.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
@@ -1374,6 +1418,9 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 static
 void check_method(semantic_env_t *env, method_t *method)
 {
+	if(method->is_extern)
+		return;
+
 	int old_top            = environment_top(env);
 	env->current_method    = method;
 	char *label_obst_start = obstack_alloc(&env->label_obstack, 1);
@@ -1649,9 +1696,9 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 {
 	global_variable_t    *variable;
 	method_t             *method;
-	extern_method_t      *extern_method;
 	environment_entry_t  *env_entry;
-	struct_t             *the_struct;
+	typealias_t          *typealias;
+	type_t               *type;
 	typeclass_t          *typeclass;
 	int                   old_top = environment_top(env);
 
@@ -1665,23 +1712,17 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
 			env_entry->e.global_variable = variable;
 			break;
-		case NAMESPACE_ENTRY_EXTERN_METHOD:
-			extern_method       = (extern_method_t*) entry;
-			env_entry           = environment_push(env, extern_method->symbol);
-			env_entry->type     = ENTRY_EXTERN_METHOD;
-			env_entry->e.extern_method = extern_method;
-			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
 			env_entry           = environment_push(env, method->symbol);
 			env_entry->type     = ENTRY_METHOD;
 			env_entry->e.method = method;
 			break;
-		case NAMESPACE_ENTRY_STRUCT:
-			the_struct             = (struct_t*) entry;
-			env_entry              = environment_push(env, the_struct->symbol);
-			env_entry->type        = ENTRY_TYPE;
-			env_entry->e.stored_type = (type_t*) the_struct->type;
+		case NAMESPACE_ENTRY_TYPEALIAS:
+			typealias              = (typealias_t*) entry;
+			env_entry              = environment_push(env, typealias->symbol);
+			env_entry->type        = ENTRY_TYPEALIAS;
+			env_entry->e.stored_type = (type_t*) typealias->type;
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS:
 			typeclass              = (typeclass_t*) entry;
@@ -1709,25 +1750,19 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			assert(env_entry->e.global_variable == variable);
 			variable->type      = normalize_type(env, variable->type);
 			break;
-		case NAMESPACE_ENTRY_EXTERN_METHOD:
-			extern_method       = (extern_method_t*) entry;
-			env_entry           = extern_method->symbol->thing;
-			assert(env_entry->e.extern_method == extern_method);
-			extern_method->type = (method_type_t*)
-			    normalize_type(env, (type_t*) extern_method->type);
-			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
 			env_entry           = method->symbol->thing;
 			assert(env_entry->e.method == method);
 			resolve_method_types(env, method);
 			break;
-		case NAMESPACE_ENTRY_STRUCT:
-			the_struct = (struct_t*) entry;
-			env_entry  = the_struct->symbol->thing;
-			assert(env_entry->e.stored_type == (type_t*) the_struct->type);
-			env_entry->e.stored_type 
-				= normalize_type(env, env_entry->e.stored_type);
+		case NAMESPACE_ENTRY_TYPEALIAS:
+			typealias  = (typealias_t*) entry;
+			env_entry  = typealias->symbol->thing;
+			type       = env_entry->e.stored_type;
+			if(type->type == TYPE_STRUCT) {
+				normalize_struct_entries(env, (struct_type_t*) type);
+			}
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS:
 			typeclass = (typeclass_t*) entry;
@@ -1761,38 +1796,6 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	}
 
 	environment_pop_to(env, old_top);
-}
-
-static
-type_t* make_atomic_type(atomic_type_type_t atype)
-{
-	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_ATOMIC;
-	type->atype     = atype;
-
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
-		obstack_free(type_obst, type);
-	}
-
-	return normalized_type;
-}
-
-static
-type_t* make_pointer_type(type_t *points_to)
-{
-	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_POINTER;
-	type->points_to = points_to;
-
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
-		obstack_free(type_obst, type);
-	}
-
-	return normalized_type;
 }
 
 int check_static_semantic(namespace_t *namespace)

@@ -85,6 +85,55 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 	parser_found_error(env);
 }
 
+static
+void eat_until_newline(parser_env_t *env)
+{
+	while(env->token.type != T_NEWLINE) {
+		next_token(env);
+		if(env->token.type == T_EOF)
+			return;
+	}
+	next_token(env);
+}
+
+static
+void maybe_eat_block(parser_env_t *env)
+{
+	if(env->token.type != T_INDENT)
+		return;
+	next_token(env);
+
+	unsigned indent = 1;
+	while(indent >= 1) {
+		if(env->token.type == T_INDENT) {
+			indent++;
+		} else if(env->token.type == T_DEDENT) {
+			indent--;
+		} else if(env->token.type == T_EOF) {
+			break;
+		}
+		next_token(env);
+	}
+}
+
+#define expect(env,expected) \
+	if(UNLIKELY(env->token.type != (expected))) { \
+		parse_error_expected(env, NULL, (expected), 0); \
+		eat_until_newline(env); \
+		return NULL; \
+	} \
+	next_token(env);
+
+
+
+
+static
+type_t *parse_type(parser_env_t *env);
+
+static
+void parse_parameter_declaration(parser_env_t *env,
+                                 method_parameter_type_t **parameter_types,
+                                 method_parameter_t **parameters);
 
 static
 atomic_type_type_t parse_unsigned_atomic_type(parser_env_t *env)
@@ -197,6 +246,25 @@ type_t *parse_type_ref(parser_env_t *env)
 }
 
 static
+type_t *parse_method_type(parser_env_t *env)
+{
+	eat(env, T_func);
+
+	method_type_t *method_type
+		= obstack_alloc(type_obst, sizeof(method_type[0]));
+	memset(method_type, 0, sizeof(method_type[0]));
+	method_type->type.type = TYPE_METHOD;
+
+	method_type->result_type = parse_type(env);
+	
+	expect(env, '(');
+	parse_parameter_declaration(env, &method_type->parameter_types, NULL);
+	expect(env, ')');
+
+	return (type_t*) method_type;
+}
+
+static
 type_t *parse_type(parser_env_t *env)
 {
 	type_t *type;
@@ -218,6 +286,9 @@ type_t *parse_type(parser_env_t *env)
 	case T_void:
 		type = type_void;
 		next_token(env);
+		break;
+	case T_func:
+		type = parse_method_type(env);
 		break;
 	default:
 		parse_error(env, "Invalid type");
@@ -241,44 +312,8 @@ type_t *parse_type(parser_env_t *env)
 	return type;
 }
 
-static
-void eat_until_newline(parser_env_t *env)
-{
-	while(env->token.type != T_NEWLINE) {
-		next_token(env);
-		if(env->token.type == T_EOF)
-			return;
-	}
-	next_token(env);
-}
 
-static
-void maybe_eat_block(parser_env_t *env)
-{
-	if(env->token.type != T_INDENT)
-		return;
-	next_token(env);
 
-	unsigned indent = 1;
-	while(indent >= 1) {
-		if(env->token.type == T_INDENT) {
-			indent++;
-		} else if(env->token.type == T_DEDENT) {
-			indent--;
-		} else if(env->token.type == T_EOF) {
-			break;
-		}
-		next_token(env);
-	}
-}
-
-#define expect(env,expected) \
-	if(UNLIKELY(env->token.type != (expected))) { \
-		parse_error_expected(env, NULL, (expected), 0); \
-		eat_until_newline(env); \
-		return NULL; \
-	} \
-	next_token(env);
 
 static
 expression_t *parse_string_const(parser_env_t *env)
@@ -377,6 +412,22 @@ expression_t *parse_sizeof(parser_env_t *env)
 
 static
 expression_t *parse_expression(parser_env_t *env);
+
+void register_statement_parser(parser_env_t *env,
+                               parse_statement_function parser, int token_type)
+{
+	if(token_type < 0)
+		panic("can't register parser for negative token");
+
+	int len = ARR_LEN(env->statement_parsers);
+	if(token_type >= len) {
+		ARR_RESIZE(env->statement_parsers, token_type + 1);
+		memset(& env->statement_parsers[len], 0,
+				(token_type - len) * sizeof(env->statement_parsers[0]));
+	}
+
+	env->statement_parsers[token_type] = parser;
+}
 
 static
 expression_parse_function_t *get_expression_parser_entry(parser_env_t *env,
@@ -914,52 +965,49 @@ static
 statement_t *parse_block(parser_env_t *env);
 
 static
+statement_t *parse_newline(parser_env_t *env)
+{
+	eat(env, T_NEWLINE);
+
+	if(env->token.type == T_INDENT)
+		return parse_block(env);
+
+	return NULL;
+}
+
+static
+void register_statement_parsers(parser_env_t *env)
+{
+	register_statement_parser(env, parse_return_statement, T_return);
+	register_statement_parser(env, parse_if_statement, T_if);
+	register_statement_parser(env, parse_block, T_INDENT);
+	register_statement_parser(env, parse_variable_declaration, T_var);
+	register_statement_parser(env, parse_label_statement, ':');
+	register_statement_parser(env, parse_goto_statement, T_goto);
+	register_statement_parser(env, parse_newline, T_NEWLINE);
+}
+
+static
 statement_t *parse_statement(parser_env_t *env)
 {
 	statement_t       *statement;
 	source_position_t  source_position = env->source_position;
 
-	switch(env->token.type) {
-	case T_return:
-		statement = parse_return_statement(env);
-		break;
-
-	case T_if:
-		statement = parse_if_statement(env);
-		break;
-
-	case T_INDENT:
-		statement = parse_block(env);
-		break;
-
-	case T_var:
-		statement = parse_variable_declaration(env);
-		break;
-
-	case ':':
-		statement = parse_label_statement(env);
-		break;
-
-	case T_goto:
-		statement = parse_goto_statement(env);
-		break;
-
-	case T_NEWLINE:
-		next_token(env);
-		if(env->token.type == T_INDENT)
-			return parse_block(env);
-
-		return NULL;
-
-	case T_EOF:
+	if(env->token.type < 0) {
 		/* this shouldn't happen if the lexer is correct... */
 		parse_error_expected(env, "problem while parsing statement",
 		                     T_DEDENT, 0);
 		return NULL;
+	}
 
-	default:
+	parse_statement_function parser = NULL;
+	if(env->token.type < ARR_LEN(env->statement_parsers))
+		parser = env->statement_parsers[env->token.type];
+
+	if(parser != NULL) {
+		statement = parser(env);
+	} else {
 		statement = parse_expression_statement(env);
-		break;
 	}
 
 	if(statement == NULL)
@@ -1204,11 +1252,6 @@ namespace_entry_t *parse_global_variable(parser_env_t *env)
 	memset(variable, 0, sizeof(variable[0]));
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
 
-	if(env->token.type == T_extern) {
-		variable->is_extern = 1;
-		next_token(env);
-	}
-
 	variable->type = parse_type(env);
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing global variable",
@@ -1225,16 +1268,28 @@ namespace_entry_t *parse_global_variable(parser_env_t *env)
 }
 
 static
+namespace_entry_t *parse_extern_variable(parser_env_t *env)
+{
+	namespace_entry_t *entry = parse_global_variable(env);
+	if(entry == NULL)
+		return NULL;
+
+	assert(entry->type == NAMESPACE_ENTRY_VARIABLE);
+	global_variable_t *variable = (global_variable_t*) entry;
+	variable->is_extern = 1;
+
+	return entry;
+}
+
+static
 namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
-	eat(env, T_extern);
-	expect(env, T_func);
+	eat(env, T_func);
 
-	extern_method_t *extern_method
-		= obstack_alloc(&env->obst, sizeof(extern_method[0]));
-	memset(extern_method, 0, sizeof(extern_method[0]));
-
-	extern_method->namespace_entry.type = NAMESPACE_ENTRY_EXTERN_METHOD;
+	method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	memset(method, 0, sizeof(method[0]));
+	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
+	method->is_extern            = 1;
 
 	method_type_t *method_type
 		= obstack_alloc(type_obst, sizeof(method_type[0]));
@@ -1254,17 +1309,61 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 		eat_until_newline(env);
 		return NULL;
 	}
-	extern_method->symbol = env->token.v.symbol;
+	method->symbol = env->token.v.symbol;
 	next_token(env);
 
 	expect(env, '(');
-	parse_parameter_declaration(env, &method_type->parameter_types, NULL);
+	parse_parameter_declaration(env, &method_type->parameter_types,
+	                                 &method->parameters);
 	expect(env, ')');
 	expect(env, T_NEWLINE);
 
-	extern_method->type = method_type;
+	method->type = method_type;
 
-	return (namespace_entry_t*) extern_method;
+	return (namespace_entry_t*) method;
+}
+
+static
+namespace_entry_t *parse_extern(parser_env_t *env)
+{
+	eat(env, T_extern);
+
+	if(env->token.type == T_func) {
+		return parse_extern_method(env);
+	} else if(env->token.type == T_var) {
+		return parse_extern_variable(env);
+	}
+
+	parse_error_expected(env, "Problem while parsing extern declaration",
+	                     T_func, T_var, 0);
+	eat_until_newline(env);
+	return NULL;
+}
+
+static
+namespace_entry_t *parse_typealias(parser_env_t *env)
+{
+	eat(env, T_typealias);
+
+	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	memset(typealias, 0, sizeof(typealias[0]));
+	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing typealias",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+	typealias->symbol = env->token.v.symbol;
+	next_token(env);
+
+	expect(env, T_ASSIGN);
+	typealias->type = parse_type(env);
+
+	expect(env, T_NEWLINE);
+
+	return (namespace_entry_t*) typealias;
 }
 
 static
@@ -1272,9 +1371,9 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 {
 	eat(env, T_struct);
 
-	struct_t *struct_ = obstack_alloc(&env->obst, sizeof(struct_[0]));
-	memset(struct_, 0, sizeof(struct_[0]));
-	struct_->namespace_entry.type = NAMESPACE_ENTRY_STRUCT;
+	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	memset(typealias, 0, sizeof(typealias[0]));
+	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
 	if(env->token.type != T_IDENTIFIER) {
 		parse_error_expected(env, "Problem while parsing struct",
@@ -1282,7 +1381,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 		eat_until_newline(env);
 		return NULL;
 	}
-	struct_->symbol = env->token.v.symbol;
+	typealias->symbol = env->token.v.symbol;
 	next_token(env);
 
 	expect(env, ':');
@@ -1293,7 +1392,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	memset(struct_type, 0, sizeof(struct_type[0]));
 
 	struct_type->type.type     = TYPE_STRUCT;
-	struct_type->symbol        = struct_->symbol;
+	struct_type->symbol        = typealias->symbol;
 	struct_entry_t *last_entry = NULL;
 
 	if(env->token.type == T_INDENT) {
@@ -1323,9 +1422,9 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 		} while(env->token.type != T_DEDENT);
 		next_token(env);
 	}
-	struct_->type = struct_type;
+	typealias->type = (type_t*) struct_type;
 
-	return (namespace_entry_t*) struct_;
+	return (namespace_entry_t*) typealias;
 }
 
 static
@@ -1512,11 +1611,15 @@ namespace_t *parse_namespace(parser_env_t *env)
 			break;
 
 		case T_extern:
-			entry = parse_extern_method(env);
+			entry = parse_extern(env);
 			break;
 
 		case T_struct:
 			entry = parse_struct(env);
+			break;
+
+		case T_typealias:
+			entry = parse_typealias(env);
 			break;
 
 		case T_typeclass:
@@ -1552,11 +1655,15 @@ namespace_t *parse_namespace(parser_env_t *env)
 	}
 }
 
+parser_env_t *current_parser = NULL;
+
 namespace_t *parse(FILE *in, const char *input_name)
 {
 	int i;
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
+
+	current_parser = &env;
 
 	env.expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
 	env.statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
@@ -1570,6 +1677,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 	init_tokens();
 
 	register_expression_parsers(&env);
+	register_statement_parsers(&env);
 
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
 
