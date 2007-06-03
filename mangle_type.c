@@ -61,7 +61,7 @@ void mangle_atomic_type(struct obstack *obst, const atomic_type_t *type)
 }
 
 static
-void mangle_struct_type(struct obstack *obst, const struct_type_t *type)
+void mangle_compound_type(struct obstack *obst, const compound_type_t *type)
 {
 	const char *string     = type->symbol->string;
 	size_t      string_len = strlen(string);
@@ -113,8 +113,8 @@ void mangle_type(struct obstack *obst, const type_t *type)
 	case TYPE_ATOMIC:
 		mangle_atomic_type(obst, (const atomic_type_t*) type);
 		break;
-	case TYPE_STRUCT:
-		mangle_struct_type(obst, (const struct_type_t*) type);
+	case TYPE_COMPOUND:
+		mangle_compound_type(obst, (const compound_type_t*) type);
 		break;
 	case TYPE_METHOD:
 		mangle_method_type(obst, (const method_type_t*) type);

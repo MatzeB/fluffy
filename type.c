@@ -120,8 +120,8 @@ void print_type(FILE *out, const type_t *type)
 	case TYPE_ATOMIC:
 		print_atomic_type(out, (const atomic_type_t*) type);
 		break;
-	case TYPE_STRUCT:
-		fprintf(out, "%s", ((const struct_type_t*) type)->symbol->string);
+	case TYPE_COMPOUND:
+		fprintf(out, "%s", ((const compound_type_t*) type)->symbol->string);
 		break;
 	case TYPE_METHOD:
 		print_method_type(out, (const method_type_t*) type);
@@ -184,7 +184,7 @@ void dbg_type(const type_t *type)
 }
 
 static
-type_t *create_concrete_struct_type(struct_type_t *type)
+type_t *create_concrete_compound_type(compound_type_t *type)
 {
 	/* TODO: handle structs with typevars */
 	return (type_t*) type;
@@ -278,8 +278,8 @@ type_t *create_concrete_type(type_t *type)
 		return type_void;
 	case TYPE_ATOMIC:
 		return type;
-	case TYPE_STRUCT:
-		return create_concrete_struct_type((struct_type_t*) type);
+	case TYPE_COMPOUND:
+		return create_concrete_compound_type((compound_type_t*) type);
 	case TYPE_METHOD:
 		return create_concrete_method_type((method_type_t*) type);
 	case TYPE_POINTER:

@@ -23,28 +23,47 @@ struct ForStatement:
 	Expression*     step_expression
 	Statement*      loop_body
 
+struct Symbol:
+	byte*             string
+	unsigned int      id
+	EnvironmentEntry* thing
+	EnvironmentEntry* label	
+
 struct Token:
-	int             type
+	int  type
+	V    v
+
+union V:
+	Symbol *symbol
+	int     intvalue
+	byte*   string
+
+struct LexerState:
+	Token           token
+	SourcePosition  source_position
 
 struct Parser:
-	int type
-	/*
-	union v:
-		Symbol* symbol
-		int     intvalue
-		byte*   string
-	*/
+	Token           token
+	SourcePosition  source_position
+	LexerState      lookahead
+	// more stuff...
 
-typealias Parser <- void
+typealias EnvironmentEntry <- void
 typealias ParseStatementFunction <- func Statement* (Parser* parser)
 
 extern func int register_new_token(byte* token)
 extern func int puts(byte* string)
-extern func void next_token(void* parser_env)
 extern func void register_statement_parser(Parser* parser_env, ParseStatementFunction* parser, int token_type)
 
 extern var Parser* current_parser
 var int     token_for
+
+func void next_token(Parser* env):
+	env.token           = env.lookahead.token
+	env.source_position = env.source_position
+	lexer_next_token(lexer, &env.lookahead.token)
+
+	env.lookahead.source_position = env.lexer.source_position
 
 func Statement* parse_for_statement(Parser* env):
 	puts("parsing a for...")

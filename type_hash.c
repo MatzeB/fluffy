@@ -37,7 +37,7 @@ unsigned hash_pointer_type(const pointer_type_t *type)
 }
 
 static
-unsigned hash_struct_type(const struct_type_t *type)
+unsigned hash_compound_type(const compound_type_t *type)
 {
 	unsigned result = hash_ptr(type->symbol);
 
@@ -81,8 +81,8 @@ unsigned hash_type(const type_t *type)
 				(const type_reference_t*) type);
 	case TYPE_ATOMIC:
 		return hash_atomic_type((const atomic_type_t*) type);
-	case TYPE_STRUCT:
-		return hash_struct_type((const struct_type_t*) type);
+	case TYPE_COMPOUND:
+		return hash_compound_type((const compound_type_t*) type);
 	case TYPE_METHOD:
 		return hash_method_type((const method_type_t*) type);
 	case TYPE_POINTER:
@@ -98,7 +98,8 @@ int atomic_types_equal(const atomic_type_t *type1, const atomic_type_t *type2)
 }
 
 static
-int struct_types_equal(const struct_type_t *type1, const struct_type_t *type2)
+int compound_types_equal(const compound_type_t *type1,
+                         const compound_type_t *type2)
 {
 	if(type1->symbol != type2->symbol)
 		return 0;
@@ -177,9 +178,9 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_ATOMIC:
 		return atomic_types_equal((const atomic_type_t*) type1,
 		                          (const atomic_type_t*) type2);
-	case TYPE_STRUCT:
-		return struct_types_equal((const struct_type_t*) type1,
-		                          (const struct_type_t*) type2);
+	case TYPE_COMPOUND:
+		return compound_types_equal((const compound_type_t*) type1,
+		                            (const compound_type_t*) type2);
 	case TYPE_METHOD:
 		return method_types_equal((const method_type_t*) type1,
 		                          (const method_type_t*) type2);

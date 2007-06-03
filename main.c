@@ -7,7 +7,6 @@
 
 #include <libfirm/be.h>
 #include <libfirm/firm.h>
-#include <libfirm/lower_hl.h>
 
 #include "type.h"
 #include "parser.h"

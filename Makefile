@@ -2,8 +2,8 @@ GOAL = mlang
 
 #FIRM_CFLAGS = `pkg-config --cflags libfirm`
 #FIRM_LIBS = `pkg-config --libs libfirm`
-FIRM_CFLAGS = -I$(HOME)/develop/firm/libfirm/include -I$(HOME)/develop/firm/libcore
-FIRM_LIBS = -L$(HOME)/develop/firm/build/i686-pc-linux-gnu/debug -lfirm -llpp -lcore -lm
+FIRM_CFLAGS = -I$(HOME)/projects/firm/libfirm/include -I$(HOME)/projects/firm/libcore
+FIRM_LIBS = -L$(HOME)/projects/firm/build/i686-pc-linux-gnu/debug -lfirm -llpp -lcore -lm
 
 CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H

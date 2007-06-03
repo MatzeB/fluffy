@@ -55,7 +55,7 @@ void match_variant_to_concrete_type(semantic_env_t *env,
 		break;
 
 	case TYPE_VOID:
-	case TYPE_STRUCT:
+	case TYPE_COMPOUND:
 	case TYPE_ATOMIC:
 		if(concrete_type != variant_type) {
 			match_error(env, variant_type, concrete_type, source_position);

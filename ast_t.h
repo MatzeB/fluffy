@@ -120,11 +120,11 @@ struct binary_expression_t {
 };
 
 struct select_expression_t {
-	expression_t    expression;
-	expression_t   *compound;
-	symbol_t       *symbol;
+	expression_t      expression;
+	expression_t     *compound;
+	symbol_t         *symbol;
 
-	struct_entry_t *struct_entry;
+	compound_entry_t *compound_entry;
 };
 
 struct array_access_expression_t {

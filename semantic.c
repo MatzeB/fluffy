@@ -258,9 +258,9 @@ type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
 }
 
 static
-void normalize_struct_entries(semantic_env_t *env, struct_type_t *struct_type)
+void normalize_compound_entries(semantic_env_t *env, compound_type_t *type)
 {
-	struct_entry_t *entry = struct_type->entries;
+	compound_entry_t *entry = type->entries;
 	while(entry != NULL) {
 		entry->type = normalize_type(env, entry->type);
 
@@ -269,10 +269,10 @@ void normalize_struct_entries(semantic_env_t *env, struct_type_t *struct_type)
 }
 
 static
-type_t *normalize_struct_type(semantic_env_t *env, struct_type_t *struct_type)
+type_t *normalize_compound_type(semantic_env_t *env, compound_type_t *type)
 {
 	(void) env;
-	return typehash_insert((type_t*) struct_type);
+	return typehash_insert((type_t*) type);
 }
 
 static
@@ -300,8 +300,8 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 	case TYPE_METHOD:
 		return normalize_method_type(env, (method_type_t*) type);
 
-	case TYPE_STRUCT:
-		return normalize_struct_type(env, (struct_type_t*) type);
+	case TYPE_COMPOUND:
+		return normalize_compound_type(env, (compound_type_t*) type);
 
 	default:
 		panic("Unknown type found");
@@ -317,7 +317,7 @@ void check_local_variable_type(semantic_env_t *env,
                                type_t *type)
 {
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
-			&& type->type != TYPE_STRUCT) {
+			&& type->type != TYPE_COMPOUND) {
 		if(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			/* TODO: we need to be able to handle all types in local vars... */
 			type_reference_t *ref           = (type_reference_t*) type;
@@ -1057,7 +1057,7 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	type_t *datatype = compound->datatype;
 	if(datatype->type != TYPE_POINTER) {
 		print_error_prefix(env, select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to struct type but found ");
+		fprintf(stderr, "select needs a pointer to compound type but found ");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
 		return;
@@ -1065,18 +1065,18 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 
 	pointer_type_t *pointer_type = (pointer_type_t*) datatype;
 	
-	type_t *compound_type = pointer_type->points_to;
-	if(compound_type->type != TYPE_STRUCT) {
+	type_t *points_to = pointer_type->points_to;
+	if(points_to->type != TYPE_COMPOUND) {
 		print_error_prefix(env, select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to struct type but found ");
+		fprintf(stderr, "select needs a pointer to compound type but found ");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
 		return;
 	}
 
-	struct_type_t  *struct_type   = (struct_type_t*) compound_type;
-	struct_entry_t *entry         = struct_type->entries;
-	symbol_t       *symbol        = select->symbol;
+	compound_type_t  *compound_type = (compound_type_t*) points_to;
+	compound_entry_t *entry         = compound_type->entries;
+	symbol_t         *symbol        = select->symbol;
 	while(entry != NULL) {
 		if(entry->symbol == symbol) {
 			break;
@@ -1086,14 +1086,14 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	if(entry == NULL) {
 		print_error_prefix(env, select->expression.source_position);
 		fprintf(stderr, "compound type ");
-		print_type(stderr, compound_type);
+		print_type(stderr, points_to);
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
 		return;
 	}
 
-	/* we return a pointer to sub-structs instead of the struct itself */
+	/* we return a pointer to sub-compounds instead of the compound itself */
 	type_t *result_type = entry->type;
-	if(result_type->type == TYPE_STRUCT) {
+	if(result_type->type == TYPE_COMPOUND) {
 		pointer_type_t *pointer = obstack_alloc(type_obst, sizeof(pointer[0]));
 		memset(pointer, 0, sizeof(pointer[0]));
 
@@ -1106,7 +1106,7 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		}
 	}
 
-	select->struct_entry        = entry;
+	select->compound_entry      = entry;
 	select->expression.datatype = result_type;
 }
 
@@ -1760,8 +1760,8 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			typealias  = (typealias_t*) entry;
 			env_entry  = typealias->symbol->thing;
 			type       = env_entry->e.stored_type;
-			if(type->type == TYPE_STRUCT) {
-				normalize_struct_entries(env, (struct_type_t*) type);
+			if(type->type == TYPE_COMPOUND) {
+				normalize_compound_entries(env, (compound_type_t*) type);
 			}
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS:

@@ -13,7 +13,7 @@ typedef enum {
 	TYPE_INVALID,
 	TYPE_VOID,
 	TYPE_ATOMIC,
-	TYPE_STRUCT,
+	TYPE_COMPOUND,
 	TYPE_METHOD,
 	TYPE_POINTER,
 	TYPE_REFERENCE,
@@ -89,18 +89,18 @@ struct method_type_t {
 	const char              *abi_style;
 };
 
-struct struct_entry_t {
+struct compound_entry_t {
 	type_t            *type;
 	symbol_t          *symbol;
-	struct_entry_t    *next;
+	compound_entry_t  *next;
 	source_position_t  source_position;
 
 	ir_entity         *entity;
 };
 
-struct struct_type_t {
+struct compound_type_t {
 	type_t             type;
-	struct_entry_t    *entries;
+	compound_entry_t  *entries;
 	symbol_t          *symbol;
 	source_position_t  source_position;
 	int                is_union;

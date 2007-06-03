@@ -429,6 +429,23 @@ void register_statement_parser(parser_env_t *env,
 	env->statement_parsers[token_type] = parser;
 }
 
+void register_namespace_parser(parser_env_t *env,
+                               parse_namespace_entry_function parser,
+                               int token_type)
+{
+	if(token_type < 0)
+		panic("can't register parser for negative token");
+
+	int len = ARR_LEN(env->namespace_parsers);
+	if(token_type >= len) {
+		ARR_RESIZE(env->namespace_parsers, token_type + 1);
+		memset(& env->namespace_parsers[len], 0,
+				(token_type - len) * sizeof(env->namespace_parsers[0]));
+	}
+
+	env->namespace_parsers[token_type] = parser;
+}
+
 static
 expression_parse_function_t *get_expression_parser_entry(parser_env_t *env,
                                                          int token_type)
@@ -1367,6 +1384,41 @@ namespace_entry_t *parse_typealias(parser_env_t *env)
 }
 
 static
+compound_entry_t *parse_compound_entries(parser_env_t *env)
+{
+	eat(env, T_INDENT);
+
+	compound_entry_t *result     = NULL;
+	compound_entry_t *last_entry = NULL;
+	while(env->token.type != T_DEDENT && env->token.type != T_EOF) {
+		compound_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
+		memset(entry, 0, sizeof(entry[0]));
+
+		entry->type = parse_type(env);
+		if(env->token.type != T_IDENTIFIER) {
+			parse_error_expected(env, "Problem while parsing compound entry",
+								 T_IDENTIFIER, 0);
+			eat_until_newline(env);
+			continue;
+		}
+		entry->symbol = env->token.v.symbol;
+		next_token(env);
+
+		if(last_entry == NULL) {
+			result = entry;
+		} else {
+			last_entry->next = entry;
+		}
+		last_entry = entry;
+
+		expect(env, T_NEWLINE);
+	}
+	next_token(env);
+
+	return result;
+}
+
+static
 namespace_entry_t *parse_struct(parser_env_t *env)
 {
 	eat(env, T_struct);
@@ -1387,42 +1439,54 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	expect(env, ':');
 	expect(env, T_NEWLINE);
 
-	struct_type_t *struct_type 
-		= obstack_alloc(&env->obst, sizeof(struct_type[0]));
-	memset(struct_type, 0, sizeof(struct_type[0]));
+	compound_type_t *compound_type 
+		= obstack_alloc(&env->obst, sizeof(compound_type[0]));
+	memset(compound_type, 0, sizeof(compound_type[0]));
+	typealias->type = (type_t*) compound_type;
 
-	struct_type->type.type     = TYPE_STRUCT;
-	struct_type->symbol        = typealias->symbol;
-	struct_entry_t *last_entry = NULL;
+	compound_type->type.type = TYPE_COMPOUND;
+	compound_type->symbol    = typealias->symbol;
 
 	if(env->token.type == T_INDENT) {
-		next_token(env);
-		do {
-			struct_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
-			memset(entry, 0, sizeof(entry[0]));
-
-			entry->type = parse_type(env);
-			if(env->token.type != T_IDENTIFIER) {
-				parse_error_expected(env, "Problem while parsing struct entry",
-				                     T_IDENTIFIER, 0);
-				eat_until_newline(env);
-				continue;
-			}
-			entry->symbol = env->token.v.symbol;
-			next_token(env);
-
-			if(last_entry == NULL) {
-				struct_type->entries = entry;
-			} else {
-				last_entry->next     = entry;
-			}
-			last_entry = entry;
-
-			expect(env, T_NEWLINE);
-		} while(env->token.type != T_DEDENT);
-		next_token(env);
+		compound_type->entries = parse_compound_entries(env);
 	}
-	typealias->type = (type_t*) struct_type;
+
+	return (namespace_entry_t*) typealias;
+}
+
+static
+namespace_entry_t *parse_union(parser_env_t *env)
+{
+	eat(env, T_union);
+
+	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	memset(typealias, 0, sizeof(typealias[0]));
+	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
+
+	if(env->token.type != T_IDENTIFIER) {
+		parse_error_expected(env, "Problem while parsing union",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline(env);
+		return NULL;
+	}
+	typealias->symbol = env->token.v.symbol;
+	next_token(env);
+
+	expect(env, ':');
+	expect(env, T_NEWLINE);
+
+	compound_type_t *compound_type 
+		= obstack_alloc(&env->obst, sizeof(compound_type[0]));
+	memset(compound_type, 0, sizeof(compound_type[0]));
+	typealias->type = (type_t*) compound_type;
+
+	compound_type->type.type = TYPE_COMPOUND;
+	compound_type->symbol    = typealias->symbol;
+	compound_type->is_union  = 1;
+
+	if(env->token.type == T_INDENT) {
+		compound_type->entries = parse_compound_entries(env);
+	}
 
 	return (namespace_entry_t*) typealias;
 }
@@ -1592,60 +1656,49 @@ namespace_entry_t *parse_typeclass_instance(parser_env_t *env)
 }
 
 static
+namespace_entry_t *parse_namespace_entry(parser_env_t *env)
+{
+	namespace_entry_t *entry = NULL;
+
+	if(env->token.type < 0) {
+		if(env->token.type == T_EOF)
+			return NULL;
+
+		/* this shouldn't happen if the lexer is correct... */
+		parse_error_expected(env, "problem while parsing namespace entry",
+		                     T_DEDENT, 0);
+		return NULL;
+	}
+
+	parse_namespace_entry_function parser = NULL;
+	if(env->token.type < ARR_LEN(env->namespace_parsers))
+		parser = env->namespace_parsers[env->token.type];
+
+	if(parser == NULL) {
+		parse_error_expected(env, "Couldn't parse compilation unit entry",
+		                     T_func, T_var, T_extern, T_struct, T_typeclass,
+		                     T_instance, 0);
+		eat_until_newline(env);
+		maybe_eat_block(env);
+		return NULL;
+	}
+
+	if(parser != NULL) {
+		entry = parser(env);
+	}
+
+	return entry;
+}
+
+static
 namespace_t *parse_namespace(parser_env_t *env)
 {
 	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
 	memset(namespace, 0, sizeof(namespace[0]));
 
-	while(1) {
-		namespace_entry_t *entry           = NULL;
+	while(env->token.type != T_EOF) {
 		source_position_t  source_position = env->source_position;
-
-		switch(env->token.type) {
-		case T_func:
-			entry = parse_method(env);
-			break;
-
-		case T_var:
-			entry = parse_global_variable(env);
-			break;
-
-		case T_extern:
-			entry = parse_extern(env);
-			break;
-
-		case T_struct:
-			entry = parse_struct(env);
-			break;
-
-		case T_typealias:
-			entry = parse_typealias(env);
-			break;
-
-		case T_typeclass:
-			entry = parse_typeclass(env);
-			break;
-
-		case T_instance:
-			entry = parse_typeclass_instance(env);
-			break;
-
-		case T_NEWLINE:
-		case ';':
-			next_token(env);
-			continue;
-
-		case T_EOF:
-			return namespace;
-
-		default:
-			parse_error_expected(env, "Couldn't parse compilation unit entry",
-			                     T_func, T_var, T_extern, T_struct, T_typeclass,
-			                     T_instance, 0);
-			eat_until_newline(env);
-			maybe_eat_block(env);
-			break;
-		}
+		namespace_entry_t *entry           = parse_namespace_entry(env);
 
 		if(entry != NULL) {
 			entry->next            = namespace->entries;
@@ -1653,13 +1706,35 @@ namespace_t *parse_namespace(parser_env_t *env)
 			namespace->entries     = entry;
 		}
 	}
+
+	return namespace;
+}
+
+static
+namespace_entry_t *skip_namespace_entry(parser_env_t *env)
+{
+	next_token(env);
+	return NULL;
+}
+
+static
+void register_namespace_parsers(parser_env_t *env)
+{
+	register_namespace_parser(env, parse_method, T_func);
+	register_namespace_parser(env, parse_global_variable, T_var);
+	register_namespace_parser(env, parse_extern, T_extern);
+	register_namespace_parser(env, parse_struct, T_struct);
+	register_namespace_parser(env, parse_union, T_union);
+	register_namespace_parser(env, parse_typealias, T_typealias);
+	register_namespace_parser(env, parse_typeclass, T_typeclass);
+	register_namespace_parser(env, parse_typeclass_instance, T_instance);
+	register_namespace_parser(env, skip_namespace_entry, T_NEWLINE);
 }
 
 parser_env_t *current_parser = NULL;
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
-	int i;
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
 
@@ -1667,6 +1742,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	env.expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
 	env.statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
+	env.namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
 
 	obstack_init(&env.obst);
 	typehash_init();
@@ -1678,14 +1754,12 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	register_expression_parsers(&env);
 	register_statement_parsers(&env);
+	register_namespace_parsers(&env);
 
 	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
-
 	initialize_plugins();
 
-	for(i = 0; i < LOOKAHEAD + 1; ++i) {
-		next_token(&env);
-	}
+	next_token(&env);
 
 	namespace_t *unit = parse_namespace(&env);
 
@@ -1695,6 +1769,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 	obstack_free(&env.obst, NULL);
 	typehash_destroy();
 	*/
+	DEL_ARR_F(env.namespace_parsers);
 	DEL_ARR_F(env.expression_parsers);
 	DEL_ARR_F(env.statement_parsers);
 

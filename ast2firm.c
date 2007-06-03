@@ -185,10 +185,10 @@ unsigned get_atomic_type_size(const atomic_type_t *type)
 }
 
 static
-unsigned get_struct_type_size(const struct_type_t *type)
+unsigned get_compound_type_size(const compound_type_t *type)
 {
 	(void) type;
-	panic("sizeof struct type not implemented yet");
+	panic("sizeof compound type not implemented yet");
 }
 
 static
@@ -212,8 +212,8 @@ unsigned get_type_size(const type_t *type)
 		return 0;
 	case TYPE_ATOMIC:
 		return get_atomic_type_size((const atomic_type_t*) type);
-	case TYPE_STRUCT:
-		return get_struct_type_size((const struct_type_t*) type);
+	case TYPE_COMPOUND:
+		return get_compound_type_size((const compound_type_t*) type);
 	case TYPE_METHOD:
 		/* just a pointer to the method */
 		return get_mode_size_bytes(mode_P_code);
@@ -309,7 +309,7 @@ ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 #define INVALID_TYPE ((ir_type_ptr)-1)
 
 static
-ir_type *get_struct_type(type2firm_env_t *env, struct_type_t *type)
+ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
 	ir_type *ir_type = new_type_struct(unique_id(type->symbol->string));
 #ifndef NDEBUG
@@ -320,7 +320,7 @@ ir_type *get_struct_type(type2firm_env_t *env, struct_type_t *type)
 
 	int align_all = 1;
 	int offset    = 0;
-	struct_entry_t *entry = type->entries;
+	compound_entry_t *entry = type->entries;
 	while(entry != NULL) {
 		ident       *ident         = new_id_from_str(entry->symbol->string);
 		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
@@ -355,6 +355,55 @@ ir_type *get_struct_type(type2firm_env_t *env, struct_type_t *type)
 }
 
 static
+ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
+{
+	symbol_t *symbol  = type->symbol;
+	ident    *id      = unique_id(symbol->string);
+	ir_type  *ir_type = new_type_union(id);
+#ifndef NDEBUG
+	/* detect compound types that contain themselfes. The semantic phase should
+	 * have already reported errors about this but you never know... */
+	type->type.firm_type = INVALID_TYPE;
+#endif
+
+	int align_all = 1;
+	int size      = 0;
+	compound_entry_t *entry = type->entries;
+	while(entry != NULL) {
+		ident       *ident         = new_id_from_str(entry->symbol->string);
+		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
+
+		int entry_size      = get_type_size_bytes(entry_ir_type);
+		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
+
+		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
+		add_union_member(ir_type, entity);
+		set_entity_offset(entity, 0);
+		entry->entity = entity;
+
+		if(entry_size > size) {
+			size = entry_size;
+		}
+		if(entry_alignment > align_all) {
+			if(entry_alignment % align_all != 0) {
+				panic("Uneven alignments not supported yet");
+			}
+			align_all = entry_alignment;
+		}
+
+		entry = entry->next;
+	}
+
+	set_type_alignment_bytes(ir_type, align_all);
+	set_type_size_bytes(ir_type, size);
+	set_type_state(ir_type, layout_fixed);
+
+	return ir_type;
+}
+
+
+
+static
 ir_type *get_type_for_type_variable(type2firm_env_t *env,
                                     type_reference_t *ref)
 {
@@ -371,6 +420,15 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
 	env->can_cache   = 0;
 
 	return ir_type;
+}
+
+static
+ir_type *get_compound_type(type2firm_env_t *env, compound_type_t *type)
+{
+	if(type->is_union)
+		return get_union_type(env, type);
+	else
+		return get_struct_type(env, type);
 }
 
 static
@@ -398,8 +456,8 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		/* there is no mode_VOID in firm, use mode_C */
 		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
 		break;
-	case TYPE_STRUCT:
-		firm_type = get_struct_type(env, (struct_type_t*) type);
+	case TYPE_COMPOUND:
+		firm_type = get_compound_type(env, (compound_type_t*) type);
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
@@ -427,9 +485,6 @@ ir_type *get_ir_type(type_t *type)
 static inline
 ir_mode *get_ir_mode(type_t *type)
 {
-	if(type->type == TYPE_STRUCT) {
-		return mode_P_data;
-	}
 	ir_type *irtype = get_ir_type(type);
 	ir_mode *mode   = get_type_mode(irtype);
 	assert(mode != NULL);
@@ -713,7 +768,7 @@ ir_node *select_expression_addr(const select_expression_t *select)
 	get_ir_type(compound_ptr->datatype);
 	ir_node      *compound_ptr_node = expression_to_firm(compound_ptr);
 	ir_node      *nomem             = new_NoMem();
-	ir_entity    *entity            = select->struct_entry->entity;
+	ir_entity    *entity            = select->compound_entry->entity;
 	ir_node      *addr              = new_simpleSel(nomem, compound_ptr_node,
 	                                                entity);
 
