@@ -18,13 +18,13 @@ struct source_position_t {
 
 struct lexer_t {
 	int               c;
+	source_position_t source_position;
 	FILE             *input;
 	char              buf[1024];
 	const char       *bufend;
 	const char       *bufpos;
 	symbol_table_t   *symbol_table;
 	struct obstack   *obst;
-	source_position_t source_position;
 	strset_t          stringset;
 	int               at_line_begin;
 	unsigned          not_returned_dedents;

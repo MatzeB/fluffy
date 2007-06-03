@@ -16,4 +16,7 @@ func int main():
 	print_int(0b0)
 	print_int(0O0)
 
+	print_int('*')
+	print_int('\\')
+
 	return 23

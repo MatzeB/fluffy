@@ -29,12 +29,11 @@ typedef struct expression_parse_function_t {
 
 struct parser_env_t {
 	token_t                         token;
-	source_position_t               source_position;
+	lexer_t                         lexer;
+	symbol_table_t                  symbol_table;
 	expression_parse_function_t    *expression_parsers;
 	parse_statement_function       *statement_parsers;
 	parse_namespace_entry_function *namespace_parsers;
-	lexer_t                         lexer;
-	symbol_table_t                  symbol_table;
 	int                             error;
 	struct obstack                  obst;
 };
@@ -56,11 +55,12 @@ void register_namespace_parser(parser_env_t *env,
 
 expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence);
 
+void parser_print_error_prefix(parser_env_t *env);
+
 static inline
 void next_token(parser_env_t *env)
 {
 	lexer_next_token(&env->lexer, &env->token);
-	env->source_position = env->lexer.source_position;
 
 #ifdef PRINT_TOKENS
 	print_token(stderr, & env->token);
@@ -74,6 +74,17 @@ void eat(parser_env_t *env, token_type_t type)
 	assert(env->token.type == type);
 	next_token(env);
 }
+
+/*------- helpers for plugins */
+
+extern parser_env_t *current_parser;
+
+/* allocates on ast obstack */
+void *allocate_ast(parser_env_t *env, size_t size);
+
+expression_t      *parse_expression(parser_env_t *env);
+statement_t       *parse_statement(parser_env_t *env);
+namespace_entry_t *parse_namespace_entry(parser_env_t *env);
 
 #endif
 

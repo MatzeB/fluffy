@@ -102,6 +102,7 @@ void compile(const char *fname)
 #endif
 
 	if(!check_static_semantic(namespace)) {
+		print_ast(stderr, namespace);
 		fprintf(stderr, "Semantic errors found\n");
 		exit(1);
 	}

@@ -19,11 +19,6 @@
 #include "adt/util.h"
 #include "adt/error.h"
 
-typedef enum {
-	ERR_WARNING,
-	ERR_ERROR
-} error_type_t;
-
 static inline
 void parser_found_error(parser_env_t *env)
 {
@@ -33,23 +28,18 @@ void parser_found_error(parser_env_t *env)
 #endif
 }
 
-static
-void print_error_prefix(parser_env_t *env, error_type_t error_type)
+void parser_print_error_prefix(parser_env_t *env)
 {
-	fputs(env->source_position.input_name, stderr);
+	fputs(env->lexer.source_position.input_name, stderr);
 	fputc(':', stderr);
-	fprintf(stderr, "%d", env->source_position.linenr);
-	if(error_type == ERR_WARNING) {
-		fputs(": warning: ", stderr);
-	} else {
-		fputs(": error: ", stderr);
-	}
+	fprintf(stderr, "%d", env->lexer.source_position.linenr);
+	fputs(": error: ", stderr);
 }
 
 static
 void parse_error(parser_env_t *env, const char *message)
 {
-	print_error_prefix(env, ERR_ERROR);
+	parser_print_error_prefix(env);
 	fprintf(stderr, "parse error: %s\n", message);
 	parser_found_error(env);
 }
@@ -61,10 +51,10 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 	int first = 1;
 
 	if(message != NULL) {
-		print_error_prefix(env, ERR_ERROR);
+		parser_print_error_prefix(env);
 		fprintf(stderr, "%s\n", message);
 	}
-	print_error_prefix(env, ERR_ERROR);
+	parser_print_error_prefix(env);
 	fputs("Parse error: got ", stderr);
 	print_token(stderr, &env->token);
 	fputs(", expected ", stderr);
@@ -239,7 +229,7 @@ type_t *parse_type_ref(parser_env_t *env)
 
 	type_ref->type.type       = TYPE_REFERENCE;
 	type_ref->symbol          = env->token.v.symbol;
-	type_ref->source_position = env->source_position;
+	type_ref->source_position = env->lexer.source_position;
 	next_token(env);
 
 	return (type_t*) type_ref;
@@ -382,13 +372,11 @@ expression_t *parse_reference(parser_env_t *env)
 	next_token(env);
 
 	/* this is ambiguous with the less binary expression... */
-#if 0
-	if(env->token.type == '<') {
+	if(env->token.type == T_TYPESTART) {
 		next_token(env);
 		ref->type_arguments = parse_type_arguments(env);
 		expect(env, '>');
 	}
-#endif
 
 	return (expression_t*) ref;
 }
@@ -409,9 +397,6 @@ expression_t *parse_sizeof(parser_env_t *env)
 
 	return (expression_t*) expression;
 }
-
-static
-expression_t *parse_expression(parser_env_t *env);
 
 void register_statement_parser(parser_env_t *env,
                                parse_statement_function parser, int token_type)
@@ -487,7 +472,7 @@ void register_expression_infix_parser(parser_env_t *env,
 static
 expression_t *expected_expression_error(parser_env_t *env)
 {
-	print_error_prefix(env, ERR_ERROR);
+	parser_print_error_prefix(env);
 	fprintf(stderr, "expected expression, got token ");
 	print_token(stderr, & env->token);
 	fprintf(stderr, "\n");
@@ -743,7 +728,7 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 
 	expression_parse_function_t *parser
 		= & env->expression_parsers[env->token.type];
-	source_position_t  source_position = env->source_position;
+	source_position_t  source_position = env->lexer.source_position;
 	expression_t      *left;
 	
 	if(parser->parser != NULL) {
@@ -766,13 +751,13 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 			break;
 
 		left = parser->infix_parser(env, parser->infix_precedence, left);
-		left->source_position = source_position;
+		if(left != NULL)
+			left->source_position = source_position;
 	}
 
 	return left;
 }
 
-static
 expression_t *parse_expression(parser_env_t *env)
 {
 	return parse_sub_expression(env, 1);
@@ -781,9 +766,6 @@ expression_t *parse_expression(parser_env_t *env)
 
 
 
-
-static
-statement_t *parse_statement(parser_env_t *env);
 
 static
 statement_t *parse_return_statement(parser_env_t *env)
@@ -890,7 +872,7 @@ statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 	memset(assign, 0, sizeof(assign[0]));
 
 	assign->expression.type            = EXPR_BINARY;
-	assign->expression.source_position = env->source_position;
+	assign->expression.source_position = env->lexer.source_position;
 	assign->type                       = BINEXPR_ASSIGN;
 	assign->left                       = (expression_t*) ref;
 	assign->right                      = parse_expression(env);
@@ -1004,11 +986,10 @@ void register_statement_parsers(parser_env_t *env)
 	register_statement_parser(env, parse_newline, T_NEWLINE);
 }
 
-static
 statement_t *parse_statement(parser_env_t *env)
 {
 	statement_t       *statement;
-	source_position_t  source_position = env->source_position;
+	source_position_t  source_position = env->lexer.source_position;
 
 	if(env->token.type < 0) {
 		/* this shouldn't happen if the lexer is correct... */
@@ -1655,7 +1636,6 @@ namespace_entry_t *parse_typeclass_instance(parser_env_t *env)
 	return (namespace_entry_t*) instance;
 }
 
-static
 namespace_entry_t *parse_namespace_entry(parser_env_t *env)
 {
 	namespace_entry_t *entry = NULL;
@@ -1697,7 +1677,7 @@ namespace_t *parse_namespace(parser_env_t *env)
 	memset(namespace, 0, sizeof(namespace[0]));
 
 	while(env->token.type != T_EOF) {
-		source_position_t  source_position = env->source_position;
+		source_position_t  source_position = env->lexer.source_position;
 		namespace_entry_t *entry           = parse_namespace_entry(env);
 
 		if(entry != NULL) {
@@ -1732,6 +1712,11 @@ void register_namespace_parsers(parser_env_t *env)
 }
 
 parser_env_t *current_parser = NULL;
+
+void *allocate_ast(parser_env_t *env, size_t size)
+{
+	return obstack_alloc(&env->obst, size);
+}
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
@@ -1777,6 +1762,8 @@ namespace_t *parse(FILE *in, const char *input_name)
 		fprintf(stderr, "Errors happened...\n");
 		return NULL;
 	}
+
+	current_parser = NULL;
 
 	return unit;
 }

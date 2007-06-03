@@ -58,7 +58,7 @@ void init_tables()
 
 	static const int ops[] = {
 		'+', '-', '*', '/', '=', '<', '>', '.', '^', '!', '?', '&', '%',
-		'~', '|', '\\'
+		'~', '|', '\\', '$'
 	};
 	for(size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); ++i) {
 		int c        = ops[i];
@@ -585,12 +585,18 @@ void lexer_next_token(lexer_t *this, token_t *token)
 			}
 			token->type       = T_INTEGER;
 			token->v.intvalue = this->c;
+			next_char(this);
+		}
+		int err_displayed = 0;
+		while(this->c != '\'' && this->c != EOF) {
+			if(!err_displayed) {
+				parse_error(this, "multibyte character constant");
+				err_displayed = 1;
+			}
+			token->type = T_ERROR;
+			next_char(this);
 		}
 		next_char(this);
-		if(this->c != '\'') {
-			parse_error(this, "multibyte character constant");
-			token->type = T_ERROR;
-		}
 		break;
 
 	case START_NEWLINE:

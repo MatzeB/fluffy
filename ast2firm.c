@@ -23,9 +23,9 @@
 static variable_declaration_statement_t **value_numbers = NULL;
 static label_statement_t                 *labels        = NULL;
 
-static ir_type *byte_array_type = NULL;
-
 typedef struct instantiate_method_t  instantiate_method_t;
+
+static ir_type *byte_ir_type = NULL;
 
 struct instantiate_method_t {
 	method_t             *method;
@@ -92,10 +92,7 @@ void initialize_firm(void)
 	byte_type.type.type = TYPE_ATOMIC;
 	byte_type.atype     = ATOMIC_TYPE_BYTE;
 
-	ir_type *byte_ir_type = get_ir_type((type_t*) &byte_type);
-	byte_array_type       = new_type_array(new_id_from_str("bytearray"), 1,
-	                                       byte_ir_type);
-	set_array_lower_bound_int(byte_array_type, 0, 0);
+	byte_ir_type = get_ir_type((type_t*) &byte_type);
 }
 
 void exit_firm(void)
@@ -151,7 +148,7 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 
 
 static
-unsigned get_type_size(const type_t *type);
+unsigned get_type_size(type_t *type);
 
 static
 unsigned get_atomic_type_size(const atomic_type_t *type)
@@ -185,10 +182,10 @@ unsigned get_atomic_type_size(const atomic_type_t *type)
 }
 
 static
-unsigned get_compound_type_size(const compound_type_t *type)
+unsigned get_compound_type_size(compound_type_t *type)
 {
-	(void) type;
-	panic("sizeof compound type not implemented yet");
+	ir_type *irtype = get_ir_type(&type->type);
+	return get_type_size_bytes(irtype);
 }
 
 static
@@ -205,7 +202,7 @@ unsigned get_type_reference_type_var_size(const type_reference_t *type)
 }
 
 static
-unsigned get_type_size(const type_t *type)
+unsigned get_type_size(type_t *type)
 {
 	switch(type->type) {
 	case TYPE_VOID:
@@ -213,7 +210,7 @@ unsigned get_type_size(const type_t *type)
 	case TYPE_ATOMIC:
 		return get_atomic_type_size((const atomic_type_t*) type);
 	case TYPE_COMPOUND:
-		return get_compound_type_size((const compound_type_t*) type);
+		return get_compound_type_size((compound_type_t*) type);
 	case TYPE_METHOD:
 		/* just a pointer to the method */
 		return get_mode_size_bytes(mode_P_code);
@@ -728,16 +725,24 @@ static
 ir_node *string_const_to_firm(const string_const_t* cnst)
 {
 	ir_type   *global_type = get_glob_type();
-	ir_entity *ent         = new_entity(global_type, unique_id("str"),
-	                                    byte_array_type);
+	ir_type   *type        = new_type_array(unique_id("bytearray"), 1,
+	                                        byte_ir_type);
+
+	ir_entity *ent = new_entity(global_type, unique_id("str"), type);
 	set_entity_variability(ent, variability_constant);
 
-	ir_type    *elem_type  = get_array_element_type(byte_array_type);
-	ir_mode    *mode       = get_type_mode(elem_type);
+	ir_type    *elem_type = byte_ir_type;
+	ir_mode    *mode      = get_type_mode(elem_type);
 
-	const char *string     = cnst->value;
-	size_t      slen       = strlen(string) + 1;
-	tarval    **tvs        = xmalloc(slen * sizeof(tvs[0]));
+	const char *string = cnst->value;
+	size_t      slen   = strlen(string) + 1;
+
+	set_array_lower_bound_int(type, 0, 0);
+	set_array_upper_bound_int(type, 0, slen);
+	set_type_size_bytes(type, slen);
+	set_type_state(type, layout_fixed);
+
+	tarval    **tvs = xmalloc(slen * sizeof(tvs[0]));
 	for(size_t i = 0; i < slen; ++i) {
 		tvs[i] = new_tarval_from_long(string[i], mode);
 	}
@@ -833,11 +838,14 @@ ir_node *global_variable_reference_addr(const reference_expression_t *ref)
 static
 ir_node *expression_addr(const expression_t *expression)
 {
-	const unary_expression_t *unexpr;
+	const unary_expression_t  *unexpr;
+	const select_expression_t *select;
 
 	switch(expression->type) {
 	case EXPR_SELECT:
-		return select_expression_addr((const select_expression_t*) expression);
+		select = (const select_expression_t*) expression;
+		assert(!select->selects_sub_struct);
+		return select_expression_addr(select);
 	case EXPR_ARRAY_ACCESS:
 		return array_access_expression_addr(
 				(const array_access_expression_t*) expression);
@@ -1004,6 +1012,16 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 	default:
 		abort();
 	}
+}
+
+static
+ir_node *select_expression_to_firm(const select_expression_t *select)
+{
+	ir_node *addr = select_expression_addr(select);
+	if(select->selects_sub_struct)
+		return addr;
+
+	return load_from_expression_addr(&select->expression, addr);
 }
 
 static
@@ -1216,9 +1234,11 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_UNARY:
 		return unary_expression_to_firm(
 				(const unary_expression_t*) expression);
+	case EXPR_SELECT:
+		return select_expression_to_firm(
+				(const select_expression_t*) expression);
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 	case EXPR_ARRAY_ACCESS:
-	case EXPR_SELECT:
 		addr = expression_addr(expression);
 		return load_from_expression_addr(expression, addr);
 	case EXPR_CALL:
@@ -1228,6 +1248,7 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const sizeof_expression_t*) expression);
 	case EXPR_REFERENCE:
 		panic("reference expressions not lowered");
+	case EXPR_LAST:
 	case EXPR_INVALID:
 		break;
 	}

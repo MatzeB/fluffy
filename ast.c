@@ -43,6 +43,28 @@ void print_call_expression(FILE *out, const call_expression_t *call)
 }
 
 static
+void print_type_arguments(FILE *out, const type_argument_t *type_arguments)
+{
+	const type_argument_t *argument = type_arguments;
+	int                    first    = 1;
+
+	while(argument != NULL) {
+		if(first) {
+			fprintf(out, "<$");
+			first = 0;
+		} else {
+			fprintf(out, ", ");
+		}
+		print_type(out, argument->type);
+
+		argument = argument->next;
+	}
+	if(type_arguments != NULL) {
+		fprintf(out, ">");
+	}
+}
+
+static
 void print_reference_expression(FILE *out, const reference_expression_t *ref)
 {
 	if(ref->expression.type == EXPR_REFERENCE) {
@@ -50,24 +72,7 @@ void print_reference_expression(FILE *out, const reference_expression_t *ref)
 	}
 	fprintf(out, "%s", ref->symbol->string);
 
-	type_argument_t *type_argument = ref->type_arguments;
-	int              first         = 1;
-	while(type_argument != NULL) {
-		if(first) {
-			fprintf(out, "<");
-			first = 0;
-		} else {
-			fprintf(out, ", ");
-		}
-
-		type_t *type = type_argument->type;
-		print_type(out, type);
-
-		type_argument = type_argument->next;
-	}
-
-	if(ref->type_arguments != NULL)
-		fprintf(out, ">");
+	print_type_arguments(out, ref->type_arguments);
 }
 
 static
@@ -98,6 +103,7 @@ void print_binary_expression(FILE *out, const binary_expression_t *binexpr)
 void print_expression(FILE *out, const expression_t *expression)
 {
 	switch(expression->type) {
+	case EXPR_LAST:
 	case EXPR_INVALID:
 		fprintf(out, "*invalid expression*");
 		break;
@@ -211,9 +217,6 @@ void print_statement(FILE *out, int indent, const statement_t *statement)
 		fprintf(out, "\t");
 
 	switch(statement->type) {
-	case STATEMENT_INVALID:
-		fprintf(out, "*invalid statement*");
-		break;
 	case STATEMENT_BLOCK:
 		print_block_statement(out, indent,
 		                      (const block_statement_t*) statement);
@@ -238,6 +241,12 @@ void print_statement(FILE *out, int indent, const statement_t *statement)
 		print_variable_declaration_statement(out,
 		        (const variable_declaration_statement_t*) statement);
 		break;
+	case STATEMENT_LAST:
+	case STATEMENT_INVALID:
+	default:
+		fprintf(out, "*invalid statement*");
+		break;
+
 	}
 	fprintf(out, "\n");
 }
@@ -267,20 +276,10 @@ void print_type_variable(FILE *out, const type_variable_t *type_variable)
 }
 
 static
-void print_method(FILE *out, const method_t *method)
+void print_type_parameters(FILE *out, const type_variable_t *type_parameters)
 {
-	method_type_t *type = method->type;
-
-	if(method->is_extern) {
-		fprintf(out, "extern ");
-	}
-
-	fprintf(out, "func ");
-	print_type(out, type->result_type);
-	fprintf(out, " %s", method->symbol->string);
-
-	int              first = 1;
-	type_variable_t *type_parameter = method->type_parameters;
+	int                    first          = 1;
+	const type_variable_t *type_parameter = type_parameters;
 	while(type_parameter != NULL) {
 		if(first) {
 			fprintf(out, "<");
@@ -292,13 +291,20 @@ void print_method(FILE *out, const method_t *method)
 		
 		type_parameter = type_parameter->next;
 	}
-	if(method->type_parameters != NULL)
+	if(type_parameters != NULL)
 		fprintf(out, ">");
+}
+
+static
+void print_method_parameters(FILE *out, const method_parameter_t *parameters,
+                             const method_type_t *method_type)
+{
 	fprintf(out, "(");
 
-	first = 1;
-	method_parameter_t      *parameter      = method->parameters;
-	method_parameter_type_t *parameter_type = type->parameter_types;
+	int                            first          = 1;
+	const method_parameter_t      *parameter      = parameters;
+	const method_parameter_type_t *parameter_type 
+		= method_type->parameter_types;
 	while(parameter != NULL && parameter_type != NULL) {
 		if(!first) {
 			fprintf(out, ", ");
@@ -315,11 +321,101 @@ void print_method(FILE *out, const method_t *method)
 	assert(parameter == NULL && parameter_type == NULL);
 
 	fprintf(out, ")");
+}
+
+static
+void print_method(FILE *out, const method_t *method)
+{
+	method_type_t *type = method->type;
+
+	if(method->is_extern) {
+		fprintf(out, "extern ");
+	}
+
+	fprintf(out, "func ");
+	print_type(out, type->result_type);
+	fprintf(out, " %s", method->symbol->string);
+
+	print_type_parameters(out, method->type_parameters);
+
+	print_method_parameters(out, method->parameters, type);
+
 	if(method->statement != NULL) {
 		fprintf(out, ":\n");
 		print_statement(out, 0, method->statement);
 	} else {
 		fprintf(out, "\n");
+	}
+}
+
+static
+void print_typeclass_method(FILE *out, const typeclass_method_t *method)
+{
+	fprintf(out, "\tfunc ");
+	print_type(out, method->method_type->result_type);
+	fprintf(out, "%s", method->symbol->string);
+	print_method_parameters(out, method->parameters, method->method_type);
+	fprintf(out, "\n\n");
+}
+
+static
+void print_typeclass(FILE *out, const typeclass_t *typeclass)
+{
+	fprintf(out, "typeclass %s", typeclass->symbol->string);
+	print_type_parameters(out, typeclass->type_parameters);
+	fprintf(out, ":\n");
+
+	typeclass_method_t *method = typeclass->methods;
+	while(method != NULL) {
+		print_typeclass_method(out, method);
+
+		method = method->next;
+	}
+}
+
+static
+void print_typeclass_method_instance(FILE *out,
+                                   typeclass_method_instance_t *method_instance)
+{
+	fprintf(out, "\tfunc ");
+	print_type(out, method_instance->method->type->result_type);
+	fprintf(out, " ");
+
+	if(method_instance->typeclass_method != NULL) {
+		typeclass_method_t *method = method_instance->typeclass_method;
+		fprintf(out, "%s", method->symbol->string);
+	} else {
+		fprintf(out, "?%s", method_instance->method->symbol->string);
+	}
+
+	method_t *method = method_instance->method;
+	print_method_parameters(out, method->parameters, method->type);
+
+	if(method->statement != NULL) {
+		fprintf(out, ":\n");
+		print_statement(out, 1, method->statement);
+	} else {
+		fprintf(out, "\n");
+	}
+}
+
+static
+void print_typeclass_instance(FILE *out, const typeclass_instance_t *instance)
+{
+	fprintf(out, "instance ");
+	if(instance->typeclass != NULL) {
+		fprintf(out, "%s", instance->typeclass->symbol->string);
+	} else {
+		fprintf(out, "?%s", instance->typeclass_symbol->string);
+	}
+	print_type_arguments(out, instance->type_arguments);
+	fprintf(out, ":\n");
+
+	typeclass_method_instance_t *method_instance = instance->method_instances;
+	while(method_instance != NULL) {
+		print_typeclass_method_instance(out, method_instance);
+
+		method_instance = method_instance->next;
 	}
 }
 
@@ -330,12 +426,21 @@ void print_namespace_entry(FILE *out, const namespace_entry_t *entry)
 	case NAMESPACE_ENTRY_METHOD:
 		print_method(out, (const method_t*) entry);
 		break;
+	case NAMESPACE_ENTRY_TYPECLASS:
+		print_typeclass(out, (const typeclass_t*) entry);
+		break;
+	case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
+		print_typeclass_instance(out, (const typeclass_instance_t*) entry);
+		break;
 	case NAMESPACE_ENTRY_VARIABLE:
 	case NAMESPACE_ENTRY_TYPEALIAS:
-	case NAMESPACE_ENTRY_TYPECLASS:
-	case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 		/* TODO */
 		fprintf(out, "some namespace entry of type %d\n\n", entry->type);
+		break;
+	case NAMESPACE_ENTRY_INVALID:
+	case NAMESPACE_ENTRY_LAST:
+	default:
+		fprintf(out, "invalid namespace entry (%d)\n", entry->type);
 		break;
 	}
 }
@@ -349,5 +454,26 @@ void print_ast(FILE *out, const namespace_t *namespace)
 
 		entry = entry->next;
 	}
+}
+
+int register_expression()
+{
+	static int nextid = EXPR_LAST;
+	++nextid;
+	return nextid;
+}
+
+int register_statement()
+{
+	static int nextid = STATEMENT_LAST;
+	++nextid;
+	return nextid;
+}
+
+int register_namespace_entry()
+{
+	static int nextid = NAMESPACE_ENTRY_LAST;
+	++nextid;
+	return nextid;
 }
 

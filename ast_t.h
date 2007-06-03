@@ -25,7 +25,8 @@ typedef enum {
 	EXPR_BINARY,
 	EXPR_SELECT,
 	EXPR_ARRAY_ACCESS,
-	EXPR_SIZEOF
+	EXPR_SIZEOF,
+	EXPR_LAST
 } expresion_type_t;
 
 struct expression_t {
@@ -123,6 +124,7 @@ struct select_expression_t {
 	expression_t      expression;
 	expression_t     *compound;
 	symbol_t         *symbol;
+	int               selects_sub_struct;
 
 	compound_entry_t *compound_entry;
 };
@@ -146,7 +148,8 @@ typedef enum {
 	STATEMENT_IF,
 	STATEMENT_EXPRESSION,
 	STATEMENT_GOTO,
-	STATEMENT_LABEL
+	STATEMENT_LABEL,
+	STATEMENT_LAST
 } statement_type_t;
 
 struct statement_t {
@@ -201,11 +204,13 @@ struct expression_statement_t {
 };
 
 enum namespace_entry_type_t {
+	NAMESPACE_ENTRY_INVALID,
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
 	NAMESPACE_ENTRY_TYPEALIAS,
 	NAMESPACE_ENTRY_TYPECLASS,
-	NAMESPACE_ENTRY_TYPECLASS_INSTANCE
+	NAMESPACE_ENTRY_TYPECLASS_INSTANCE,
+	NAMESPACE_ENTRY_LAST
 };
 
 struct namespace_entry_t {
@@ -290,5 +295,11 @@ struct typeclass_t {
 struct namespace_t {
 	namespace_entry_t *entries;
 };
+
+/* ----- helpers for plugins ------ */
+
+int register_expression();
+int register_statement();
+int register_namespace_entry();
 
 #endif

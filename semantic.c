@@ -351,6 +351,7 @@ void check_reference_expression(semantic_env_t *env,
 		return;
 	}
 
+	/* resolve reference */
 	switch(entry->type) {
 	case ENTRY_LOCAL_VARIABLE:
 		variable                 = entry->e.variable;
@@ -393,19 +394,34 @@ void check_reference_expression(semantic_env_t *env,
 		panic("Unknown reference type encountered");
 		break;
 	}
+
+	/* normalize type arguments */
+	type_argument_t *type_argument = ref->type_arguments;
+	while(type_argument != NULL) {
+		fprintf(stderr, "Normalizing: ");
+		print_type(stderr, type_argument->type);
+		fprintf(stderr, "\n");
+
+		type_argument->type = normalize_type(env, type_argument->type);
+
+		type_argument = type_argument->next;
+	}
 }
 
 static
 int is_lvalue(const expression_t *expression)
 {
-	unary_expression_t *unexpr;
+	unary_expression_t  *unexpr;
+	select_expression_t *select;
 
 	switch(expression->type) {
 	case EXPR_REFERENCE_VARIABLE:
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
-	case EXPR_SELECT:
 	case EXPR_ARRAY_ACCESS:
 		return 1;
+	case EXPR_SELECT:
+		select = (select_expression_t*) expression;
+		return !select->selects_sub_struct;
 	case EXPR_UNARY:
 		unexpr = (unary_expression_t*) expression;
 		if(unexpr->type == UNEXPR_DEREFERENCE)
@@ -460,11 +476,11 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 
 static
 expression_t *make_cast(semantic_env_t *env, expression_t *from,
-                        type_t *destination_type,
+                        type_t *dest_type,
                         const source_position_t source_position)
 {
-	assert(from->datatype != destination_type);
-	if(destination_type == NULL)
+	assert(from->datatype != dest_type);
+	if(dest_type == NULL)
 		return from;
 
 	/* TODO: - test which types can be implicitely casted... 
@@ -476,41 +492,94 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 	if(from_type == NULL) {
 		print_error_prefix(env, from->source_position);
 		fprintf(stderr, "can't implicitely cast from unknown type\n");
-		return from;
+		return NULL;
 	}
 
 	int implicit_cast_allowed = 1;
 	if(from_type->type == TYPE_POINTER) {
-		if(destination_type->type == TYPE_POINTER) {
+		if(dest_type->type == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) from_type;
-			pointer_type_t *p2 = (pointer_type_t*) destination_type;
+			pointer_type_t *p2 = (pointer_type_t*) dest_type;
 			if(p1->points_to != p2->points_to
-					&& destination_type != env->type_void_ptr) {
+					&& dest_type != env->type_void_ptr) {
 				implicit_cast_allowed = 0;
 			}
 		} else {
 			implicit_cast_allowed = 0;
 		}
-	} else if(destination_type->type == TYPE_POINTER) {
+	} else if(dest_type->type == TYPE_POINTER) {
 		implicit_cast_allowed = 0;
-	}
+	} else if(from_type->type == TYPE_ATOMIC) {
+		if(dest_type->type != TYPE_ATOMIC) {
+			implicit_cast_allowed = 0;
+		} else {
+			atomic_type_t      *from_type_atomic = (atomic_type_t*) from_type;
+			atomic_type_type_t  from_atype       = from_type_atomic->atype;
+			atomic_type_t      *dest_type_atomic = (atomic_type_t*) dest_type;
+			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
 
+			switch(from_atype) {
+			case ATOMIC_TYPE_UBYTE:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_USHORT) ||
+					(dest_atype == ATOMIC_TYPE_SHORT);
+			case ATOMIC_TYPE_USHORT:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_UINT) ||
+					(dest_atype == ATOMIC_TYPE_INT);
+			case ATOMIC_TYPE_UINT:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_ULONG) ||
+					(dest_atype == ATOMIC_TYPE_LONG);
+			case ATOMIC_TYPE_ULONG:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_ULONGLONG) ||
+					(dest_atype == ATOMIC_TYPE_LONGLONG);
+				break;
+			case ATOMIC_TYPE_BYTE:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_SHORT);
+			case ATOMIC_TYPE_SHORT:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_INT);
+			case ATOMIC_TYPE_INT:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_LONG);
+			case ATOMIC_TYPE_LONG:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_LONGLONG);
+				break;
+
+			case ATOMIC_TYPE_FLOAT:
+				implicit_cast_allowed = (dest_atype == ATOMIC_TYPE_DOUBLE);
+				break;
+
+			case ATOMIC_TYPE_DOUBLE:
+			case ATOMIC_TYPE_LONGLONG:
+			case ATOMIC_TYPE_ULONGLONG:
+			case ATOMIC_TYPE_INVALID:
+			case ATOMIC_TYPE_BOOL:
+				implicit_cast_allowed = 0;
+				break;
+			}
+		}
+	}
 
 	if(!implicit_cast_allowed) {
 		print_error_prefix(env, source_position);
 		fprintf(stderr, "can't implicitely cast ");
 		print_type(stderr, from_type);
 		fprintf(stderr, " to ");
-		print_type(stderr, destination_type);
+		print_type(stderr, dest_type);
 		fprintf(stderr, "\n");
-		return from;
+		return NULL;
 	}
 
 	unary_expression_t *cast  = obstack_alloc(env->obst, sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
 	cast->expression.type     = EXPR_UNARY;
 	cast->type                = UNEXPR_CAST;
-	cast->expression.datatype = destination_type;
+	cast->expression.datatype = dest_type;
 	cast->value               = from;
 
 	return (expression_t*) cast;
@@ -826,7 +895,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	expression_t  *method = call->method;
 
 	check_expression(env, method);
-	type_t *type = method->datatype;
+	type_t          *type           = method->datatype;
+	type_argument_t *type_arguments = NULL;
 
 	/* can happen if we had a deeper semantic error */
 	if(type == NULL)
@@ -861,10 +931,12 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		typeclass_t            *typeclass        = typeclass_method->typeclass;
 		
 		type_variables = typeclass->type_parameters;
+		type_arguments = ref->type_arguments;
 	} else if(method->type == EXPR_REFERENCE_METHOD) {
 		reference_expression_t *ref	= (reference_expression_t*) method;
 		method_t *referenced_method = ref->r.method;
 		type_variables              = referenced_method->type_parameters;
+		type_arguments              = ref->type_arguments;
 	}
 
 	/* clear typevariable configuration */
@@ -874,6 +946,23 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			type_var->current_type = NULL;
 
 			type_var = type_var->next;
+		}
+	}
+
+	/* apply type arguments */
+	if(type_arguments != NULL) {
+		type_variable_t *type_var      = type_variables;
+		type_argument_t *type_argument = type_arguments;
+		while(type_argument != NULL && type_var != NULL) {
+			type_var->current_type = type_argument->type;
+
+			type_var      = type_var->next;
+			type_argument = type_argument->next;
+		}
+
+		if(type_argument != NULL || type_var != NULL) {
+			error_at(env, method->source_position,
+			         "wrong number of type arguments on method reference");
 		}
 	}
 
@@ -896,16 +985,20 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		type_t       *expression_type = expression->datatype;
 
 		/* match type of argument against type variables */
-		if(type_variables != NULL) {
+		if(type_variables != NULL && type_arguments == NULL) {
 			match_variant_to_concrete_type(env, wanted_type, expression_type,
 			                               expression->source_position);
 		} else if(expression_type != wanted_type) {
-			print_error_prefix(env, expression->source_position);
-			fprintf(stderr, "invalid type for argument %d of call: ", i);
-			print_type(stderr, expression->datatype);
-			fprintf(stderr, " should be ");
-			print_type(stderr, wanted_type);
-			fprintf(stderr, "\n");
+			expression = make_cast(env, expression, wanted_type,
+			                       expression->source_position);
+			if(expression == NULL) {
+				print_error_prefix(env, expression->source_position);
+				fprintf(stderr, "invalid type for argument %d of call: ", i);
+				print_type(stderr, expression->datatype);
+				fprintf(stderr, " should be ");
+				print_type(stderr, wanted_type);
+				fprintf(stderr, "\n");
+			}
 		}
 		argument->expression = expression;
 
@@ -928,7 +1021,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 					"variable '%s' in call expression\n",
 			        type_var->symbol->string);
 		}
-		fprintf(stderr, "TypeVar '%s' bound to ", type_var->symbol->string);
+		fprintf(stderr, "TypeVar '%s'(%p) bound to ", type_var->symbol->string,
+				type_var->symbol);
 		print_type(stderr, type_var->current_type);
 		fprintf(stderr, "\n");
 
@@ -941,7 +1035,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		int set_type_arguments = 1;
 		reference_expression_t *ref = (reference_expression_t*) method;
 		type_variable_t        *type_parameters;
-		result_type = normalize_type(env, result_type);
+		result_type                 = create_concrete_type(result_type);
 
 		if(method->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
 			/* we might be able to resolve the typeclass_method_instance now */
@@ -991,6 +1085,9 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		type_variable_t *type_var = type_variables;
 		while(type_var != NULL) {
 			type_var->current_type = NULL;
+
+			fprintf(stderr, "Unbind %s(%p)\n", type_var->symbol->string,
+					type_var->symbol);
 
 			type_var = type_var->next;
 		}
@@ -1104,6 +1201,7 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		if(result_type != (type_t*) pointer) {
 			obstack_free(type_obst, pointer);
 		}
+		select->selects_sub_struct = 1;
 	}
 
 	select->compound_entry      = entry;
@@ -1651,7 +1749,7 @@ void resolve_typeclass_instance(semantic_env_t *env,
 		type_argument = type_argument->next;
 	}
 
-	/* link methods */
+	/* link methods and normalize their types */
 	typeclass_method_t *method = typeclass->methods;
 	while(method != NULL) {
 		int                          found_instance = 0;
@@ -1678,6 +1776,8 @@ void resolve_typeclass_instance(semantic_env_t *env,
 				method_instance->typeclass_instance = instance;
 			}
 
+			imethod->type 
+				= (method_type_t*) normalize_type(env, (type_t*) imethod->type);
 			method_instance = method_instance->next;
 		}
 		if(found_instance == 0) {
