@@ -7,7 +7,10 @@
 #include "semantic.h"
 #include "lexer_t.h"
 #include "type.h"
+#include "adt/obst.h"
 #include <libfirm/typerep.h>
+
+extern struct obstack ast_obstack;
 
 typedef enum {
 	EXPR_INVALID = 0,
@@ -295,6 +298,14 @@ struct typeclass_t {
 struct namespace_t {
 	namespace_entry_t *entries;
 };
+
+static inline
+void *_allocate_ast(size_t size)
+{
+	return obstack_alloc(&ast_obstack, size);
+}
+
+#define allocate_ast(size)                 _allocate_ast(size)
 
 /* ----- helpers for plugins ------ */
 

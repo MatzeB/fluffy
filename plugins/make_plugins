@@ -3,5 +3,5 @@ DIR=`dirname $0`
 for i in $DIR/plugin_*.ml; do
 	basename=`basename $i .ml`
 	"$DIR/../mlang" $i
-	gcc -shared "$DIR/../out.s" -o "$DIR/$basename.so"
+	gcc -shared "$DIR/$basename.s" -o "$DIR/$basename.so"
 done

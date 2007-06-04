@@ -35,7 +35,6 @@ struct parser_env_t {
 	parse_statement_function       *statement_parsers;
 	parse_namespace_entry_function *namespace_parsers;
 	int                             error;
-	struct obstack                  obst;
 };
 
 void register_expression_parser(parser_env_t *env,
@@ -78,9 +77,6 @@ void eat(parser_env_t *env, token_type_t type)
 /*------- helpers for plugins */
 
 extern parser_env_t *current_parser;
-
-/* allocates on ast obstack */
-void *allocate_ast(parser_env_t *env, size_t size);
 
 expression_t      *parse_expression(parser_env_t *env);
 statement_t       *parse_statement(parser_env_t *env);

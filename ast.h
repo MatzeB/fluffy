@@ -40,8 +40,12 @@ typedef struct typeclass_method_instance_t
 typedef struct typeclass_t              typeclass_t;
 typedef struct typeclass_method_t       typeclass_method_t;
 
-void print_expression(FILE *out, const expression_t *expression);
-void print_statement(FILE *out, int indent, const statement_t *statement);
-void print_ast(FILE *out, const namespace_t *namespace);
+void  init_ast_module(void);
+void  exit_ast_module(void);
+
+void  print_expression(FILE *out, const expression_t *expression);
+void  print_statement(FILE *out, int indent, const statement_t *statement);
+void  print_ast(FILE *out, const namespace_t *namespace);
+void *allocate_ast(size_t size);
 
 #endif

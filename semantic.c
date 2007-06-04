@@ -10,6 +10,8 @@
 #include "adt/array.h"
 #include "adt/error.h"
 
+//#define DEBUG_TYPEVAR_BINDINGS
+
 typedef enum environment_entry_type_t environment_entry_type_t;
 
 enum environment_entry_type_t {
@@ -398,10 +400,6 @@ void check_reference_expression(semantic_env_t *env,
 	/* normalize type arguments */
 	type_argument_t *type_argument = ref->type_arguments;
 	while(type_argument != NULL) {
-		fprintf(stderr, "Normalizing: ");
-		print_type(stderr, type_argument->type);
-		fprintf(stderr, "\n");
-
 		type_argument->type = normalize_type(env, type_argument->type);
 
 		type_argument = type_argument->next;
@@ -575,7 +573,7 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 		return NULL;
 	}
 
-	unary_expression_t *cast  = obstack_alloc(env->obst, sizeof(cast[0]));
+	unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
 	cast->expression.type     = EXPR_UNARY;
 	cast->type                = UNEXPR_CAST;
@@ -1021,10 +1019,12 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 					"variable '%s' in call expression\n",
 			        type_var->symbol->string);
 		}
+#ifdef DEBUG_TYPEVAR_BINDING
 		fprintf(stderr, "TypeVar '%s'(%p) bound to ", type_var->symbol->string,
 				type_var->symbol);
 		print_type(stderr, type_var->current_type);
 		fprintf(stderr, "\n");
+#endif
 
 		type_var = type_var->next;
 	}
@@ -1059,8 +1059,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			type_variable_t *type_var      = type_parameters;
 			type_argument_t *last_argument = NULL;
 			while(type_var != NULL) {
-				type_argument_t *argument 
-					= obstack_alloc(env->obst, sizeof(argument[0]));
+				type_argument_t *argument = allocate_ast(sizeof(argument[0]));
 				memset(argument, 0, sizeof(argument[0]));
 
 				type_t *current_type = type_var->current_type;
@@ -1086,8 +1085,10 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		while(type_var != NULL) {
 			type_var->current_type = NULL;
 
+#ifdef DEBUG_TYPEVAR_BINDINGS
 			fprintf(stderr, "Unbind %s(%p)\n", type_var->symbol->string,
 					type_var->symbol);
+#endif
 
 			type_var = type_var->next;
 		}
@@ -1904,12 +1905,14 @@ int check_static_semantic(namespace_t *namespace)
 	semantic_env_t env;
 
 	obstack_init(&obst);
-	env.obst          = &obst;
-	env.symbol_stack  = NEW_ARR_F(environment_entry_t*, 0);
 	obstack_init(&env.symbol_obstack);
-	env.label_stack   = NEW_ARR_F(symbol_t*, 0);
 	obstack_init(&env.label_obstack);
-	env.found_errors  = 0;
+
+	env.symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
+	env.label_stack        = NEW_ARR_F(symbol_t*, 0);
+	env.found_errors       = 0;
+	env.statement_lowerers = NEW_ARR_F(lower_statement_function, 0);
+
 	env.type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
 	env.type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
 	env.type_int      = make_atomic_type(ATOMIC_TYPE_INT);
@@ -1921,6 +1924,7 @@ int check_static_semantic(namespace_t *namespace)
 
 	DEL_ARR_F(env.symbol_stack);
 	DEL_ARR_F(env.label_stack);
+	DEL_ARR_F(env.statement_lowerers);
 
 	// TODO global obstack...
 	//obstack_free(&obst, NULL);

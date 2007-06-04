@@ -13,8 +13,7 @@
 #include "semantic.h"
 #include "ast2firm.h"
 #include "plugins.h"
-
-#define PRINT_AST
+#include "adt/error.h"
 
 static
 void optimize()
@@ -67,9 +66,35 @@ void optimize()
 }
 
 static
+void get_output_name(char *buf, size_t buflen, const char *inputname,
+                     const char *newext)
+{
+	size_t last_dot = 0xffffffff;
+	size_t i = 0;
+	for(const char *c = inputname; *c != 0; ++c) {
+		if(*c == '.')
+			last_dot = i;
+		++i;
+	}
+	if(last_dot == 0xffffffff)
+		last_dot = i;
+	
+	if(last_dot >= buflen)
+		panic("filename too long");
+	memcpy(buf, inputname, last_dot);
+
+	size_t extlen = strlen(newext) + 1;
+	if(extlen + last_dot >= buflen)
+		panic("filename too long");
+	memcpy(buf+last_dot, newext, extlen);
+}
+
+static
 void backend(const char *inputname)
 {
-	const char* outfname = "out.s";
+	char outfname[4096];
+
+	get_output_name(outfname, sizeof(outfname), inputname, ".s");
 	FILE *out = fopen(outfname, "w");
 	if(out == NULL) {
 		fprintf(stderr, "Couldn't open '%s': %s\n", outfname,
@@ -78,6 +103,22 @@ void backend(const char *inputname)
 	}
 
 	be_main(out, inputname);
+}
+
+static
+void dump_ast(const namespace_t *namespace, const char *fname, const char *name)
+{
+	char filename[4096];
+	get_output_name(filename, sizeof(filename), fname, name);
+
+	FILE* out = fopen(filename, "w");
+	if(out == NULL) {
+		fprintf(stderr, "Warning: couldn't open '%s': %s\n", filename,
+		        strerror(errno));
+	} else {
+		print_ast(out, namespace);
+	}
+	fclose(out);
 }
 
 static
@@ -96,21 +137,15 @@ void compile(const char *fname)
 		exit(1);
 	}
 
-#ifdef PRINT_AST
-	fprintf(stderr, "--------- After parsing: ------------\n");
-	print_ast(stderr, namespace);
-#endif
+	dump_ast(namespace, fname, "-parse.txt");
 
 	if(!check_static_semantic(namespace)) {
-		print_ast(stderr, namespace);
 		fprintf(stderr, "Semantic errors found\n");
+		dump_ast(namespace, fname, "-error.txt");
 		exit(1);
 	}
 
-#ifdef PRINT_AST
-	fprintf(stderr, "--------- After semantic analysis: ------------\n");
-	print_ast(stderr, namespace);
-#endif
+	dump_ast(namespace, fname, "-semantic.txt");
 
 	ast2firm(namespace);
 
@@ -125,6 +160,7 @@ int main(int argc, char **argv)
 {
 	int i;
 	initialize_firm();
+	init_ast_module();
 	init_type_module();
 	search_plugins();
 
@@ -133,8 +169,9 @@ int main(int argc, char **argv)
 	}
 
 	free_plugins();
-	exit_firm();
+	exit_ast_module();
 	exit_type_module();
+	exit_firm();
 
 	return 0;
 }

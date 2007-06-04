@@ -8,22 +8,25 @@
 #include "symbol.h"
 #include "lexer_t.h"
 
-struct semantic_env_t {
-	struct obstack       *obst;
-	struct obstack        symbol_obstack;
-	environment_entry_t **symbol_stack;
-	struct obstack        label_obstack;
-	symbol_t            **label_stack;
-	int                   found_errors;
+typedef statement_t* (*lower_statement_function) (semantic_env_t *env,
+                                                  statement_t *statement);
 
-	method_t             *current_method;
-	int                   last_statement_was_return;
-	type_t               *type_bool;
-	type_t               *type_byte;
-	type_t               *type_int;
-	type_t               *type_uint;
-	type_t               *type_void_ptr;
-	type_t               *type_byte_ptr;
+struct semantic_env_t {
+	struct obstack            symbol_obstack;
+	environment_entry_t     **symbol_stack;
+	struct obstack            label_obstack;
+	symbol_t                **label_stack;
+	int                       found_errors;
+	lower_statement_function *statement_lowerers;
+
+	method_t                 *current_method;
+	int                       last_statement_was_return;
+	type_t                   *type_bool;
+	type_t                   *type_byte;
+	type_t                   *type_int;
+	type_t                   *type_uint;
+	type_t                   *type_void_ptr;
+	type_t                   *type_byte_ptr;
 };
 
 void print_error_prefix(semantic_env_t *env, const source_position_t position);
@@ -31,5 +34,8 @@ void print_warning_prefix(semantic_env_t *env,
                           const source_position_t position);
 void error_at(semantic_env_t *env, const source_position_t position,
               const char *message);
+
+void register_statement_lowerer(semantic_env_t *env,
+                                lower_statement_function function);
 
 #endif

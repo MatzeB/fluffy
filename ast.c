@@ -9,6 +9,8 @@
 
 #include "adt/error.h"
 
+struct obstack ast_obstack;
+
 static
 void print_int_const(FILE *out, const int_const_t *int_const)
 {
@@ -91,7 +93,29 @@ void print_binary_expression(FILE *out, const binary_expression_t *binexpr)
 	case BINEXPR_ADD:
 		fprintf(out, "+");
 		break;
+	case BINEXPR_SUB:
+		fprintf(out, "-");
+		break;
+	case BINEXPR_NOTEQUAL:
+		fprintf(out, "/=");
+		break;
+	case BINEXPR_EQUAL:
+		fprintf(out, "=");
+		break;
+	case BINEXPR_LESS:
+		fprintf(out, "<");
+		break;
+	case BINEXPR_LESSEQUAL:
+		fprintf(out, "<=");
+		break;
+	case BINEXPR_GREATER:
+		fprintf(out, ">");
+		break;
+	case BINEXPR_GREATEREQUAL:
+		fprintf(out, ">=");
+		break;
 	default:
+		/* TODO: add missing ops */
 		fprintf(out, "op%d", binexpr->type);
 		break;
 	}
@@ -454,6 +478,21 @@ void print_ast(FILE *out, const namespace_t *namespace)
 
 		entry = entry->next;
 	}
+}
+
+void init_ast_module(void)
+{
+	obstack_init(&ast_obstack);
+}
+
+void exit_ast_module(void)
+{
+	obstack_free(&ast_obstack, NULL);
+}
+
+void* (allocate_ast) (size_t size)
+{
+	return _allocate_ast(size);
 }
 
 int register_expression()

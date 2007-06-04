@@ -18,7 +18,7 @@
 #include "adt/xmalloc.h"
 #include <libfirm/adt/pdeq.h>
 
-#define DEBUG_TYPEVAR_BINDING
+//#define DEBUG_TYPEVAR_BINDING
 
 static variable_declaration_statement_t **value_numbers = NULL;
 static label_statement_t                 *labels        = NULL;
@@ -628,8 +628,6 @@ ir_entity* get_typeclass_method_instance_entity(
 
 	char *str = obstack_finish(&obst);
 
-	fprintf(stderr, "Mangled Name: '%s'\n", str);
-
 	ident *id = new_id_from_str(str);
 	obstack_free(&obst, str);
 
@@ -677,8 +675,6 @@ ir_entity* get_method_entity(method_t *method)
 		obstack_1grow(&obst, 0);
 
 		char *str = obstack_finish(&obst);
-
-		fprintf(stderr, "Mangled Name: '%s'\n", str);
 
 		id = new_id_from_str(str);
 		obstack_free(&obst, str);
@@ -1040,10 +1036,7 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 	if(needs_instance) {
 		const char *name = get_entity_name(entity);
 		if(strset_find(&instantiated_methods, name) != NULL) {
-			fprintf(stderr, "already have an instance for '%s'\n", name);
 			needs_instance = 0;
-		} else {
-			fprintf(stderr, "queue creation of '%s'\n", name);
 		}
 	}
 
@@ -1061,12 +1054,6 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 			memset(new_argument, 0, sizeof(new_argument[0]));
 
 			new_argument->type = create_concrete_type(type);
-
-			fprintf(stderr, "resolve ");
-			print_type(stderr, type);
-			fprintf(stderr, " -> ");
-			print_type(stderr, new_argument->type);
-			fprintf(stderr, "\n");
 
 			if(last_argument != NULL) {
 				last_argument->next = new_argument;
@@ -1422,8 +1409,6 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 {
 	if(method->is_extern)
 		return;
-
-	printf("***Create Method '%s'\n", method->symbol->string);
 
 	int old_top = typevar_binding_stack_top();
 	if(is_polymorphic_method(method)) {

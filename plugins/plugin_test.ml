@@ -50,8 +50,9 @@ struct Parser:
 	Lexer           lexer
 	// more stuff...
 
-typealias FILE <- void
-typealias EnvironmentEntry <- void
+typealias Semantic               <- void
+typealias FILE                   <- void
+typealias EnvironmentEntry       <- void
 typealias ParseStatementFunction <- func Statement* (Parser* parser)
 
 extern func int   register_new_token(byte* token)
@@ -69,11 +70,15 @@ extern func void  register_statement_parser(Parser* parser_env, \
                                            int token_type)
 extern func void  print_token(FILE* out, Token* token)
 extern func void  lexer_next_token(Lexer* lexer, Token* token)
-extern func void* allocate_ast(Parser *env, unsigned int size)
+extern func void* allocate_ast(unsigned int size)
 extern func void  parser_print_error_prefix(Parser* parser)
 
 extern func Expression* parse_expression(Parser* parser)
 extern func Statement*  parse_statement(Parser* parser)
+
+extern func void  print_error_prefix(Semantic* env, SourcePosition position)
+extern func void  print_warning_preifx(Semantic* env, SourcePosition position)
+
 
 extern var FILE*   stdout
 extern var FILE*   stderr
@@ -82,16 +87,16 @@ var        int     token_for
 var        int     for_statement
 
 typeclass AllocateOnAst<T>:
-	func T* allocate(Parser* env)
+	func T* allocate()
 
-func T* allocate_zero<T>(Parser*env):
-	var res <- cast<T* > allocate_ast(env, __sizeof<T>)
+func T* allocate_zero<T>():
+	var res <- cast<T* > allocate_ast(__sizeof<T>)
 	memset(res, 0, __sizeof<T>)
 	return res
 
 instance AllocateOnAst<ForStatement>:
-	func ForStatement* allocate(Parser* env):
-		var res <- allocate_zero<$ForStatement>(env)
+	func ForStatement* allocate():
+		var res <- allocate_zero<$ForStatement>()
 		res.statement.type <- for_statement
 		return res
 
@@ -114,7 +119,7 @@ func void next_token(Parser* env):
 
 func Statement* parse_for_statement(Parser* env):
 	puts("parsing a for...")
-	var statement <- allocate<$ForStatement>(env)
+	var statement <- allocate<$ForStatement>()
 
 	//assert(env.token.type = token_for)
 	next_token(env)

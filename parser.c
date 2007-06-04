@@ -308,7 +308,7 @@ type_t *parse_type(parser_env_t *env)
 static
 expression_t *parse_string_const(parser_env_t *env)
 {
-	string_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
+	string_const_t *cnst = allocate_ast(sizeof(cnst[0]));
 	memset(cnst, 0, sizeof(cnst));
 
 	cnst->expression.type = EXPR_STRING_CONST;
@@ -322,7 +322,7 @@ expression_t *parse_string_const(parser_env_t *env)
 static
 expression_t *parse_int_const(parser_env_t *env)
 {
-	int_const_t *cnst = obstack_alloc(&env->obst, sizeof(cnst[0]));
+	int_const_t *cnst = allocate_ast(sizeof(cnst[0]));
 	memset(cnst, 0, sizeof(cnst));
 
 	cnst->expression.type = EXPR_INT_CONST;
@@ -336,7 +336,7 @@ expression_t *parse_int_const(parser_env_t *env)
 static
 type_argument_t *parse_type_argument(parser_env_t *env)
 {
-	type_argument_t *argument = obstack_alloc(&env->obst, sizeof(argument[0]));
+	type_argument_t *argument = allocate_ast(sizeof(argument[0]));
 	memset(argument, 0, sizeof(argument[0]));
 
 	argument->type = parse_type(env);
@@ -363,7 +363,7 @@ type_argument_t *parse_type_arguments(parser_env_t *env)
 static
 expression_t *parse_reference(parser_env_t *env)
 {
-	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
+	reference_expression_t *ref = allocate_ast(sizeof(ref[0]));
 	memset(ref, 0, sizeof(ref[0]));
 
 	ref->expression.type            = EXPR_REFERENCE;
@@ -385,7 +385,7 @@ static
 expression_t *parse_sizeof(parser_env_t *env)
 {
 	sizeof_expression_t *expression
-		= obstack_alloc(&env->obst, sizeof(expression[0]));
+		= allocate_ast(sizeof(expression[0]));
 	memset(expression, 0, sizeof(expression[0]));
 	expression->expression.type = EXPR_SIZEOF;
 
@@ -477,7 +477,7 @@ expression_t *expected_expression_error(parser_env_t *env)
 	print_token(stderr, & env->token);
 	fprintf(stderr, "\n");
 
-	expression_t *expression = obstack_alloc(&env->obst, sizeof(expression[0]));
+	expression_t *expression = allocate_ast(sizeof(expression[0]));
 	memset(expression, 0, sizeof(expression[0]));
 	expression->type = EXPR_INVALID;
 	next_token(env);
@@ -521,7 +521,7 @@ expression_t *parse_cast_expression(parser_env_t *env, unsigned precedence)
 	eat(env, T_cast);
 
 	unary_expression_t *unary_expression
-		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));
+		= allocate_ast(sizeof(unary_expression[0]));
 	unary_expression->expression.type            = EXPR_UNARY;
 	unary_expression->type                       = UNEXPR_CAST;
 	
@@ -539,7 +539,7 @@ expression_t *parse_call_expression(parser_env_t *env, unsigned precedence,
                                     expression_t *expression)
 {
 	(void) precedence;
-	call_expression_t *call = obstack_alloc(&env->obst, sizeof(call[0]));
+	call_expression_t *call = allocate_ast(sizeof(call[0]));
 	memset(call, 0, sizeof(call[0]));
 
 	call->expression.type            = EXPR_CALL;
@@ -553,7 +553,7 @@ expression_t *parse_call_expression(parser_env_t *env, unsigned precedence,
 
 		while(1) {
 			call_argument_t *argument
-				= obstack_alloc(&env->obst, sizeof(argument[0]));
+				= allocate_ast(sizeof(argument[0]));
 			memset(argument, 0, sizeof(argument[0]));
 
 			argument->expression = parse_expression(env);
@@ -582,7 +582,7 @@ expression_t *parse_select_expression(parser_env_t *env, unsigned precedence,
 
 	eat(env, '.');
 
-	select_expression_t *select = obstack_alloc(&env->obst, sizeof(select[0]));
+	select_expression_t *select = allocate_ast(sizeof(select[0]));
 	memset(select, 0, sizeof(select[0]));
 
 	select->expression.type            = EXPR_SELECT;
@@ -608,7 +608,7 @@ expression_t *parse_array_expression(parser_env_t *env, unsigned precedence,
 	eat(env, '[');
 
 	array_access_expression_t *array_access
-		= obstack_alloc(&env->obst, sizeof(array_access[0]));
+		= allocate_ast(sizeof(array_access[0]));
 	memset(array_access, 0, sizeof(array_access[0]));
 
 	array_access->expression.type = EXPR_ARRAY_ACCESS;
@@ -633,7 +633,7 @@ expression_t *parse_##unexpression_type(parser_env_t *env,       \
 	eat(env, token_type);                                        \
                                                                  \
 	unary_expression_t *unary_expression                         \
-		= obstack_alloc(&env->obst, sizeof(unary_expression[0]));\
+		= allocate_ast(sizeof(unary_expression[0]));\
 	memset(unary_expression, 0, sizeof(unary_expression[0]));    \
 	unary_expression->expression.type = EXPR_UNARY;              \
 	unary_expression->type            = unexpression_type;       \
@@ -658,7 +658,7 @@ expression_t *parse_##binexpression_type(parser_env_t *env,      \
 	expression_t *right = parse_sub_expression(env, precedence); \
                                                                  \
 	binary_expression_t *binexpr                                 \
-		= obstack_alloc(&env->obst, sizeof(binexpr[0]));         \
+		= allocate_ast(sizeof(binexpr[0]));         \
 	memset(binexpr, 0, sizeof(binexpr[0]));                      \
 	binexpr->expression.type            = EXPR_BINARY;           \
 	binexpr->type                       = binexpression_type;    \
@@ -771,7 +771,7 @@ static
 statement_t *parse_return_statement(parser_env_t *env)
 {
 	return_statement_t *return_statement =
-		obstack_alloc(&env->obst, sizeof(return_statement[0]));
+		allocate_ast(sizeof(return_statement[0]));
 	memset(return_statement, 0, sizeof(return_statement[0]));
 
 	return_statement->statement.type = STATEMENT_RETURN;
@@ -791,7 +791,7 @@ statement_t *parse_goto_statement(parser_env_t *env)
 	eat(env, T_goto);
 
 	goto_statement_t *goto_statement
-		= obstack_alloc(&env->obst, sizeof(goto_statement[0]));
+		= allocate_ast(sizeof(goto_statement[0]));
 	memset(goto_statement, 0, sizeof(goto_statement[0]));
 	goto_statement->statement.type = STATEMENT_GOTO;
 
@@ -814,7 +814,7 @@ statement_t *parse_label_statement(parser_env_t *env)
 {
 	eat(env, ':');
 
-	label_statement_t *label = obstack_alloc(&env->obst, sizeof(label[0]));
+	label_statement_t *label = allocate_ast(sizeof(label[0]));
 	memset(label, 0, sizeof(label[0]));
 	label->statement.type = STATEMENT_LABEL;
 
@@ -849,7 +849,7 @@ statement_t *parse_if_statement(parser_env_t *env)
 	}
 
 	if_statement_t *if_statement
-		= obstack_alloc(&env->obst, sizeof(if_statement[0]));
+		= allocate_ast(sizeof(if_statement[0]));
 	memset(if_statement, 0, sizeof(if_statement[0]));
 
 	if_statement->statement.type  = STATEMENT_IF;
@@ -863,12 +863,12 @@ statement_t *parse_if_statement(parser_env_t *env)
 static
 statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 {
-	reference_expression_t *ref = obstack_alloc(&env->obst, sizeof(ref[0]));
+	reference_expression_t *ref = allocate_ast(sizeof(ref[0]));
 	memset(ref, 0, sizeof(ref[0]));
 	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = symbol;
 
-	binary_expression_t *assign = obstack_alloc(&env->obst, sizeof(assign[0]));
+	binary_expression_t *assign = allocate_ast(sizeof(assign[0]));
 	memset(assign, 0, sizeof(assign[0]));
 
 	assign->expression.type            = EXPR_BINARY;
@@ -878,7 +878,7 @@ statement_t *parse_initial_assignment(parser_env_t *env, symbol_t *symbol)
 	assign->right                      = parse_expression(env);
 
 	expression_statement_t *expr_statement
-		= obstack_alloc(&env->obst, sizeof(expr_statement[0]));
+		= allocate_ast(sizeof(expr_statement[0]));
 	memset(expr_statement, 0, sizeof(expr_statement[0]));
 
 	expr_statement->statement.type = STATEMENT_EXPRESSION;
@@ -904,7 +904,7 @@ statement_t *parse_variable_declaration(parser_env_t *env)
 	}
 
 	while(1) {
-		decl = obstack_alloc(&env->obst, sizeof(decl[0]));
+		decl = allocate_ast(sizeof(decl[0]));
 		memset(decl, 0, sizeof(decl[0]));
 		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
 		decl->type           = type;
@@ -950,7 +950,7 @@ static
 statement_t *parse_expression_statement(parser_env_t *env)
 {
 	expression_statement_t *expression_statement
-		= obstack_alloc(&env->obst, sizeof(expression_statement[0]));
+		= allocate_ast(sizeof(expression_statement[0]));
 	memset(expression_statement, 0, sizeof(expression_statement[0]));
 
 	expression_statement->statement.type = STATEMENT_EXPRESSION;
@@ -1025,7 +1025,7 @@ static
 statement_t *parse_block(parser_env_t *env)
 {
 	statement_t       *last = NULL;
-	block_statement_t *block = obstack_alloc(&env->obst, sizeof(block[0]));
+	block_statement_t *block = allocate_ast(sizeof(block[0]));
 	memset(block, 0, sizeof(block[0]));
 	block->statement.type = STATEMENT_BLOCK;
 
@@ -1085,7 +1085,7 @@ void parse_parameter_declaration(parser_env_t *env,
 
 			if(parameter_types != NULL) {
 				method_parameter_type_t *param_type
-					= obstack_alloc(&env->obst, sizeof(param_type[0]));
+					= allocate_ast(sizeof(param_type[0]));
 				memset(param_type, 0, sizeof(param_type[0]));
 				param_type->type = type;
 
@@ -1105,7 +1105,7 @@ void parse_parameter_declaration(parser_env_t *env,
 
 			if(parameters != NULL) {
 				method_parameter_t *method_param
-					= obstack_alloc(&env->obst, sizeof(method_param[0]));
+					= allocate_ast(sizeof(method_param[0]));
 				memset(method_param, 0, sizeof(method_param[0]));
 				method_param->symbol = symbol;
 				method_param->type   = type;
@@ -1138,7 +1138,7 @@ type_variable_t *parse_type_parameter(parser_env_t *env)
 {
 	type_constraint_t *last_constraint = NULL;
 	type_variable_t   *type_variable
-		= obstack_alloc(&env->obst, sizeof(type_variable[0]));
+		= allocate_ast(sizeof(type_variable[0]));
 	memset(type_variable, 0, sizeof(type_variable[0]));
 
 	while(1) {
@@ -1153,7 +1153,7 @@ type_variable_t *parse_type_parameter(parser_env_t *env)
 
 		if(env->token.type == T_IDENTIFIER) {
 			type_constraint_t *constraint 
-				= obstack_alloc(&env->obst, sizeof(constraint[0]));
+				= allocate_ast(sizeof(constraint[0]));
 			memset(constraint, 0, sizeof(constraint[0]));
 
 			constraint->typeclass_symbol = symbol;
@@ -1194,7 +1194,7 @@ namespace_entry_t *parse_method(parser_env_t *env)
 {
 	eat(env, T_func);
 
-	method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	method_t *method = allocate_ast(sizeof(method[0]));
 	memset(method, 0, sizeof(method[0]));
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 
@@ -1246,7 +1246,7 @@ namespace_entry_t *parse_global_variable(parser_env_t *env)
 	eat(env, T_var);
 
 	global_variable_t *variable 
-		= obstack_alloc(&env->obst, sizeof(variable[0]));
+		= allocate_ast(sizeof(variable[0]));
 	memset(variable, 0, sizeof(variable[0]));
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
 
@@ -1284,7 +1284,7 @@ namespace_entry_t *parse_extern_method(parser_env_t *env)
 {
 	eat(env, T_func);
 
-	method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	method_t *method = allocate_ast(sizeof(method[0]));
 	memset(method, 0, sizeof(method[0]));
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 	method->is_extern            = 1;
@@ -1343,7 +1343,7 @@ namespace_entry_t *parse_typealias(parser_env_t *env)
 {
 	eat(env, T_typealias);
 
-	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
 	memset(typealias, 0, sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
@@ -1372,7 +1372,7 @@ compound_entry_t *parse_compound_entries(parser_env_t *env)
 	compound_entry_t *result     = NULL;
 	compound_entry_t *last_entry = NULL;
 	while(env->token.type != T_DEDENT && env->token.type != T_EOF) {
-		compound_entry_t *entry = obstack_alloc(&env->obst, sizeof(entry[0]));
+		compound_entry_t *entry = allocate_ast(sizeof(entry[0]));
 		memset(entry, 0, sizeof(entry[0]));
 
 		entry->type = parse_type(env);
@@ -1404,7 +1404,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 {
 	eat(env, T_struct);
 
-	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
 	memset(typealias, 0, sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
@@ -1421,7 +1421,7 @@ namespace_entry_t *parse_struct(parser_env_t *env)
 	expect(env, T_NEWLINE);
 
 	compound_type_t *compound_type 
-		= obstack_alloc(&env->obst, sizeof(compound_type[0]));
+		= allocate_ast(sizeof(compound_type[0]));
 	memset(compound_type, 0, sizeof(compound_type[0]));
 	typealias->type = (type_t*) compound_type;
 
@@ -1440,7 +1440,7 @@ namespace_entry_t *parse_union(parser_env_t *env)
 {
 	eat(env, T_union);
 
-	typealias_t *typealias = obstack_alloc(&env->obst, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
 	memset(typealias, 0, sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
@@ -1457,7 +1457,7 @@ namespace_entry_t *parse_union(parser_env_t *env)
 	expect(env, T_NEWLINE);
 
 	compound_type_t *compound_type 
-		= obstack_alloc(&env->obst, sizeof(compound_type[0]));
+		= allocate_ast(sizeof(compound_type[0]));
 	memset(compound_type, 0, sizeof(compound_type[0]));
 	typealias->type = (type_t*) compound_type;
 
@@ -1477,7 +1477,7 @@ typeclass_method_t *parse_typeclass_method(parser_env_t *env)
 {
 	expect(env, T_func);
 
-	typeclass_method_t *method = obstack_alloc(&env->obst, sizeof(method[0]));
+	typeclass_method_t *method = allocate_ast(sizeof(method[0]));
 	memset(method, 0, sizeof(method[0]));
 
 	method_type_t *method_type 
@@ -1513,7 +1513,7 @@ namespace_entry_t *parse_typeclass(parser_env_t *env)
 {
 	eat(env, T_typeclass);
 
-	typeclass_t *typeclass = obstack_alloc(&env->obst, sizeof(typeclass[0]));
+	typeclass_t *typeclass = allocate_ast(sizeof(typeclass[0]));
 	memset(typeclass, 0, sizeof(typeclass[0]));
 	typeclass->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS;
 
@@ -1564,7 +1564,7 @@ static
 typeclass_method_instance_t *parse_typeclass_method_intance(parser_env_t *env)
 {
 	typeclass_method_instance_t *method_intance
-		= obstack_alloc(&env->obst, sizeof(method_intance[0]));
+		= allocate_ast(sizeof(method_intance[0]));
 	memset(method_intance, 0, sizeof(method_intance[0]));
 
 	if(env->token.type != T_func) {
@@ -1590,7 +1590,7 @@ namespace_entry_t *parse_typeclass_instance(parser_env_t *env)
 	eat(env, T_instance);
 
 	typeclass_instance_t *instance 
-		= obstack_alloc(&env->obst, sizeof(instance[0]));
+		= allocate_ast(sizeof(instance[0]));
 	memset(instance, 0, sizeof(instance[0]));
 	instance->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS_INSTANCE;
 
@@ -1673,7 +1673,7 @@ namespace_entry_t *parse_namespace_entry(parser_env_t *env)
 static
 namespace_t *parse_namespace(parser_env_t *env)
 {
-	namespace_t *namespace = obstack_alloc(&env->obst, sizeof(namespace[0]));
+	namespace_t *namespace = allocate_ast(sizeof(namespace[0]));
 	memset(namespace, 0, sizeof(namespace[0]));
 
 	while(env->token.type != T_EOF) {
@@ -1713,11 +1713,6 @@ void register_namespace_parsers(parser_env_t *env)
 
 parser_env_t *current_parser = NULL;
 
-void *allocate_ast(parser_env_t *env, size_t size)
-{
-	return obstack_alloc(&env->obst, size);
-}
-
 namespace_t *parse(FILE *in, const char *input_name)
 {
 	parser_env_t env;
@@ -1729,7 +1724,6 @@ namespace_t *parse(FILE *in, const char *input_name)
 	env.statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
 	env.namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
 
-	obstack_init(&env.obst);
 	typehash_init();
 
 	symbol_table_init(&env.symbol_table);
