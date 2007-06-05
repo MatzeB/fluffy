@@ -149,19 +149,23 @@ void compile(const char *fname)
 
 	ast2firm(namespace);
 
+	fprintf(stderr, "parsing complete\n");
     lower_highlevel();
 
 	optimize();
 
+	fprintf(stderr, "optimisations complete\n");
 	backend(fname);
+	fprintf(stderr, "backend complete\n");
 }
 
 int main(int argc, char **argv)
 {
 	int i;
 	initialize_firm();
-	init_ast_module();
 	init_type_module();
+	init_ast_module();
+	init_semantic_module();
 	search_plugins();
 
 	for(i = 1; i < argc; ++i) {
@@ -169,6 +173,7 @@ int main(int argc, char **argv)
 	}
 
 	free_plugins();
+	exit_semantic_module();
 	exit_ast_module();
 	exit_type_module();
 	exit_firm();

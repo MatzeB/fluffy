@@ -17,7 +17,6 @@ struct semantic_env_t {
 	struct obstack            label_obstack;
 	symbol_t                **label_stack;
 	int                       found_errors;
-	lower_statement_function *statement_lowerers;
 
 	method_t                 *current_method;
 	int                       last_statement_was_return;
@@ -35,7 +34,13 @@ void print_warning_prefix(semantic_env_t *env,
 void error_at(semantic_env_t *env, const source_position_t position,
               const char *message);
 
-void register_statement_lowerer(semantic_env_t *env,
-                                lower_statement_function function);
+void register_statement_lowerer(lower_statement_function function,
+                                int statement_type);
+
+__attribute__((warn_unused_result))
+statement_t* check_statement(semantic_env_t *env, statement_t *statement);
+
+__attribute__((warn_unused_result))
+expression_t* check_expression(semantic_env_t *env, expression_t *expression);
 
 #endif

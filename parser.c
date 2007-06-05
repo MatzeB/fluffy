@@ -411,6 +411,9 @@ void register_statement_parser(parser_env_t *env,
 				(token_type - len) * sizeof(env->statement_parsers[0]));
 	}
 
+	if(env->statement_parsers[token_type] != NULL) {
+		panic("Trying to register multiple statement parsers for 1 token");
+	}
 	env->statement_parsers[token_type] = parser;
 }
 
@@ -428,6 +431,9 @@ void register_namespace_parser(parser_env_t *env,
 				(token_type - len) * sizeof(env->namespace_parsers[0]));
 	}
 
+	if(env->namespace_parsers[token_type] != NULL) {
+		panic("trying to register multiple namespace parsers for 1 token");
+	}
 	env->namespace_parsers[token_type] = parser;
 }
 
@@ -444,6 +450,7 @@ expression_parse_function_t *get_expression_parser_entry(parser_env_t *env,
 		memset(& env->expression_parsers[len], 0,
 				(token_type - len) * sizeof(env->expression_parsers[0]));
 	}
+
 	return &env->expression_parsers[token_type];
 }
 
@@ -454,6 +461,9 @@ void register_expression_parser(parser_env_t *env,
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(env, token_type);
 
+	if(entry->parser != NULL) {
+		panic("trying to register multiple expression parsers for a token");
+	}
 	entry->parser     = parser;
 	entry->precedence = precedence;
 }
@@ -465,6 +475,10 @@ void register_expression_infix_parser(parser_env_t *env,
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(env, token_type);
 
+	if(entry->infix_parser != NULL) {
+		panic("trying to register multiple infix expression parsers for a "
+		      "token");
+	}
 	entry->infix_parser     = parser;
 	entry->infix_precedence = precedence;
 }

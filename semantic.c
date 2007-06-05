@@ -12,6 +12,8 @@
 
 //#define DEBUG_TYPEVAR_BINDINGS
 
+static lower_statement_function *statement_lowerers = NULL;
+
 typedef enum environment_entry_type_t environment_entry_type_t;
 
 enum environment_entry_type_t {
@@ -310,8 +312,7 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 	}
 }
 
-static
-void check_expression(semantic_env_t *env, expression_t *expression);
+
 
 static
 void check_local_variable_type(semantic_env_t *env,
@@ -489,7 +490,9 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 	type_t *from_type = from->datatype;
 	if(from_type == NULL) {
 		print_error_prefix(env, from->source_position);
-		fprintf(stderr, "can't implicitely cast from unknown type\n");
+		fprintf(stderr, "can't implicitely cast from unknown type to ");
+		print_type(stderr, dest_type);
+		fprintf(stderr, "\n");
 		return NULL;
 	}
 
@@ -619,11 +622,10 @@ int is_comparison_op(binary_expression_type_t type)
 static
 void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 {
+	binexpr->left       = check_expression(env, binexpr->left);
+	binexpr->right      = check_expression(env, binexpr->right);
 	expression_t *left  = binexpr->left;
 	expression_t *right = binexpr->right;
-
-	check_expression(env, left);
-	check_expression(env, right);
 
 	type_t *exprtype;
 	type_t *lefttype, *righttype;
@@ -890,9 +892,8 @@ void check_type_constraints(semantic_env_t *env,
 static
 void check_call_expression(semantic_env_t *env, call_expression_t *call)
 {
-	expression_t  *method = call->method;
-
-	check_expression(env, method);
+	call->method                    = check_expression(env, call->method);
+	expression_t    *method         = call->method;
 	type_t          *type           = method->datatype;
 	type_argument_t *type_arguments = NULL;
 
@@ -976,8 +977,8 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			break;
 		}
 
+		argument->expression     = check_expression(env, argument->expression);
 		expression_t *expression = argument->expression;
-		check_expression(env, expression);
 
 		type_t       *wanted_type     = param_type->type;
 		type_t       *expression_type = expression->datatype;
@@ -987,15 +988,18 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 			match_variant_to_concrete_type(env, wanted_type, expression_type,
 			                               expression->source_position);
 		} else if(expression_type != wanted_type) {
-			expression = make_cast(env, expression, wanted_type,
-			                       expression->source_position);
-			if(expression == NULL) {
+			expression_t *new_expression 
+				= make_cast(env, expression, wanted_type,
+			                expression->source_position);
+			if(new_expression == NULL) {
 				print_error_prefix(env, expression->source_position);
 				fprintf(stderr, "invalid type for argument %d of call: ", i);
 				print_type(stderr, expression->datatype);
 				fprintf(stderr, " should be ");
 				print_type(stderr, wanted_type);
 				fprintf(stderr, "\n");
+			} else {
+				expression = new_expression;
 			}
 		}
 		argument->expression = expression;
@@ -1105,15 +1109,16 @@ void check_cast_expression(semantic_env_t *env, unary_expression_t *cast)
 	}
 	cast->expression.datatype = normalize_type(env, cast->expression.datatype);
 
-	check_expression(env, cast->value);
+	cast->value = check_expression(env, cast->value);
 }
 
 static
 void check_dereference_expression(semantic_env_t *env,
                                   unary_expression_t *dereference)
 {
+	dereference->value  = check_expression(env, dereference->value);
 	expression_t *value = dereference->value;
-	check_expression(env, value);
+
 	if(value->datatype == NULL) {
 		error_at(env, dereference->expression.source_position,
 		         "can't derefence expression with unknown datatype\n");
@@ -1149,8 +1154,8 @@ void check_unary_expression(semantic_env_t *env,
 static
 void check_select_expression(semantic_env_t *env, select_expression_t *select)
 {
+	select->compound       = check_expression(env, select->compound);
 	expression_t *compound = select->compound;
-	check_expression(env, compound);
 
 	type_t *datatype = compound->datatype;
 	if(datatype->type != TYPE_POINTER) {
@@ -1213,11 +1218,11 @@ static
 void check_array_access_expression(semantic_env_t *env,
                                    array_access_expression_t *access)
 {
+	access->array_ref       = check_expression(env, access->array_ref);
+	access->index           = check_expression(env, access->index);
 	expression_t *array_ref = access->array_ref;
 	expression_t *index     = access->index;
 
-	check_expression(env, array_ref);
-	check_expression(env, index);
 	type_t *array_type = array_ref->datatype;
 	if(array_type == NULL || array_type->type != TYPE_POINTER) {
 		print_error_prefix(env, access->expression.source_position);
@@ -1251,9 +1256,12 @@ void check_sizeof_expression(semantic_env_t *env,
 	expression->expression.datatype = env->type_uint;
 }
 
-static
-void check_expression(semantic_env_t *env, expression_t *expression)
+__attribute__((warn_unused_result))
+expression_t *check_expression(semantic_env_t *env, expression_t *expression)
 {
+	if(expression == NULL)
+		return NULL;
+
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		expression->datatype = env->type_int;
@@ -1283,28 +1291,31 @@ void check_expression(semantic_env_t *env, expression_t *expression)
 		check_array_access_expression(env,
 				(array_access_expression_t*) expression);
 		break;
+	case EXPR_REFERENCE_VARIABLE:
+	case EXPR_REFERENCE_METHOD:
+		break;
 	default:
 		panic("Invalid expression encountered");
 	}
+
+	return expression;
 }
 
 
 
 
 static
-void check_statement(semantic_env_t *env, statement_t *statement);
-
-static
 void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 {
 	method_t     *method             = env->current_method;
 	type_t       *method_result_type = method->type->result_type;
+	statement->return_value 
+		= check_expression(env, statement->return_value);
 	expression_t *return_value       = statement->return_value;
 
 	env->last_statement_was_return = 1;
 
 	if(return_value != NULL) {
-		check_expression(env, return_value);
 		if(method_result_type == type_void
 				&& return_value->datatype != type_void) {
 			error_at(env, statement->statement.source_position,
@@ -1332,18 +1343,20 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 static
 void check_if_statement(semantic_env_t *env, if_statement_t *statement)
 {
+	statement->condition    = check_expression(env, statement->condition);
 	expression_t *condition = statement->condition;
 
-	check_expression(env, condition);
 	if(condition->datatype != env->type_bool) {
 		error_at(env, statement->statement.source_position,
 		         "if condition needs to be of boolean type\n");
 		return;
 	}
 
-	check_statement(env, statement->true_statement);
-	if(statement->false_statement != NULL)
-		check_statement(env, statement->false_statement);
+	statement->true_statement = check_statement(env, statement->true_statement);
+	if(statement->false_statement != NULL) {
+		statement->false_statement =
+			check_statement(env, statement->false_statement);
+	}
 }
 
 static
@@ -1352,10 +1365,22 @@ void check_block_statement(semantic_env_t *env, block_statement_t *block)
 	int old_top = environment_top(env);
 
 	statement_t *statement = block->first_statement;
+	statement_t *last      = NULL;
 	while(statement != NULL) {
-		check_statement(env, statement);
+		statement_t *next = statement->next;
 
-		statement = statement->next;
+		statement = check_statement(env, statement);
+		assert(statement->next == next || statement->next == NULL);
+		statement->next = next;
+
+		if(last != NULL) {
+			last->next             = statement;
+		} else {
+			block->first_statement = statement;
+		}
+
+		last      = statement;
+		statement = next;
 	}
 
 	environment_pop_to(env, old_top);
@@ -1387,9 +1412,8 @@ static
 void check_expression_statement(semantic_env_t *env,
                                 expression_statement_t *statement)
 {
+	statement->expression    = check_expression(env, statement->expression);
 	expression_t *expression = statement->expression;
-
-	check_expression(env, expression);
 
 	/* can happen on semantic errors */
 	if(expression->datatype == NULL)
@@ -1478,9 +1502,18 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 	}
 }
 
-static
-void check_statement(semantic_env_t *env, statement_t *statement)
+__attribute__((warn_unused_result))
+statement_t *check_statement(semantic_env_t *env, statement_t *statement)
 {
+	/* try to lower the statement */
+	if((int) statement->type < (int) ARR_LEN(statement_lowerers)) {
+		lower_statement_function lowerer = statement_lowerers[statement->type];
+
+		if(lowerer != NULL) {
+			statement = lowerer(env, statement);
+		}
+	}
+
 	env->last_statement_was_return = 0;
 	switch(statement->type) {
 	case STATEMENT_INVALID:
@@ -1512,6 +1545,8 @@ void check_statement(semantic_env_t *env, statement_t *statement)
 		panic("Unknown statement found");
 		break;
 	}
+
+	return statement;
 }
 
 static
@@ -1551,8 +1586,9 @@ void check_method(semantic_env_t *env, method_t *method)
 	}
 
 	env->last_statement_was_return = 0;
-	if(method->statement != NULL)
-		check_statement(env, method->statement);
+	if(method->statement != NULL) {
+		method->statement = check_statement(env, method->statement);
+	}
 
 	if(!env->last_statement_was_return) {
 		type_t *result_type = method->type->result_type;
@@ -1899,6 +1935,25 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	environment_pop_to(env, old_top);
 }
 
+void register_statement_lowerer(lower_statement_function function,
+                                int statement_type)
+{
+	if(statement_type < 0)
+		panic("can'T register lowerer for negative statement type");
+
+	int len = ARR_LEN(statement_lowerers);
+	if(statement_type >= len) {
+		ARR_RESIZE(statement_lowerers, statement_type + 1);
+		memset(&statement_lowerers[len], 0,
+		       (statement_type - len) * sizeof(statement_lowerers[0]));
+	}
+
+	if(statement_lowerers[statement_type] != NULL) {
+		panic("Trying to register multiple lowerers for a statement type");
+	}
+	statement_lowerers[statement_type] = function;
+}
+
 int check_static_semantic(namespace_t *namespace)
 {
 	struct obstack obst;
@@ -1911,7 +1966,6 @@ int check_static_semantic(namespace_t *namespace)
 	env.symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
 	env.label_stack        = NEW_ARR_F(symbol_t*, 0);
 	env.found_errors       = 0;
-	env.statement_lowerers = NEW_ARR_F(lower_statement_function, 0);
 
 	env.type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
 	env.type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
@@ -1924,7 +1978,6 @@ int check_static_semantic(namespace_t *namespace)
 
 	DEL_ARR_F(env.symbol_stack);
 	DEL_ARR_F(env.label_stack);
-	DEL_ARR_F(env.statement_lowerers);
 
 	// TODO global obstack...
 	//obstack_free(&obst, NULL);
@@ -1932,5 +1985,15 @@ int check_static_semantic(namespace_t *namespace)
 	obstack_free(&env.label_obstack, NULL);
 
 	return !env.found_errors;
+}
+
+void init_semantic_module(void)
+{
+	statement_lowerers = NEW_ARR_F(lower_statement_function, 0);
+}
+
+void exit_semantic_module(void)
+{
+	DEL_ARR_F(statement_lowerers);
 }
 

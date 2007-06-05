@@ -126,6 +126,11 @@ void print_binary_expression(FILE *out, const binary_expression_t *binexpr)
 
 void print_expression(FILE *out, const expression_t *expression)
 {
+	if(expression == NULL) {
+		fprintf(out, "*null expression*");
+		return;
+	}
+
 	switch(expression->type) {
 	case EXPR_LAST:
 	case EXPR_INVALID:
@@ -195,7 +200,11 @@ void print_goto_statement(FILE *out, const goto_statement_t *statement)
 {
 	fprintf(out, "goto ");
 	if(statement->label != NULL) {
-		fprintf(out, "%s", statement->label->symbol->string);
+		if(statement->label->symbol == NULL) {
+			fprintf(out, "$%p$", statement->label);
+		} else {
+			fprintf(out, "%s", statement->label->symbol->string);
+		}
 	} else {
 		fprintf(out, "?%s", statement->label_symbol->string);
 	}
@@ -204,7 +213,11 @@ void print_goto_statement(FILE *out, const goto_statement_t *statement)
 static
 void print_label_statement(FILE *out, const label_statement_t *statement)
 {
-	fprintf(out, ":%s", statement->symbol->string);
+	if(statement->symbol != NULL) {
+		fprintf(out, ":%s", statement->symbol->string);
+	} else {
+		fprintf(out, ":$%p$", statement);
+	}
 }
 
 static

@@ -31,7 +31,8 @@ static
 void init_tables()
 {
 	memset(char_type, 0, sizeof(char_type));
-	for(int c = 0; c <= 256; ++c) {
+	memset(ident_char, 0, sizeof(ident_char));
+	for(int c = 0; c < 256; ++c) {
 		if(isalnum(c)) {
 			char_type[c]  = START_IDENT;
 			ident_char[c] = 1;
