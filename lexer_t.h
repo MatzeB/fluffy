@@ -4,7 +4,6 @@
 #include "lexer.h"
 
 #include <stdio.h>
-#include "symbol_table_t.h"
 #include "adt/obst.h"
 #include "adt/strset.h"
 
@@ -23,8 +22,6 @@ struct lexer_t {
 	char              buf[1024];
 	const char       *bufend;
 	const char       *bufpos;
-	symbol_table_t   *symbol_table;
-	struct obstack   *obst;
 	strset_t          stringset;
 	int               at_line_begin;
 	unsigned          not_returned_dedents;
@@ -34,8 +31,7 @@ struct lexer_t {
 	unsigned          last_line_indent_len;
 };
 
-void lexer_init(lexer_t *lexer, symbol_table_t *symbol_table,
-                FILE *stream, const char *input_name);
+void lexer_init(lexer_t *lexer, FILE *stream, const char *input_name);
 
 void lexer_destroy(lexer_t *lexer);
 

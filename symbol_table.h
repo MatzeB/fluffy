@@ -2,9 +2,13 @@
 #define SYMBOL_TABLE_H
 
 #include "symbol.h"
+#include "adt/obst.h"
 
-typedef struct symbol_table_t symbol_table_t;
+symbol_t *symbol_table_insert(const char *symbol);
 
-symbol_t *symbol_table_insert(symbol_table_t *symbol_table, const char *symbol);
+void init_symbol_table(void);
+void exit_symbol_table(void);
+
+extern struct obstack symbol_obstack;
 
 #endif

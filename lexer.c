@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include "lexer_t.h"
-#include "symbol_table_t.h"
+#include "symbol_table.h"
 #include "adt/error.h"
 
 #include <assert.h>
@@ -132,13 +132,13 @@ void parse_symbol(lexer_t *this, token_t *token)
 	char     *string;
 
 	do {
-		obstack_1grow(this->obst, this->c);
+		obstack_1grow(&symbol_obstack, this->c);
 		next_char(this);
 	} while(is_ident_char(this->c));
-	obstack_1grow(this->obst, '\0');
-	string = obstack_finish(this->obst);
+	obstack_1grow(&symbol_obstack, '\0');
+	string = obstack_finish(&symbol_obstack);
 
-	symbol = symbol_table_insert(this->symbol_table, string);
+	symbol = symbol_table_insert(string);
 
 	if(symbol->ID > 0) {
 		token->type = symbol->ID;
@@ -148,7 +148,7 @@ void parse_symbol(lexer_t *this, token_t *token)
 	token->v.symbol = symbol;
 
 	if(symbol->string != string) {
-		obstack_free(this->obst, string);
+		obstack_free(&symbol_obstack, string);
 	}
 }
 
@@ -337,19 +337,19 @@ void parse_string_literal(lexer_t *this, token_t *token)
 			return;
 		}
 
-		obstack_1grow(this->obst, c);
+		obstack_1grow(&symbol_obstack, c);
 		c = this->c;
 	}
 	next_char(this);
 
 	/* add finishing 0 to the string */
-	obstack_1grow(this->obst, '\0');
-	string = obstack_finish(this->obst);
+	obstack_1grow(&symbol_obstack, '\0');
+	string = obstack_finish(&symbol_obstack);
 
 	/* check if there is already a copy of the string */
 	result = strset_insert(&this->stringset, string);
 	if(result != string) {
-		obstack_free(this->obst, string);
+		obstack_free(&symbol_obstack, string);
 	}
 
 	token->type     = T_STRING_LITERAL;
@@ -405,14 +405,14 @@ void parse_operator(lexer_t *this, token_t *token, int firstchar)
 		}
 	}
 
-	obstack_1grow(this->obst, firstchar);
+	obstack_1grow(&symbol_obstack, firstchar);
 	while(char_type[this->c] == START_OPERATOR) {
-		obstack_1grow(this->obst, this->c);
+		obstack_1grow(&symbol_obstack, this->c);
 		next_char(this);
 	}
-	obstack_1grow(this->obst, '\0');
-	char     *string = obstack_finish(this->obst);
-	symbol_t *symbol = symbol_table_insert(this->symbol_table, string);
+	obstack_1grow(&symbol_obstack, '\0');
+	char     *string = obstack_finish(&symbol_obstack);
+	symbol_t *symbol = symbol_table_insert(string);
 
 	int ID = symbol->ID;
 	if(ID > 0) {
@@ -425,7 +425,7 @@ void parse_operator(lexer_t *this, token_t *token, int firstchar)
 	token->v.symbol = symbol;
 
 	if(symbol->string != string) {
-		obstack_free(this->obst, string);
+		obstack_free(&symbol_obstack, string);
 	}
 }
 
@@ -631,15 +631,12 @@ void lexer_next_token(lexer_t *this, token_t *token)
 /* hack for now... */
 lexer_t *current_lexer = NULL;
 
-void lexer_init(lexer_t *this, symbol_table_t *symbol_table,
-                FILE *stream, const char *input_name)
+void lexer_init(lexer_t *this, FILE *stream, const char *input_name)
 {
 	memset(this, 0, sizeof(this[0]));
 
 	this->input = stream;
 
-	this->symbol_table               = symbol_table;
-	this->obst                       = &symbol_table->obst;
 	this->source_position.linenr     = 1;
 	this->source_position.input_name = input_name;
 	this->at_line_begin              = 1;

@@ -10,9 +10,11 @@
 
 #include "type.h"
 #include "parser.h"
+#include "ast_t.h"
 #include "semantic.h"
 #include "ast2firm.h"
 #include "plugins.h"
+#include "type_hash.h"
 #include "adt/error.h"
 
 static
@@ -106,9 +108,10 @@ void backend(const char *inputname)
 }
 
 static
-void dump_ast(const namespace_t *namespace, const char *fname, const char *name)
+void dump_ast(const namespace_t *namespace, const char *name)
 {
-	char filename[4096];
+	const char *fname = namespace->filename;
+	char        filename[4096];
 	get_output_name(filename, sizeof(filename), fname, name);
 
 	FILE* out = fopen(filename, "w");
@@ -122,7 +125,7 @@ void dump_ast(const namespace_t *namespace, const char *fname, const char *name)
 }
 
 static
-void compile(const char *fname)
+void parse_file(const char *fname)
 {
 	FILE *in = fopen(fname, "r");
 	if(in == NULL) {
@@ -136,47 +139,76 @@ void compile(const char *fname)
 	if(namespace == NULL) {
 		exit(1);
 	}
+	dump_ast(namespace, "-parse.txt");
 
-	dump_ast(namespace, fname, "-parse.txt");
+	namespace->next = namespaces;
+	namespaces      = namespace;
+}
 
-	if(!check_static_semantic(namespace)) {
-		fprintf(stderr, "Semantic errors found\n");
-		dump_ast(namespace, fname, "-error.txt");
-		exit(1);
+static
+void check_semantic_emit()
+{
+	namespace_t *namespace = namespaces;
+	while(namespace != NULL) {
+		if(!check_static_semantic(namespace)) {
+			fprintf(stderr, "Semantic errors found\n");
+			dump_ast(namespace, "-error.txt");
+			exit(1);
+		}
+		dump_ast(namespace, "-semantic.txt");
+
+		namespace = namespace->next;
 	}
 
-	dump_ast(namespace, fname, "-semantic.txt");
+	namespace = namespaces;
+	while(namespace != NULL) {
+		ast2firm(namespace);
 
-	ast2firm(namespace);
+		namespace = namespace->next;
+	}
 
-	fprintf(stderr, "parsing complete\n");
     lower_highlevel();
 
 	optimize();
 
-	fprintf(stderr, "optimisations complete\n");
+	const char *fname = namespaces->filename;
 	backend(fname);
-	fprintf(stderr, "backend complete\n");
 }
 
 int main(int argc, char **argv)
 {
-	int i;
+	if(argc < 2) {
+		fprintf(stderr, "no input files.\n");
+		return 0;
+	}
+
 	initialize_firm();
+	init_symbol_table();
+	init_tokens();
 	init_type_module();
+	init_typehash();
 	init_ast_module();
+	init_parser();
 	init_semantic_module();
 	search_plugins();
+	initialize_plugins();
 
-	for(i = 1; i < argc; ++i) {
-		compile(argv[i]);
+	for(int i = 1; i < argc; ++i) {
+		parse_file(argv[i]);
 	}
+
+	check_semantic_emit();
 
 	free_plugins();
 	exit_semantic_module();
+	exit_parser();
 	exit_ast_module();
 	exit_type_module();
+	exit_typehash();
+	exit_tokens();
+	exit_symbol_table();
 	exit_firm();
 
 	return 0;
 }
+

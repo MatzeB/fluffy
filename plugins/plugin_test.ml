@@ -83,20 +83,20 @@ typealias IrNode                 <- void
 typealias IrType                 <- void
 typealias ParseStatementFunction <- func Statement* (Parser* parser)
 typealias LowerStatementFunction <- func Statement* (Semantic* env, Statement* statement)
+typealias String                 <- byte*
 
-extern func int   register_new_token(byte* token)
+extern func int   register_new_token(String token)
 extern func int   register_statement()
 extern func int   register_expression()
 extern func int   register_namespace_entry()
 
-extern func int   puts(byte* string)
-extern func void  printf(byte* string, void* ptr)
+extern func int   puts(String string)
+extern func void  printf(String string, void* ptr)
 extern func void  abort()
 extern func void  memset(void *ptr, int c, unsigned int size)
 
-extern func void  register_statement_parser(Parser* parser_env, \
-                                           ParseStatementFunction* parser, \
-                                           int token_type)
+extern func void  register_statement_parser(ParseStatementFunction* parser, \
+                                            int token_type)
 extern func void  print_token(FILE* out, Token* token)
 extern func void  lexer_next_token(Lexer* lexer, Token* token)
 extern func void* allocate_ast(unsigned int size)
@@ -115,7 +115,6 @@ extern func void  register_statement_lowerer(LowerStatementFunction* function, \
 
 extern var FILE*   stdout
 extern var FILE*   stderr
-extern var Parser* current_parser
 var        int     token_for
 var        int     for_statement
 
@@ -255,5 +254,5 @@ func void init_plugin():
 	puts("init_plugin is here")
 	token_for     <- register_new_token("for")
 	for_statement <- register_statement()
-	register_statement_parser(current_parser, parse_for_statement, token_for)
+	register_statement_parser(parse_for_statement, token_for)
 	register_statement_lowerer(lower_for_statement, for_statement)

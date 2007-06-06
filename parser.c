@@ -12,12 +12,14 @@
 #include "type_hash.h"
 #include "ast_t.h"
 #include "type_t.h"
-#include "plugins.h"
-#include "globals.h"
 #include "adt/array.h"
 #include "adt/obst.h"
 #include "adt/util.h"
 #include "adt/error.h"
+
+static expression_parse_function_t    *expression_parsers = NULL;
+static parse_statement_function       *statement_parsers  = NULL;
+static parse_namespace_entry_function *namespace_parsers  = NULL;
 
 static inline
 void parser_found_error(parser_env_t *env)
@@ -34,6 +36,7 @@ void parser_print_error_prefix(parser_env_t *env)
 	fputc(':', stderr);
 	fprintf(stderr, "%d", env->lexer.source_position.linenr);
 	fputs(": error: ", stderr);
+	parser_found_error(env);
 }
 
 static
@@ -41,7 +44,6 @@ void parse_error(parser_env_t *env, const char *message)
 {
 	parser_print_error_prefix(env);
 	fprintf(stderr, "parse error: %s\n", message);
-	parser_found_error(env);
 }
 
 static
@@ -72,7 +74,6 @@ void parse_error_expected(parser_env_t *env, const char *message, ...)
 	}
 	va_end(args);
 	fprintf(stderr, "\n");
-	parser_found_error(env);
 }
 
 static
@@ -398,68 +399,64 @@ expression_t *parse_sizeof(parser_env_t *env)
 	return (expression_t*) expression;
 }
 
-void register_statement_parser(parser_env_t *env,
-                               parse_statement_function parser, int token_type)
+void register_statement_parser(parse_statement_function parser, int token_type)
 {
 	if(token_type < 0)
 		panic("can't register parser for negative token");
 
-	int len = ARR_LEN(env->statement_parsers);
+	int len = ARR_LEN(statement_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(env->statement_parsers, token_type + 1);
-		memset(& env->statement_parsers[len], 0,
-				(token_type - len) * sizeof(env->statement_parsers[0]));
+		ARR_RESIZE(statement_parsers, token_type + 1);
+		memset(& statement_parsers[len], 0,
+				(token_type - len) * sizeof(statement_parsers[0]));
 	}
 
-	if(env->statement_parsers[token_type] != NULL) {
+	if(statement_parsers[token_type] != NULL) {
 		panic("Trying to register multiple statement parsers for 1 token");
 	}
-	env->statement_parsers[token_type] = parser;
+	statement_parsers[token_type] = parser;
 }
 
-void register_namespace_parser(parser_env_t *env,
-                               parse_namespace_entry_function parser,
+void register_namespace_parser(parse_namespace_entry_function parser,
                                int token_type)
 {
 	if(token_type < 0)
 		panic("can't register parser for negative token");
 
-	int len = ARR_LEN(env->namespace_parsers);
+	int len = ARR_LEN(namespace_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(env->namespace_parsers, token_type + 1);
-		memset(& env->namespace_parsers[len], 0,
-				(token_type - len) * sizeof(env->namespace_parsers[0]));
+		ARR_RESIZE(namespace_parsers, token_type + 1);
+		memset(& namespace_parsers[len], 0,
+				(token_type - len) * sizeof(namespace_parsers[0]));
 	}
 
-	if(env->namespace_parsers[token_type] != NULL) {
+	if(namespace_parsers[token_type] != NULL) {
 		panic("trying to register multiple namespace parsers for 1 token");
 	}
-	env->namespace_parsers[token_type] = parser;
+	namespace_parsers[token_type] = parser;
 }
 
 static
-expression_parse_function_t *get_expression_parser_entry(parser_env_t *env,
-                                                         int token_type)
+expression_parse_function_t *get_expression_parser_entry(int token_type)
 {
 	if(token_type < 0)
 		panic("can't register parser for negative token");
 
-	int len = ARR_LEN(env->expression_parsers);
+	int len = ARR_LEN(expression_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(env->expression_parsers, token_type + 1);
-		memset(& env->expression_parsers[len], 0,
-				(token_type - len) * sizeof(env->expression_parsers[0]));
+		ARR_RESIZE(expression_parsers, token_type + 1);
+		memset(& expression_parsers[len], 0,
+				(token_type - len) * sizeof(expression_parsers[0]));
 	}
 
-	return &env->expression_parsers[token_type];
+	return &expression_parsers[token_type];
 }
 
-void register_expression_parser(parser_env_t *env,
-                                parse_expression_function parser,
+void register_expression_parser(parse_expression_function parser,
                                 int token_type, unsigned precedence)
 {
 	expression_parse_function_t *entry
-		= get_expression_parser_entry(env, token_type);
+		= get_expression_parser_entry(token_type);
 
 	if(entry->parser != NULL) {
 		panic("trying to register multiple expression parsers for a token");
@@ -468,12 +465,11 @@ void register_expression_parser(parser_env_t *env,
 	entry->precedence = precedence;
 }
 
-void register_expression_infix_parser(parser_env_t *env,
-                                      parse_expression_infix_function parser,
+void register_expression_infix_parser(parse_expression_infix_function parser,
                                       int token_type, unsigned precedence)
 {
 	expression_parse_function_t *entry
-		= get_expression_parser_entry(env, token_type);
+		= get_expression_parser_entry(token_type);
 
 	if(entry->infix_parser != NULL) {
 		panic("trying to register multiple infix expression parsers for a "
@@ -699,39 +695,40 @@ CREATE_BINEXPR_PARSER('^', BINEXPR_XOR);
 CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
 CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
 
-static void register_expression_parsers(parser_env_t *env)
+static
+void register_expression_parsers()
 {
-	register_expression_infix_parser(env, parse_BINEXPR_MUL,       '*', 16);
-	register_expression_infix_parser(env, parse_BINEXPR_DIV,       '/', 16);
-	register_expression_infix_parser(env, parse_BINEXPR_SHIFTLEFT, 
+	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', 16);
+	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', 16);
+	register_expression_infix_parser(parse_BINEXPR_SHIFTLEFT, 
 	                           T_LESSLESS, 16);
-	register_expression_infix_parser(env, parse_BINEXPR_SHIFTRIGHT,
+	register_expression_infix_parser(parse_BINEXPR_SHIFTRIGHT,
 	                           T_GREATERGREATER, 16);
-	register_expression_infix_parser(env, parse_BINEXPR_ADD,       '+', 15);
-	register_expression_infix_parser(env, parse_BINEXPR_SUB,       '-', 15);
-	register_expression_infix_parser(env, parse_BINEXPR_LESS,      '<', 14);
-	register_expression_infix_parser(env, parse_BINEXPR_GREATER,   '>', 14);
-	register_expression_infix_parser(env, parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
-	register_expression_infix_parser(env, parse_BINEXPR_GREATEREQUAL,
+	register_expression_infix_parser(parse_BINEXPR_ADD,       '+', 15);
+	register_expression_infix_parser(parse_BINEXPR_SUB,       '-', 15);
+	register_expression_infix_parser(parse_BINEXPR_LESS,      '<', 14);
+	register_expression_infix_parser(parse_BINEXPR_GREATER,   '>', 14);
+	register_expression_infix_parser(parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
+	register_expression_infix_parser(parse_BINEXPR_GREATEREQUAL,
 	                           T_GREATEREQUAL, 14);
-	register_expression_infix_parser(env, parse_BINEXPR_EQUAL,     '=', 13);
-	register_expression_infix_parser(env, parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
-	register_expression_infix_parser(env, parse_BINEXPR_AND,       '&', 12);
-	register_expression_infix_parser(env, parse_BINEXPR_XOR,       '^', 11);
-	register_expression_infix_parser(env, parse_BINEXPR_OR,        '|', 10);
-	register_expression_infix_parser(env, parse_BINEXPR_ASSIGN, T_ASSIGN, 2);
+	register_expression_infix_parser(parse_BINEXPR_EQUAL,     '=', 13);
+	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
+	register_expression_infix_parser(parse_BINEXPR_AND,       '&', 12);
+	register_expression_infix_parser(parse_BINEXPR_XOR,       '^', 11);
+	register_expression_infix_parser(parse_BINEXPR_OR,        '|', 10);
+	register_expression_infix_parser(parse_BINEXPR_ASSIGN, T_ASSIGN, 2);
 
-	register_expression_infix_parser(env, parse_array_expression,  '[', 25);
+	register_expression_infix_parser(parse_array_expression,  '[', 25);
 
-	register_expression_infix_parser(env, parse_call_expression,   '(', 30);
-	register_expression_infix_parser(env, parse_select_expression, '.', 30);
+	register_expression_infix_parser(parse_call_expression,   '(', 30);
+	register_expression_infix_parser(parse_select_expression, '.', 30);
 
-	register_expression_parser(env, parse_UNEXPR_NEGATE,       '-',    25);
-	register_expression_parser(env, parse_UNEXPR_NOT,          '!',    25);
-	register_expression_parser(env, parse_UNEXPR_DEREFERENCE,  '*',    20);
-	register_expression_parser(env, parse_UNEXPR_TAKE_ADDRESS, '&',    20);
-	register_expression_parser(env, parse_cast_expression,     T_cast,  3);
-	register_expression_parser(env, parse_brace_expression,    '(',     1);
+	register_expression_parser(parse_UNEXPR_NEGATE,           '-',    25);
+	register_expression_parser(parse_UNEXPR_NOT,              '!',    25);
+	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
+	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);
+	register_expression_parser(parse_cast_expression,         T_cast,  3);
+	register_expression_parser(parse_brace_expression,        '(',     1);
 }
 
 expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
@@ -740,9 +737,9 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 		return expected_expression_error(env);
 	}
 
-	expression_parse_function_t *parser
-		= & env->expression_parsers[env->token.type];
-	source_position_t  source_position = env->lexer.source_position;
+	expression_parse_function_t *parser	
+		= & expression_parsers[env->token.type];
+	source_position_t  source_position  = env->lexer.source_position;
 	expression_t      *left;
 	
 	if(parser->parser != NULL) {
@@ -758,7 +755,7 @@ expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence)
 			return expected_expression_error(env);
 		}
 
-		parser = &env->expression_parsers[env->token.type];
+		parser = &expression_parsers[env->token.type];
 		if(parser->infix_parser == NULL)
 			break;
 		if(parser->infix_precedence < precedence)
@@ -989,15 +986,15 @@ statement_t *parse_newline(parser_env_t *env)
 }
 
 static
-void register_statement_parsers(parser_env_t *env)
+void register_statement_parsers()
 {
-	register_statement_parser(env, parse_return_statement, T_return);
-	register_statement_parser(env, parse_if_statement, T_if);
-	register_statement_parser(env, parse_block, T_INDENT);
-	register_statement_parser(env, parse_variable_declaration, T_var);
-	register_statement_parser(env, parse_label_statement, ':');
-	register_statement_parser(env, parse_goto_statement, T_goto);
-	register_statement_parser(env, parse_newline, T_NEWLINE);
+	register_statement_parser(parse_return_statement,     T_return);
+	register_statement_parser(parse_if_statement,         T_if);
+	register_statement_parser(parse_block,                T_INDENT);
+	register_statement_parser(parse_variable_declaration, T_var);
+	register_statement_parser(parse_label_statement,      ':');
+	register_statement_parser(parse_goto_statement,       T_goto);
+	register_statement_parser(parse_newline,              T_NEWLINE);
 }
 
 statement_t *parse_statement(parser_env_t *env)
@@ -1013,8 +1010,8 @@ statement_t *parse_statement(parser_env_t *env)
 	}
 
 	parse_statement_function parser = NULL;
-	if(env->token.type < ARR_LEN(env->statement_parsers))
-		parser = env->statement_parsers[env->token.type];
+	if(env->token.type < ARR_LEN(statement_parsers))
+		parser = statement_parsers[env->token.type];
 
 	if(parser != NULL) {
 		statement = parser(env);
@@ -1665,8 +1662,8 @@ namespace_entry_t *parse_namespace_entry(parser_env_t *env)
 	}
 
 	parse_namespace_entry_function parser = NULL;
-	if(env->token.type < ARR_LEN(env->namespace_parsers))
-		parser = env->namespace_parsers[env->token.type];
+	if(env->token.type < ARR_LEN(namespace_parsers))
+		parser = namespace_parsers[env->token.type];
 
 	if(parser == NULL) {
 		parse_error_expected(env, "Couldn't parse compilation unit entry",
@@ -1712,66 +1709,56 @@ namespace_entry_t *skip_namespace_entry(parser_env_t *env)
 }
 
 static
-void register_namespace_parsers(parser_env_t *env)
+void register_namespace_parsers()
 {
-	register_namespace_parser(env, parse_method, T_func);
-	register_namespace_parser(env, parse_global_variable, T_var);
-	register_namespace_parser(env, parse_extern, T_extern);
-	register_namespace_parser(env, parse_struct, T_struct);
-	register_namespace_parser(env, parse_union, T_union);
-	register_namespace_parser(env, parse_typealias, T_typealias);
-	register_namespace_parser(env, parse_typeclass, T_typeclass);
-	register_namespace_parser(env, parse_typeclass_instance, T_instance);
-	register_namespace_parser(env, skip_namespace_entry, T_NEWLINE);
+	register_namespace_parser(parse_method,             T_func);
+	register_namespace_parser(parse_global_variable,    T_var);
+	register_namespace_parser(parse_extern,             T_extern);
+	register_namespace_parser(parse_struct,             T_struct);
+	register_namespace_parser(parse_union,              T_union);
+	register_namespace_parser(parse_typealias,          T_typealias);
+	register_namespace_parser(parse_typeclass,          T_typeclass);
+	register_namespace_parser(parse_typeclass_instance, T_instance);
+	register_namespace_parser(skip_namespace_entry,     T_NEWLINE);
 }
-
-parser_env_t *current_parser = NULL;
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
 	parser_env_t env;
 	memset(&env, 0, sizeof(env));
 
-	current_parser = &env;
-
-	env.expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
-	env.statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
-	env.namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
-
-	typehash_init();
-
-	symbol_table_init(&env.symbol_table);
-	symbol_table = &env.symbol_table;
-
-	init_tokens();
-
-	register_expression_parsers(&env);
-	register_statement_parsers(&env);
-	register_namespace_parsers(&env);
-
-	lexer_init(&env.lexer, &env.symbol_table, in, input_name);
-	initialize_plugins();
+	lexer_init(&env.lexer, in, input_name);
 
 	next_token(&env);
 
-	namespace_t *unit = parse_namespace(&env);
+	namespace_t *namespace = parse_namespace(&env);
+	namespace->filename    = input_name;
 
 	lexer_destroy(&env.lexer);
-	/* FIXME: make these global somehow
-	symbol_table_destroy(&env.symbol_table);
-	obstack_free(&env.obst, NULL);
-	typehash_destroy();
-	*/
-	DEL_ARR_F(env.namespace_parsers);
-	DEL_ARR_F(env.expression_parsers);
-	DEL_ARR_F(env.statement_parsers);
 
 	if(env.error) {
 		fprintf(stderr, "Errors happened...\n");
 		return NULL;
 	}
 
-	current_parser = NULL;
-
-	return unit;
+	return namespace;
 }
+
+void init_parser(void)
+{
+	expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
+	statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
+	namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
+
+	register_expression_parsers();
+	register_statement_parsers();
+	register_namespace_parsers();
+}
+
+void exit_parser(void)
+{
+	DEL_ARR_F(namespace_parsers);
+	DEL_ARR_F(expression_parsers);
+	DEL_ARR_F(statement_parsers);
+}
+

@@ -3,8 +3,8 @@
 
 #include "type.h"
 
-void typehash_init(void);
-void typehash_destroy(void);
+void init_typehash(void);
+void exit_typehash(void);
 
 type_t *typehash_insert(type_t *type);
 int     typehash_contains(type_t *type);

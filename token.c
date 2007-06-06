@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "symbol.h"
-#include "globals.h"
 #include "adt/array.h"
 
 static symbol_t **token_symbols = NULL;
@@ -20,13 +19,13 @@ void init_tokens(void)
 
 #define T(x,str,val)                                               \
 	assert(T_##x >= 0 && T_##x < T_LAST_TOKEN);                    \
-	symbol               = symbol_table_insert(symbol_table, str); \
+	symbol               = symbol_table_insert(str);               \
 	symbol->ID           = T_##x;                                  \
 	token_symbols[T_##x] = symbol;
 
 #define TS(x,str,val)                                              \
 	assert(T_##x >= 0 && T_##x < T_LAST_TOKEN);                    \
-	symbol               = symbol_table_insert(symbol_table, str); \
+	symbol               = symbol_table_insert(str);               \
 	token_symbols[T_##x] = symbol;
 
 #include "tokens.inc"
@@ -35,7 +34,7 @@ void init_tokens(void)
 #undef T
 }
 
-void quit_tokens(void)
+void exit_tokens(void)
 {
 	DEL_ARR_F(token_symbols);
 	token_symbols = NULL;
@@ -45,7 +44,7 @@ int register_new_token(const char *token)
 {
 	int token_id = ARR_LEN(token_symbols);
 	
-	symbol_t *symbol = symbol_table_insert(symbol_table, token);
+	symbol_t *symbol = symbol_table_insert(token);
 	symbol->ID       = token_id;
 	ARR_APP1(token_symbols, symbol);
 

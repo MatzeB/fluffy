@@ -216,12 +216,12 @@ int types_equal(const type_t *type1, const type_t *type2)
 
 static type_hash_t typehash;
 
-void typehash_init(void)
+void init_typehash(void)
 {
 	_typehash_init(&typehash);
 }
 
-void typehash_destroy(void)
+void exit_typehash(void)
 {
 	_typehash_destroy(&typehash);
 }

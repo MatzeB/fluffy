@@ -10,7 +10,8 @@
 #include "adt/obst.h"
 #include <libfirm/typerep.h>
 
-extern struct obstack ast_obstack;
+extern struct obstack  ast_obstack;
+extern namespace_t    *namespaces;
 
 typedef enum {
 	EXPR_INVALID = 0,
@@ -296,7 +297,10 @@ struct typeclass_t {
 };
 
 struct namespace_t {
+	symbol_t          *name;
+	const char        *filename;
 	namespace_entry_t *entries;
+	namespace_t       *next;
 };
 
 static inline

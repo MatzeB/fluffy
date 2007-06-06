@@ -9,7 +9,8 @@
 
 #include "adt/error.h"
 
-struct obstack ast_obstack;
+struct obstack  ast_obstack;
+namespace_t    *namespaces;
 
 static
 void print_int_const(FILE *out, const int_const_t *int_const)

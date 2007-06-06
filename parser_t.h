@@ -30,26 +30,18 @@ typedef struct expression_parse_function_t {
 struct parser_env_t {
 	token_t                         token;
 	lexer_t                         lexer;
-	symbol_table_t                  symbol_table;
-	expression_parse_function_t    *expression_parsers;
-	parse_statement_function       *statement_parsers;
-	parse_namespace_entry_function *namespace_parsers;
 	int                             error;
 };
 
-void register_expression_parser(parser_env_t *env,
-                                parse_expression_function parser,
+void register_expression_parser(parse_expression_function parser,
                                 int token_type, unsigned precedence);
 
-void register_expression_infix_parser(parser_env_t *env,
-                                      parse_expression_infix_function parser,
+void register_expression_infix_parser(parse_expression_infix_function parser,
                                       int token_type, unsigned precedence);
 
-void register_statement_parser(parser_env_t *env,
-                               parse_statement_function parser, int token_type);
+void register_statement_parser(parse_statement_function parser, int token_type);
 
-void register_namespace_parser(parser_env_t *env,
-                               parse_namespace_entry_function parser,
+void register_namespace_parser(parse_namespace_entry_function parser,
                                int token_type);
 
 expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence);

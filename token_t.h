@@ -26,7 +26,7 @@ typedef struct {
 } token_t;
 
 void init_tokens(void);
-void quit_tokens(void);
+void exit_tokens(void);
 void print_token_type(FILE *out, token_type_t token_type);
 void print_token(FILE *out, const token_t *token);
 
