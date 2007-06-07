@@ -309,11 +309,7 @@ static
 ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
 	ir_type *ir_type = new_type_struct(unique_id(type->symbol->string));
-#ifndef NDEBUG
-	/* detect structs that contain themselfes. The semantic phase should have
-	 * already reported errors about this but you never know... */
-	type->type.firm_type = INVALID_TYPE;
-#endif
+	type->type.firm_type = ir_type;
 
 	int align_all = 1;
 	int offset    = 0;
@@ -357,11 +353,8 @@ ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	symbol_t *symbol  = type->symbol;
 	ident    *id      = unique_id(symbol->string);
 	ir_type  *ir_type = new_type_union(id);
-#ifndef NDEBUG
-	/* detect compound types that contain themselfes. The semantic phase should
-	 * have already reported errors about this but you never know... */
-	type->type.firm_type = INVALID_TYPE;
-#endif
+
+	type->type.firm_type = ir_type;
 
 	int align_all = 1;
 	int size      = 0;

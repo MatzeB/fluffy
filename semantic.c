@@ -771,6 +771,8 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 	type_variable_t *type_var = typeclass->type_parameters;
 	while(type_var != NULL) {
 		type_t *current_type = type_var->current_type;
+		if(current_type == NULL)
+			return;
 
 		if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *type_ref      = (type_reference_t*) current_type;
@@ -1158,6 +1160,9 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	expression_t *compound = select->compound;
 
 	type_t *datatype = compound->datatype;
+	if(datatype == NULL)
+		return;
+
 	if(datatype->type != TYPE_POINTER) {
 		print_error_prefix(env, select->expression.source_position);
 		fprintf(stderr, "select needs a pointer to compound type but found ");
@@ -1939,13 +1944,13 @@ void register_statement_lowerer(lower_statement_function function,
                                 int statement_type)
 {
 	if(statement_type < 0)
-		panic("can'T register lowerer for negative statement type");
+		panic("can't register lowerer for negative statement type");
 
 	int len = ARR_LEN(statement_lowerers);
 	if(statement_type >= len) {
 		ARR_RESIZE(statement_lowerers, statement_type + 1);
 		memset(&statement_lowerers[len], 0,
-		       (statement_type - len) * sizeof(statement_lowerers[0]));
+		       (statement_type - len + 1) * sizeof(statement_lowerers[0]));
 	}
 
 	if(statement_lowerers[statement_type] != NULL) {

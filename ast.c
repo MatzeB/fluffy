@@ -458,6 +458,25 @@ void print_typeclass_instance(FILE *out, const typeclass_instance_t *instance)
 }
 
 static
+void print_global_variable(FILE *out, const global_variable_t *variable)
+{
+	if(variable->is_extern) {
+		fprintf(out, "extern ");
+	}
+	fprintf(out, "var ");
+	print_type(out, variable->type);
+	fprintf(out, " %s\n", variable->symbol->string);
+}
+
+static
+void print_typealias(FILE *out, const typealias_t *alias)
+{
+	fprintf(out, "typealias %s <- ", alias->symbol->string);
+	print_type(out, alias->type);
+	fprintf(out, "\n");
+}
+
+static
 void print_namespace_entry(FILE *out, const namespace_entry_t *entry)
 {
 	switch(entry->type) {
@@ -471,9 +490,10 @@ void print_namespace_entry(FILE *out, const namespace_entry_t *entry)
 		print_typeclass_instance(out, (const typeclass_instance_t*) entry);
 		break;
 	case NAMESPACE_ENTRY_VARIABLE:
+		print_global_variable(out, (const global_variable_t*) entry);
+		break;
 	case NAMESPACE_ENTRY_TYPEALIAS:
-		/* TODO */
-		fprintf(out, "some namespace entry of type %d\n\n", entry->type);
+		print_typealias(out, (const typealias_t*) entry);
 		break;
 	case NAMESPACE_ENTRY_INVALID:
 	case NAMESPACE_ENTRY_LAST:

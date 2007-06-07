@@ -297,7 +297,7 @@ struct typeclass_t {
 };
 
 struct namespace_t {
-	symbol_t          *name;
+	symbol_t          *symbol;
 	const char        *filename;
 	namespace_entry_t *entries;
 	namespace_t       *next;

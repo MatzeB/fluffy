@@ -3,6 +3,7 @@ not be forgotten and are not done yet because I was lazy or did not decide
 about the right way to do it yet.
 
 - Declaring a variable, function, etc. twice is not detected in semantic phase
+- semantic should check that structs don't contain themselfes
 - having the same entry twice in a struct is not detected
 - correct pointer arithmetic
 - A typeof operator (resulting in the type of the enclosed expression)

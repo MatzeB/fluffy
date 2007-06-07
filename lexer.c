@@ -628,9 +628,6 @@ void lexer_next_token(lexer_t *this, token_t *token)
 	}
 }
 
-/* hack for now... */
-lexer_t *current_lexer = NULL;
-
 void lexer_init(lexer_t *this, FILE *stream, const char *input_name)
 {
 	memset(this, 0, sizeof(this[0]));
@@ -649,8 +646,6 @@ void lexer_init(lexer_t *this, FILE *stream, const char *input_name)
 	}
 
 	next_char(this);
-
-	current_lexer = this;
 }
 
 void lexer_destroy(lexer_t *this)

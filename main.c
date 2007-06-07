@@ -17,6 +17,8 @@
 #include "type_hash.h"
 #include "adt/error.h"
 
+static const char *outname = NULL;
+
 static
 void optimize()
 {
@@ -96,7 +98,12 @@ void backend(const char *inputname)
 {
 	char outfname[4096];
 
-	get_output_name(outfname, sizeof(outfname), inputname, ".s");
+	if(outname != NULL) {
+		snprintf(outfname, sizeof(outfname), "%s", outname);
+	} else {
+		get_output_name(outfname, sizeof(outfname), inputname, ".s");
+	}
+
 	FILE *out = fopen(outfname, "w");
 	if(out == NULL) {
 		fprintf(stderr, "Couldn't open '%s': %s\n", outfname,
@@ -140,9 +147,6 @@ void parse_file(const char *fname)
 		exit(1);
 	}
 	dump_ast(namespace, "-parse.txt");
-
-	namespace->next = namespaces;
-	namespaces      = namespace;
 }
 
 static
@@ -175,6 +179,12 @@ void check_semantic_emit()
 	backend(fname);
 }
 
+static
+void usage()
+{
+	fprintf(stderr, "Usage: mlang input1 input2 [-o output]\n");
+}
+
 int main(int argc, char **argv)
 {
 	if(argc < 2) {
@@ -194,7 +204,20 @@ int main(int argc, char **argv)
 	initialize_plugins();
 
 	for(int i = 1; i < argc; ++i) {
-		parse_file(argv[i]);
+		const char *arg = argv[i];
+		if(strcmp(arg, "-o") == 0) {
+			++i;
+			if(i >= argc) {
+				usage();
+				return 1;
+			}
+			outname = argv[i];
+		} else if(strcmp(arg, "--help") == 0) {
+			usage();
+			return 0;
+		} else {
+			parse_file(argv[i]);
+		}
 	}
 
 	check_semantic_emit();

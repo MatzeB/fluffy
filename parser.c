@@ -408,7 +408,7 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 	if(token_type >= len) {
 		ARR_RESIZE(statement_parsers, token_type + 1);
 		memset(& statement_parsers[len], 0,
-				(token_type - len) * sizeof(statement_parsers[0]));
+				(token_type - len + 1) * sizeof(statement_parsers[0]));
 	}
 
 	if(statement_parsers[token_type] != NULL) {
@@ -427,7 +427,7 @@ void register_namespace_parser(parse_namespace_entry_function parser,
 	if(token_type >= len) {
 		ARR_RESIZE(namespace_parsers, token_type + 1);
 		memset(& namespace_parsers[len], 0,
-				(token_type - len) * sizeof(namespace_parsers[0]));
+				(token_type - len + 1) * sizeof(namespace_parsers[0]));
 	}
 
 	if(namespace_parsers[token_type] != NULL) {
@@ -446,7 +446,7 @@ expression_parse_function_t *get_expression_parser_entry(int token_type)
 	if(token_type >= len) {
 		ARR_RESIZE(expression_parsers, token_type + 1);
 		memset(& expression_parsers[len], 0,
-				(token_type - len) * sizeof(expression_parsers[0]));
+				(token_type - len + 1) * sizeof(expression_parsers[0]));
 	}
 
 	return &expression_parsers[token_type];
@@ -1682,11 +1682,54 @@ namespace_entry_t *parse_namespace_entry(parser_env_t *env)
 }
 
 static
+namespace_t *get_namespace(symbol_t *symbol)
+{
+	/* search for an existing namespace */
+	namespace_t *namespace = namespaces;
+	while(namespace != NULL) {
+		if(namespace->symbol == symbol)
+			return namespace;
+	
+		namespace = namespace->next;
+	}
+
+	namespace = allocate_ast(sizeof(namespace[0]));
+	memset(namespace, 0, sizeof(namespace[0]));
+	namespace->symbol = symbol;
+
+	namespace->next = namespaces;
+	namespaces      = namespace;
+
+	return namespace;
+}
+
+static
 namespace_t *parse_namespace(parser_env_t *env)
 {
-	namespace_t *namespace = allocate_ast(sizeof(namespace[0]));
-	memset(namespace, 0, sizeof(namespace[0]));
+	symbol_t *namespace_symbol = NULL;
 
+	/* parse namespace name */
+	if(env->token.type == T_namespace) {
+		next_token(env);
+		if(env->token.type != T_IDENTIFIER) {
+			parse_error_expected(env, "problem while parsing namespace", 
+			                     T_IDENTIFIER, 0);
+			eat_until_newline(env);
+		}
+		namespace_symbol = env->token.v.symbol;
+		next_token(env);
+
+		if(env->token.type != T_NEWLINE) {
+			parse_error(env, "extra tokens after namespace definition");
+			eat_until_newline(env);
+		} else {
+			next_token(env);
+		}
+	}
+		
+	namespace_t *namespace = get_namespace(namespace_symbol);
+
+	/* parse namespace entries */
 	while(env->token.type != T_EOF) {
 		source_position_t  source_position = env->lexer.source_position;
 		namespace_entry_t *entry           = parse_namespace_entry(env);
