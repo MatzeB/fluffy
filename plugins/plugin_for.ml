@@ -14,25 +14,25 @@ instance AllocateOnAst<ForStatement>:
 		res.statement.type <- for_statement
 		return res
 
-func Statement* parse_for_statement(Parser* env):
+func Statement* parse_for_statement():
 	puts("parsing a for...")
 	var statement <- allocate<$ForStatement>()
 
-	//assert(env.token.type = token_for)
-	next_token(env)
+	//assert(token.type = token_for)
+	next_token()
 
-	expect(env, '(')
-	if env.token.type /= ';':
-		statement.pre_expression <- parse_expression(env)
-	expect(env, ';')
-	statement.loop_control <- parse_expression(env)
-	expect(env, ';')
-	if env.token.type /= ')':
-		statement.step_expression <- parse_expression(env)
-	expect(env, ')')
-	expect(env, ':')
+	expect('(')
+	if token.type /= ';':
+		statement.pre_expression <- parse_expression()
+	expect(';')
+	statement.loop_control <- parse_expression()
+	expect(';')
+	if token.type /= ')':
+		statement.step_expression <- parse_expression()
+	expect(')')
+	expect(':')
 
-	statement.loop_body <- parse_statement(env)
+	statement.loop_body <- parse_statement()
 
 	return cast<Statement* > statement
 
@@ -81,3 +81,4 @@ func void init_plugin():
 	for_statement <- register_statement()
 	register_statement_parser(parse_for_statement, token_for)
 	register_statement_lowerer(lower_for_statement, for_statement)
+

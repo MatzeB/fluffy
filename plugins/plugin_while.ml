@@ -12,17 +12,17 @@ instance AllocateOnAst<WhileStatement>:
 		res.statement.type <- while_statement_type
 		return res
 
-func Statement* parse_while_statement(Parser* env):
+func Statement* parse_while_statement():
 	puts("parsing a while...")
 	var statement <- allocate<$WhileStatement>()
 
-	//assert(env.token.type = token_while)
-	next_token(env)
+	//assert(token.type = token_while)
+	next_token()
 
-	statement.loop_control <- parse_expression(env)
-	expect(env, ':')
+	statement.loop_control <- parse_expression()
+	expect(':')
 
-	statement.loop_body <- parse_statement(env)
+	statement.loop_body <- parse_statement()
 
 	return cast<Statement* > statement
 

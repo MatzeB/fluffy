@@ -64,17 +64,12 @@ struct Lexer:
 	// char[1024]    buf
 	// more stuff...
 
-struct Parser:
-	Token           token
-	Lexer           lexer
-	// more stuff...
-
 typealias Semantic               <- void
 typealias FILE                   <- void
 typealias EnvironmentEntry       <- void
 typealias IrNode                 <- void
 typealias IrType                 <- void
-typealias ParseStatementFunction <- func Statement* (Parser* parser)
+typealias ParseStatementFunction <- func Statement* ()
 typealias LowerStatementFunction <- func Statement* (Semantic* env, Statement* statement)
 typealias String                 <- byte*
 
@@ -84,6 +79,7 @@ extern func int   register_expression()
 extern func int   register_namespace_entry()
 
 extern func int   puts(String string)
+extern func int   fputs(String string, FILE* stream)
 extern func void  printf(String string, void* ptr)
 extern func void  abort()
 extern func void  memset(void *ptr, int c, unsigned int size)
@@ -93,10 +89,11 @@ extern func void  register_statement_parser(ParseStatementFunction* parser, \
 extern func void  print_token(FILE* out, Token* token)
 extern func void  lexer_next_token(Lexer* lexer, Token* token)
 extern func void* allocate_ast(unsigned int size)
-extern func void  parser_print_error_prefix(Parser* parser)
+extern func void  parser_print_error_prefix()
+extern func void  next_token()
 
-extern func Expression* parse_expression(Parser* parser)
-extern func Statement*  parse_statement(Parser* parser)
+extern func Expression* parse_expression()
+extern func Statement*  parse_statement()
 
 extern func void  print_error_prefix(Semantic* env, SourcePosition position)
 extern func void  print_warning_preifx(Semantic* env, SourcePosition position)
@@ -105,8 +102,10 @@ extern func Expression* check_expression(Semantic* env, Expression* expression)
 extern func void  register_statement_lowerer(LowerStatementFunction* function, \
                                              int statement_type)
 
-extern var FILE*   stdout
-extern var FILE*   stderr
+extern var FILE*  stdout
+extern var FILE*  stderr
+extern var Token  token
+extern var Lexer  lexer
 
 typeclass AllocateOnAst<T>:
 	func T* allocate()
@@ -146,22 +145,17 @@ instance AllocateOnAst<LabelStatement>:
 		res.statement.type <- 7
 		return res
 
-func void expect(Parser* env, int token):
-	if env.token.type /= token:
-		parser_print_error_prefix(env)
-		puts("Parse error expected another token")
+func void expect(int token_type):
+	if token.type /= token_type:
+		parser_print_error_prefix()
+		fputs("Parse error expected another token\n", stderr)
 		abort()
-	next_token(env)
+	next_token()
 
 func void assert(int expr):
 	if expr /= 0:
-		puts("Assert failed")
+		fputs("Assert failed\n", stderr)
 		abort()
-
-func void next_token(Parser* env):
-	lexer_next_token(env.lexer, env.token)
-	print_token(stdout, env.token)
-	puts("")
 
 func void block_append(BlockStatement* block, Statement* append):
 	var statement <- block.statements

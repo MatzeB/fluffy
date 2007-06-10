@@ -699,6 +699,10 @@ ir_entity* get_method_entity(method_t *method)
 }
 
 static
+ir_node *load_from_expression_addr(const expression_t *expression,
+                                   ir_node *addr);
+
+static
 ir_node *expression_to_firm(const expression_t *expression);
 
 static
@@ -822,6 +826,20 @@ ir_node *global_variable_reference_addr(const reference_expression_t *ref)
 	                                 symconst_addr_ent);
 
 	return symconst;
+}
+
+static
+ir_node *global_variable_reference_to_firm(const reference_expression_t *ref)
+{
+	ir_node           *addr     = global_variable_reference_addr(ref);
+	global_variable_t *variable = ref->r.global_variable;
+	type_t            *type     = variable->type;
+
+	if(type->type == TYPE_COMPOUND) {
+		return addr;
+	}
+
+	return load_from_expression_addr(&ref->expression, addr);
 }
 
 static
@@ -1208,6 +1226,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_REFERENCE_TYPECLASS_METHOD:
 		return typeclass_method_reference_to_firm(
 				(const reference_expression_t*) expression);
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
+		return global_variable_reference_to_firm(
+				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
@@ -1217,7 +1238,6 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_SELECT:
 		return select_expression_to_firm(
 				(const select_expression_t*) expression);
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 	case EXPR_ARRAY_ACCESS:
 		addr = expression_addr(expression);
 		return load_from_expression_addr(expression, addr);

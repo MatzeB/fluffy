@@ -1,0 +1,9 @@
+extern func void print_int(int val)
+
+func int main():
+	var i <- 23
+	while i < 42:
+		print_int(i)
+		i <- i + 1
+
+	return 0

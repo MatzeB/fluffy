@@ -8,17 +8,13 @@
 #include "token_t.h"
 #include "lexer_t.h"
 
-//#define ABORT_ON_ERROR
-//#define PRINT_TOKENS
-
 typedef expression_t* (*parse_expression_function)
-                      (parser_env_t *env, unsigned precedence);
+                      (unsigned precedence);
 typedef expression_t* (*parse_expression_infix_function)
-                      (parser_env_t *env, unsigned precedence,
-                       expression_t *left);
-typedef statement_t*  (*parse_statement_function) (parser_env_t *env);
+                      (unsigned precedence, expression_t *left);
+typedef statement_t*  (*parse_statement_function) ();
 typedef namespace_entry_t*  (*parse_namespace_entry_function)
-                            (parser_env_t *env);
+                            ();
 
 typedef struct expression_parse_function_t {
 	unsigned                         precedence;
@@ -27,11 +23,8 @@ typedef struct expression_parse_function_t {
 	parse_expression_infix_function  infix_parser;
 } expression_parse_function_t;
 
-struct parser_env_t {
-	token_t                         token;
-	lexer_t                         lexer;
-	int                             error;
-};
+extern token_t token;
+extern lexer_t lexer;
 
 void register_expression_parser(parse_expression_function parser,
                                 int token_type, unsigned precedence);
@@ -44,35 +37,13 @@ void register_statement_parser(parse_statement_function parser, int token_type);
 void register_namespace_parser(parse_namespace_entry_function parser,
                                int token_type);
 
-expression_t *parse_sub_expression(parser_env_t *env, unsigned precedence);
+expression_t *parse_sub_expression(unsigned precedence);
 
-void parser_print_error_prefix(parser_env_t *env);
+void parser_print_error_prefix();
 
-static inline
-void next_token(parser_env_t *env)
-{
-	lexer_next_token(&env->lexer, &env->token);
-
-#ifdef PRINT_TOKENS
-	print_token(stderr, & env->token);
-	fprintf(stderr, "\n");
-#endif
-}
-
-static inline
-void eat(parser_env_t *env, token_type_t type)
-{
-	assert(env->token.type == type);
-	next_token(env);
-}
-
-/*------- helpers for plugins */
-
-extern parser_env_t *current_parser;
-
-expression_t      *parse_expression(parser_env_t *env);
-statement_t       *parse_statement(parser_env_t *env);
-namespace_entry_t *parse_namespace_entry(parser_env_t *env);
+expression_t      *parse_expression();
+statement_t       *parse_statement();
+namespace_entry_t *parse_namespace_entry();
 
 #endif
 

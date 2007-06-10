@@ -374,6 +374,10 @@ void check_reference_expression(semantic_env_t *env,
 		ref->r.global_variable   = global_variable;
 		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
 		ref->expression.datatype = global_variable->type;
+		if(ref->expression.datatype->type == TYPE_COMPOUND) {
+			ref->expression.datatype = make_pointer_type(
+					ref->expression.datatype);
+		}
 		break;
 	case ENTRY_METHOD_PARAMETER:
 		method_parameter         = entry->e.method_parameter;
