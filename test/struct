@@ -1,12 +1,12 @@
 struct Subi:
-	int blo
+	blo : int
 
 struct Hello:
-	int                  bla
-	unsigned long long*  long_ptr
-	float                a_float
-	Subi                 subi
-	Hello*               hello
+	bla      : int
+	long_ptr : unsigned long long*
+	a_float  : float
+	subi     : Subi
+	hello    : Hello*
 
-func int main():
+func main() : int:
 	return 0

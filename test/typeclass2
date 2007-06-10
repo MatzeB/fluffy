@@ -1,30 +1,29 @@
-/* TODO... doesn't work yet */
-extern func void* malloc(unsigned int size)
-extern func void print_int(int val)
-extern func void puts(byte* val)
+extern func malloc(size : unsigned int) : void*
+extern func print_int(val : int)
+extern func puts(val : byte*)
 
 typeclass Ordered<T>:
 	/* TODO use bool as return type... */
-	func int less(T obj1, T obj2)
+	func less(obj1 : T, obj2 : T) : int
 
 instance Ordered<int>:
-	func int less(int obj1, int obj2):
+	func less(obj1 : int, obj2 : int) : int:
 		if obj1 < obj2:
 			return 1
 		return 0
 
 typeclass Printable<T>:
-	func void print(T obj)
+	func print(obj : T)
 
 instance Printable<byte* >:
-	func void print(byte* obj):
+	func print(obj : byte*):
 		puts(obj)
 
 instance Printable<int>:
-	func void print(int obj):
+	func print(obj : int):
 		print_int(obj)
 
-func void bubblesort<Ordered T> (T* array, int len):
+func bubblesort<Ordered T> (array : T*, len : int):
 	var sorted <- 1
 
 	var i <- 0
@@ -43,7 +42,7 @@ func void bubblesort<Ordered T> (T* array, int len):
 	i <- i + 1
 	goto loop
 
-func void print_array<Printable T>(T* array, int len):
+func print_array<Printable T>(array : T*, len : int):
 	var i <- 0
 	:loop
 	if i >= len:
@@ -54,15 +53,7 @@ func void print_array<Printable T>(T* array, int len):
 	i <- i + 1
 	goto loop
 
-/*
-func void quicksort<Ordered Printable T> (T* array, int l, int r):
-	print(array[l+r])
-*/
-
-func void printi<Printable T>(T obj):
-	print(obj)
-
-func int main():
+func main() : int:
 	var array <- cast<int* > malloc( \
 			(cast<unsigned int> 10) * \
 			__sizeof<int>)

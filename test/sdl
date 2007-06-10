@@ -1,57 +1,58 @@
 struct PixelFormat:
 
 struct Palette:
-	int       ncolors
-	Color     colors
+	ncolors : int
+	colors  : Color
 
 struct Color:
-	byte      r
-	byte      g
-	byte      b
-	byte      a
+	r : byte
+	g : byte
+	b : byte
+	a : byte
 
 struct Surface:
-	unsigned int   flags
-	PixelFormat*   format
-	int            w
-	int            h
-	unsigned short pitch
-	void*          pixels
-	int            offset
-	void*          hwdata
+	flags          : unsigned int
+	format         : PixelFormat*
+	w              : int
+	h              : int
+	pitch          : unsigned short
+	pixels         : void*
+	offset         : int
+	hwdata         : void*
 
-	Rect           clip_rect
+	clip_rect      : Rect
 
-	unsigned int   unused1
-	unsigned int   locked
-	void*          map
-	unsigned int   format_version
-	int            refcount
+	unused1        : unsigned int
+	locaked        : unsigned int
+	map            : void*
+	format_version : unsigned int
+	refcount       : int
 
 struct Rect:
-	short x
-	short y
-	unsigned short w
-	unsigned short h
+	x : short
+	y : short
+	w : unsigned short
+	h : unsigned short
 
-extern func int  SDL_Init(unsigned int flags)
-extern func void SDL_Quit()
-extern func byte* SDL_GetError()
+extern func SDL_Init(flags : unsigned int) : int
+extern func SDL_Quit() : void
+extern func SDL_GetError() : byte*
 
-extern func Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags)
-extern func int SDL_UpperBlit(Surface* src, Rect* srcrect, Surface* dest, Rect* destrect)
-extern func int SDL_FillRect(Surface* dest, Rect* destrect, unsigned int color)
-extern func Surface* IMG_Load(byte* filename)
-extern func void SDL_FreeSurface(Surface* surface)
-extern func void SDL_Delay(unsigned int ms)
-extern func void* malloc(unsigned int size)
-extern func void free(void* ptr)
-extern func int SDL_Flip(Surface* screen)
+extern func SDL_SetVideoMode(width : int, height : int, bpp : int, flags : int) : Surface*
+extern func SDL_UpperBlit(src : Surface*, srcrect : Rect*, dest : Surface*, destrect : Rect*) : int
+extern func SDL_FillRect(dest : Surface*, destrect : Rect*, color : unsigned int) : int
+extern func IMG_Load(filename : byte*) : Surface*
+extern func SDL_FreeSurface(surface : Surface*)
+extern func SDL_Delay(ms : unsigned int)
+extern func SDL_Flip(screen : Surface*)
 
-extern func void print_int(int val)
-extern func void print_string(byte * val)
+extern func malloc(size : unsigned int) : void*
+extern func free(ptr : void*)
 
-func int main(int argc, byte * * argv):
+extern func print_int(value : int)
+extern func print_string(string : byte* )
+
+func main(argc : int, argv : byte * * ) : int:
 	SDL_Init(cast<unsigned int> 0x0000FFFF)
 
 	var image_count <- argc - 1

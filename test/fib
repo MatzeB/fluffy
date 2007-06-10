@@ -1,8 +1,8 @@
-extern func "cdecl" int get_int()
-extern func "cdecl" void print_int(int someint)
-extern func "cdecl" int atoi(byte* string)
+extern func get_int() : int
+extern func print_int(someint : int) : void
+extern func atoi(string : byte* ) : int
 
-func int main(int argc, byte* * argv):
+func main(argc : int, argv : byte* * ) : int:
 	var number <- 10
 	if argc > 1:
 		number <- atoi(argv[1])
@@ -13,7 +13,7 @@ func int main(int argc, byte* * argv):
 
 	return 0
 
-func int fib(int n):
+func fib(n : int) : int:
 	if n = 0:
 		return 0
 	if n = 1:

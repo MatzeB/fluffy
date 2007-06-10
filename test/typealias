@@ -1,8 +1,8 @@
 typealias string <- byte*
 
-extern func int puts(string blo)
+extern func puts(blo : string) : int
 
-func int main():
+func main() : int:
 	puts("Hello world")
 	return 0
 

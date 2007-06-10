@@ -1,6 +1,6 @@
-extern func void print_int(int val)
+extern func print_int(val : int) : void
 
-func int main():
+func main() : int:
 	var i <- 0
 	for(i <- 23; i < 42; i <- i + 1):
 		print_int(i)

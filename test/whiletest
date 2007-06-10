@@ -1,6 +1,6 @@
-extern func void print_int(int val)
+extern func print_int(val : int)
 
-func int main():
+func main() : int:
 	var i <- 23
 	while i < 42:
 		print_int(i)

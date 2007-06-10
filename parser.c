@@ -139,6 +139,16 @@ void maybe_eat_block()
 	}                                                      \
 	next_token();
 
+#define expect_void(expected)                              \
+	if(UNLIKELY(token.type != (expected))) {               \
+		parse_error_expected(NULL, (expected), 0);         \
+		eat_until_newline();                               \
+		return;                                            \
+	}                                                      \
+	next_token();
+
+
+
 
 static
 type_t *parse_type();
@@ -924,18 +934,25 @@ statement_t *parse_variable_declaration()
 
 	eat(T_var);
 
-	if(token.type == '<') {
-		next_token();
-		type = parse_type();
-		expect('>');
-	}
-
 	while(1) {
+		if(token.type != T_IDENTIFIER) {
+			parse_error_expected("problem while parsing variable declaration",
+			                     T_IDENTIFIER, 0);
+			eat_until_newline();
+			return NULL;
+		}
+
 		decl = allocate_ast(sizeof(decl[0]));
 		memset(decl, 0, sizeof(decl[0]));
 		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
 		decl->type           = type;
 		decl->symbol         = token.v.symbol;
+		next_token();
+
+		if(token.type == ':') {
+			next_token();
+			decl->type = parse_type();
+		}
 
 		/* append multiple variable declarations */
 		if(last_statement != NULL) {
@@ -944,7 +961,6 @@ statement_t *parse_variable_declaration()
 			first_statement = (statement_t*) decl;
 		}
 		last_statement = (statement_t*) decl;
-		next_token();
 
 		/* do we have an assignment expression? */
 		if(token.type == T_ASSIGN) {
@@ -959,14 +975,6 @@ statement_t *parse_variable_declaration()
 		if(token.type != ',')
 			break;
 		next_token();
-
-		/* there must be another identifier after the comma */
-		if(token.type != T_IDENTIFIER) {
-			parse_error_expected("Problem parsing variable declaration",
-			                     T_IDENTIFIER, 0);
-			eat_until_newline();
-			return NULL;
-		}
 	}
 
 	expect(T_NEWLINE);
@@ -1095,62 +1103,45 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
 		*parameters = NULL;
 
 	while(1) {
-		type_t *type;
+		if(token.type != T_IDENTIFIER) {
+			parse_error_expected("problem while parsing parameter",
+			                     T_IDENTIFIER, 0);
+			eat_until_newline();
+			return;
+		}
+		symbol_t *symbol = token.v.symbol;
+		next_token();
 
-		switch(token.type) {
-		case T_unsigned:
-		case T_signed:
-		case T_int:
-		case T_byte:
-		case T_short:
-		case T_float:
-		case T_double:
-		case T_void:
-		case T_IDENTIFIER:
-			type = parse_type();
+		expect_void(':');
+		type_t *type = parse_type();
 
-			if(parameter_types != NULL) {
-				method_parameter_type_t *param_type
-					= allocate_ast(sizeof(param_type[0]));
-				memset(param_type, 0, sizeof(param_type[0]));
-				param_type->type = type;
+		if(parameter_types != NULL) {
+			method_parameter_type_t *param_type
+				= allocate_ast(sizeof(param_type[0]));
+			memset(param_type, 0, sizeof(param_type[0]));
+			param_type->type = type;
 
-				if(last_type != NULL) {
-					last_type->next = param_type;
-				} else {
-					*parameter_types = param_type;
-				}
-				last_type = param_type;
+			if(last_type != NULL) {
+				last_type->next = param_type;
+			} else {
+				*parameter_types = param_type;
 			}
+			last_type = param_type;
+		}
 
-			symbol_t *symbol = NULL;
-			if(token.type == T_IDENTIFIER) {
-				symbol = token.v.symbol;
-				next_token();
+		if(parameters != NULL) {
+			method_parameter_t *method_param
+				= allocate_ast(sizeof(method_param[0]));
+			memset(method_param, 0, sizeof(method_param[0]));
+			method_param->symbol = symbol;
+			method_param->type   = type;
+
+			if(last_param != NULL) {
+				last_param->next = method_param;
+			} else {
+				*parameters = method_param;
 			}
-
-			if(parameters != NULL) {
-				method_parameter_t *method_param
-					= allocate_ast(sizeof(method_param[0]));
-				memset(method_param, 0, sizeof(method_param[0]));
-				method_param->symbol = symbol;
-				method_param->type   = type;
-
-				if(last_param != NULL) {
-					last_param->next = method_param;
-				} else {
-					*parameters = method_param;
-				}
-				last_param = method_param;
-			}
-			break;
-
-		case T_DOTDOTDOT:
-			panic("Variadic functions not implemented yet");
-			next_token();
-			break;
-		default:
-			parse_error("Problem while parsing parameter: Expected type");
+			last_param = method_param;
 		}
 
 		if(token.type != ',')
@@ -1234,8 +1225,6 @@ namespace_entry_t *parse_method()
 		next_token();
 	}
 
-	method_type->result_type = parse_type();
-	
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing function",
 		                     T_IDENTIFIER, 0);
@@ -1259,6 +1248,13 @@ namespace_entry_t *parse_method()
 
 		expect(')');
 		expect(':');
+
+		if(token.type != T_NEWLINE) {
+			method_type->result_type = parse_type();
+			expect(':');
+		} else {
+			method_type->result_type = type_void;
+		}
 	}
 
 	method->statement = parse_statement();
@@ -1325,8 +1321,6 @@ namespace_entry_t *parse_extern_method()
 		next_token();
 	}
 
-	method_type->result_type = parse_type();
-
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing extern declaration",
 		                     T_IDENTIFIER, 0);
@@ -1340,6 +1334,14 @@ namespace_entry_t *parse_extern_method()
 	parse_parameter_declaration(&method_type->parameter_types,
 	                            &method->parameters);
 	expect(')');
+
+	if(token.type == ':') {
+		next_token();
+		method_type->result_type = parse_type();
+	} else {
+		method_type->result_type = type_void;
+	}
+
 	expect(T_NEWLINE);
 
 	method->type = method_type;
@@ -1401,7 +1403,6 @@ compound_entry_t *parse_compound_entries()
 		compound_entry_t *entry = allocate_ast(sizeof(entry[0]));
 		memset(entry, 0, sizeof(entry[0]));
 
-		entry->type = parse_type();
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("Problem while parsing compound entry",
 								 T_IDENTIFIER, 0);
@@ -1410,6 +1411,9 @@ compound_entry_t *parse_compound_entries()
 		}
 		entry->symbol = token.v.symbol;
 		next_token();
+
+		expect(':');
+		entry->type = parse_type();
 
 		if(last_entry == NULL) {
 			result = entry;
@@ -1501,7 +1505,7 @@ namespace_entry_t *parse_union()
 static
 typeclass_method_t *parse_typeclass_method()
 {
-	expect(T_func);
+	eat(T_func);
 
 	typeclass_method_t *method = allocate_ast(sizeof(method[0]));
 	memset(method, 0, sizeof(method[0]));
@@ -1510,8 +1514,6 @@ typeclass_method_t *parse_typeclass_method()
 		= obstack_alloc(type_obst, sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
-
-	method_type->result_type = parse_type();
 	
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass method",
@@ -1527,6 +1529,13 @@ typeclass_method_t *parse_typeclass_method()
 	parse_parameter_declaration(&method_type->parameter_types,
 	                            &method->parameters);
 	expect(')');
+
+	if(token.type == ':') {
+		next_token();
+		method_type->result_type = parse_type();
+	} else {
+		method_type->result_type = type_void;
+	}
 	expect(T_NEWLINE);
 
 	method->method_type = method_type;
@@ -1587,7 +1596,7 @@ namespace_entry_t *parse_typeclass()
 }
 
 static
-typeclass_method_instance_t *parse_typeclass_method_intance()
+typeclass_method_instance_t *parse_typeclass_method_instance()
 {
 	typeclass_method_instance_t *method_intance
 		= allocate_ast(sizeof(method_intance[0]));
@@ -1647,7 +1656,7 @@ namespace_entry_t *parse_typeclass_instance()
 			return NULL;
 		}
 
-		typeclass_method_instance_t *method	= parse_typeclass_method_intance();
+		typeclass_method_instance_t *method	= parse_typeclass_method_instance();
 
 		if(last_method != NULL) {
 			last_method->next = method;

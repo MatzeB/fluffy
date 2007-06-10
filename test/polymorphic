@@ -1,10 +1,9 @@
-extern func void* malloc(unsigned int size)
-extern func void print_int(int val)
+extern func print_int(val : int)
 
-func unsigned int sizeof<T>():
+func sizeof<T>() : unsigned int:
 	return __sizeof<T>
 
-func int main():
-	print_int(sizeof<int>())
-	print_int(sizeof<double>())
-
+func main() : int:
+	print_int(sizeof<$int>())
+	print_int(sizeof<$double>())
+	return 0
