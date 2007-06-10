@@ -277,11 +277,12 @@ type_t *parse_method_type()
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
-	method_type->result_type = parse_type();
-	
 	expect('(');
 	parse_parameter_declaration(&method_type->parameter_types, NULL);
 	expect(')');
+
+	expect(':');
+	method_type->result_type = parse_type();
 
 	return (type_t*) method_type;
 }
@@ -1272,7 +1273,6 @@ namespace_entry_t *parse_global_variable()
 	memset(variable, 0, sizeof(variable[0]));
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
 
-	variable->type = parse_type();
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing global variable",
 		                     T_IDENTIFIER, 0);
@@ -1281,6 +1281,9 @@ namespace_entry_t *parse_global_variable()
 	}
 	variable->symbol               = token.v.symbol;
 	next_token();
+
+	expect(':');
+	variable->type = parse_type();
 
 	expect(T_NEWLINE);
 

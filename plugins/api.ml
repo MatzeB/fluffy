@@ -1,67 +1,66 @@
 struct SourcePosition:
-	byte*         input_name
-	unsigned int  linenr
+	input_name : byte*
+	linenr     : unsigned int
 
 struct Symbol:
-	byte*             string
-	unsigned int      id
-	EnvironmentEntry* thing
-	EnvironmentEntry* label	
+	string : byte*
+	id     : unsigned int
+	thing  : EnvironmentEntry*
+	label  : EnvironmentEntry*
 
 struct Token:
-	int  type
-	V    v
+	type : int
+	v    : V
 
 union V:
-	Symbol *symbol
-	int     intvalue
-	byte*   string
+	symbol   : Symbol*
+	intvalue : int
+	string   : String
 
 struct Type:
-	int      type
-	IrType*  firm_type
+	type      : int
+	firm_type : IrType*
 
 struct Statement:
-	int             type
-	Statement*      next
-	SourcePosition  source_position
+	type            : int
+	next            : Statement*
+	source_position : SourcePosition
 
 struct Expression:
-	int             type
-	Type*           datatype
-	SourcePosition  source_position
+	type            : int
+	datatype        : Type*
+	source_position : SourcePosition
 
 struct BlockStatement:
-	Statement   statement
-	Statement*  statements
+	statement       : Statement
+	statements      : Statement*
 
 struct ExpressionStatement:
-	Statement    statement
-	Expression*  expression
+	statement       : Statement
+	expression      : Expression*
 
 struct LabelStatement:
-	Statement        statement
-	Symbol*          symbol
+	statement       : Statement
+	symbol          : Symbol*
 
-	IrNode*          block
-	LabelStatement*  next
+	block           : IrNode*
+	next            : LabelStatement*
 
 struct IfStatement:
-	Statement    statement
-	Expression*  condition
-	Statement*   true_statement
-	Statement*   false_statement
+	statement       : Statement
+	condition       : Expression*
+	true_statement  : Statement*
+	false_statement : Statement*
 
 struct GotoStatement:
-	Statement        statement
-	Symbol*          label_symbol
-	LabelStatement*  label
+	statement    : Statement
+	label_symbol : Symbol*
+	label        : LabelStatement*
 
 struct Lexer:
-	int            c
-	SourcePosition source_position
-	FILE*          input
-	// char[1024]    buf
+	c               : int
+	source_position : SourcePosition
+	input           : FILE*
 	// more stuff...
 
 typealias Semantic               <- void
@@ -69,95 +68,95 @@ typealias FILE                   <- void
 typealias EnvironmentEntry       <- void
 typealias IrNode                 <- void
 typealias IrType                 <- void
-typealias ParseStatementFunction <- func Statement* ()
-typealias LowerStatementFunction <- func Statement* (Semantic* env, Statement* statement)
+typealias ParseStatementFunction <- func () : Statement*
+typealias LowerStatementFunction <- func (env : Semantic*, statement : Statement*) : Statement*
 typealias String                 <- byte*
 
-extern func int   register_new_token(String token)
-extern func int   register_statement()
-extern func int   register_expression()
-extern func int   register_namespace_entry()
+extern func register_new_token(token : String) : int
+extern func register_statement() : int
+extern func register_expression() : int
+extern func register_namespace_entry() : int
 
-extern func int   puts(String string)
-extern func int   fputs(String string, FILE* stream)
-extern func void  printf(String string, void* ptr)
-extern func void  abort()
-extern func void  memset(void *ptr, int c, unsigned int size)
+extern func puts(string : String) : int
+extern func fputs(string : String, stream : FILE*) : int
+extern func printf(string : String, ptr : void*)
+extern func abort()
+extern func memset(ptr : void*, c : int, size : unsigned int)
 
-extern func void  register_statement_parser(ParseStatementFunction* parser, \
-                                            int token_type)
-extern func void  print_token(FILE* out, Token* token)
-extern func void  lexer_next_token(Lexer* lexer, Token* token)
-extern func void* allocate_ast(unsigned int size)
-extern func void  parser_print_error_prefix()
-extern func void  next_token()
+extern func register_statement_parser(parser : ParseStatementFunction*, \
+                                      token_type : int)
+extern func print_token(out : FILE*, token : Token*)
+extern func lexer_next_token(lexer : Lexer*, token : Token*)
+extern func allocate_ast(size : unsigned int) : void*
+extern func parser_print_error_prefix()
+extern func next_token()
 
-extern func Expression* parse_expression()
-extern func Statement*  parse_statement()
+extern func parse_expression() : Expression*
+extern func parse_statement() : Statement*
 
-extern func void  print_error_prefix(Semantic* env, SourcePosition position)
-extern func void  print_warning_preifx(Semantic* env, SourcePosition position)
-extern func Statement* check_statement(Semantic* env, Statement* statement)
-extern func Expression* check_expression(Semantic* env, Expression* expression)
-extern func void  register_statement_lowerer(LowerStatementFunction* function, \
-                                             int statement_type)
+extern func print_error_prefix(env : Semantic*, position : SourcePosition)
+extern func print_warning_preifx(env : Semantic*, position : SourcePosition)
+extern func check_statement(env : Semantic*, statement : Statement*) : Statement*
+extern func check_expression(env : Semantic*, expression : Expression*) : Expression*
+extern func register_statement_lowerer(function : LowerStatementFunction*, \
+                                       statement_type : int)
 
-extern var FILE*  stdout
-extern var FILE*  stderr
-extern var Token  token
-extern var Lexer  lexer
+extern var stdout : FILE*
+extern var stderr : FILE*
+extern var token  : Token
+extern var lexer  : Lexer
 
 typeclass AllocateOnAst<T>:
-	func T* allocate()
+	func allocate() : T*
 
-func T* allocate_zero<T>():
+func allocate_zero<T>() : T*:
 	var res <- cast<T* > allocate_ast(__sizeof<T>)
 	memset(res, 0, __sizeof<T>)
 	return res
 
 instance AllocateOnAst<BlockStatement>:
-	func BlockStatement* allocate():
+	func allocate() : BlockStatement*:
 		var res <- allocate_zero<$BlockStatement>()
 		res.statement.type <- 1
 		return res
 	
 instance AllocateOnAst<IfStatement>:
-	func IfStatement* allocate():
+	func allocate() : IfStatement*:
 		var res <- allocate_zero<$IfStatement>()
 		res.statement.type <- 4
 		return res
 
 instance AllocateOnAst<ExpressionStatement>:
-	func ExpressionStatement* allocate():
+	func allocate() : ExpressionStatement*:
 		var res <- allocate_zero<$ExpressionStatement>()
 		res.statement.type <- 5
 		return res
 
 instance AllocateOnAst<GotoStatement>:
-	func GotoStatement* allocate():
+	func allocate() : GotoStatement*:
 		var res <- allocate_zero<$GotoStatement>()
 		res.statement.type <- 6
 		return res
 
 instance AllocateOnAst<LabelStatement>:
-	func LabelStatement* allocate():
+	func allocate() : LabelStatement*:
 		var res <- allocate_zero<$LabelStatement>()
 		res.statement.type <- 7
 		return res
 
-func void expect(int token_type):
+func expect(token_type : int):
 	if token.type /= token_type:
 		parser_print_error_prefix()
 		fputs("Parse error expected another token\n", stderr)
 		abort()
 	next_token()
 
-func void assert(int expr):
+func assert(expr : int):
 	if expr /= 0:
 		fputs("Assert failed\n", stderr)
 		abort()
 
-func void block_append(BlockStatement* block, Statement* append):
+func block_append(block : BlockStatement*, append : Statement*):
 	var statement <- block.statements
 	:label
 	if statement.next = cast<Statement* > 0:
