@@ -1,18 +1,18 @@
 struct WhileStatement:
-	Statement    statement
-	Expression*  loop_control
-	Statement*   loop_body
+	statement    : Statement
+	loop_control : Expression*
+	loop_body    : Statement*
 
-var int token_while
-var int while_statement_type
+var token_while          : int
+var while_statement_type : int
 
 instance AllocateOnAst<WhileStatement>:
-	func WhileStatement* allocate():
+	func allocate() : WhileStatement*:
 		var res <- allocate_zero<$WhileStatement>()
 		res.statement.type <- while_statement_type
 		return res
 
-func Statement* parse_while_statement():
+func parse_while_statement() : Statement*:
 	puts("parsing a while...")
 	var statement <- allocate<$WhileStatement>()
 
@@ -26,7 +26,7 @@ func Statement* parse_while_statement():
 
 	return cast<Statement* > statement
 
-func Statement* lower_while_statement(Semantic *env, Statement* statement):
+func lower_while_statement(env : Semantic*, statement : Statement*) : Statement*:
 	var while_statement <- cast<WhileStatement* > statement
 	var loop_body     <- while_statement.loop_body
 
@@ -53,7 +53,7 @@ func Statement* lower_while_statement(Semantic *env, Statement* statement):
 
 	return cast<Statement* > block
 
-func void init_plugin():
+func init_plugin():
 	puts("init_plugin while is here")
 	token_while          <- register_new_token("while")
 	while_statement_type <- register_statement()

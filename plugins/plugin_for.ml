@@ -1,20 +1,20 @@
 struct ForStatement:
-	Statement       statement
-	Expression*     pre_expression
-	Expression*     loop_control
-	Expression*     step_expression
-	Statement*      loop_body
+	statement       : Statement
+	pre_expression  : Expression*
+	loop_control    : Expression*
+	step_expression : Expression*
+	loop_body       : Statement*
 
-var        int     token_for
-var        int     for_statement
+var token_for     : int
+var for_statement : int
 
 instance AllocateOnAst<ForStatement>:
-	func ForStatement* allocate():
+	func allocate() : ForStatement*:
 		var res <- allocate_zero<$ForStatement>()
 		res.statement.type <- for_statement
 		return res
 
-func Statement* parse_for_statement():
+func parse_for_statement() : Statement*:
 	puts("parsing a for...")
 	var statement <- allocate<$ForStatement>()
 
@@ -36,7 +36,7 @@ func Statement* parse_for_statement():
 
 	return cast<Statement* > statement
 
-func Statement* lower_for_statement(Semantic *env, Statement* statement):
+func lower_for_statement(env : Semantic*, statement : Statement*) : Statement*:
 	var for_statement <- cast<ForStatement* > statement
 	var loop_body     <- for_statement.loop_body
 
@@ -75,7 +75,7 @@ func Statement* lower_for_statement(Semantic *env, Statement* statement):
 
 	return cast<Statement* > block
 
-func void init_plugin():
+func init_plugin():
 	puts("init_plugin is here")
 	token_for     <- register_new_token("for")
 	for_statement <- register_statement()
