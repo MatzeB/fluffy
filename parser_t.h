@@ -11,9 +11,9 @@
 typedef expression_t* (*parse_expression_function)  (unsigned precedence);
 typedef expression_t* (*parse_expression_infix_function) (unsigned precedence,
                                                           expression_t *left);
-typedef statement_t*  (*parse_statement_function) ();
+typedef statement_t*  (*parse_statement_function) (void);
 typedef namespace_entry_t*  (*parse_namespace_entry_function)
-                            ();
+                            (void);
 
 typedef struct expression_parse_function_t {
 	unsigned                         precedence;
@@ -38,11 +38,11 @@ void register_namespace_parser(parse_namespace_entry_function parser,
 
 expression_t *parse_sub_expression(unsigned precedence);
 
-void parser_print_error_prefix();
+void parser_print_error_prefix(void);
 
-expression_t      *parse_expression();
-statement_t       *parse_statement();
-namespace_entry_t *parse_namespace_entry();
+expression_t      *parse_expression(void);
+statement_t       *parse_statement(void);
+namespace_entry_t *parse_namespace_entry(void);
 
 #endif
 
