@@ -28,7 +28,15 @@ static int      error = 0;
        token_t  token;
        lexer_t  lexer;
 
-void next_token()
+static inline
+void *allocate_ast_zero(size_t size)
+{
+	void *res = allocate_ast(size);
+	memset(res, 0, size);
+	return res;
+}
+
+void next_token(void)
 {
 	lexer_next_token(&lexer, &token);
 
@@ -46,7 +54,7 @@ void eat(token_type_t type)
 }
 
 static inline
-void parser_found_error()
+void parser_found_error(void)
 {
 	error = 1;
 #ifdef ABORT_ON_ERROR
@@ -54,7 +62,7 @@ void parser_found_error()
 #endif
 }
 
-void parser_print_error_prefix()
+void parser_print_error_prefix(void)
 {
 	fputs(lexer.source_position.input_name, stderr);
 	fputc(':', stderr);
@@ -101,7 +109,7 @@ void parse_error_expected(const char *message, ...)
 }
 
 static
-void eat_until_newline()
+void eat_until_newline(void)
 {
 	while(token.type != T_NEWLINE) {
 		next_token();
@@ -112,7 +120,7 @@ void eat_until_newline()
 }
 
 static
-void maybe_eat_block()
+void maybe_eat_block(void)
 {
 	if(token.type != T_INDENT)
 		return;
@@ -158,7 +166,7 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
                                  method_parameter_t **parameters);
 
 static
-atomic_type_type_t parse_unsigned_atomic_type()
+atomic_type_type_t parse_unsigned_atomic_type(void)
 {
 	switch(token.type) {
 	case T_byte:
@@ -185,7 +193,7 @@ atomic_type_type_t parse_unsigned_atomic_type()
 }
 
 static
-atomic_type_type_t parse_signed_atomic_type()
+atomic_type_type_t parse_signed_atomic_type(void)
 {
 	switch(token.type) {
 	case T_bool:
@@ -221,7 +229,8 @@ atomic_type_type_t parse_signed_atomic_type()
 }
 
 static
-type_t *parse_atomic_type()
+type_t *parse_atomic_type(void
+		)
 {
 	atomic_type_type_t atype;
 
@@ -252,7 +261,7 @@ type_t *parse_atomic_type()
 }
 
 static
-type_t *parse_type_ref()
+type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
 
@@ -268,7 +277,7 @@ type_t *parse_type_ref()
 }
 
 static
-type_t *parse_method_type()
+type_t *parse_method_type(void)
 {
 	eat(T_func);
 
@@ -288,7 +297,7 @@ type_t *parse_method_type()
 }
 
 static
-type_t *parse_type()
+type_t *parse_type(void)
 {
 	type_t *type;
 
@@ -339,10 +348,9 @@ type_t *parse_type()
 
 
 static
-expression_t *parse_string_const()
+expression_t *parse_string_const(void)
 {
-	string_const_t *cnst = allocate_ast(sizeof(cnst[0]));
-	memset(cnst, 0, sizeof(cnst));
+	string_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_STRING_CONST;
 	cnst->value           = token.v.string;
@@ -353,10 +361,9 @@ expression_t *parse_string_const()
 }
 
 static
-expression_t *parse_int_const()
+expression_t *parse_int_const(void)
 {
-	int_const_t *cnst = allocate_ast(sizeof(cnst[0]));
-	memset(cnst, 0, sizeof(cnst));
+	int_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_INT_CONST;
 	cnst->value           = token.v.intvalue;
@@ -367,17 +374,16 @@ expression_t *parse_int_const()
 }
 
 static
-type_argument_t *parse_type_argument()
+type_argument_t *parse_type_argument(void)
 {
-	type_argument_t *argument = allocate_ast(sizeof(argument[0]));
-	memset(argument, 0, sizeof(argument[0]));
+	type_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
 
 	argument->type = parse_type();
 	return argument;
 }
 
 static
-type_argument_t *parse_type_arguments()
+type_argument_t *parse_type_arguments(void)
 {
 	type_argument_t *first_argument = parse_type_argument();
 	type_argument_t *last_argument  = first_argument;
@@ -394,10 +400,9 @@ type_argument_t *parse_type_arguments()
 }
 
 static
-expression_t *parse_reference()
+expression_t *parse_reference(void)
 {
-	reference_expression_t *ref = allocate_ast(sizeof(ref[0]));
-	memset(ref, 0, sizeof(ref[0]));
+	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 
 	ref->expression.type            = EXPR_REFERENCE;
 	ref->symbol                     = token.v.symbol;
@@ -414,14 +419,12 @@ expression_t *parse_reference()
 }
 
 static
-expression_t *parse_sizeof()
+expression_t *parse_sizeof(void)
 {
-	sizeof_expression_t *expression
-		= allocate_ast(sizeof(expression[0]));
-	memset(expression, 0, sizeof(expression[0]));
-	expression->expression.type = EXPR_SIZEOF;
-
 	eat(T___sizeof);
+
+	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
+	expression->expression.type = EXPR_SIZEOF;
 
 	expect('<');
 	expression->type = parse_type();
@@ -443,6 +446,9 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 	}
 
 	if(statement_parsers[token_type] != NULL) {
+		fprintf(stderr, "for token ");
+		print_token_type(stderr, token_type);
+		fprintf(stderr, "\n");
 		panic("Trying to register multiple statement parsers for 1 token");
 	}
 	statement_parsers[token_type] = parser;
@@ -462,6 +468,9 @@ void register_namespace_parser(parse_namespace_entry_function parser,
 	}
 
 	if(namespace_parsers[token_type] != NULL) {
+		fprintf(stderr, "for token ");
+		print_token_type(stderr, token_type);
+		fprintf(stderr, "\n");
 		panic("trying to register multiple namespace parsers for 1 token");
 	}
 	namespace_parsers[token_type] = parser;
@@ -490,6 +499,9 @@ void register_expression_parser(parse_expression_function parser,
 		= get_expression_parser_entry(token_type);
 
 	if(entry->parser != NULL) {
+		fprintf(stderr, "for token ");
+		print_token_type(stderr, token_type);
+		fprintf(stderr, "\n");
 		panic("trying to register multiple expression parsers for a token");
 	}
 	entry->parser     = parser;
@@ -503,6 +515,9 @@ void register_expression_infix_parser(parse_expression_infix_function parser,
 		= get_expression_parser_entry(token_type);
 
 	if(entry->infix_parser != NULL) {
+		fprintf(stderr, "for token ");
+		print_token_type(stderr, token_type);
+		fprintf(stderr, "\n");
 		panic("trying to register multiple infix expression parsers for a "
 		      "token");
 	}
@@ -511,15 +526,14 @@ void register_expression_infix_parser(parse_expression_infix_function parser,
 }
 
 static
-expression_t *expected_expression_error()
+expression_t *expected_expression_error(void)
 {
 	parser_print_error_prefix();
 	fprintf(stderr, "expected expression, got token ");
 	print_token(stderr, & token);
 	fprintf(stderr, "\n");
 
-	expression_t *expression = allocate_ast(sizeof(expression[0]));
-	memset(expression, 0, sizeof(expression[0]));
+	expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
 	expression->type = EXPR_INVALID;
 	next_token();
 
@@ -527,7 +541,7 @@ expression_t *expected_expression_error()
 }
 
 static
-expression_t *parse_primary_expression()
+expression_t *parse_primary_expression(void)
 {
 	switch(token.type) {
 	case T_INTEGER:
@@ -561,8 +575,8 @@ expression_t *parse_cast_expression(unsigned precedence)
 {
 	eat(T_cast);
 
-	unary_expression_t *unary_expression
-		= allocate_ast(sizeof(unary_expression[0]));
+	unary_expression_t *unary_expression 
+		= allocate_ast_zero(sizeof(unary_expression[0]));
 	unary_expression->expression.type            = EXPR_UNARY;
 	unary_expression->type                       = UNEXPR_CAST;
 	
@@ -580,8 +594,7 @@ expression_t *parse_call_expression(unsigned precedence,
                                     expression_t *expression)
 {
 	(void) precedence;
-	call_expression_t *call = allocate_ast(sizeof(call[0]));
-	memset(call, 0, sizeof(call[0]));
+	call_expression_t *call = allocate_ast_zero(sizeof(call[0]));
 
 	call->expression.type            = EXPR_CALL;
 	call->method                     = expression;
@@ -593,9 +606,7 @@ expression_t *parse_call_expression(unsigned precedence,
 		call_argument_t *last_argument = NULL;
 
 		while(1) {
-			call_argument_t *argument
-				= allocate_ast(sizeof(argument[0]));
-			memset(argument, 0, sizeof(argument[0]));
+			call_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
 
 			argument->expression = parse_expression();
 			if(last_argument == NULL) {
@@ -623,8 +634,7 @@ expression_t *parse_select_expression(unsigned precedence,
 
 	eat('.');
 
-	select_expression_t *select = allocate_ast(sizeof(select[0]));
-	memset(select, 0, sizeof(select[0]));
+	select_expression_t *select = allocate_ast_zero(sizeof(select[0]));
 
 	select->expression.type            = EXPR_SELECT;
 	select->compound                   = compound;
@@ -649,8 +659,7 @@ expression_t *parse_array_expression(unsigned precedence,
 	eat('[');
 
 	array_access_expression_t *array_access
-		= allocate_ast(sizeof(array_access[0]));
-	memset(array_access, 0, sizeof(array_access[0]));
+		= allocate_ast_zero(sizeof(array_access[0]));
 
 	array_access->expression.type = EXPR_ARRAY_ACCESS;
 	array_access->array_ref       = array_ref;
@@ -672,8 +681,7 @@ expression_t *parse_##unexpression_type(unsigned precedence)              \
 	eat(token_type);                                                      \
                                                                           \
 	unary_expression_t *unary_expression                                  \
-		= allocate_ast(sizeof(unary_expression[0]));                      \
-	memset(unary_expression, 0, sizeof(unary_expression[0]));             \
+		= allocate_ast_zero(sizeof(unary_expression[0]));                 \
 	unary_expression->expression.type = EXPR_UNARY;                       \
 	unary_expression->type            = unexpression_type;                \
 	unary_expression->value           = parse_sub_expression(precedence); \
@@ -696,8 +704,7 @@ expression_t *parse_##binexpression_type(unsigned precedence,    \
 	expression_t *right = parse_sub_expression(precedence);      \
                                                                  \
 	binary_expression_t *binexpr                                 \
-		= allocate_ast(sizeof(binexpr[0]));                      \
-	memset(binexpr, 0, sizeof(binexpr[0]));                      \
+		= allocate_ast_zero(sizeof(binexpr[0]));                 \
 	binexpr->expression.type            = EXPR_BINARY;           \
 	binexpr->type                       = binexpression_type;    \
 	binexpr->left                       = left;                  \
@@ -724,7 +731,7 @@ CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
 CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
 
 static
-void register_expression_parsers()
+void register_expression_parsers(void)
 {
 	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', 16);
 	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', 16);
@@ -797,7 +804,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 	return left;
 }
 
-expression_t *parse_expression()
+expression_t *parse_expression(void)
 {
 	return parse_sub_expression(1);
 }
@@ -807,11 +814,10 @@ expression_t *parse_expression()
 
 
 static
-statement_t *parse_return_statement()
+statement_t *parse_return_statement(void)
 {
 	return_statement_t *return_statement =
-		allocate_ast(sizeof(return_statement[0]));
-	memset(return_statement, 0, sizeof(return_statement[0]));
+		allocate_ast_zero(sizeof(return_statement[0]));
 
 	return_statement->statement.type = STATEMENT_RETURN;
 	next_token();
@@ -825,13 +831,12 @@ statement_t *parse_return_statement()
 }
 
 static
-statement_t *parse_goto_statement()
+statement_t *parse_goto_statement(void)
 {
 	eat(T_goto);
 
 	goto_statement_t *goto_statement
-		= allocate_ast(sizeof(goto_statement[0]));
-	memset(goto_statement, 0, sizeof(goto_statement[0]));
+		= allocate_ast_zero(sizeof(goto_statement[0]));
 	goto_statement->statement.type = STATEMENT_GOTO;
 
 	if(token.type != T_IDENTIFIER) {
@@ -849,12 +854,11 @@ statement_t *parse_goto_statement()
 }
 
 static
-statement_t *parse_label_statement()
+statement_t *parse_label_statement(void)
 {
 	eat(':');
 
-	label_statement_t *label = allocate_ast(sizeof(label[0]));
-	memset(label, 0, sizeof(label[0]));
+	label_statement_t *label = allocate_ast_zero(sizeof(label[0]));
 	label->statement.type = STATEMENT_LABEL;
 
 	if(token.type != T_IDENTIFIER) {
@@ -871,7 +875,7 @@ statement_t *parse_label_statement()
 }
 
 static
-statement_t *parse_if_statement()
+statement_t *parse_if_statement(void)
 {
 	eat(T_if);
 
@@ -887,8 +891,7 @@ statement_t *parse_if_statement()
 	}
 
 	if_statement_t *if_statement
-		= allocate_ast(sizeof(if_statement[0]));
-	memset(if_statement, 0, sizeof(if_statement[0]));
+		= allocate_ast_zero(sizeof(if_statement[0]));
 
 	if_statement->statement.type  = STATEMENT_IF;
 	if_statement->condition       = condition;
@@ -901,13 +904,11 @@ statement_t *parse_if_statement()
 static
 statement_t *parse_initial_assignment(symbol_t *symbol)
 {
-	reference_expression_t *ref = allocate_ast(sizeof(ref[0]));
-	memset(ref, 0, sizeof(ref[0]));
+	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 	ref->expression.type = EXPR_REFERENCE;
 	ref->symbol          = symbol;
 
-	binary_expression_t *assign = allocate_ast(sizeof(assign[0]));
-	memset(assign, 0, sizeof(assign[0]));
+	binary_expression_t *assign = allocate_ast_zero(sizeof(assign[0]));
 
 	assign->expression.type            = EXPR_BINARY;
 	assign->expression.source_position = lexer.source_position;
@@ -916,8 +917,7 @@ statement_t *parse_initial_assignment(symbol_t *symbol)
 	assign->right                      = parse_expression();
 
 	expression_statement_t *expr_statement
-		= allocate_ast(sizeof(expr_statement[0]));
-	memset(expr_statement, 0, sizeof(expr_statement[0]));
+		= allocate_ast_zero(sizeof(expr_statement[0]));
 
 	expr_statement->statement.type = STATEMENT_EXPRESSION;
 	expr_statement->expression     = (expression_t*) assign;
@@ -926,7 +926,7 @@ statement_t *parse_initial_assignment(symbol_t *symbol)
 }
 
 static
-statement_t *parse_variable_declaration()
+statement_t *parse_variable_declaration(void)
 {
 	statement_t                      *first_statement = NULL;
 	statement_t                      *last_statement  = NULL;
@@ -943,8 +943,7 @@ statement_t *parse_variable_declaration()
 			return NULL;
 		}
 
-		decl = allocate_ast(sizeof(decl[0]));
-		memset(decl, 0, sizeof(decl[0]));
+		decl = allocate_ast_zero(sizeof(decl[0]));
 		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
 		decl->type           = type;
 		decl->symbol         = token.v.symbol;
@@ -983,11 +982,10 @@ statement_t *parse_variable_declaration()
 }
 
 static
-statement_t *parse_expression_statement()
+statement_t *parse_expression_statement(void)
 {
 	expression_statement_t *expression_statement
-		= allocate_ast(sizeof(expression_statement[0]));
-	memset(expression_statement, 0, sizeof(expression_statement[0]));
+		= allocate_ast_zero(sizeof(expression_statement[0]));
 
 	expression_statement->statement.type = STATEMENT_EXPRESSION;
 	expression_statement->expression     = parse_expression();
@@ -997,10 +995,10 @@ statement_t *parse_expression_statement()
 }
 
 static
-statement_t *parse_block();
+statement_t *parse_block(void);
 
 static
-statement_t *parse_newline()
+statement_t *parse_newline(void)
 {
 	eat(T_NEWLINE);
 
@@ -1011,7 +1009,7 @@ statement_t *parse_newline()
 }
 
 static
-void register_statement_parsers()
+void register_statement_parsers(void)
 {
 	register_statement_parser(parse_return_statement,     T_return);
 	register_statement_parser(parse_if_statement,         T_if);
@@ -1022,7 +1020,7 @@ void register_statement_parsers()
 	register_statement_parser(parse_newline,              T_NEWLINE);
 }
 
-statement_t *parse_statement()
+statement_t *parse_statement(void)
 {
 	statement_t       *statement;
 	source_position_t  source_position = lexer.source_position;
@@ -1058,11 +1056,10 @@ statement_t *parse_statement()
 }
 
 static
-statement_t *parse_block()
+statement_t *parse_block(void)
 {
 	statement_t       *last = NULL;
-	block_statement_t *block = allocate_ast(sizeof(block[0]));
-	memset(block, 0, sizeof(block[0]));
+	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
 	block->statement.type = STATEMENT_BLOCK;
 
 	eat(T_INDENT);
@@ -1118,8 +1115,7 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
 
 		if(parameter_types != NULL) {
 			method_parameter_type_t *param_type
-				= allocate_ast(sizeof(param_type[0]));
-			memset(param_type, 0, sizeof(param_type[0]));
+				= allocate_ast_zero(sizeof(param_type[0]));
 			param_type->type = type;
 
 			if(last_type != NULL) {
@@ -1132,8 +1128,7 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
 
 		if(parameters != NULL) {
 			method_parameter_t *method_param
-				= allocate_ast(sizeof(method_param[0]));
-			memset(method_param, 0, sizeof(method_param[0]));
+				= allocate_ast_zero(sizeof(method_param[0]));
 			method_param->symbol = symbol;
 			method_param->type   = type;
 
@@ -1152,12 +1147,11 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
 }
 
 static
-type_variable_t *parse_type_parameter()
+type_variable_t *parse_type_parameter(void)
 {
 	type_constraint_t *last_constraint = NULL;
 	type_variable_t   *type_variable
-		= allocate_ast(sizeof(type_variable[0]));
-	memset(type_variable, 0, sizeof(type_variable[0]));
+		= allocate_ast_zero(sizeof(type_variable[0]));
 
 	while(1) {
 		if(token.type != T_IDENTIFIER) {
@@ -1171,8 +1165,7 @@ type_variable_t *parse_type_parameter()
 
 		if(token.type == T_IDENTIFIER) {
 			type_constraint_t *constraint 
-				= allocate_ast(sizeof(constraint[0]));
-			memset(constraint, 0, sizeof(constraint[0]));
+				= allocate_ast_zero(sizeof(constraint[0]));
 
 			constraint->typeclass_symbol = symbol;
 			if(last_constraint == NULL) {
@@ -1191,7 +1184,7 @@ type_variable_t *parse_type_parameter()
 }
 
 static
-type_variable_t *parse_type_parameters()
+type_variable_t *parse_type_parameters(void)
 {
 	type_variable_t *first_variable = parse_type_parameter();
 	type_variable_t *last_variable  = first_variable;
@@ -1208,12 +1201,11 @@ type_variable_t *parse_type_parameters()
 }
 
 static
-namespace_entry_t *parse_method()
+namespace_entry_t *parse_method(void)
 {
 	eat(T_func);
 
-	method_t *method = allocate_ast(sizeof(method[0]));
-	memset(method, 0, sizeof(method[0]));
+	method_t *method = allocate_ast_zero(sizeof(method[0]));
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 
 	method_type_t *method_type
@@ -1264,13 +1256,12 @@ namespace_entry_t *parse_method()
 }
 
 static
-namespace_entry_t *parse_global_variable()
+namespace_entry_t *parse_global_variable(void)
 {
 	eat(T_var);
 
 	global_variable_t *variable 
-		= allocate_ast(sizeof(variable[0]));
-	memset(variable, 0, sizeof(variable[0]));
+		= allocate_ast_zero(sizeof(variable[0]));
 	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1291,7 +1282,7 @@ namespace_entry_t *parse_global_variable()
 }
 
 static
-namespace_entry_t *parse_extern_variable()
+namespace_entry_t *parse_extern_variable(void)
 {
 	namespace_entry_t *entry = parse_global_variable();
 	if(entry == NULL)
@@ -1305,12 +1296,11 @@ namespace_entry_t *parse_extern_variable()
 }
 
 static
-namespace_entry_t *parse_extern_method()
+namespace_entry_t *parse_extern_method(void)
 {
 	eat(T_func);
 
-	method_t *method = allocate_ast(sizeof(method[0]));
-	memset(method, 0, sizeof(method[0]));
+	method_t *method = allocate_ast_zero(sizeof(method[0]));
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 	method->is_extern            = 1;
 
@@ -1353,7 +1343,7 @@ namespace_entry_t *parse_extern_method()
 }
 
 static
-namespace_entry_t *parse_extern()
+namespace_entry_t *parse_extern(void)
 {
 	eat(T_extern);
 
@@ -1370,12 +1360,11 @@ namespace_entry_t *parse_extern()
 }
 
 static
-namespace_entry_t *parse_typealias()
+namespace_entry_t *parse_typealias(void)
 {
 	eat(T_typealias);
 
-	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
-	memset(typealias, 0, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1396,15 +1385,14 @@ namespace_entry_t *parse_typealias()
 }
 
 static
-compound_entry_t *parse_compound_entries()
+compound_entry_t *parse_compound_entries(void)
 {
 	eat(T_INDENT);
 
 	compound_entry_t *result     = NULL;
 	compound_entry_t *last_entry = NULL;
 	while(token.type != T_DEDENT && token.type != T_EOF) {
-		compound_entry_t *entry = allocate_ast(sizeof(entry[0]));
-		memset(entry, 0, sizeof(entry[0]));
+		compound_entry_t *entry = allocate_ast_zero(sizeof(entry[0]));
 
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("Problem while parsing compound entry",
@@ -1433,12 +1421,11 @@ compound_entry_t *parse_compound_entries()
 }
 
 static
-namespace_entry_t *parse_struct()
+namespace_entry_t *parse_struct(void)
 {
 	eat(T_struct);
 
-	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
-	memset(typealias, 0, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1454,8 +1441,7 @@ namespace_entry_t *parse_struct()
 	expect(T_NEWLINE);
 
 	compound_type_t *compound_type 
-		= allocate_ast(sizeof(compound_type[0]));
-	memset(compound_type, 0, sizeof(compound_type[0]));
+		= allocate_ast_zero(sizeof(compound_type[0]));
 	typealias->type = (type_t*) compound_type;
 
 	compound_type->type.type = TYPE_COMPOUND;
@@ -1469,12 +1455,11 @@ namespace_entry_t *parse_struct()
 }
 
 static
-namespace_entry_t *parse_union()
+namespace_entry_t *parse_union(void)
 {
 	eat(T_union);
 
-	typealias_t *typealias = allocate_ast(sizeof(typealias[0]));
-	memset(typealias, 0, sizeof(typealias[0]));
+	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1489,9 +1474,8 @@ namespace_entry_t *parse_union()
 	expect(':');
 	expect(T_NEWLINE);
 
-	compound_type_t *compound_type 
-		= allocate_ast(sizeof(compound_type[0]));
-	memset(compound_type, 0, sizeof(compound_type[0]));
+	compound_type_t *compound_type
+		= allocate_ast_zero(sizeof(compound_type[0]));
 	typealias->type = (type_t*) compound_type;
 
 	compound_type->type.type = TYPE_COMPOUND;
@@ -1506,12 +1490,11 @@ namespace_entry_t *parse_union()
 }
 
 static
-typeclass_method_t *parse_typeclass_method()
+typeclass_method_t *parse_typeclass_method(void)
 {
 	eat(T_func);
 
-	typeclass_method_t *method = allocate_ast(sizeof(method[0]));
-	memset(method, 0, sizeof(method[0]));
+	typeclass_method_t *method = allocate_ast_zero(sizeof(method[0]));
 
 	method_type_t *method_type 
 		= obstack_alloc(type_obst, sizeof(method_type[0]));
@@ -1547,12 +1530,11 @@ typeclass_method_t *parse_typeclass_method()
 }
 
 static
-namespace_entry_t *parse_typeclass()
+namespace_entry_t *parse_typeclass(void)
 {
 	eat(T_typeclass);
 
-	typeclass_t *typeclass = allocate_ast(sizeof(typeclass[0]));
-	memset(typeclass, 0, sizeof(typeclass[0]));
+	typeclass_t *typeclass = allocate_ast_zero(sizeof(typeclass[0]));
 	typeclass->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1599,11 +1581,10 @@ namespace_entry_t *parse_typeclass()
 }
 
 static
-typeclass_method_instance_t *parse_typeclass_method_instance()
+typeclass_method_instance_t *parse_typeclass_method_instance(void)
 {
 	typeclass_method_instance_t *method_intance
-		= allocate_ast(sizeof(method_intance[0]));
-	memset(method_intance, 0, sizeof(method_intance[0]));
+		= allocate_ast_zero(sizeof(method_intance[0]));
 
 	if(token.type != T_func) {
 		parse_error_expected("Problem while parsing typeclass method "
@@ -1623,13 +1604,12 @@ typeclass_method_instance_t *parse_typeclass_method_instance()
 }
 
 static
-namespace_entry_t *parse_typeclass_instance()
+namespace_entry_t *parse_typeclass_instance(void)
 {
 	eat(T_instance);
 
 	typeclass_instance_t *instance 
-		= allocate_ast(sizeof(instance[0]));
-	memset(instance, 0, sizeof(instance[0]));
+		= allocate_ast_zero(sizeof(instance[0]));
 	instance->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS_INSTANCE;
 
 	if(token.type != T_IDENTIFIER) {
@@ -1673,7 +1653,7 @@ namespace_entry_t *parse_typeclass_instance()
 	return (namespace_entry_t*) instance;
 }
 
-namespace_entry_t *parse_namespace_entry()
+namespace_entry_t *parse_namespace_entry(void)
 {
 	namespace_entry_t *entry = NULL;
 
@@ -1719,8 +1699,7 @@ namespace_t *get_namespace(symbol_t *symbol)
 		namespace = namespace->next;
 	}
 
-	namespace = allocate_ast(sizeof(namespace[0]));
-	memset(namespace, 0, sizeof(namespace[0]));
+	namespace = allocate_ast_zero(sizeof(namespace[0]));
 	namespace->symbol = symbol;
 
 	namespace->next = namespaces;
@@ -1730,7 +1709,7 @@ namespace_t *get_namespace(symbol_t *symbol)
 }
 
 static
-namespace_t *parse_namespace()
+namespace_t *parse_namespace(void)
 {
 	symbol_t *namespace_symbol = NULL;
 
@@ -1771,14 +1750,14 @@ namespace_t *parse_namespace()
 }
 
 static
-namespace_entry_t *skip_namespace_entry()
+namespace_entry_t *skip_namespace_entry(void)
 {
 	next_token();
 	return NULL;
 }
 
 static
-void register_namespace_parsers()
+void register_namespace_parsers(void)
 {
 	register_namespace_parser(parse_method,             T_func);
 	register_namespace_parser(parse_global_variable,    T_var);

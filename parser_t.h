@@ -8,10 +8,9 @@
 #include "token_t.h"
 #include "lexer_t.h"
 
-typedef expression_t* (*parse_expression_function)
-                      (unsigned precedence);
-typedef expression_t* (*parse_expression_infix_function)
-                      (unsigned precedence, expression_t *left);
+typedef expression_t* (*parse_expression_function)  (unsigned precedence);
+typedef expression_t* (*parse_expression_infix_function) (unsigned precedence,
+                                                          expression_t *left);
 typedef statement_t*  (*parse_statement_function) ();
 typedef namespace_entry_t*  (*parse_namespace_entry_function)
                             ();
