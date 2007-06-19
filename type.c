@@ -77,6 +77,13 @@ void print_pointer_type(FILE *out, const pointer_type_t *type)
 }
 
 static
+void print_array_type(FILE *out, const array_type_t *type)
+{
+	print_type(out, type->element_type);
+	fprintf(out, "[%lu]", type->size);
+}
+
+static
 void print_type_reference(FILE *out, const type_reference_t *type)
 {
 	fprintf(out, "<?%s>", type->symbol->string);
@@ -128,6 +135,9 @@ void print_type(FILE *out, const type_t *type)
 		break;
 	case TYPE_POINTER:
 		print_pointer_type(out, (const pointer_type_t*) type);
+		break;
+	case TYPE_ARRAY:
+		print_array_type(out, (const array_type_t*) type);
 		break;
 	case TYPE_REFERENCE:
 		print_type_reference(out, (const type_reference_t*) type);
@@ -269,6 +279,28 @@ type_t *create_concrete_type_variable_reference_type(type_reference_t *type)
 	return (type_t*) type;
 }
 
+static
+type_t *create_concrete_array_type(array_type_t *type)
+{
+	type_t *element_type = create_concrete_type(type->element_type);
+	if(element_type == type->element_type)
+		return (type_t*) type;
+
+	array_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
+	memset(new_type, 0, sizeof(new_type[0]));
+
+	new_type->type.type    = TYPE_ARRAY;
+	new_type->element_type = element_type;
+	new_type->size         = type->size;
+
+	type_t *normalized_type = typehash_insert((type_t*) new_type);
+	if(normalized_type != (type_t*) new_type) {
+		obstack_free(type_obst, new_type);
+	}
+
+	return normalized_type;
+}
+
 type_t *create_concrete_type(type_t *type)
 {
 	switch(type->type) {
@@ -284,6 +316,8 @@ type_t *create_concrete_type(type_t *type)
 		return create_concrete_method_type((method_type_t*) type);
 	case TYPE_POINTER:
 		return create_concrete_pointer_type((pointer_type_t*) type);
+	case TYPE_ARRAY:
+		return create_concrete_array_type((array_type_t*) type);
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return create_concrete_type_variable_reference_type(
 				(type_reference_t*) type);

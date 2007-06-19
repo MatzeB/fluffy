@@ -13,6 +13,7 @@ typedef struct type_variable_t          type_variable_t;
 typedef struct method_parameter_type_t  method_parameter_type_t;
 typedef struct method_type_t            method_type_t;
 typedef struct pointer_type_t           pointer_type_t;
+typedef struct array_type_t             array_type_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;

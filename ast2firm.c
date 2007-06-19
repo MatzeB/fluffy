@@ -202,6 +202,13 @@ unsigned get_type_reference_type_var_size(const type_reference_t *type)
 }
 
 static
+unsigned get_array_type_size(array_type_t *type)
+{
+	ir_type *irtype = get_ir_type(&type->type);
+	return get_type_size_bytes(irtype);
+}
+
+static
 unsigned get_type_size(type_t *type)
 {
 	switch(type->type) {
@@ -216,6 +223,8 @@ unsigned get_type_size(type_t *type)
 		return get_mode_size_bytes(mode_P_code);
 	case TYPE_POINTER:
 		return get_mode_size_bytes(mode_P_data);
+	case TYPE_ARRAY:
+		return get_array_type_size((array_type_t*) type);
 	case TYPE_REFERENCE:
 		panic("Type reference not resolved");
 		break;
@@ -299,6 +308,27 @@ ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 
 	ir_points_to = _get_ir_type(env, points_to);
 	set_pointer_points_to_type(ir_type, ir_points_to);
+
+	return ir_type;
+}
+
+static
+ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
+{
+	type_t  *element_type    = type->element_type;
+	ir_type *ir_element_type = _get_ir_type(env, element_type);
+
+	ir_type *ir_type = new_type_array(unique_id("array"), 1, ir_element_type);
+	set_array_bounds_int(ir_type, 0, 0, type->size);
+
+	size_t elemsize = get_type_size_bytes(ir_element_type);
+	int align = get_type_alignment_bytes(ir_element_type);
+	if(elemsize % align > 0) {
+		elemsize += align - (elemsize % align);
+	}
+	set_type_size_bytes(ir_type, type->size * elemsize);
+	set_type_alignment_bytes(ir_type, align);
+	set_type_state(ir_type, layout_fixed);
 
 	return ir_type;
 }
@@ -441,6 +471,9 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		break;
 	case TYPE_POINTER:
 		firm_type = get_pointer_type(env, (pointer_type_t*) type);
+		break;
+	case TYPE_ARRAY:
+		firm_type = get_array_type(env, (array_type_t*) type);
 		break;
 	case TYPE_VOID:
 		/* there is no mode_VOID in firm, use mode_C */
@@ -851,7 +884,6 @@ ir_node *expression_addr(const expression_t *expression)
 	switch(expression->type) {
 	case EXPR_SELECT:
 		select = (const select_expression_t*) expression;
-		assert(!select->selects_sub_struct);
 		return select_expression_addr(select);
 	case EXPR_ARRAY_ACCESS:
 		return array_access_expression_addr(
@@ -1024,8 +1056,9 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 static
 ir_node *select_expression_to_firm(const select_expression_t *select)
 {
-	ir_node *addr = select_expression_addr(select);
-	if(select->selects_sub_struct)
+	ir_node *addr       = select_expression_addr(select);
+	type_t  *entry_type = select->compound_entry->type;
+	if(entry_type->type == TYPE_COMPOUND || entry_type->type == TYPE_ARRAY)
 		return addr;
 
 	return load_from_expression_addr(&select->expression, addr);

@@ -79,6 +79,57 @@ void print_reference_expression(FILE *out, const reference_expression_t *ref)
 }
 
 static
+void print_select_expression(FILE *out, const select_expression_t *select)
+{
+	fprintf(out, "(");
+	print_expression(out, select->compound);
+	fprintf(out, ").");
+
+	if(select->compound_entry != NULL) {
+		fputs(select->compound_entry->symbol->string, out);
+	} else {
+		fprintf(out, "?%s", select->symbol->string);
+	}
+}
+
+static
+void print_array_access_expression(FILE *out,
+                                   const array_access_expression_t *access)
+{
+	fprintf(out, "(");
+	print_expression(out, access->array_ref);
+	fprintf(out, ")[");
+	print_expression(out, access->index);
+	fprintf(out, "]");
+}
+
+static
+void print_sizeof_expression(FILE *out, const sizeof_expression_t *expr)
+{
+	fprintf(out, "(sizeof<");
+	print_type(out, expr->type);
+	fprintf(out, ">)");
+}
+
+static
+void print_unary_expression(FILE *out, const unary_expression_t *unexpr)
+{
+	fprintf(out, "(");
+	switch(unexpr->type) {
+	case UNEXPR_CAST:
+		fprintf(out, "cast<");
+		print_type(out, unexpr->expression.datatype);
+		fprintf(out, "> ");
+		print_expression(out, unexpr->value);
+		break;
+	default:
+		fprintf(out, "*unexpr %d*", unexpr->type);
+		break;
+	}
+	fprintf(out, ")");
+}
+
+static
 void print_binary_expression(FILE *out, const binary_expression_t *binexpr)
 {
 	fprintf(out, "(");
@@ -149,6 +200,19 @@ void print_expression(FILE *out, const expression_t *expression)
 	case EXPR_BINARY:
 		print_binary_expression(out, (const binary_expression_t*) expression);
 		break;
+	case EXPR_UNARY:
+		print_unary_expression(out, (const unary_expression_t*) expression);
+		break;
+	case EXPR_SELECT:
+		print_select_expression(out, (const select_expression_t*) expression);
+		break;
+	case EXPR_ARRAY_ACCESS:
+		print_array_access_expression(out,
+				(const array_access_expression_t*) expression);
+		break;
+	case EXPR_SIZEOF:
+		print_sizeof_expression(out, (const sizeof_expression_t*) expression);
+		break;
 	case EXPR_REFERENCE:
 	case EXPR_REFERENCE_VARIABLE:
 	case EXPR_REFERENCE_METHOD:
@@ -159,10 +223,7 @@ void print_expression(FILE *out, const expression_t *expression)
 		print_reference_expression(out,
 		                           (const reference_expression_t*) expression);
 		break;
-	case EXPR_UNARY:
-	case EXPR_SELECT:
-	case EXPR_ARRAY_ACCESS:
-	case EXPR_SIZEOF:
+	default:
 		/* TODO */
 		fprintf(out, "some expression of type %d", expression->type);
 		break;

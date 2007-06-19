@@ -37,6 +37,13 @@ unsigned hash_pointer_type(const pointer_type_t *type)
 }
 
 static
+unsigned hash_array_type(const array_type_t *type)
+{
+	unsigned some_prime = 27644437;
+	return hash_ptr(type->element_type) ^ (type->size * some_prime);
+}
+
+static
 unsigned hash_compound_type(const compound_type_t *type)
 {
 	unsigned result = hash_ptr(type->symbol);
@@ -87,6 +94,8 @@ unsigned hash_type(const type_t *type)
 		return hash_method_type((const method_type_t*) type);
 	case TYPE_POINTER:
 		return hash_pointer_type((const pointer_type_t*) type);
+	case TYPE_ARRAY:
+		return hash_array_type((const array_type_t*) type);
 	}
 	abort();
 }
@@ -152,6 +161,14 @@ int pointer_types_equal(const pointer_type_t *type1,
 }
 
 static
+int array_types_equal(const array_type_t *type1,
+                      const array_type_t *type2)
+{
+	return type1->element_type == type2->element_type &&
+	       type1->size == type2->size;
+}
+
+static
 int type_references_type_variable_equal(const type_reference_t *type1,
                                         const type_reference_t *type2)
 {
@@ -187,6 +204,9 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_POINTER:
 		return pointer_types_equal((const pointer_type_t*) type1,
 		                           (const pointer_type_t*) type2);
+	case TYPE_ARRAY:
+		return array_types_equal((const array_type_t*) type1,
+		                         (const array_type_t*) type2);
 	}
 
 	abort();

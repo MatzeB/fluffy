@@ -36,6 +36,14 @@ void *allocate_ast_zero(size_t size)
 	return res;
 }
 
+static inline
+void *allocate_type_zero(size_t size)
+{
+	void *res = obstack_alloc(type_obst, size);
+	memset(res, 0, size);
+	return res;
+}
+
 void next_token(void)
 {
 	lexer_next_token(&lexer, &token);
@@ -247,8 +255,7 @@ type_t *parse_atomic_type(void
 		break;
 	}
 
-	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
+	atomic_type_t *type = allocate_type_zero(sizeof(type[0]));
 	type->type.type = TYPE_ATOMIC;
 	type->atype = atype;
 
@@ -265,8 +272,7 @@ type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
 
-	type_reference_t *type_ref = obstack_alloc(type_obst, sizeof(type_ref[0]));
-	memset(type_ref, 0, sizeof(type_ref[0]));
+	type_reference_t *type_ref = allocate_type_zero(sizeof(type_ref[0]));
 
 	type_ref->type.type       = TYPE_REFERENCE;
 	type_ref->symbol          = token.v.symbol;
@@ -281,9 +287,7 @@ type_t *parse_method_type(void)
 {
 	eat(T_func);
 
-	method_type_t *method_type
-		= obstack_alloc(type_obst, sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
+	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
 	expect('(');
@@ -328,20 +332,53 @@ type_t *parse_type(void)
 		break;
 	}
 
-	while(token.type == '*') {
-		next_token();
+	/* parse type modifiers */
+	pointer_type_t *pointer_type;
+	array_type_t   *array_type;
+	while(1) {
+		switch(token.type) {
+		case '*': {
+			next_token();
 
-		pointer_type_t *pointer_type 
-			= obstack_alloc(type_obst, sizeof(pointer_type[0]));
-		memset(pointer_type, 0, sizeof(pointer_type[0]));
+			pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
 
-		pointer_type->type.type = TYPE_POINTER;
-		pointer_type->points_to = type;
+			pointer_type->type.type = TYPE_POINTER;
+			pointer_type->points_to = type;
 
-		type = (type_t*) pointer_type;
+			type = (type_t*) pointer_type;
+			break;
+		}
+		case '[': {
+			next_token();
+			if(token.type != T_INTEGER) {
+				parse_error_expected("problem while parsing array type",
+				                     T_INTEGER, 0);
+				break;
+			}
+			int size = token.v.intvalue;
+			next_token();
+
+			if(size < 0) {
+				parse_error("negative array size not allowed");
+				expect(']');
+				break;
+			}
+
+			array_type = allocate_type_zero(sizeof(array_type[0]));
+
+			array_type->type.type    = TYPE_ARRAY;
+			array_type->element_type = type;
+			array_type->size         = size;
+
+			type = (type_t*) array_type;
+
+			expect(']');
+			break;
+			}
+		default:
+			return type;
+		}
 	}
-
-	return type;
 }
 
 
@@ -1208,9 +1245,7 @@ namespace_entry_t *parse_method(void)
 	method_t *method = allocate_ast_zero(sizeof(method[0]));
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 
-	method_type_t *method_type
-		= obstack_alloc(type_obst, sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
+	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
 	if(token.type == T___constructor) {
@@ -1304,8 +1339,7 @@ namespace_entry_t *parse_extern_method(void)
 	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
 	method->is_extern            = 1;
 
-	method_type_t *method_type
-		= obstack_alloc(type_obst, sizeof(method_type[0]));
+	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
@@ -1496,8 +1530,7 @@ typeclass_method_t *parse_typeclass_method(void)
 
 	typeclass_method_t *method = allocate_ast_zero(sizeof(method[0]));
 
-	method_type_t *method_type 
-		= obstack_alloc(type_obst, sizeof(method_type[0]));
+	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 	

@@ -247,6 +247,14 @@ type_t *normalize_pointer_type(semantic_env_t *env, pointer_type_t *type)
 }
 
 static
+type_t *normalize_array_type(semantic_env_t *env, array_type_t *type)
+{
+	type->element_type = normalize_type(env, type->element_type);
+
+	return typehash_insert((type_t*) type);
+}
+
+static
 type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
 {
 	method_type->result_type = normalize_type(env, method_type->result_type);
@@ -300,16 +308,18 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 
 	case TYPE_POINTER:
 		return normalize_pointer_type(env, (pointer_type_t*) type);
+
+	case TYPE_ARRAY:
+		return normalize_array_type(env, (array_type_t*) type);
 	
 	case TYPE_METHOD:
 		return normalize_method_type(env, (method_type_t*) type);
 
 	case TYPE_COMPOUND:
 		return normalize_compound_type(env, (compound_type_t*) type);
-
-	default:
-		panic("Unknown type found");
 	}
+
+	panic("Unknown type found");
 }
 
 
@@ -424,7 +434,10 @@ int is_lvalue(const expression_t *expression)
 		return 1;
 	case EXPR_SELECT:
 		select = (select_expression_t*) expression;
-		return !select->selects_sub_struct;
+		type_t *entry_type = select->compound_entry->type;
+
+		return entry_type->type != TYPE_COMPOUND &&
+			entry_type->type != TYPE_ARRAY;
 	case EXPR_UNARY:
 		unexpr = (unary_expression_t*) expression;
 		if(unexpr->type == UNEXPR_DEREFERENCE)
@@ -1206,17 +1219,11 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	/* we return a pointer to sub-compounds instead of the compound itself */
 	type_t *result_type = entry->type;
 	if(result_type->type == TYPE_COMPOUND) {
-		pointer_type_t *pointer = obstack_alloc(type_obst, sizeof(pointer[0]));
-		memset(pointer, 0, sizeof(pointer[0]));
+		result_type = make_pointer_type(result_type);
+	} else if(result_type->type == TYPE_ARRAY) {
+		array_type_t *array_type = (array_type_t*) result_type;
 
-		pointer->type.type = TYPE_POINTER;
-		pointer->points_to = result_type;
-
-		result_type = normalize_type(env, (type_t*) pointer);
-		if(result_type != (type_t*) pointer) {
-			obstack_free(type_obst, pointer);
-		}
-		select->selects_sub_struct = 1;
+		result_type = make_pointer_type(array_type->element_type);
 	}
 
 	select->compound_entry      = entry;
@@ -1232,16 +1239,31 @@ void check_array_access_expression(semantic_env_t *env,
 	expression_t *array_ref = access->array_ref;
 	expression_t *index     = access->index;
 
-	type_t *array_type = array_ref->datatype;
-	if(array_type == NULL || array_type->type != TYPE_POINTER) {
+	type_t *type = array_ref->datatype;
+	if(type == NULL || 
+			(type->type != TYPE_POINTER && type->type != TYPE_ARRAY)) {
 		print_error_prefix(env, access->expression.source_position);
-		fprintf(stderr, "expected pointer type for array access, got ");
-		print_type(stderr, array_type);
+		fprintf(stderr, "expected pointer or array type for array access, "
+		        "got ");
+		print_type(stderr, type);
 		fprintf(stderr, "\n");
 		return;
 	}
-	pointer_type_t *array_pointer_type = (pointer_type_t*) array_type;
-	access->expression.datatype        = array_pointer_type->points_to;
+
+	type_t *result_type;
+	if(type->type == TYPE_POINTER) {
+		pointer_type_t *pointer_type = (pointer_type_t*) type;
+		result_type                  = pointer_type->points_to;
+	} else {
+		assert(type->type == TYPE_ARRAY);
+		array_type_t *array_type = (array_type_t*) type;
+		result_type              = array_type->element_type;
+
+		/* TODO We could issue a warning if we have a constant index expression
+		 * that exceeds the array size
+		 */
+	}
+	access->expression.datatype = result_type;
 
 	if(index->datatype == NULL || !is_type_int(index->datatype)) {
 		print_error_prefix(env, access->expression.source_position);

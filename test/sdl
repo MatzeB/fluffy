@@ -23,7 +23,7 @@ struct Surface:
 	clip_rect      : Rect
 
 	unused1        : unsigned int
-	locaked        : unsigned int
+	locked         : unsigned int
 	map            : void*
 	format_version : unsigned int
 	refcount       : int

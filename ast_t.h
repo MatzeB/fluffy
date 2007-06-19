@@ -128,7 +128,6 @@ struct select_expression_t {
 	expression_t      expression;
 	expression_t     *compound;
 	symbol_t         *symbol;
-	int               selects_sub_struct;
 
 	compound_entry_t *compound_entry;
 };

@@ -16,6 +16,7 @@ typedef enum {
 	TYPE_COMPOUND,
 	TYPE_METHOD,
 	TYPE_POINTER,
+	TYPE_ARRAY,
 	TYPE_REFERENCE,
 	TYPE_REFERENCE_TYPE_VARIABLE
 } type_type_t;
@@ -49,8 +50,14 @@ struct atomic_type_t {
 };
 
 struct pointer_type_t {
-	type_t   type;
-	type_t  *points_to;
+	type_t  type;
+	type_t *points_to;
+};
+
+struct array_type_t {
+	type_t         type;
+	type_t        *element_type;
+	unsigned long  size;
 };
 
 struct type_reference_t {
