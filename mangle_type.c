@@ -76,6 +76,14 @@ void mangle_pointer_type(struct obstack *obst, const pointer_type_t *type)
 }
 
 static
+void mangle_array_type(struct obstack *obst, const array_type_t *type)
+{
+	obstack_1grow(obst, 'A');
+	mangle_type(obst, type->element_type);
+	obstack_printf(obst, "%lu", type->size);
+}
+
+static
 void mangle_method_type(struct obstack *obst, const method_type_t *type)
 {
 	obstack_1grow(obst, 'F');
@@ -105,29 +113,33 @@ void mangle_type(struct obstack *obst, const type_t *type)
 {
 	switch(type->type) {
 	case TYPE_INVALID:
-		abort();
 		break;
 	case TYPE_VOID:
 		obstack_1grow(obst, 'v');
-		break;
+		return;
 	case TYPE_ATOMIC:
 		mangle_atomic_type(obst, (const atomic_type_t*) type);
-		break;
+		return;
 	case TYPE_COMPOUND:
 		mangle_compound_type(obst, (const compound_type_t*) type);
-		break;
+		return;
 	case TYPE_METHOD:
 		mangle_method_type(obst, (const method_type_t*) type);
-		break;
+		return;
 	case TYPE_POINTER:
 		mangle_pointer_type(obst, (const pointer_type_t*) type);
-		break;
+		return;
+	case TYPE_ARRAY:
+		mangle_array_type(obst, (const array_type_t*) type);
+		return;
+	case TYPE_REFERENCE:
+		panic("can't mangle unresolved type reference");
+		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		mangle_reference_type_variable(obst, (const type_reference_t*) type);
-		break;
-
-	default:
-		abort();
+		return;
 	}
+	panic("Unknown type mangled");
+	abort();
 }
 
