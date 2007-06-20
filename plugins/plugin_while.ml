@@ -4,9 +4,9 @@ struct WhileStatement:
 	loop_body    : Statement*
 
 var token_while          : int
-var while_statement_type : int
+var while_statement_type : unsigned int
 
-instance AllocateOnAst<WhileStatement>:
+instance AllocateOnAst WhileStatement:
 	func allocate() : WhileStatement*:
 		var res <- allocate_zero<$WhileStatement>()
 		res.statement.type <- while_statement_type

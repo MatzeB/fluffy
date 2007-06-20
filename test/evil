@@ -5,11 +5,11 @@ extern func puts(string : byte*) : int
 typeclass Print<T>:
 	func print(object : T)
 
-instance Print<int>:
+instance Print int:
 	func print(object : int):
 		print_int(object)
 
-instance Print<byte* >:
+instance Print byte*:
 	func print(object : byte*):
 		puts(object)
 

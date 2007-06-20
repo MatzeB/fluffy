@@ -14,6 +14,7 @@ typedef expression_t* (*parse_expression_infix_function) (unsigned precedence,
 typedef statement_t*  (*parse_statement_function) (void);
 typedef namespace_entry_t*  (*parse_namespace_entry_function)
                             (void);
+typedef attribute_t*  (*parse_attribute_function) (void);
 
 typedef struct expression_parse_function_t {
 	unsigned                         precedence;
@@ -36,6 +37,8 @@ void register_statement_parser(parse_statement_function parser, int token_type);
 void register_namespace_parser(parse_namespace_entry_function parser,
                                int token_type);
 
+void register_attribute_parser(parse_attribute_function parser, int token_type);
+
 expression_t *parse_sub_expression(unsigned precedence);
 
 void parser_print_error_prefix(void);
@@ -43,6 +46,7 @@ void parser_print_error_prefix(void);
 expression_t      *parse_expression(void);
 statement_t       *parse_statement(void);
 namespace_entry_t *parse_namespace_entry(void);
+attribute_t       *parse_attributes(void);
 
 #endif
 

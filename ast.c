@@ -590,24 +590,30 @@ void* (allocate_ast) (size_t size)
 	return _allocate_ast(size);
 }
 
-int register_expression()
+unsigned register_expression()
 {
-	static int nextid = EXPR_LAST;
+	static unsigned nextid = EXPR_LAST;
 	++nextid;
 	return nextid;
 }
 
-int register_statement()
+unsigned register_statement()
 {
-	static int nextid = STATEMENT_LAST;
+	static unsigned nextid = STATEMENT_LAST;
 	++nextid;
 	return nextid;
 }
 
-int register_namespace_entry()
+unsigned register_namespace_entry()
 {
-	static int nextid = NAMESPACE_ENTRY_LAST;
+	static unsigned nextid = NAMESPACE_ENTRY_LAST;
 	++nextid;
 	return nextid;
 }
 
+unsigned register_attribute()
+{
+	static unsigned nextid = 0;
+	++nextid;
+	return nextid;
+}

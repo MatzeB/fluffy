@@ -18,16 +18,16 @@ union V:
 	string   : String
 
 struct Type:
-	type      : int
+	type      : unsigned int
 	firm_type : IrType*
 
 struct Statement:
-	type            : int
+	type            : unsigned int
 	next            : Statement*
 	source_position : SourcePosition
 
 struct Expression:
-	type            : int
+	type            : unsigned int
 	datatype        : Type*
 	source_position : SourcePosition
 
@@ -57,6 +57,11 @@ struct GotoStatement:
 	label_symbol : Symbol*
 	label        : LabelStatement*
 
+struct Attribute:
+	type            : unsigned int
+	source_position : SourcePosition
+	next            : Attribute*
+
 struct Lexer:
 	c               : int
 	source_position : SourcePosition
@@ -69,13 +74,15 @@ typealias EnvironmentEntry       <- void
 typealias IrNode                 <- void
 typealias IrType                 <- void
 typealias ParseStatementFunction <- func () : Statement*
+typealias ParseAttributeFunction <- func () : Attribute*
 typealias LowerStatementFunction <- func (env : Semantic*, statement : Statement*) : Statement*
 typealias String                 <- byte*
 
-extern func register_new_token(token : String) : int
-extern func register_statement() : int
-extern func register_expression() : int
-extern func register_namespace_entry() : int
+extern func register_new_token(token : String) : unsigned int
+extern func register_statement() : unsigned int
+extern func register_expression() : unsigned int
+extern func register_namespace_entry() : unsigned int
+extern func register_attribute() : unsigned int
 
 extern func puts(string : String) : int
 extern func fputs(string : String, stream : FILE*) : int
@@ -84,6 +91,8 @@ extern func abort()
 extern func memset(ptr : void*, c : int, size : unsigned int)
 
 extern func register_statement_parser(parser : ParseStatementFunction*, \
+                                      token_type : int)
+extern func register_attribute_parser(parser : ParseAttributeFunction*, \
                                       token_type : int)
 extern func print_token(out : FILE*, token : Token*)
 extern func lexer_next_token(lexer : Lexer*, token : Token*)
@@ -114,31 +123,31 @@ func allocate_zero<T>() : T*:
 	memset(res, 0, __sizeof<T>)
 	return res
 
-instance AllocateOnAst<BlockStatement>:
+instance AllocateOnAst BlockStatement:
 	func allocate() : BlockStatement*:
 		var res <- allocate_zero<$BlockStatement>()
 		res.statement.type <- 1
 		return res
 	
-instance AllocateOnAst<IfStatement>:
+instance AllocateOnAst IfStatement:
 	func allocate() : IfStatement*:
 		var res <- allocate_zero<$IfStatement>()
 		res.statement.type <- 4
 		return res
 
-instance AllocateOnAst<ExpressionStatement>:
+instance AllocateOnAst ExpressionStatement:
 	func allocate() : ExpressionStatement*:
 		var res <- allocate_zero<$ExpressionStatement>()
 		res.statement.type <- 5
 		return res
 
-instance AllocateOnAst<GotoStatement>:
+instance AllocateOnAst GotoStatement:
 	func allocate() : GotoStatement*:
 		var res <- allocate_zero<$GotoStatement>()
 		res.statement.type <- 6
 		return res
 
-instance AllocateOnAst<LabelStatement>:
+instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
 		var res <- allocate_zero<$LabelStatement>()
 		res.statement.type <- 7

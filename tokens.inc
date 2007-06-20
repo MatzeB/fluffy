@@ -73,4 +73,4 @@ T(QUESTION, "?", = '?')
 T(AND, "&", = '&')
 T(TILDE, "~", = '~')
 T(LINE, "|", = '|')
-
+T(DOLLAR, "$", = '$')

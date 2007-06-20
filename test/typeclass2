@@ -6,7 +6,7 @@ typeclass Ordered<T>:
 	/* TODO use bool as return type... */
 	func less(obj1 : T, obj2 : T) : int
 
-instance Ordered<int>:
+instance Ordered int:
 	func less(obj1 : int, obj2 : int) : int:
 		if obj1 < obj2:
 			return 1
@@ -15,11 +15,11 @@ instance Ordered<int>:
 typeclass Printable<T>:
 	func print(obj : T)
 
-instance Printable<byte* >:
+instance Printable byte*:
 	func print(obj : byte*):
 		puts(obj)
 
-instance Printable<int>:
+instance Printable int:
 	func print(obj : int):
 		print_int(obj)
 

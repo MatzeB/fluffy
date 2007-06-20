@@ -6,7 +6,7 @@ extern func int puts(byte* string)
 typeclass Alloc<T>:
 	func T* alloc()
 
-instance Alloc<int>:
+instance Alloc int:
 	func int* alloc():
 		return cast<int* > malloc(__sizeof<int>)
 */
@@ -14,11 +14,11 @@ instance Alloc<int>:
 typeclass Print<T>:
 	func void print(T object)
 
-instance Print<int>:
+instance Print int:
 	func void print(int object):
 		print_int(object)
 
-instance Print<byte* >:
+instance Print byte*:
 	func void print(byte* object):
 		puts(object)
 

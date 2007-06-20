@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+typedef struct attribute_t              attribute_t;
+
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;
 typedef struct string_const_t           string_const_t;

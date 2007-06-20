@@ -4,6 +4,7 @@
 #include "type.h"
 #include "symbol.h"
 #include "lexer_t.h"
+#include "ast.h"
 #include "adt/obst.h"
 #include <libfirm/typerep.h>
 
@@ -100,6 +101,7 @@ struct compound_entry_t {
 	type_t            *type;
 	symbol_t          *symbol;
 	compound_entry_t  *next;
+	attribute_t       *attributes;
 	source_position_t  source_position;
 
 	ir_entity         *entity;
@@ -109,6 +111,7 @@ struct compound_type_t {
 	type_t             type;
 	compound_entry_t  *entries;
 	symbol_t          *symbol;
+	attribute_t       *attributes;
 	source_position_t  source_position;
 	int                is_union;
 };

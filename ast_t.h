@@ -13,6 +13,12 @@
 extern struct obstack  ast_obstack;
 extern namespace_t    *namespaces;
 
+struct attribute_t {
+	unsigned           type;
+	source_position_t  source_position;
+	attribute_t       *next;
+};
+
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
@@ -312,8 +318,9 @@ void *_allocate_ast(size_t size)
 
 /* ----- helpers for plugins ------ */
 
-int register_expression();
-int register_statement();
-int register_namespace_entry();
+unsigned register_expression();
+unsigned register_statement();
+unsigned register_namespace_entry();
+unsigned register_attribute();
 
 #endif

@@ -23,6 +23,7 @@
 static expression_parse_function_t    *expression_parsers = NULL;
 static parse_statement_function       *statement_parsers  = NULL;
 static parse_namespace_entry_function *namespace_parsers  = NULL;
+static parse_attribute_function       *attribute_parsers  = NULL;
 
 static int      error = 0;
        token_t  token;
@@ -511,6 +512,27 @@ void register_namespace_parser(parse_namespace_entry_function parser,
 		panic("trying to register multiple namespace parsers for 1 token");
 	}
 	namespace_parsers[token_type] = parser;
+}
+
+void register_attribute_parser(parse_attribute_function parser, int token_type)
+{
+	if(token_type < 0)
+		panic("can't register parser for negative token");
+
+	int len = ARR_LEN(attribute_parsers);
+	if(token_type >= len) {
+		ARR_RESIZE(attribute_parsers, token_type + 1);
+		memset(& attribute_parsers[len], 0,
+				(token_type - len + 1) * sizeof(attribute_parsers[0]));
+	}
+
+	if(attribute_parsers[token_type] != NULL) {
+		fprintf(stderr, "for token ");
+		print_token_type(stderr, token_type);
+		fprintf(stderr, "\n");
+		panic("trying to register multiple namespace parsers for 1 token");
+	}
+	attribute_parsers[token_type] = parser;
 }
 
 static
@@ -1419,6 +1441,51 @@ namespace_entry_t *parse_typealias(void)
 }
 
 static
+attribute_t *parse_attribute(void)
+{
+	eat('$');
+
+	attribute_t *attribute = NULL;
+
+	if(token.type < 0) {
+		parse_error("problem while parsing attribute");
+		return NULL;
+	}
+
+	parse_attribute_function parser = NULL;
+	if(token.type < ARR_LEN(attribute_parsers))
+		parser = attribute_parsers[token.type];
+
+	if(parser == NULL) {
+		parser_print_error_prefix();
+		print_token(stderr, &token);
+		fprintf(stderr, " doesn't start a known attribute type\n");
+		return NULL;
+	}
+
+	if(parser != NULL) {
+		attribute = parser();
+	}
+
+	return attribute;
+}
+
+attribute_t *parse_attributes(void)
+{
+	attribute_t *last = NULL;
+
+	while(token.type == '$') {
+		attribute_t *attribute = parse_attribute();
+		if(attribute != NULL) {
+			attribute->next = last;
+			last = attribute;
+		}
+	}
+
+	return last;
+}
+
+static
 compound_entry_t *parse_compound_entries(void)
 {
 	eat(T_INDENT);
@@ -1438,7 +1505,8 @@ compound_entry_t *parse_compound_entries(void)
 		next_token();
 
 		expect(':');
-		entry->type = parse_type();
+		entry->type       = parse_type();
+		entry->attributes = parse_attributes();
 
 		if(last_entry == NULL) {
 			result = entry;
@@ -1471,12 +1539,16 @@ namespace_entry_t *parse_struct(void)
 	typealias->symbol = token.v.symbol;
 	next_token();
 
-	expect(':');
-	expect(T_NEWLINE);
-
 	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
+	compound_type->type.type  = TYPE_COMPOUND;
+	compound_type->symbol     = typealias->symbol;
+	compound_type->attributes = parse_attributes();
+
 	typealias->type = (type_t*) compound_type;
+
+	expect(':');
+	expect(T_NEWLINE);
 
 	compound_type->type.type = TYPE_COMPOUND;
 	compound_type->symbol    = typealias->symbol;
@@ -1505,16 +1577,17 @@ namespace_entry_t *parse_union(void)
 	typealias->symbol = token.v.symbol;
 	next_token();
 
-	expect(':');
-	expect(T_NEWLINE);
-
-	compound_type_t *compound_type
+	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
+	compound_type->type.type  = TYPE_COMPOUND;
+	compound_type->symbol     = typealias->symbol;
+	compound_type->attributes = parse_attributes();
+	compound_type->is_union   = 1;
+
 	typealias->type = (type_t*) compound_type;
 
-	compound_type->type.type = TYPE_COMPOUND;
-	compound_type->symbol    = typealias->symbol;
-	compound_type->is_union  = 1;
+	expect(':');
+	expect(T_NEWLINE);
 
 	if(token.type == T_INDENT) {
 		compound_type->entries = parse_compound_entries();
@@ -1653,9 +1726,7 @@ namespace_entry_t *parse_typeclass_instance(void)
 		instance->typeclass_symbol = token.v.symbol;
 		next_token();
 
-		expect('<');
 		instance->type_arguments = parse_type_arguments();
-		expect('>');
 		
 		expect(':');
 		expect(T_NEWLINE);
@@ -1827,6 +1898,7 @@ void init_parser(void)
 	expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
 	statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
 	namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
+	attribute_parsers  = NEW_ARR_F(parse_attribute_function, 0);
 
 	register_expression_parsers();
 	register_statement_parsers();
@@ -1835,6 +1907,7 @@ void init_parser(void)
 
 void exit_parser(void)
 {
+	DEL_ARR_F(attribute_parsers);
 	DEL_ARR_F(namespace_parsers);
 	DEL_ARR_F(expression_parsers);
 	DEL_ARR_F(statement_parsers);

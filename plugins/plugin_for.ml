@@ -6,9 +6,9 @@ struct ForStatement:
 	loop_body       : Statement*
 
 var token_for     : int
-var for_statement : int
+var for_statement : unsigned int
 
-instance AllocateOnAst<ForStatement>:
+instance AllocateOnAst ForStatement:
 	func allocate() : ForStatement*:
 		var res <- allocate_zero<$ForStatement>()
 		res.statement.type <- for_statement
