@@ -1578,6 +1578,9 @@ void check_goto_statement(goto_statement_t *goto_statement)
 __attribute__((warn_unused_result))
 statement_t *check_statement(statement_t *statement)
 {
+	if(statement == NULL)
+		return NULL;
+
 	/* try to lower the statement */
 	if((int) statement->type < (int) ARR_LEN(statement_lowerers)) {
 		lower_statement_function lowerer = statement_lowerers[statement->type];
@@ -1586,6 +1589,9 @@ statement_t *check_statement(statement_t *statement)
 			statement = lowerer(statement);
 		}
 	}
+
+	if(statement == NULL)
+		return NULL;
 
 	last_statement_was_return = 0;
 	switch(statement->type) {

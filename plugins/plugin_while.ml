@@ -28,7 +28,10 @@ func parse_while_statement() : Statement*:
 
 func lower_while_statement(statement : Statement*) : Statement*:
 	var while_statement <- cast<WhileStatement* > statement
-	var loop_body     <- while_statement.loop_body
+	var loop_body       <- while_statement.loop_body
+
+	if loop_body = null:
+		loop_body <- cast<Statement* > allocate<$BlockStatement>()
 
 	/* lower&check semantics of inner expressions and statements */
 	loop_body <- check_statement(loop_body)

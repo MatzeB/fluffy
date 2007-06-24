@@ -17,30 +17,37 @@
 #include "type_hash.h"
 #include "adt/error.h"
 
-static const char *outname = NULL;
+static const char *outname     = NULL;
+static int         dump_graphs = 0;
+static int         dump_asts   = 0;
 
 static
 void optimize()
 {
-#if 1
-	ir_entity **keep_methods;
-	int arr_len;
+	int i;
+	int n_irgs      = get_irp_n_irgs();
+	for(i = 0; i < n_irgs; ++i) {
+		ir_graph *irg = get_irp_irg(i);
 
+		if(dump_graphs)
+			dump_ir_block_graph(irg, "-begin");
+	}
+
+	int arr_len;
+	ir_entity **keep_methods;
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
 
 	optimize_funccalls(1);
 	inline_leave_functions(500, 80, 30, 0);
-#endif
 
-	int i;
-	int n_irgs      = get_irp_n_irgs();
 	for(i = 0; i < n_irgs; ++i) {
 		ir_graph *irg = get_irp_irg(i);
 
 		dump_consts_local(1);
-		dump_ir_block_graph(irg, "-lower");
+		if(dump_graphs)
+			dump_ir_block_graph(irg, "-lower");
 
 		/* TODO: improve this and make it configurabble */
 
@@ -59,14 +66,13 @@ void optimize()
 
 		optimize_load_store(irg);
 
-		dump_ir_block_graph(irg, "-opt");
+		if(dump_graphs)
+			dump_ir_block_graph(irg, "-opt");
 	}
 
-#if 1
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
-#endif
 }
 
 static
@@ -117,6 +123,9 @@ void backend(const char *inputname)
 static
 void dump_ast(const namespace_t *namespace, const char *name)
 {
+	if(!dump_asts)
+		return;
+
 	const char *fname = namespace->filename;
 	char        filename[4096];
 	get_output_name(filename, sizeof(filename), fname, name);
@@ -212,6 +221,13 @@ int main(int argc, char **argv)
 				return 1;
 			}
 			outname = argv[i];
+		} else if(strcmp(arg, "--dump") == 0) {
+			dump_graphs = 1;
+			dump_asts   = 1;
+		} else if(strcmp(arg, "--dump-ast") == 0) {
+			dump_asts = 1;
+		} else if(strcmp(arg, "--dump-graph") == 0) {
+			dump_graphs = 1;
 		} else if(strcmp(arg, "--help") == 0) {
 			usage();
 			return 0;

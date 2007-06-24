@@ -1,3 +1,10 @@
+/*
+ * TODO (error detection/reporting):
+ *   - how can make sure sqltype attributes are only defined on compound type
+ *     entries?
+ *   - how to make sure there's only 1 sqltype attribute per entry?
+ */
+
 struct SqlAttribute:
 	attribute : Attribute
 	sqltext   : String
@@ -95,11 +102,39 @@ func lower_table_def_expression(expression : Expression*) : Expression*:
 		abort()
 	
 	var compound_type <- cast<CompoundType* > type
-	var entry         <- compound_type.entries
+
+	puts("create table ")
+	puts(compound_type.symbol.string)
+	puts(" (\n")
+	
+
+	var entry <- compound_type.entries
 	while entry /= null:
+		puts("\t")
+		puts(entry.symbol.string)
+		puts(" ")
+		print_sql_type(entry)
 
-
+		entry = entry.next
+	
+		
 	return cast<Expression* > 0
+
+func print_sql_type(entry : CompoundEntry*):
+	// see if an sqltype attribute has been defined
+	var attrib <- entry.attributes
+	while attrib /= null:
+		if attrib.type = sqltype_attribute:
+			var sqltype_attrib <- cast<SqlTypeAttribute* > attrib
+			puts(attrib.typetext)
+			return
+
+		attrib <- attrib.next
+
+	// no attribute defined, try to guess one from the datatype
+	var type <- entry.type
+	if type.type = TYPE_ATOMIC:
+
 
 func init_plugin():
 	puts("init sql plugin")

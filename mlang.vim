@@ -20,6 +20,8 @@ syn keyword mlangAttribute	extern
 syn keyword mlangRepeat	        for while
 syn keyword mlangConditional	if else
 
+syn keyword mlangConstant    null
+
 syn keyword mlangStatement   struct nextgroup=mlangIdentifier
 syn keyword mlangStatement   union nextgroup=mlangIdentifier
 syn keyword mlangStatement   func nextgroup=mlangIdentifier
@@ -54,6 +56,7 @@ syn sync maxlines=200
 
 hi def link mlangStatement      Statement
 hi def link mlangConditional    Conditional
+hi def link mlangConstant       Constant
 hi def link mlangString         String
 hi def link mlangCharacter      Character
 hi def link mlangEscape         Special

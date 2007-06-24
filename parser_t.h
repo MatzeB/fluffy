@@ -7,6 +7,7 @@
 
 #include "token_t.h"
 #include "lexer_t.h"
+#include "type.h"
 
 typedef expression_t* (*parse_expression_function)  (unsigned precedence);
 typedef expression_t* (*parse_expression_infix_function) (unsigned precedence,
@@ -45,6 +46,7 @@ void parser_print_error_prefix(void);
 
 expression_t      *parse_expression(void);
 statement_t       *parse_statement(void);
+type_t            *parse_type(void);
 namespace_entry_t *parse_namespace_entry(void);
 attribute_t       *parse_attributes(void);
 

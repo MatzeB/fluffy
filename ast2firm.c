@@ -1528,8 +1528,6 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 	value_numbers = NULL;
 
 	pop_type_variable_bindings(old_top);
-
-	dump_ir_block_graph(irg, "-test");
 }
 
 static

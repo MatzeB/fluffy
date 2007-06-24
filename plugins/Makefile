@@ -12,5 +12,7 @@ all: $(PLUGINS)
 %.s: %.ml api.ml
 	../mlang api.ml $*.ml -o $*.s
 
+plugin_sql.s: plugin_while.so
+
 clean:
 	rm -rf $(PLUGINS)

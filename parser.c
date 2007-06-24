@@ -168,9 +168,6 @@ void maybe_eat_block(void)
 
 
 static
-type_t *parse_type();
-
-static
 void parse_parameter_declaration(method_parameter_type_t **parameter_types,
                                  method_parameter_t **parameters);
 
@@ -311,7 +308,6 @@ type_t *make_pointer_type(type_t *type)
 	return (type_t*) pointer_type;	
 }
 
-static
 type_t *parse_type(void)
 {
 	type_t *type;

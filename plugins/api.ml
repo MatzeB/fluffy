@@ -253,12 +253,16 @@ func assert(expr : int):
 
 func block_append(block : BlockStatement*, append : Statement*):
 	var statement <- block.statements
+
+	if block.statements = null:
+		block.statements <- append
+		return
+
 	:label
-	if statement.next = cast<Statement* > 0:
+	if statement.next = null:
 		statement.next <- append
 		return
 
 	statement <- statement.next
 	goto label
-
 
