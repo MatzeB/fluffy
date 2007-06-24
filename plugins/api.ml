@@ -140,7 +140,6 @@ const T_IDENTIFIER     <- 259
 const T_INTEGER        <- 260
 const T_STRING_LITERAL <- 261
 
-typealias Semantic                <- void
 typealias FILE                    <- void
 typealias EnvironmentEntry        <- void
 typealias IrNode                  <- void
@@ -151,9 +150,8 @@ typealias ParseAttributeFunction  <- func () : Attribute*
 typealias ParseExpressionFunction <- func (precedence : unsigned int) : Expression*
 typealias ParseExpressionInfixFunction <- func (precedence : unsigned int, \
                                                left : Expression*) : Expression*
-typealias LowerStatementFunction  <- func (env : Semantic*, statement : Statement*) : Statement*
-typealias LowerExpressionFunction <- func (env : Semantic*, \
-                                        expression : Expression*) : Expression*
+typealias LowerStatementFunction  <- func (statement : Statement*) : Statement*
+typealias LowerExpressionFunction <- func (expression : Expression*) : Expression*
 typealias String                  <- byte*
 
 extern func register_new_token(token : String) : unsigned int
@@ -172,7 +170,7 @@ extern func register_statement_parser(parser : ParseStatementFunction*, \
                                       token_type : int)
 extern func register_attribute_parser(parser : ParseAttributeFunction*, \
                                       token_type : int)
-extern func register_expression_parser(parser : ParseExpressionFunction, \
+extern func register_expression_parser(parser : ParseExpressionFunction*, \
                                        token_type : int, \
 									   precedence : unsigned int)
 extern func register_expression_infix_parser( \
@@ -187,11 +185,12 @@ extern func next_token()
 extern func parse_sub_expression(precedence : unsigned int) : Expression*
 extern func parse_expression() : Expression*
 extern func parse_statement() : Statement*
+extern func parse_type() : Type*
 
-extern func print_error_prefix(env : Semantic*, position : SourcePosition)
-extern func print_warning_preifx(env : Semantic*, position : SourcePosition)
-extern func check_statement(env : Semantic*, statement : Statement*) : Statement*
-extern func check_expression(env : Semantic*, expression : Expression*) : Expression*
+extern func print_error_prefix(position : SourcePosition)
+extern func print_warning_preifx(position : SourcePosition)
+extern func check_statement(statement : Statement*) : Statement*
+extern func check_expression(expression : Expression*) : Expression*
 extern func register_statement_lowerer(function : LowerStatementFunction*, \
                                        statement_type : unsigned int)
 extern func register_expression_lowerer(function : LowerExpressionFunction*, \

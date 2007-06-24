@@ -1,9 +1,0 @@
-#!/bin/sh
-DIR=`dirname $0`
-for i in $DIR/plugin_*.ml; do
-	basename=`basename $i .ml`
-	asmfile="$DIR/$basename.s"
-	pluginfile="$DIR/$basename.so"
-	"$DIR/../mlang" "$i" "$DIR/api.ml" -o "$asmfile"
-	gcc -shared "$asmfile" -o "$pluginfile"
-done

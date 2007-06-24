@@ -48,13 +48,7 @@ static
 void print_method_type(FILE *out, const method_type_t *type)
 {
 	fputs("<", out);
-	print_type(out, type->result_type);
-	fputs(" ", out);
-
-	if(type->abi_style != NULL) {
-		fprintf(out, "\"%s\" ", type->abi_style);
-	}
-	fputs("method(", out);
+	fputs("func(", out);
 	method_parameter_type_t *param_type = type->parameter_types;
 	int first = 1;
 	while(param_type != NULL) {
@@ -66,7 +60,13 @@ void print_method_type(FILE *out, const method_type_t *type)
 		print_type(out, param_type->type);
 		param_type = param_type->next;
 	}
-	fputs(")>", out);
+	fputs(")", out);
+
+	if(type->result_type != NULL && type->result_type->type != TYPE_VOID) {
+		fputs(" : ", out);
+		print_type(out, type->result_type);
+	}
+	fputs(">", out);
 }
 
 static

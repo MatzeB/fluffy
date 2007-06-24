@@ -70,13 +70,13 @@ func main(argc : int, argv : byte * * ) : int:
 
 	print_string(*filename)
 	var image <- IMG_Load(*filename)
-	if image = cast<Surface* > 0:
+	if image = null:
 		return 1
 	
-	SDL_FillRect(screen, cast<Rect* > 0, cast<unsigned int> 0)
+	SDL_FillRect(screen, null, cast<unsigned int> 0)
 	rect.x <- (screen.w - image.w) >> 1
 	rect.y <- (screen.h - image.h) >> 1
-	SDL_UpperBlit(image, cast<Rect* > 0, screen, rect)
+	SDL_UpperBlit(image, null, screen, rect)
 	SDL_Flip(screen)
 
 	SDL_Delay(cast<unsigned int> 1500)
@@ -86,7 +86,7 @@ func main(argc : int, argv : byte * * ) : int:
 
 	:end
 
-	free(cast<void* > rect)
+	free(rect)
 	SDL_Quit()
 
 	return 0

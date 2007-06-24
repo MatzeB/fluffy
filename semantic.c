@@ -25,8 +25,8 @@ static type_t *type_bool     = NULL;
 static type_t *type_byte     = NULL;
 static type_t *type_int      = NULL;
 static type_t *type_uint     = NULL;
-static type_t *type_void_ptr = NULL;
 static type_t *type_byte_ptr = NULL;
+static type_t *type_void_ptr = NULL;
 
 static method_t *current_method            = NULL;
 int              last_statement_was_return = 0;
@@ -216,7 +216,7 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 	environment_entry_t *entry  = symbol->thing;
 	if(entry == NULL) {
 		print_error_prefix(type_ref->source_position);
-		fprintf(stderr, "can't resolve type: nothing known about '%s'\n",
+		fprintf(stderr, "can't resolve type: symbol '%s' is unknown\n",
 		        symbol->string);
 		return NULL;
 	}
@@ -554,8 +554,11 @@ expression_t *make_cast(expression_t *from,
 		if(dest_type->type == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) from_type;
 			pointer_type_t *p2 = (pointer_type_t*) dest_type;
+			/* you can implicitely cast any pointer to void* and
+			 * it is allowed to cast 'null' to any pointer */
 			if(p1->points_to != p2->points_to
-					&& dest_type != type_void_ptr) {
+					&& dest_type != type_void_ptr
+					&& from->type != EXPR_NULL_POINTER) {
 				implicit_cast_allowed = 0;
 			}
 		} else {
@@ -1015,7 +1018,7 @@ void check_call_expression(call_expression_t *call)
 	while(argument != NULL) {
 		if(param_type == NULL) {
 			error_at(call->expression.source_position,
-			         "too few arguments for method call\n");
+			         "too much arguments for method call\n");
 			break;
 		}
 
@@ -1052,7 +1055,7 @@ void check_call_expression(call_expression_t *call)
 	}
 	if(param_type != NULL) {
 		error_at(call->expression.source_position,
-		         "too much arguments for method call\n");
+		         "too few arguments for method call\n");
 	}
 
 	/* test whether we could determine the concrete types for all type
@@ -1203,7 +1206,8 @@ void check_select_expression(select_expression_t *select)
 
 	if(datatype->type != TYPE_POINTER) {
 		print_error_prefix(select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to compound type but found ");
+		fprintf(stderr, "select needs a pointer to compound type but found "
+		        "type ");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
 		return;
@@ -1215,7 +1219,8 @@ void check_select_expression(select_expression_t *select)
 	if(points_to->type != TYPE_COMPOUND_STRUCT
 			&& points_to->type != TYPE_COMPOUND_UNION) {
 		print_error_prefix(select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to compound type but found ");
+		fprintf(stderr, "select needs a pointer to compound type but found "
+		        "type");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
 		return;
@@ -1331,6 +1336,9 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_STRING_CONST:
 		expression->datatype = type_byte_ptr;
 		break;
+	case EXPR_NULL_POINTER:
+		expression->datatype = type_void_ptr;
+		break;
 	case EXPR_REFERENCE:
 		check_reference_expression((reference_expression_t*) expression);
 		break;
@@ -1353,9 +1361,15 @@ expression_t *check_expression(expression_t *expression)
 		check_array_access_expression((array_access_expression_t*) expression);
 		break;
 	case EXPR_REFERENCE_VARIABLE:
+	case EXPR_REFERENCE_GLOBAL_VARIABLE:
+	case EXPR_REFERENCE_CONSTANT:
 	case EXPR_REFERENCE_METHOD:
+	case EXPR_REFERENCE_METHOD_PARAMETER:
+	case EXPR_REFERENCE_TYPECLASS_METHOD:
+	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
 		break;
-	default:
+	case EXPR_LAST:
+	case EXPR_INVALID:
 		panic("Invalid expression encountered");
 	}
 

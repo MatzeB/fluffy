@@ -238,8 +238,7 @@ atomic_type_type_t parse_signed_atomic_type(void)
 }
 
 static
-type_t *parse_atomic_type(void
-		)
+type_t *parse_atomic_type(void)
 {
 	atomic_type_type_t atype;
 
@@ -302,6 +301,17 @@ type_t *parse_method_type(void)
 }
 
 static
+type_t *make_pointer_type(type_t *type)
+{
+	pointer_type_t *pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
+
+	pointer_type->type.type = TYPE_POINTER;
+	pointer_type->points_to = type;
+
+	return (type_t*) pointer_type;	
+}
+
+static
 type_t *parse_type(void)
 {
 	type_t *type;
@@ -334,19 +344,12 @@ type_t *parse_type(void)
 	}
 
 	/* parse type modifiers */
-	pointer_type_t *pointer_type;
 	array_type_t   *array_type;
 	while(1) {
 		switch(token.type) {
 		case '*': {
 			next_token();
-
-			pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
-
-			pointer_type->type.type = TYPE_POINTER;
-			pointer_type->points_to = type;
-
-			type = (type_t*) pointer_type;
+			type = make_pointer_type(type);
 			break;
 		}
 		case '[': {
@@ -409,6 +412,18 @@ expression_t *parse_int_const(void)
 	next_token();
 
 	return (expression_t*) cnst;
+}
+
+static
+expression_t *parse_null(void)
+{
+	eat(T_null);
+
+	null_pointer_t *expression      = allocate_ast_zero(sizeof(expression[0]));
+	expression->expression.type     = EXPR_NULL_POINTER;
+	expression->expression.datatype = make_pointer_type(type_void);
+
+	return (expression_t*) expression;
 }
 
 static
@@ -609,6 +624,8 @@ expression_t *parse_primary_expression(void)
 		return parse_string_const();
 	case T_IDENTIFIER:
 		return parse_reference();
+	case T_null:
+		return parse_null();
 	case T___sizeof:
 		return parse_sizeof();
 	default:

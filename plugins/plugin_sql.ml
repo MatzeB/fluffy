@@ -85,17 +85,19 @@ func parse_table_def_expression(precedence : unsigned int) : Expression*:
 
 	return cast<Expression* > expr
 
-func lower_table_def_expression(env : Semantic*, expression : Expression*) : Expression*:
-	var table_def_expression <- cast<SqlTableDefExpression> (expression)
+func lower_table_def_expression(expression : Expression*) : Expression*:
+	var table_def_expression <- cast<SqlTableDefExpression* > (expression)
 	var type                 <- table_def_expression.type
 
 	if type.type /= TYPE_COMPOUND_STRUCT:
-		//print_error_prefix(env, expression.source_position)
+		//print_error_prefix(expression.source_position)
 		fputs("can only create sql table definition for struct types\n", stderr)
 		abort()
 	
-	var compound_type <- cast<ComoundType* > type
-	var entry         <- type.entries
+	var compound_type <- cast<CompoundType* > type
+	var entry         <- compound_type.entries
+	while entry /= null:
+
 
 	return cast<Expression* > 0
 

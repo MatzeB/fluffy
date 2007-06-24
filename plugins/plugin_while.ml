@@ -26,14 +26,14 @@ func parse_while_statement() : Statement*:
 
 	return cast<Statement* > statement
 
-func lower_while_statement(env : Semantic*, statement : Statement*) : Statement*:
+func lower_while_statement(statement : Statement*) : Statement*:
 	var while_statement <- cast<WhileStatement* > statement
 	var loop_body     <- while_statement.loop_body
 
 	/* lower&check semantics of inner expressions and statements */
-	loop_body <- check_statement(env, loop_body)
+	loop_body <- check_statement(loop_body)
 	while_statement.loop_control \
-		<- check_expression(env, while_statement.loop_control)
+		<- check_expression(while_statement.loop_control)
 
 	var label             <- allocate<$LabelStatement>()
 

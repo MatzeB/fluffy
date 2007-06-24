@@ -36,18 +36,18 @@ func parse_for_statement() : Statement*:
 
 	return cast<Statement* > statement
 
-func lower_for_statement(env : Semantic*, statement : Statement*) : Statement*:
+func lower_for_statement(statement : Statement*) : Statement*:
 	var for_statement <- cast<ForStatement* > statement
 	var loop_body     <- for_statement.loop_body
 
 	/* lower&check semantics of inner expressions and statements */
-	loop_body <- check_statement(env, loop_body)
+	loop_body <- check_statement(loop_body)
 	for_statement.pre_expression \
-		<- check_expression(env, for_statement.pre_expression)
+		<- check_expression(for_statement.pre_expression)
 	for_statement.loop_control \
-		<- check_expression(env, for_statement.loop_control)
+		<- check_expression(for_statement.loop_control)
 	for_statement.step_expression \
-		<- check_expression(env, for_statement.step_expression)
+		<- check_expression(for_statement.step_expression)
 
 	var expression        <- allocate<$ExpressionStatement>()
 	expression.expression <- for_statement.pre_expression

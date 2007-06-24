@@ -1577,9 +1577,11 @@ void ast2firm(namespace_t *namespace)
 			break;
 		case NAMESPACE_ENTRY_TYPEALIAS:
 		case NAMESPACE_ENTRY_TYPECLASS:
+		case NAMESPACE_ENTRY_CONSTANT:
 			break;
-		default:
-			panic("Unknown namespace entry type found");
+		case NAMESPACE_ENTRY_LAST:
+		case NAMESPACE_ENTRY_INVALID:
+			panic("Invalid namespace entry type found");
 		}
 
 		entry = entry->next;
