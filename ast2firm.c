@@ -25,7 +25,8 @@ static label_statement_t                 *labels        = NULL;
 
 typedef struct instantiate_method_t  instantiate_method_t;
 
-static ir_type *byte_ir_type = NULL;
+static ir_type *byte_ir_type  = NULL;
+static ir_type *void_ptr_type = NULL;
 
 struct instantiate_method_t {
 	method_t             *method;
@@ -93,6 +94,10 @@ void initialize_firm(void)
 	byte_type.atype     = ATOMIC_TYPE_BYTE;
 
 	byte_ir_type = get_ir_type((type_t*) &byte_type);
+
+	ir_type *ir_type_void = get_ir_type(type_void);
+	void_ptr_type         = new_type_pointer(new_id_from_str("void_ptr"),
+	                                         ir_type_void, mode_P_data);
 }
 
 void exit_firm(void)
@@ -216,7 +221,8 @@ unsigned get_type_size(type_t *type)
 		return 0;
 	case TYPE_ATOMIC:
 		return get_atomic_type_size((const atomic_type_t*) type);
-	case TYPE_COMPOUND:
+	case TYPE_COMPOUND_UNION:
+	case TYPE_COMPOUND_STRUCT:
 		return get_compound_type_size((compound_type_t*) type);
 	case TYPE_METHOD:
 		/* just a pointer to the method */
@@ -301,10 +307,10 @@ ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	 * again (might be a struct). We therefore first create a void* pointer
 	 * and then set the real points_to type
 	 */
-	ir_type *ir_type_void = _get_ir_type(env, type_void);
+	ir_type *ir_type_void = get_ir_type(type_void);
 	ir_type *ir_type      = new_type_pointer(unique_id("pointer"),
-	                                         ir_type_void, mode_P_data);
-	type->type.firm_type = ir_type;
+                                             ir_type_void, mode_P_data);
+	type->type.firm_type  = ir_type;
 
 	ir_points_to = _get_ir_type(env, points_to);
 	set_pointer_points_to_type(ir_type, ir_points_to);
@@ -443,15 +449,6 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
 }
 
 static
-ir_type *get_compound_type(type2firm_env_t *env, compound_type_t *type)
-{
-	if(type->is_union)
-		return get_union_type(env, type);
-	else
-		return get_struct_type(env, type);
-}
-
-static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
@@ -479,8 +476,11 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		/* there is no mode_VOID in firm, use mode_C */
 		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
 		break;
-	case TYPE_COMPOUND:
-		firm_type = get_compound_type(env, (compound_type_t*) type);
+	case TYPE_COMPOUND_STRUCT:
+		firm_type = get_struct_type(env, (compound_type_t*) type);
+		break;
+	case TYPE_COMPOUND_UNION:
+		firm_type = get_union_type(env, (compound_type_t*) type);
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
@@ -780,6 +780,15 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 }
 
 static
+ir_node *null_pointer_to_firm(void)
+{
+	ir_mode *mode = get_type_mode(void_ptr_type);
+	tarval  *tv   = get_tarval_null(mode);
+
+	return new_Const(mode, tv);
+}
+
+static
 ir_node *variable_reference_to_firm(const reference_expression_t *ref)
 {
 	variable_declaration_statement_t *variable = ref->r.variable;
@@ -868,11 +877,20 @@ ir_node *global_variable_reference_to_firm(const reference_expression_t *ref)
 	global_variable_t *variable = ref->r.global_variable;
 	type_t            *type     = variable->type;
 
-	if(type->type == TYPE_COMPOUND) {
+	if(type->type == TYPE_COMPOUND_STRUCT 
+			|| type->type == TYPE_COMPOUND_UNION
+			|| type->type == TYPE_ARRAY) {
 		return addr;
 	}
 
 	return load_from_expression_addr(&ref->expression, addr);
+}
+
+static
+ir_node *constant_reference_to_firm(const reference_expression_t *ref)
+{
+	constant_t *constant = ref->r.constant;
+	return expression_to_firm(constant->expression);
 }
 
 static
@@ -1058,7 +1076,9 @@ ir_node *select_expression_to_firm(const select_expression_t *select)
 {
 	ir_node *addr       = select_expression_addr(select);
 	type_t  *entry_type = select->compound_entry->type;
-	if(entry_type->type == TYPE_COMPOUND || entry_type->type == TYPE_ARRAY)
+	if(entry_type->type == TYPE_COMPOUND_STRUCT	
+			|| entry_type->type == TYPE_COMPOUND_UNION
+			|| entry_type->type == TYPE_ARRAY)
 		return addr;
 
 	return load_from_expression_addr(&select->expression, addr);
@@ -1244,6 +1264,8 @@ ir_node *expression_to_firm(const expression_t *expression)
 		return int_const_to_firm((const int_const_t*) expression);
 	case EXPR_STRING_CONST:
 		return string_const_to_firm((const string_const_t*) expression);
+	case EXPR_NULL_POINTER:
+		return null_pointer_to_firm();
 	case EXPR_REFERENCE_VARIABLE:
 		return variable_reference_to_firm(
 				(const reference_expression_t*) expression);
@@ -1261,6 +1283,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const reference_expression_t*) expression);
 	case EXPR_REFERENCE_GLOBAL_VARIABLE:
 		return global_variable_reference_to_firm(
+				(const reference_expression_t*) expression);
+	case EXPR_REFERENCE_CONSTANT:
+		return constant_reference_to_firm(
 				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(

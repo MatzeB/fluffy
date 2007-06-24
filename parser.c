@@ -1339,6 +1339,36 @@ namespace_entry_t *parse_global_variable(void)
 }
 
 static
+namespace_entry_t *parse_constant(void)
+{
+	eat(T_const);
+
+	constant_t *constant = allocate_ast_zero(sizeof(constant[0]));
+	constant->namespace_entry.type = NAMESPACE_ENTRY_CONSTANT;
+
+	if(token.type != T_IDENTIFIER) {
+		parse_error_expected("Problem while parsing constant", T_IDENTIFIER, 0);
+		eat_until_newline();
+		return NULL;
+	}
+	constant->symbol = token.v.symbol;
+	next_token();
+
+	if(token.type == '<') {
+		next_token();
+		constant->type = parse_type();
+		expect('>');
+	}
+
+	expect(T_ASSIGN);
+	constant->expression = parse_expression();
+
+	expect(T_NEWLINE);
+
+	return (namespace_entry_t*) constant;
+}
+
+static
 namespace_entry_t *parse_extern_variable(void)
 {
 	namespace_entry_t *entry = parse_global_variable();
@@ -1541,7 +1571,7 @@ namespace_entry_t *parse_struct(void)
 
 	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND;
+	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
 	compound_type->symbol     = typealias->symbol;
 	compound_type->attributes = parse_attributes();
 
@@ -1549,9 +1579,6 @@ namespace_entry_t *parse_struct(void)
 
 	expect(':');
 	expect(T_NEWLINE);
-
-	compound_type->type.type = TYPE_COMPOUND;
-	compound_type->symbol    = typealias->symbol;
 
 	if(token.type == T_INDENT) {
 		compound_type->entries = parse_compound_entries();
@@ -1579,10 +1606,9 @@ namespace_entry_t *parse_union(void)
 
 	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND;
+	compound_type->type.type  = TYPE_COMPOUND_UNION;
 	compound_type->symbol     = typealias->symbol;
 	compound_type->attributes = parse_attributes();
-	compound_type->is_union   = 1;
 
 	typealias->type = (type_t*) compound_type;
 
@@ -1865,6 +1891,7 @@ void register_namespace_parsers(void)
 {
 	register_namespace_parser(parse_method,             T_func);
 	register_namespace_parser(parse_global_variable,    T_var);
+	register_namespace_parser(parse_constant,           T_const);
 	register_namespace_parser(parse_extern,             T_extern);
 	register_namespace_parser(parse_struct,             T_struct);
 	register_namespace_parser(parse_union,              T_union);

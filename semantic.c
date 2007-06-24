@@ -12,13 +12,32 @@
 
 //#define DEBUG_TYPEVAR_BINDINGS
 
-static lower_statement_function *statement_lowerers = NULL;
+static lower_statement_function  *statement_lowerers  = NULL;
+static lower_expression_function *expression_lowerers = NULL;
+
+static struct obstack        symbol_environment_obstack;
+static environment_entry_t **symbol_stack;
+static struct obstack        label_obstack;
+static symbol_t            **label_stack;
+static int                   found_errors;
+
+static type_t *type_bool     = NULL;
+static type_t *type_byte     = NULL;
+static type_t *type_int      = NULL;
+static type_t *type_uint     = NULL;
+static type_t *type_void_ptr = NULL;
+static type_t *type_byte_ptr = NULL;
+
+static method_t *current_method            = NULL;
+int              last_statement_was_return = 0;
 
 typedef enum environment_entry_type_t environment_entry_type_t;
 
 enum environment_entry_type_t {
+	ENTRY_INVALID,
 	ENTRY_LOCAL_VARIABLE,
 	ENTRY_GLOBAL_VARIABLE,
+	ENTRY_CONSTANT,
 	ENTRY_METHOD_PARAMETER,
 	ENTRY_METHOD,
 	ENTRY_TYPECLASS,
@@ -37,6 +56,7 @@ struct environment_entry_t {
 	union {
 		method_t                         *method;
 		global_variable_t                *global_variable;
+		constant_t                       *constant;
 		method_parameter_t               *method_parameter;
 		type_t                           *stored_type;
 		type_variable_t                  *type_variable;
@@ -51,8 +71,10 @@ struct environment_entry_t {
 const char *get_entry_type_name(environment_entry_type_t type)
 {
 	switch(type) {
+	case ENTRY_INVALID:          return "invalid reference";
 	case ENTRY_LOCAL_VARIABLE:   return "local variable";
 	case ENTRY_GLOBAL_VARIABLE:  return "global variable";
+	case ENTRY_CONSTANT:         return "constant";
 	case ENTRY_METHOD_PARAMETER: return "method parameter";
 	case ENTRY_METHOD:           return "method";
 	case ENTRY_TYPECLASS:        return "typeclass";
@@ -66,23 +88,21 @@ const char *get_entry_type_name(environment_entry_type_t type)
 	panic("invalid environment entry found");
 }
 
-void print_error_prefix(semantic_env_t *env, const source_position_t position)
+void print_error_prefix(const source_position_t position)
 {
 	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
-	env->found_errors = 1;
+	found_errors = 1;
 }
 
-void print_warning_prefix(semantic_env_t *env,
-                          const source_position_t position)
+void print_warning_prefix(const source_position_t position)
 {
-	(void) env;
 	fprintf(stderr, "%s:%d: warning: ", position.input_name, position.linenr);
 }
 
-void error_at(semantic_env_t *env, const source_position_t position,
+void error_at(const source_position_t position,
               const char *message)
 {
-	print_error_prefix(env, position);
+	print_error_prefix(position);
 	fprintf(stderr, "%s\n", message);
 }
 
@@ -91,15 +111,15 @@ void error_at(semantic_env_t *env, const source_position_t position,
  * corresponding symbol to the new entry
  */
 static inline
-environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
+environment_entry_t *environment_push(symbol_t *symbol)
 {
-	environment_entry_t *entry
-		= obstack_alloc(&env->symbol_obstack, sizeof(entry[0]));
+	environment_entry_t *entry 
+		= obstack_alloc(&symbol_environment_obstack, sizeof(entry[0]));
 	memset(entry, 0, sizeof(entry[0]));
 
-	int top = ARR_LEN(env->symbol_stack);
-	ARR_RESIZE(env->symbol_stack, top + 1);
-	env->symbol_stack[top] = entry;
+	int top = ARR_LEN(symbol_stack);
+	ARR_RESIZE(symbol_stack, top + 1);
+	symbol_stack[top] = entry;
 
 	entry->up     = symbol->thing;
 	entry->symbol = symbol;
@@ -112,10 +132,10 @@ environment_entry_t *environment_push(semantic_env_t *env, symbol_t *symbol)
  * pops symbols from the environment stack until @p new_top is the top element
  */
 static inline
-void environment_pop_to(semantic_env_t *env, size_t new_top)
+void environment_pop_to(size_t new_top)
 {
 	environment_entry_t *entry = NULL;
-	size_t top = ARR_LEN(env->symbol_stack);
+	size_t top = ARR_LEN(symbol_stack);
 	size_t i;
 
 	if(new_top == top)
@@ -124,13 +144,13 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 	assert(new_top < top);
 	i = top;
 	do {
-		          entry  = env->symbol_stack[i - 1];
+		          entry  = symbol_stack[i - 1];
 		symbol_t *symbol = entry->symbol;
 
 		if(entry->type == ENTRY_LOCAL_VARIABLE
 				&& entry->e.variable->refs == 0) {
 			variable_declaration_statement_t *variable = entry->e.variable;
-			print_warning_prefix(env, variable->statement.source_position);
+			print_warning_prefix(variable->statement.source_position);
 			fprintf(stderr, "variable '%s' was declared but never read\n",
 			        symbol->string);
 		}
@@ -140,18 +160,18 @@ void environment_pop_to(semantic_env_t *env, size_t new_top)
 
 		--i;
 	} while(i != new_top);
-	obstack_free(&env->symbol_obstack, entry);
+	obstack_free(&symbol_environment_obstack, entry);
 
-	ARR_SHRINKLEN(env->symbol_stack, (int) new_top);
+	ARR_SHRINKLEN(symbol_stack, (int) new_top);
 }
 
 /**
  * returns the top element of the environment stack
  */
 static inline
-size_t environment_top(semantic_env_t *env)
+size_t environment_top(void)
 {
-	return ARR_LEN(env->symbol_stack);
+	return ARR_LEN(symbol_stack);
 }
 
 static
@@ -187,15 +207,15 @@ type_t* make_pointer_type(type_t *points_to)
 }
 
 static
-type_t *normalize_type(semantic_env_t *env, type_t *type);
+type_t *normalize_type(type_t *type);
 
 static
-type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
+type_t *resolve_type_reference(type_reference_t *type_ref)
 {
 	symbol_t            *symbol = type_ref->symbol;
 	environment_entry_t *entry  = symbol->thing;
 	if(entry == NULL) {
-		print_error_prefix(env, type_ref->source_position);
+		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "can't resolve type: nothing known about '%s'\n",
 		        symbol->string);
 		return NULL;
@@ -215,53 +235,52 @@ type_t *resolve_type_reference(semantic_env_t *env, type_reference_t *type_ref)
 	}	
 
 	if(entry->type != ENTRY_TYPEALIAS) {
-		print_error_prefix(env, type_ref->source_position);
+		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
 		        symbol->string, get_entry_type_name(entry->type));
 		return NULL;
 	}
 
-	entry->e.stored_type = normalize_type(env, entry->e.stored_type);
+	entry->e.stored_type = normalize_type(entry->e.stored_type);
 
 	return entry->e.stored_type;
 }
 
 static
-type_t *resolve_type_reference_type_var(semantic_env_t *env,
-                                        type_reference_t *type_ref)
+type_t *resolve_type_reference_type_var(type_reference_t *type_ref)
 {
 	type_variable_t *type_variable = type_ref->r.type_variable;
 	if(type_variable->current_type != NULL) {
-		return normalize_type(env, type_variable->current_type);
+		return normalize_type(type_variable->current_type);
 	}
 
 	return typehash_insert((type_t*) type_ref);
 }
 
 static
-type_t *normalize_pointer_type(semantic_env_t *env, pointer_type_t *type)
+type_t *normalize_pointer_type(pointer_type_t *type)
 {
-	type->points_to = normalize_type(env, type->points_to);
+	type->points_to = normalize_type(type->points_to);
 
 	return typehash_insert((type_t*) type);
 }
 
 static
-type_t *normalize_array_type(semantic_env_t *env, array_type_t *type)
+type_t *normalize_array_type(array_type_t *type)
 {
-	type->element_type = normalize_type(env, type->element_type);
+	type->element_type = normalize_type(type->element_type);
 
 	return typehash_insert((type_t*) type);
 }
 
 static
-type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
+type_t *normalize_method_type(method_type_t *method_type)
 {
-	method_type->result_type = normalize_type(env, method_type->result_type);
+	method_type->result_type = normalize_type(method_type->result_type);
 
 	method_parameter_type_t *parameter = method_type->parameter_types;
 	while(parameter != NULL) {
-		parameter->type = normalize_type(env, parameter->type);
+		parameter->type = normalize_type(parameter->type);
 
 		parameter = parameter->next;
 	}
@@ -270,25 +289,24 @@ type_t *normalize_method_type(semantic_env_t *env, method_type_t *method_type)
 }
 
 static
-void normalize_compound_entries(semantic_env_t *env, compound_type_t *type)
+void normalize_compound_entries(compound_type_t *type)
 {
 	compound_entry_t *entry = type->entries;
 	while(entry != NULL) {
-		entry->type = normalize_type(env, entry->type);
+		entry->type = normalize_type(entry->type);
 
 		entry = entry->next;
 	}
 }
 
 static
-type_t *normalize_compound_type(semantic_env_t *env, compound_type_t *type)
+type_t *normalize_compound_type(compound_type_t *type)
 {
-	(void) env;
 	return typehash_insert((type_t*) type);
 }
 
 static
-type_t *normalize_type(semantic_env_t *env, type_t *type)
+type_t *normalize_type(type_t *type)
 {
 	/* happens sometimes on semantic errors */
 	if(type == NULL)
@@ -301,22 +319,23 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 		return type;
 
 	case TYPE_REFERENCE:
-		return resolve_type_reference(env, (type_reference_t*) type);
+		return resolve_type_reference((type_reference_t*) type);
 
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		return resolve_type_reference_type_var(env, (type_reference_t*) type);
+		return resolve_type_reference_type_var((type_reference_t*) type);
 
 	case TYPE_POINTER:
-		return normalize_pointer_type(env, (pointer_type_t*) type);
+		return normalize_pointer_type((pointer_type_t*) type);
 
 	case TYPE_ARRAY:
-		return normalize_array_type(env, (array_type_t*) type);
+		return normalize_array_type((array_type_t*) type);
 	
 	case TYPE_METHOD:
-		return normalize_method_type(env, (method_type_t*) type);
+		return normalize_method_type((method_type_t*) type);
 
-	case TYPE_COMPOUND:
-		return normalize_compound_type(env, (compound_type_t*) type);
+	case TYPE_COMPOUND_UNION:
+	case TYPE_COMPOUND_STRUCT:
+		return normalize_compound_type((compound_type_t*) type);
 	}
 
 	panic("Unknown type found");
@@ -325,41 +344,41 @@ type_t *normalize_type(semantic_env_t *env, type_t *type)
 
 
 static
-void check_local_variable_type(semantic_env_t *env,
-                               variable_declaration_statement_t *declaration,
+void check_local_variable_type(variable_declaration_statement_t *declaration,
                                type_t *type)
 {
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
-			&& type->type != TYPE_COMPOUND) {
+			&& type->type != TYPE_COMPOUND_STRUCT
+			&& type->type != TYPE_COMPOUND_UNION) {
 		if(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			/* TODO: we need to be able to handle all types in local vars... */
 			type_reference_t *ref           = (type_reference_t*) type;
 			type_variable_t  *type_variable = ref->r.type_variable;
-			print_warning_prefix(env, declaration->statement.source_position);
+			print_warning_prefix(declaration->statement.source_position);
 			fprintf(stderr, "can't decide whether type variable '%s' is atomic "
 			        "or pointer.\n", type_variable->symbol->string);
 			return;
 		}
-		print_error_prefix(env, declaration->statement.source_position);
+		print_error_prefix(declaration->statement.source_position);
 		fprintf(stderr, "only atomic or pointer types allowed for local "
 		        "variables (at variable '%s')\n", declaration->symbol->string);
 	}
 }
 
 static
-void check_reference_expression(semantic_env_t *env,
-                                reference_expression_t *ref)
+void check_reference_expression(reference_expression_t *ref)
 {
 	variable_declaration_statement_t *variable;
 	method_t                         *method;
 	method_parameter_t               *method_parameter;
 	global_variable_t                *global_variable;
+	constant_t                       *constant;
 	typeclass_method_t               *typeclass_method;
 	symbol_t                         *symbol = ref->symbol;
 	environment_entry_t              *entry  = symbol->thing;
 
 	if(entry == NULL) {
-		print_error_prefix(env, ref->expression.source_position);
+		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
 		return;
 	}
@@ -384,10 +403,22 @@ void check_reference_expression(semantic_env_t *env,
 		ref->r.global_variable   = global_variable;
 		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
 		ref->expression.datatype = global_variable->type;
-		if(ref->expression.datatype->type == TYPE_COMPOUND) {
+		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
+				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
+				|| ref->expression.datatype->type == TYPE_ARRAY) {
 			ref->expression.datatype = make_pointer_type(
 					ref->expression.datatype);
 		}
+		break;
+	case ENTRY_CONSTANT:
+		constant                 = entry->e.constant;
+		ref->r.constant          = constant;
+		ref->expression.type     = EXPR_REFERENCE_CONSTANT;
+		if(constant->type == NULL) {
+			constant->expression = check_expression(constant->expression);
+			constant->type       = constant->expression->datatype;
+		}
+		ref->expression.datatype = constant->type;
 		break;
 	case ENTRY_METHOD_PARAMETER:
 		method_parameter         = entry->e.method_parameter;
@@ -401,13 +432,17 @@ void check_reference_expression(semantic_env_t *env,
 		ref->expression.type     = EXPR_REFERENCE_TYPECLASS_METHOD;
 		ref->expression.datatype = make_pointer_type((type_t*) typeclass_method->method_type);
 		break;
+	case ENTRY_GOTO:
+	case ENTRY_LABEL:
 	case ENTRY_TYPEALIAS:
 	case ENTRY_TYPECLASS:
-		print_error_prefix(env, ref->expression.source_position);
+	case ENTRY_TYPE_VARIABLE:
+	case ENTRY_EXTERN_METHOD:
+		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "'%s' is a '%s' and can't be used as expression\n",
 		        ref->symbol->string, get_entry_type_name(entry->type));
 		break;
-	default:
+	case ENTRY_INVALID:
 		panic("Unknown reference type encountered");
 		break;
 	}
@@ -415,7 +450,7 @@ void check_reference_expression(semantic_env_t *env,
 	/* normalize type arguments */
 	type_argument_t *type_argument = ref->type_arguments;
 	while(type_argument != NULL) {
-		type_argument->type = normalize_type(env, type_argument->type);
+		type_argument->type = normalize_type(type_argument->type);
 
 		type_argument = type_argument->next;
 	}
@@ -436,7 +471,8 @@ int is_lvalue(const expression_t *expression)
 		select = (select_expression_t*) expression;
 		type_t *entry_type = select->compound_entry->type;
 
-		return entry_type->type != TYPE_COMPOUND &&
+		return entry_type->type != TYPE_COMPOUND_STRUCT &&
+			entry_type->type != TYPE_COMPOUND_UNION &&
 			entry_type->type != TYPE_ARRAY;
 	case EXPR_UNARY:
 		unexpr = (unary_expression_t*) expression;
@@ -451,13 +487,13 @@ int is_lvalue(const expression_t *expression)
 }
 
 static
-void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
+void check_assign_expression(binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
 	expression_t *right = assign->right;
 
 	if(!is_lvalue(left)) {
-		error_at(env, assign->expression.source_position,
+		error_at(assign->expression.source_position,
 		         "left side of assign is not an lvalue.\n");
 		return;
 	}
@@ -469,7 +505,7 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 		/* do type inferencing if needed */
 		if(left->datatype == NULL) {
 			if(right->datatype == NULL) {
-				print_error_prefix(env, assign->expression.source_position);
+				print_error_prefix(assign->expression.source_position);
 				fprintf(stderr, "can't infer type for '%s'\n", symbol->string);
 				return;
 			}
@@ -482,7 +518,7 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 			fputs("\n", stderr);
 #endif
 
-			check_local_variable_type(env, variable, right->datatype);
+			check_local_variable_type(variable, right->datatype);
 		}
 
 		/* making an assignment is not reading the value */
@@ -491,7 +527,7 @@ void check_assign_expression(semantic_env_t *env, binary_expression_t *assign)
 }
 
 static
-expression_t *make_cast(semantic_env_t *env, expression_t *from,
+expression_t *make_cast(expression_t *from,
                         type_t *dest_type,
                         const source_position_t source_position)
 {
@@ -506,7 +542,7 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 
 	type_t *from_type = from->datatype;
 	if(from_type == NULL) {
-		print_error_prefix(env, from->source_position);
+		print_error_prefix(from->source_position);
 		fprintf(stderr, "can't implicitely cast from unknown type to ");
 		print_type(stderr, dest_type);
 		fprintf(stderr, "\n");
@@ -519,7 +555,7 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 			pointer_type_t *p1 = (pointer_type_t*) from_type;
 			pointer_type_t *p2 = (pointer_type_t*) dest_type;
 			if(p1->points_to != p2->points_to
-					&& dest_type != env->type_void_ptr) {
+					&& dest_type != type_void_ptr) {
 				implicit_cast_allowed = 0;
 			}
 		} else {
@@ -584,7 +620,7 @@ expression_t *make_cast(semantic_env_t *env, expression_t *from,
 	}
 
 	if(!implicit_cast_allowed) {
-		print_error_prefix(env, source_position);
+		print_error_prefix(source_position);
 		fprintf(stderr, "can't implicitely cast ");
 		print_type(stderr, from_type);
 		fprintf(stderr, " to ");
@@ -637,10 +673,10 @@ int is_comparison_op(binary_expression_type_t type)
 }
 
 static
-void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
+void check_binary_expression(binary_expression_t *binexpr)
 {
-	binexpr->left       = check_expression(env, binexpr->left);
-	binexpr->right      = check_expression(env, binexpr->right);
+	binexpr->left       = check_expression(binexpr->left);
+	binexpr->right      = check_expression(binexpr->right);
 	expression_t *left  = binexpr->left;
 	expression_t *right = binexpr->right;
 
@@ -649,7 +685,7 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 	binary_expression_type_t binexpr_type = binexpr->type;
 
 	if(binexpr_type == BINEXPR_ASSIGN) {
-		check_assign_expression(env, binexpr);
+		check_assign_expression(binexpr);
 		exprtype  = left->datatype;
 		lefttype  = exprtype;
 		righttype = exprtype;
@@ -659,12 +695,12 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 		lefttype  = exprtype;
 		if(binexpr_type == BINEXPR_SHIFTLEFT
 				|| binexpr_type == BINEXPR_SHIFTRIGHT) {
-			righttype = env->type_uint;
+			righttype = type_uint;
 		} else {
 			righttype = exprtype;
 		}
 	} else if(is_comparison_op(binexpr_type)) {
-		exprtype  = env->type_bool;
+		exprtype  = type_bool;
 		/* TODO find out greatest common type... */
 		lefttype  = left->datatype;
 		righttype = left->datatype;
@@ -673,11 +709,11 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
 	}
 
 	if(left->datatype != lefttype) {
-		binexpr->left  = make_cast(env, left, lefttype,
+		binexpr->left  = make_cast(left, lefttype,
 		                           binexpr->expression.source_position);
 	}
 	if(right->datatype != righttype) {
-		binexpr->right = make_cast(env, right, righttype,
+		binexpr->right = make_cast(right, righttype,
 		                           binexpr->expression.source_position);
 	}
 	binexpr->expression.datatype = exprtype;
@@ -687,8 +723,7 @@ void check_binary_expression(semantic_env_t *env, binary_expression_t *binexpr)
  * find a typeclass instance matching the current type_variable configuration
  */
 static
-typeclass_instance_t *_find_typeclass_instance(semantic_env_t *env,
-                                               typeclass_t *typeclass,
+typeclass_instance_t *_find_typeclass_instance(typeclass_t *typeclass,
                                                const source_position_t *pos)
 {
 	typeclass_instance_t *instance = typeclass->instances;
@@ -700,13 +735,9 @@ typeclass_instance_t *_find_typeclass_instance(semantic_env_t *env,
 		int              match     = 1;
 		while(argument != NULL && parameter != NULL) {
 			if(parameter->current_type == NULL) {
-				if(env != NULL) {
-					print_error_prefix(env, *pos);
-					panic("type variable has no type set while searching "
-					      "typeclass instance");
-				} else {
-					abort();
-				}
+				print_error_prefix(*pos);
+				panic("type variable has no type set while searching "
+				      "typeclass instance");
 			}
 			if(parameter->current_type != argument->type) {
 				match = 0;
@@ -717,14 +748,9 @@ typeclass_instance_t *_find_typeclass_instance(semantic_env_t *env,
 			parameter = parameter->next;
 		}
 		if(match == 1 && (argument != NULL || parameter != NULL)) {
-			if(env != NULL) {
-				print_error_prefix(env,
-				                   instance->namespace_entry.source_position);
-				panic("type argument count of typeclass instance doesn't match "
-				      "type parameter count of typeclass");
-			} else {
-				abort();
-			}
+			print_error_prefix(instance->namespace_entry.source_position);
+			panic("type argument count of typeclass instance doesn't match "
+			      "type parameter count of typeclass");
 		}
 		if(match == 1)
 			return instance;
@@ -737,7 +763,7 @@ typeclass_instance_t *_find_typeclass_instance(semantic_env_t *env,
 
 typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass)
 {
-	return _find_typeclass_instance(NULL, typeclass, NULL);
+	return _find_typeclass_instance(typeclass, NULL);
 }
 
 /** tests whether a type variable has a typeclass as constraint */
@@ -772,8 +798,7 @@ typeclass_method_instance_t *get_method_from_typeclass_instance(
 }
 
 static
-void resolve_typeclass_method_instance(semantic_env_t *env,
-                                       reference_expression_t *ref)
+void resolve_typeclass_method_instance(reference_expression_t *ref)
 {
 	assert(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD);
 
@@ -796,7 +821,7 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 			type_variable_t  *type_variable = type_ref->r.type_variable;
 
 			if(!type_variable_has_constraint(type_variable, typeclass)) {
-				print_error_prefix(env, ref->expression.source_position);
+				print_error_prefix(ref->expression.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
 				        "typeclass '%s' when using method '%s'.\n",
 				        type_variable->symbol->string,
@@ -816,10 +841,9 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 
 	/* we assume that all typevars have current_type set */
 	const source_position_t *pos = &ref->expression.source_position;
-	typeclass_instance_t *instance = _find_typeclass_instance(env, typeclass,
-	                                                          pos);
+	typeclass_instance_t *instance = _find_typeclass_instance(typeclass, pos);
 	if(instance == NULL) {
-		print_error_prefix(env, ref->expression.source_position);
+		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "there's no instance of typeclass '%s' for ",
 		        typeclass->symbol->string);
 		type_variable_t *typevar = typeclass->type_parameters;
@@ -837,7 +861,7 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 	typeclass_method_instance_t *method_instance 
 		= get_method_from_typeclass_instance(instance, typeclass_method);
 	if(method_instance == NULL) {
-		print_error_prefix(env, ref->expression.source_position);
+		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "no instance of method '%s' found in typeclass "
 		        "instance?\n", typeclass_method->symbol->string);
 		panic("panic");
@@ -852,8 +876,7 @@ void resolve_typeclass_method_instance(semantic_env_t *env,
 }
 
 static
-void check_type_constraints(semantic_env_t *env,
-                            type_variable_t *type_variables,
+void check_type_constraints(type_variable_t *type_variables,
                             const method_t *method_context,
                             const source_position_t source_position)
 {
@@ -873,7 +896,7 @@ void check_type_constraints(semantic_env_t *env,
 				type_variable_t  *type_var = ref->r.type_variable;
 
 				if(!type_variable_has_constraint(type_var, typeclass)) {
-					print_error_prefix(env, source_position);
+					print_error_prefix(source_position);
 					fprintf(stderr, "type variable '%s' needs constraint "
 					        "'%s'\n", type_var->symbol->string,
 					        typeclass->symbol->string);
@@ -886,14 +909,14 @@ void check_type_constraints(semantic_env_t *env,
 			typeclass->type_parameters->current_type = type_var->current_type;
 		
 			typeclass_instance_t *instance 
-				= _find_typeclass_instance(env, typeclass, & source_position);
+				= _find_typeclass_instance(typeclass, & source_position);
 			if(instance == NULL) {
-				print_error_prefix(env, source_position);
+				print_error_prefix(source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of "
 				        "method '%s' doesn't match type constraints:\n",
 				        type_var->symbol->string,
 				        method_context->symbol->string);
-				print_error_prefix(env, source_position);
+				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
 				print_type(stderr, type_var->current_type);
 				fprintf(stderr, " is no instance of typeclass '%s'\n",
@@ -909,9 +932,9 @@ void check_type_constraints(semantic_env_t *env,
 }
 
 static
-void check_call_expression(semantic_env_t *env, call_expression_t *call)
+void check_call_expression(call_expression_t *call)
 {
-	call->method                    = check_expression(env, call->method);
+	call->method                    = check_expression(call->method);
 	expression_t    *method         = call->method;
 	type_t          *type           = method->datatype;
 	type_argument_t *type_arguments = NULL;
@@ -920,7 +943,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	if(type == NULL)
 		return;
 	if(type->type != TYPE_POINTER) {
-		print_error_prefix(env, call->expression.source_position);
+		print_error_prefix(call->expression.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
 		print_type(stderr, type);
 		fprintf(stderr, "\n");
@@ -930,7 +953,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 
 	type = pointer_type->points_to;
 	if(type->type != TYPE_METHOD) {
-		print_error_prefix(env, call->expression.source_position);
+		print_error_prefix(call->expression.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
 		print_type(stderr, type);
 		fprintf(stderr, "\n");
@@ -979,7 +1002,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		}
 
 		if(type_argument != NULL || type_var != NULL) {
-			error_at(env, method->source_position,
+			error_at(method->source_position,
 			         "wrong number of type arguments on method reference");
 		}
 	}
@@ -991,12 +1014,12 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	int                      i          = 0;
 	while(argument != NULL) {
 		if(param_type == NULL) {
-			error_at(env, call->expression.source_position,
+			error_at(call->expression.source_position,
 			         "too few arguments for method call\n");
 			break;
 		}
 
-		argument->expression     = check_expression(env, argument->expression);
+		argument->expression     = check_expression(argument->expression);
 		expression_t *expression = argument->expression;
 
 		type_t       *wanted_type     = param_type->type;
@@ -1004,14 +1027,14 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 
 		/* match type of argument against type variables */
 		if(type_variables != NULL && type_arguments == NULL) {
-			match_variant_to_concrete_type(env, wanted_type, expression_type,
+			match_variant_to_concrete_type(wanted_type, expression_type,
 			                               expression->source_position);
 		} else if(expression_type != wanted_type) {
 			expression_t *new_expression 
-				= make_cast(env, expression, wanted_type,
+				= make_cast(expression, wanted_type,
 			                expression->source_position);
 			if(new_expression == NULL) {
-				print_error_prefix(env, expression->source_position);
+				print_error_prefix(expression->source_position);
 				fprintf(stderr, "invalid type for argument %d of call: ", i);
 				print_type(stderr, expression->datatype);
 				fprintf(stderr, " should be ");
@@ -1028,7 +1051,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		++i;
 	}
 	if(param_type != NULL) {
-		error_at(env, call->expression.source_position,
+		error_at(call->expression.source_position,
 		         "too much arguments for method call\n");
 	}
 
@@ -1037,7 +1060,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 	type_variable_t *type_var = type_variables;
 	while(type_var != NULL) {
 		if(type_var->current_type == NULL) {
-			print_error_prefix(env, call->expression.source_position);
+			print_error_prefix(call->expression.source_position);
 			fprintf(stderr, "Couldn't determine concrete type for type "
 					"variable '%s' in call expression\n",
 			        type_var->symbol->string);
@@ -1062,7 +1085,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 
 		if(method->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
 			/* we might be able to resolve the typeclass_method_instance now */
-			resolve_typeclass_method_instance(env, ref);
+			resolve_typeclass_method_instance(ref);
 			if(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE)
 				set_type_arguments = 0;
 
@@ -1071,7 +1094,7 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 		} else {
 			/* check type constraints */
 			assert(method->type == EXPR_REFERENCE_METHOD);
-			check_type_constraints(env, type_variables, ref->r.method,
+			check_type_constraints(type_variables, ref->r.method,
 			                       call->expression.source_position);
 
 			type_parameters = ref->r.method->type_parameters;
@@ -1121,30 +1144,29 @@ void check_call_expression(semantic_env_t *env, call_expression_t *call)
 }
 
 static
-void check_cast_expression(semantic_env_t *env, unary_expression_t *cast)
+void check_cast_expression(unary_expression_t *cast)
 {
 	if(cast->expression.datatype == NULL) {
 		panic("Cast expression needs a datatype!");
 	}
-	cast->expression.datatype = normalize_type(env, cast->expression.datatype);
+	cast->expression.datatype = normalize_type(cast->expression.datatype);
 
-	cast->value = check_expression(env, cast->value);
+	cast->value = check_expression(cast->value);
 }
 
 static
-void check_dereference_expression(semantic_env_t *env,
-                                  unary_expression_t *dereference)
+void check_dereference_expression(unary_expression_t *dereference)
 {
-	dereference->value  = check_expression(env, dereference->value);
+	dereference->value  = check_expression(dereference->value);
 	expression_t *value = dereference->value;
 
 	if(value->datatype == NULL) {
-		error_at(env, dereference->expression.source_position,
+		error_at(dereference->expression.source_position,
 		         "can't derefence expression with unknown datatype\n");
 		return;
 	}
 	if(value->datatype->type != TYPE_POINTER) {
-		error_at(env, dereference->expression.source_position,
+		error_at(dereference->expression.source_position,
 		         "can only dereference expressions with pointer type\n");
 		return;
 	}
@@ -1154,15 +1176,14 @@ void check_dereference_expression(semantic_env_t *env,
 }
 
 static
-void check_unary_expression(semantic_env_t *env,
-                            unary_expression_t *unary_expression)
+void check_unary_expression(unary_expression_t *unary_expression)
 {
 	switch(unary_expression->type) {
 	case UNEXPR_CAST:
-		check_cast_expression(env, unary_expression);
+		check_cast_expression(unary_expression);
 		break;
 	case UNEXPR_DEREFERENCE:
-		check_dereference_expression(env, unary_expression);
+		check_dereference_expression(unary_expression);
 		break;
 	default:
 		abort();
@@ -1171,9 +1192,9 @@ void check_unary_expression(semantic_env_t *env,
 }
 
 static
-void check_select_expression(semantic_env_t *env, select_expression_t *select)
+void check_select_expression(select_expression_t *select)
 {
-	select->compound       = check_expression(env, select->compound);
+	select->compound       = check_expression(select->compound);
 	expression_t *compound = select->compound;
 
 	type_t *datatype = compound->datatype;
@@ -1181,7 +1202,7 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		return;
 
 	if(datatype->type != TYPE_POINTER) {
-		print_error_prefix(env, select->expression.source_position);
+		print_error_prefix(select->expression.source_position);
 		fprintf(stderr, "select needs a pointer to compound type but found ");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
@@ -1191,8 +1212,9 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 	pointer_type_t *pointer_type = (pointer_type_t*) datatype;
 	
 	type_t *points_to = pointer_type->points_to;
-	if(points_to->type != TYPE_COMPOUND) {
-		print_error_prefix(env, select->expression.source_position);
+	if(points_to->type != TYPE_COMPOUND_STRUCT
+			&& points_to->type != TYPE_COMPOUND_UNION) {
+		print_error_prefix(select->expression.source_position);
 		fprintf(stderr, "select needs a pointer to compound type but found ");
 		print_type(stderr, datatype);
 		fprintf(stderr, "\n");
@@ -1209,7 +1231,7 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 		entry = entry->next;
 	}
 	if(entry == NULL) {
-		print_error_prefix(env, select->expression.source_position);
+		print_error_prefix(select->expression.source_position);
 		fprintf(stderr, "compound type ");
 		print_type(stderr, points_to);
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
@@ -1218,7 +1240,8 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 
 	/* we return a pointer to sub-compounds instead of the compound itself */
 	type_t *result_type = entry->type;
-	if(result_type->type == TYPE_COMPOUND) {
+	if(result_type->type == TYPE_COMPOUND_STRUCT ||
+			result_type->type == TYPE_COMPOUND_UNION) {
 		result_type = make_pointer_type(result_type);
 	} else if(result_type->type == TYPE_ARRAY) {
 		array_type_t *array_type = (array_type_t*) result_type;
@@ -1231,18 +1254,17 @@ void check_select_expression(semantic_env_t *env, select_expression_t *select)
 }
 
 static
-void check_array_access_expression(semantic_env_t *env,
-                                   array_access_expression_t *access)
+void check_array_access_expression(array_access_expression_t *access)
 {
-	access->array_ref       = check_expression(env, access->array_ref);
-	access->index           = check_expression(env, access->index);
+	access->array_ref       = check_expression(access->array_ref);
+	access->index           = check_expression(access->index);
 	expression_t *array_ref = access->array_ref;
 	expression_t *index     = access->index;
 
 	type_t *type = array_ref->datatype;
 	if(type == NULL || 
 			(type->type != TYPE_POINTER && type->type != TYPE_ARRAY)) {
-		print_error_prefix(env, access->expression.source_position);
+		print_error_prefix(access->expression.source_position);
 		fprintf(stderr, "expected pointer or array type for array access, "
 		        "got ");
 		print_type(stderr, type);
@@ -1266,61 +1288,69 @@ void check_array_access_expression(semantic_env_t *env,
 	access->expression.datatype = result_type;
 
 	if(index->datatype == NULL || !is_type_int(index->datatype)) {
-		print_error_prefix(env, access->expression.source_position);
+		print_error_prefix(access->expression.source_position);
 		fprintf(stderr, "expected integer type for array index, got ");
 		print_type(stderr, index->datatype);
 		fprintf(stderr, "\n");
 		return;
 	}
 
-	if(index->datatype != NULL && index->datatype != env->type_int) {
-		access->index = make_cast(env, index, env->type_int,
+	if(index->datatype != NULL && index->datatype != type_int) {
+		access->index = make_cast(index, type_int,
 		                          access->expression.source_position);
 	}
 }
 
 static
-void check_sizeof_expression(semantic_env_t *env,
-                             sizeof_expression_t *expression)
+void check_sizeof_expression(sizeof_expression_t *expression)
 {
-	expression->type = normalize_type(env, expression->type);
-	expression->expression.datatype = env->type_uint;
+	expression->type = normalize_type(expression->type);
+	expression->expression.datatype = type_uint;
 }
 
 __attribute__((warn_unused_result))
-expression_t *check_expression(semantic_env_t *env, expression_t *expression)
+expression_t *check_expression(expression_t *expression)
 {
 	if(expression == NULL)
 		return NULL;
 
+	/* try to lower the expression */
+	if((unsigned) expression->type < (unsigned) ARR_LEN(expression_lowerers)) {
+		lower_expression_function lowerer 
+			= expression_lowerers[expression->type];
+
+		if(lowerer != NULL) {
+			expression = lowerer(expression);
+		}
+	}
+
 	switch(expression->type) {
 	case EXPR_INT_CONST:
-		expression->datatype = env->type_int;
+		expression->datatype = type_int;
 		break;
 	case EXPR_STRING_CONST:
-		expression->datatype = env->type_byte_ptr;
+		expression->datatype = type_byte_ptr;
 		break;
 	case EXPR_REFERENCE:
-		check_reference_expression(env, (reference_expression_t*) expression);
+		check_reference_expression((reference_expression_t*) expression);
 		break;
 	case EXPR_SIZEOF:
-		check_sizeof_expression(env, (sizeof_expression_t*) expression);
+		check_sizeof_expression((sizeof_expression_t*) expression);
 		break;
 	case EXPR_BINARY:
-		check_binary_expression(env, (binary_expression_t*) expression);
+		check_binary_expression((binary_expression_t*) expression);
 		break;
 	case EXPR_UNARY:
-		check_unary_expression(env, (unary_expression_t*) expression);
+		check_unary_expression((unary_expression_t*) expression);
 		break;
 	case EXPR_SELECT:
-		check_select_expression(env, (select_expression_t*) expression);
+		check_select_expression((select_expression_t*) expression);
 		break;
 	case EXPR_CALL:
-		check_call_expression(env, (call_expression_t*) expression);
+		check_call_expression((call_expression_t*) expression);
 		break;
 	case EXPR_ARRAY_ACCESS:
-		check_array_access_expression(env,
-				(array_access_expression_t*) expression);
+		check_array_access_expression((array_access_expression_t*) expression);
 		break;
 	case EXPR_REFERENCE_VARIABLE:
 	case EXPR_REFERENCE_METHOD:
@@ -1336,20 +1366,20 @@ expression_t *check_expression(semantic_env_t *env, expression_t *expression)
 
 
 static
-void check_return_statement(semantic_env_t *env, return_statement_t *statement)
+void check_return_statement(return_statement_t *statement)
 {
-	method_t     *method             = env->current_method;
+	method_t     *method             = current_method;
 	type_t       *method_result_type = method->type->result_type;
 	statement->return_value 
-		= check_expression(env, statement->return_value);
+		= check_expression(statement->return_value);
 	expression_t *return_value       = statement->return_value;
 
-	env->last_statement_was_return = 1;
+	last_statement_was_return = 1;
 
 	if(return_value != NULL) {
 		if(method_result_type == type_void
 				&& return_value->datatype != type_void) {
-			error_at(env, statement->statement.source_position,
+			error_at(statement->statement.source_position,
 			         "return with value in void method\n");
 			return;
 		}
@@ -1357,14 +1387,14 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 		/* do we need a cast ?*/
 		if(return_value->datatype != method_result_type) {
 			return_value
-				= make_cast(env, return_value, method_result_type,
+				= make_cast(return_value, method_result_type,
 				            statement->statement.source_position);
 
 			statement->return_value = return_value;
 		}
 	} else {
 		if(method_result_type != type_void) {
-			error_at(env, statement->statement.source_position,
+			error_at(statement->statement.source_position,
 			         "missing return value in non-void method\n");
 			return;
 		}
@@ -1372,35 +1402,35 @@ void check_return_statement(semantic_env_t *env, return_statement_t *statement)
 }
 
 static
-void check_if_statement(semantic_env_t *env, if_statement_t *statement)
+void check_if_statement(if_statement_t *statement)
 {
-	statement->condition    = check_expression(env, statement->condition);
+	statement->condition    = check_expression(statement->condition);
 	expression_t *condition = statement->condition;
 
-	if(condition->datatype != env->type_bool) {
-		error_at(env, statement->statement.source_position,
+	if(condition->datatype != type_bool) {
+		error_at(statement->statement.source_position,
 		         "if condition needs to be of boolean type\n");
 		return;
 	}
 
-	statement->true_statement = check_statement(env, statement->true_statement);
+	statement->true_statement = check_statement(statement->true_statement);
 	if(statement->false_statement != NULL) {
 		statement->false_statement =
-			check_statement(env, statement->false_statement);
+			check_statement(statement->false_statement);
 	}
 }
 
 static
-void check_block_statement(semantic_env_t *env, block_statement_t *block)
+void check_block_statement(block_statement_t *block)
 {
-	int old_top = environment_top(env);
+	int old_top = environment_top();
 
 	statement_t *statement = block->first_statement;
 	statement_t *last      = NULL;
 	while(statement != NULL) {
 		statement_t *next = statement->next;
 
-		statement = check_statement(env, statement);
+		statement = check_statement(statement);
 		assert(statement->next == next || statement->next == NULL);
 		statement->next = next;
 
@@ -1414,36 +1444,34 @@ void check_block_statement(semantic_env_t *env, block_statement_t *block)
 		statement = next;
 	}
 
-	environment_pop_to(env, old_top);
+	environment_pop_to(old_top);
 }
 
 static
-void check_variable_declaration(semantic_env_t *env,
-                                variable_declaration_statement_t *statement)
+void check_variable_declaration(variable_declaration_statement_t *statement)
 {
-	assert(env->current_method != NULL);
-	method_t *method = env->current_method;
+	method_t *method = current_method;
+	assert(method != NULL);
 
 	statement->value_number = method->n_local_vars;
 	method->n_local_vars++;
 
 	statement->refs         = 0;
 	if(statement->type != NULL) {
-		statement->type = normalize_type(env, statement->type);
-		check_local_variable_type(env, statement, statement->type);
+		statement->type = normalize_type(statement->type);
+		check_local_variable_type(statement, statement->type);
 	}
 
 	/* push the variable declaration on the environment stack */
-	environment_entry_t *entry = environment_push(env, statement->symbol);
+	environment_entry_t *entry = environment_push(statement->symbol);
 	entry->type                = ENTRY_LOCAL_VARIABLE;
 	entry->e.variable          = statement;
 }
 
 static
-void check_expression_statement(semantic_env_t *env,
-                                expression_statement_t *statement)
+void check_expression_statement(expression_statement_t *statement)
 {
-	statement->expression    = check_expression(env, statement->expression);
+	statement->expression    = check_expression(statement->expression);
 	expression_t *expression = statement->expression;
 
 	/* can happen on semantic errors */
@@ -1459,7 +1487,7 @@ void check_expression_statement(semantic_env_t *env,
 	}
 
 	if(expression->datatype != type_void && !may_be_unused) {
-		print_warning_prefix(env, statement->statement.source_position);
+		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "result of expression is unused\n");
 		fprintf(stderr, "note: cast expression to void to avoid this "
 		        "warning\n");
@@ -1467,7 +1495,7 @@ void check_expression_statement(semantic_env_t *env,
 }
 
 static
-void check_label_statement(semantic_env_t *env, label_statement_t *label)
+void check_label_statement(label_statement_t *label)
 {
 	symbol_t *symbol = label->symbol;
 	/* anonymous label */
@@ -1476,12 +1504,12 @@ void check_label_statement(semantic_env_t *env, label_statement_t *label)
 
 	environment_entry_t *entry = symbol->label;
 	if(entry != NULL && entry->type == ENTRY_LABEL) {
-		error_at(env, label->statement.source_position, "doubled label\n");
+		error_at(label->statement.source_position, "doubled label\n");
 		return;
 	}
 
 	if(entry == NULL) {
-		ARR_APP1(env->label_stack, symbol);
+		ARR_APP1(label_stack, symbol);
 	}
 
 	/* gotos prior to the label? */
@@ -1494,7 +1522,7 @@ void check_label_statement(semantic_env_t *env, label_statement_t *label)
 	}
 
 	environment_entry_t *new_entry
-		= obstack_alloc(& env->label_obstack, sizeof(new_entry[0]));
+		= obstack_alloc(&label_obstack, sizeof(new_entry[0]));
 	memset(new_entry, 0, sizeof(new_entry[0]));
 	new_entry->type    = ENTRY_LABEL;
 	new_entry->e.label = label;
@@ -1502,7 +1530,7 @@ void check_label_statement(semantic_env_t *env, label_statement_t *label)
 }
 
 static
-void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
+void check_goto_statement(goto_statement_t *goto_statement)
 {
 	/* already resolved? */
 	if(goto_statement->label != NULL)
@@ -1510,7 +1538,7 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 
 	symbol_t *symbol = goto_statement->label_symbol;
 	if(symbol == NULL) {
-		error_at(env, goto_statement->statement.source_position,
+		error_at(goto_statement->statement.source_position,
 		         "unresolved anonymous goto\n");
 		return;
 	}
@@ -1520,7 +1548,7 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 		goto_statement->label = entry->e.label;
 	} else {
 		environment_entry_t *new_entry
-			= obstack_alloc(& env->label_obstack, sizeof(new_entry[0]));
+			= obstack_alloc(&label_obstack, sizeof(new_entry[0]));
 		memset(new_entry, 0, sizeof(new_entry[0]));
 		new_entry->type             = ENTRY_GOTO;
 		new_entry->e.goto_statement = goto_statement;
@@ -1528,49 +1556,49 @@ void check_goto_statement(semantic_env_t *env, goto_statement_t *goto_statement)
 		symbol->label               = new_entry;
 
 		if(entry == NULL) {
-			ARR_APP1(env->label_stack, symbol);
+			ARR_APP1(label_stack, symbol);
 		}
 	}
 }
 
 __attribute__((warn_unused_result))
-statement_t *check_statement(semantic_env_t *env, statement_t *statement)
+statement_t *check_statement(statement_t *statement)
 {
 	/* try to lower the statement */
 	if((int) statement->type < (int) ARR_LEN(statement_lowerers)) {
 		lower_statement_function lowerer = statement_lowerers[statement->type];
 
 		if(lowerer != NULL) {
-			statement = lowerer(env, statement);
+			statement = lowerer(statement);
 		}
 	}
 
-	env->last_statement_was_return = 0;
+	last_statement_was_return = 0;
 	switch(statement->type) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
 		break;
 	case STATEMENT_BLOCK:
-		check_block_statement(env, (block_statement_t*) statement);
+		check_block_statement((block_statement_t*) statement);
 		break;
 	case STATEMENT_RETURN:
-		check_return_statement(env, (return_statement_t*) statement);
+		check_return_statement((return_statement_t*) statement);
 		break;
 	case STATEMENT_GOTO:
-		check_goto_statement(env, (goto_statement_t*) statement);
+		check_goto_statement((goto_statement_t*) statement);
 		break;
 	case STATEMENT_LABEL:
-		check_label_statement(env, (label_statement_t*) statement);
+		check_label_statement((label_statement_t*) statement);
 		break;
 	case STATEMENT_IF:
-		check_if_statement(env, (if_statement_t*) statement);
+		check_if_statement((if_statement_t*) statement);
 		break;
 	case STATEMENT_VARIABLE_DECLARATION:
-		check_variable_declaration(env, (variable_declaration_statement_t*)
-		                                statement);
+		check_variable_declaration((variable_declaration_statement_t*)
+		                           statement);
 		break;
 	case STATEMENT_EXPRESSION:
-		check_expression_statement(env, (expression_statement_t*) statement);
+		check_expression_statement((expression_statement_t*) statement);
 		break;
 	default:
 		panic("Unknown statement found");
@@ -1581,20 +1609,20 @@ statement_t *check_statement(semantic_env_t *env, statement_t *statement)
 }
 
 static
-void check_method(semantic_env_t *env, method_t *method)
+void check_method(method_t *method)
 {
 	if(method->is_extern)
 		return;
 
-	int old_top            = environment_top(env);
-	env->current_method    = method;
-	char *label_obst_start = obstack_alloc(&env->label_obstack, 1);
+	int old_top            = environment_top();
+	current_method         = method;
+	char *label_obst_start = obstack_alloc(&label_obstack, 1);
 
 	/* push type variables */
 	type_variable_t *type_parameter = method->type_parameters;
 	while(type_parameter != NULL) {
 		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(env, symbol);
+		environment_entry_t *entry  = environment_push(symbol);
 		entry->type                 = ENTRY_TYPE_VARIABLE;
 		entry->e.type_variable      = type_parameter;
 
@@ -1606,26 +1634,26 @@ void check_method(semantic_env_t *env, method_t *method)
 	method_parameter_t *parameter = method->parameters;
 	int n = 0;
 	while(parameter != NULL) {
-		environment_entry_t *entry = environment_push(env, parameter->symbol);
+		environment_entry_t *entry = environment_push(parameter->symbol);
 		entry->type                = ENTRY_METHOD_PARAMETER;
 		entry->e.method_parameter  = parameter;
 		parameter->num             = n;
-		parameter->type            = normalize_type(env, parameter->type);
+		parameter->type            = normalize_type(parameter->type);
 
 		n++;
 		parameter = parameter->next;
 	}
 
-	env->last_statement_was_return = 0;
+	last_statement_was_return = 0;
 	if(method->statement != NULL) {
-		method->statement = check_statement(env, method->statement);
+		method->statement = check_statement(method->statement);
 	}
 
-	if(!env->last_statement_was_return) {
+	if(!last_statement_was_return) {
 		type_t *result_type = method->type->result_type;
 		if(result_type != type_void) {
 			/* TODO: report end-position of block-statement? */
-			print_error_prefix(env, method->namespace_entry.source_position);
+			print_error_prefix(method->namespace_entry.source_position);
 			fprintf(stderr, "missing return statement at end of method '%s'\n",
 			        method->symbol->string);
 			return;
@@ -1633,42 +1661,55 @@ void check_method(semantic_env_t *env, method_t *method)
 	}
 
 	/* reset pointers on symbols from labels */
-	int len = ARR_LEN(env->label_stack);
+	int len = ARR_LEN(label_stack);
 	for(int i = 0; i < len; ++i) {
-		symbol_t            *symbol = env->label_stack[i];
+		symbol_t            *symbol = label_stack[i];
 		environment_entry_t *entry  = symbol->label;
 
 		/* this happens when we had a goto to a non-existing label */
 		if(entry->type != ENTRY_LABEL) {
 			assert(entry->type == ENTRY_GOTO);
 			goto_statement_t *goto_statement = entry->e.goto_statement;
-			print_error_prefix(env, goto_statement->statement.source_position);
+			print_error_prefix(goto_statement->statement.source_position);
 			fprintf(stderr, "no label '%s' defined in method '%s'\n",
-			        symbol->string, env->current_method->symbol->string);
+			        symbol->string, current_method->symbol->string);
 		}
 		symbol->label = NULL;
 	}
-	ARR_SHRINKLEN(env->label_stack, 0);
-	obstack_free(& env->label_obstack, label_obst_start);
+	ARR_SHRINKLEN(label_stack, 0);
+	obstack_free(&label_obstack, label_obst_start);
 
-	env->current_method = NULL;
-	environment_pop_to(env, old_top);
+	current_method = NULL;
+	environment_pop_to(old_top);
 }
 
 static
-void resolve_type_constraint(semantic_env_t *env, type_constraint_t *constraint,
+void check_constant(constant_t *constant)
+{
+	expression_t *expression = constant->expression;
+
+	expression = check_expression(expression);
+	if(expression->datatype != constant->type) {
+		expression = make_cast(expression, constant->type,
+		                       constant->namespace_entry.source_position);
+	}
+	constant->expression = expression;
+}
+
+static
+void resolve_type_constraint(type_constraint_t *constraint,
                              const source_position_t source_position)
 {
 	symbol_t            *symbol = constraint->typeclass_symbol;
 	environment_entry_t *entry  = symbol->thing;
 
 	if(entry == NULL) {
-		print_error_prefix(env, source_position);
+		print_error_prefix(source_position);
 		fprintf(stderr, "nothing known about symbol '%s'\n", symbol->string);
 		return;
 	}
 	if(entry->type != ENTRY_TYPECLASS) {
-		print_error_prefix(env, source_position);
+		print_error_prefix(source_position);
 		fprintf(stderr, "expected a typeclass but '%s' is a '%s'\n",
 		        symbol->string, get_entry_type_name(entry->type));
 		return;
@@ -1678,8 +1719,7 @@ void resolve_type_constraint(semantic_env_t *env, type_constraint_t *constraint,
 }
 
 static
-void resolve_type_variable_constraints(semantic_env_t *env,
-                                       type_variable_t *type_variables,
+void resolve_type_variable_constraints(type_variable_t *type_variables,
                                        const source_position_t source_position)
 {
 	type_variable_t *type_var = type_variables;
@@ -1687,7 +1727,7 @@ void resolve_type_variable_constraints(semantic_env_t *env,
 		type_constraint_t *constraint = type_var->constraints;
 
 		while(constraint != NULL) {
-			resolve_type_constraint(env, constraint, source_position);
+			resolve_type_constraint(constraint, source_position);
 
 			constraint = constraint->next;
 		}
@@ -1696,88 +1736,87 @@ void resolve_type_variable_constraints(semantic_env_t *env,
 }
 
 static
-void resolve_method_types(semantic_env_t *env, method_t *method)
+void resolve_method_types(method_t *method)
 {
-	int old_top = environment_top(env);
+	int old_top = environment_top();
 
 	/* push type variables */
 	type_variable_t *type_parameter = method->type_parameters;
 	while(type_parameter != NULL) {
 		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(env, symbol);
+		environment_entry_t *entry  = environment_push(symbol);
 		entry->type                 = ENTRY_TYPE_VARIABLE;
 		entry->e.type_variable      = type_parameter;
 
 		type_parameter = type_parameter->next;
 	}
-	resolve_type_variable_constraints(env, method->type_parameters,
+	resolve_type_variable_constraints(method->type_parameters,
 	                                  method->namespace_entry.source_position);
 
 	/* normalize parameter types */
 	method_parameter_t *parameter = method->parameters;
 	while(parameter != NULL) {
-		parameter->type = normalize_type(env, parameter->type);
+		parameter->type = normalize_type(parameter->type);
 		parameter       = parameter->next;
 	}
 
 	method->type 
-		= (method_type_t*) normalize_type(env, (type_t*) method->type);
+		= (method_type_t*) normalize_type((type_t*) method->type);
 
-	environment_pop_to(env, old_top);
+	environment_pop_to(old_top);
 }
 
 static
-void check_typeclass_instance(semantic_env_t *env,
-                              typeclass_instance_t *instance)
+void check_typeclass_instance(typeclass_instance_t *instance)
 {
 	typeclass_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
 		method_t *method = method_instance->method;
-		check_method(env, method);
+		check_method(method);
 
 		method_instance = method_instance->next;
 	}
 }
 
 static
-void resolve_typeclass_types(semantic_env_t *env, typeclass_t *typeclass)
+void resolve_typeclass_types(typeclass_t *typeclass)
 {
-	int old_top            = environment_top(env);
+	int old_top            = environment_top();
 
 	/* push type variables */
 	type_variable_t *type_parameter = typeclass->type_parameters;
 	while(type_parameter != NULL) {
 		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(env, symbol);
+		environment_entry_t *entry  = environment_push(symbol);
 		entry->type                 = ENTRY_TYPE_VARIABLE;
 		entry->e.type_variable      = type_parameter;
 
 		type_parameter = type_parameter->next;
 	}
-	resolve_type_variable_constraints(env, typeclass->type_parameters,
+	resolve_type_variable_constraints(typeclass->type_parameters,
 	                                typeclass->namespace_entry.source_position);
 
 	/* normalize method types */
 	typeclass_method_t *typeclass_method = typeclass->methods;
 	while(typeclass_method != NULL) {
 		type_t *normalized_type 
-			= normalize_type(env, (type_t*) typeclass_method->method_type);
+			= normalize_type((type_t*) typeclass_method->method_type);
 		assert(normalized_type->type == TYPE_METHOD);
 		typeclass_method->method_type = (method_type_t*) normalized_type;
 
 		typeclass_method = typeclass_method->next;
 	}
 
-	environment_pop_to(env, old_top);
+	environment_pop_to(old_top);
 }
 
 
 static
-void push_typeclass_methods(semantic_env_t *env, typeclass_t *typeclass)
+void push_typeclass_methods(typeclass_t *typeclass)
 {
 	typeclass_method_t *method = typeclass->methods;
 	while(method != NULL) {
-		environment_entry_t *entry = environment_push(env, method->symbol);
+		environment_entry_t *entry = environment_push(method->symbol);
 		entry->type                = ENTRY_TYPECLASS_METHOD;
 		entry->e.typeclass_method  = method;
 
@@ -1786,19 +1825,18 @@ void push_typeclass_methods(semantic_env_t *env, typeclass_t *typeclass)
 }
 
 static
-void resolve_typeclass_instance(semantic_env_t *env,
-                                typeclass_instance_t *instance)
+void resolve_typeclass_instance(typeclass_instance_t *instance)
 {
 	symbol_t            *symbol = instance->typeclass_symbol;
 	environment_entry_t *entry  = symbol->thing;
 
 	if(entry == NULL) {
-		print_error_prefix(env, instance->namespace_entry.source_position);
+		print_error_prefix(instance->namespace_entry.source_position);
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
 	if(entry->type != ENTRY_TYPECLASS) {
-		print_error_prefix(env, instance->namespace_entry.source_position);
+		print_error_prefix(instance->namespace_entry.source_position);
 		fprintf(stderr, "expected a typeclass but '%s' is a '%s'\n",
 		        symbol->string, get_entry_type_name(entry->type));
 		return;
@@ -1812,7 +1850,7 @@ void resolve_typeclass_instance(semantic_env_t *env,
 	/* normalize argument types */
 	type_argument_t *type_argument = instance->type_arguments;
 	while(type_argument != NULL) {
-		type_argument->type = normalize_type(env, type_argument->type);
+		type_argument->type = normalize_type(type_argument->type);
 
 		type_argument = type_argument->next;
 	}
@@ -1833,8 +1871,7 @@ void resolve_typeclass_instance(semantic_env_t *env,
 			}
 			
 			if(found_instance) {
-				print_error_prefix(env,
-				                   imethod->namespace_entry.source_position);
+				print_error_prefix(imethod->namespace_entry.source_position);
 				fprintf(stderr, "multiple implementations of method '%s' found "
 				        "in instance of typeclass '%s'\n",
 				        method->symbol->string, typeclass->symbol->string);
@@ -1845,11 +1882,11 @@ void resolve_typeclass_instance(semantic_env_t *env,
 			}
 
 			imethod->type 
-				= (method_type_t*) normalize_type(env, (type_t*) imethod->type);
+				= (method_type_t*) normalize_type((type_t*) imethod->type);
 			method_instance = method_instance->next;
 		}
 		if(found_instance == 0) {
-			print_error_prefix(env, instance->namespace_entry.source_position);
+			print_error_prefix(instance->namespace_entry.source_position);
 			fprintf(stderr, "instance of typeclass '%s' does not implement "
 					"method '%s'\n", typeclass->symbol->string,
 			        method->symbol->string);
@@ -1860,7 +1897,7 @@ void resolve_typeclass_instance(semantic_env_t *env,
 }
 
 static
-void check_namespace(semantic_env_t *env, namespace_t *namespace)
+void check_namespace(namespace_t *namespace)
 {
 	global_variable_t    *variable;
 	method_t             *method;
@@ -1868,7 +1905,8 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	typealias_t          *typealias;
 	type_t               *type;
 	typeclass_t          *typeclass;
-	int                   old_top = environment_top(env);
+	constant_t           *constant;
+	int                   old_top = environment_top();
 
 	/* record namespace entries in environment */
 	namespace_entry_t *entry = namespace->entries;
@@ -1876,33 +1914,40 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_VARIABLE:
 			variable            = (global_variable_t*) entry;
-			env_entry           = environment_push(env, variable->symbol);
+			env_entry           = environment_push(variable->symbol);
 			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
 			env_entry->e.global_variable = variable;
 			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
-			env_entry           = environment_push(env, method->symbol);
+			env_entry           = environment_push(method->symbol);
 			env_entry->type     = ENTRY_METHOD;
 			env_entry->e.method = method;
 			break;
 		case NAMESPACE_ENTRY_TYPEALIAS:
 			typealias              = (typealias_t*) entry;
-			env_entry              = environment_push(env, typealias->symbol);
+			env_entry              = environment_push(typealias->symbol);
 			env_entry->type        = ENTRY_TYPEALIAS;
 			env_entry->e.stored_type = (type_t*) typealias->type;
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS:
 			typeclass              = (typeclass_t*) entry;
-			env_entry              = environment_push(env, typeclass->symbol);
+			env_entry              = environment_push(typeclass->symbol);
 			env_entry->type        = ENTRY_TYPECLASS;
 			env_entry->e.typeclass = typeclass;
-			push_typeclass_methods(env, typeclass);
+			push_typeclass_methods(typeclass);
+			break;
+		case NAMESPACE_ENTRY_CONSTANT:
+			constant              = (constant_t*) entry;
+			env_entry             = environment_push(constant->symbol);
+			env_entry->type       = ENTRY_CONSTANT;
+			env_entry->e.constant = constant;
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
 			break;
-		default:
-			panic("Unknown thing in namespace");
+		case NAMESPACE_ENTRY_LAST:
+		case NAMESPACE_ENTRY_INVALID:
+			panic("invalid namespace entry found");
 			break;
 		}
 		entry = entry->next;
@@ -1916,28 +1961,29 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 			variable            = (global_variable_t*) entry;
 			env_entry           = variable->symbol->thing;
 			assert(env_entry->e.global_variable == variable);
-			variable->type      = normalize_type(env, variable->type);
+			variable->type      = normalize_type(variable->type);
 			break;
 		case NAMESPACE_ENTRY_METHOD:
 			method              = (method_t*) entry;
 			env_entry           = method->symbol->thing;
 			assert(env_entry->e.method == method);
-			resolve_method_types(env, method);
+			resolve_method_types(method);
 			break;
 		case NAMESPACE_ENTRY_TYPEALIAS:
 			typealias  = (typealias_t*) entry;
 			env_entry  = typealias->symbol->thing;
 			type       = env_entry->e.stored_type;
-			if(type->type == TYPE_COMPOUND) {
-				normalize_compound_entries(env, (compound_type_t*) type);
+			if(type->type == TYPE_COMPOUND_UNION
+					|| type->type == TYPE_COMPOUND_STRUCT) {
+				normalize_compound_entries((compound_type_t*) type);
 			}
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS:
 			typeclass = (typeclass_t*) entry;
-			resolve_typeclass_types(env, typeclass);
+			resolve_typeclass_types(typeclass);
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			resolve_typeclass_instance(env, (typeclass_instance_t*) entry);
+			resolve_typeclass_instance((typeclass_instance_t*) entry);
 			break;
 		default:
 			break;
@@ -1951,10 +1997,13 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 	while(entry != NULL) {
 		switch(entry->type) {
 		case NAMESPACE_ENTRY_METHOD:
-			check_method(env, (method_t*) entry);
+			check_method((method_t*) entry);
+			break;
+		case NAMESPACE_ENTRY_CONSTANT:
+			check_constant((constant_t*) entry);
 			break;
 		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			check_typeclass_instance(env, (typeclass_instance_t*) entry);
+			check_typeclass_instance((typeclass_instance_t*) entry);
 			break;
 		default:
 			break;
@@ -1963,16 +2012,13 @@ void check_namespace(semantic_env_t *env, namespace_t *namespace)
 		entry = entry->next;
 	}
 
-	environment_pop_to(env, old_top);
+	environment_pop_to(old_top);
 }
 
 void register_statement_lowerer(lower_statement_function function,
-                                int statement_type)
+                                unsigned int statement_type)
 {
-	if(statement_type < 0)
-		panic("can't register lowerer for negative statement type");
-
-	int len = ARR_LEN(statement_lowerers);
+	unsigned int len = ARR_LEN(statement_lowerers);
 	if(statement_type >= len) {
 		ARR_RESIZE(statement_lowerers, statement_type + 1);
 		memset(&statement_lowerers[len], 0,
@@ -1985,46 +2031,58 @@ void register_statement_lowerer(lower_statement_function function,
 	statement_lowerers[statement_type] = function;
 }
 
+void register_expression_lowerer(lower_expression_function function,
+                                 unsigned int expression_type)
+{
+	unsigned int len = ARR_LEN(expression_lowerers);
+	if(expression_type >= len) {
+		ARR_RESIZE(expression_lowerers, expression_type + 1);
+		memset(&expression_lowerers[len], 0,
+		       (expression_type - len + 1) * sizeof(expression_lowerers[0]));
+	}
+
+	if(expression_lowerers[expression_type] != NULL) {
+		panic("Trying to register multiple lowerers for a expression type");
+	}
+	expression_lowerers[expression_type] = function;
+}
+
 int check_static_semantic(namespace_t *namespace)
 {
-	struct obstack obst;
-	semantic_env_t env;
+	obstack_init(&symbol_environment_obstack);
+	obstack_init(&label_obstack);
 
-	obstack_init(&obst);
-	obstack_init(&env.symbol_obstack);
-	obstack_init(&env.label_obstack);
+	symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
+	label_stack        = NEW_ARR_F(symbol_t*, 0);
+	found_errors       = 0;
 
-	env.symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
-	env.label_stack        = NEW_ARR_F(symbol_t*, 0);
-	env.found_errors       = 0;
+	type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
+	type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
+	type_int      = make_atomic_type(ATOMIC_TYPE_INT);
+	type_uint     = make_atomic_type(ATOMIC_TYPE_UINT);
+	type_void_ptr = make_pointer_type(type_void);
+	type_byte_ptr = make_pointer_type(type_byte);
 
-	env.type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
-	env.type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
-	env.type_int      = make_atomic_type(ATOMIC_TYPE_INT);
-	env.type_uint     = make_atomic_type(ATOMIC_TYPE_UINT);
-	env.type_void_ptr = make_pointer_type(type_void);
-	env.type_byte_ptr = make_pointer_type(env.type_byte);
+	check_namespace(namespace);
 
-	check_namespace(&env, namespace);
+	DEL_ARR_F(symbol_stack);
+	DEL_ARR_F(label_stack);
 
-	DEL_ARR_F(env.symbol_stack);
-	DEL_ARR_F(env.label_stack);
+	obstack_free(&symbol_environment_obstack, NULL);
+	obstack_free(&label_obstack, NULL);
 
-	// TODO global obstack...
-	//obstack_free(&obst, NULL);
-	obstack_free(&env.symbol_obstack, NULL);
-	obstack_free(&env.label_obstack, NULL);
-
-	return !env.found_errors;
+	return !found_errors;
 }
 
 void init_semantic_module(void)
 {
-	statement_lowerers = NEW_ARR_F(lower_statement_function, 0);
+	statement_lowerers  = NEW_ARR_F(lower_statement_function, 0);
+	expression_lowerers = NEW_ARR_F(lower_expression_function, 0);
 }
 
 void exit_semantic_module(void)
 {
+	DEL_ARR_F(expression_lowerers);
 	DEL_ARR_F(statement_lowerers);
 }
 

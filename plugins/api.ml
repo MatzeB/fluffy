@@ -21,6 +21,38 @@ struct Type:
 	type      : unsigned int
 	firm_type : IrType*
 
+struct Attribute:
+	type            : unsigned int
+	source_position : SourcePosition
+	next            : Attribute*
+
+struct CompoundEntry:
+	type            : Type*
+	symbol          : Symbol*
+	next            : CompoundEntry*
+	attributes      : Attribute*
+	source_position : SourcePosition
+	entity          : IrEntity*
+
+struct CompoundType:
+	type            : Type
+	entries         : CompoundEntry*
+	symbol          : Symbol*
+	attributes      : Attribute
+	type_parameters : TypeVariable*
+	source_position : SourcePosition
+
+struct TypeConstraint:
+	typeclass_symbol : Symbol*
+	type_class       : TypeClass*
+	next             : TypeConstraint*
+
+struct TypeVariable:
+	constraints      : TypeConstraint
+	symbol           : Symbol*
+	next             : TypeVariable*
+	current_type     : Type*
+
 struct Statement:
 	type            : unsigned int
 	next            : Statement*
@@ -57,10 +89,23 @@ struct GotoStatement:
 	label_symbol : Symbol*
 	label        : LabelStatement*
 
-struct Attribute:
+struct NamespaceEntry:
 	type            : unsigned int
+	next            : NamespaceEntry*
 	source_position : SourcePosition
-	next            : Attribute*
+
+struct TypeClass:
+	namespace_entry : NamespaceEntry
+	symbol          : Symbol*
+	type_parameters : TypeVariable*
+	methods         : TypeClassMethod*
+	instances       : TypeClassInstance*
+
+struct TypeClassMethod:
+	// TODO
+
+struct TypeClassInstance:
+	// TODO
 
 struct Lexer:
 	c               : int
@@ -68,15 +113,48 @@ struct Lexer:
 	input           : FILE*
 	// more stuff...
 
-typealias Semantic               <- void
-typealias FILE                   <- void
-typealias EnvironmentEntry       <- void
-typealias IrNode                 <- void
-typealias IrType                 <- void
-typealias ParseStatementFunction <- func () : Statement*
-typealias ParseAttributeFunction <- func () : Attribute*
-typealias LowerStatementFunction <- func (env : Semantic*, statement : Statement*) : Statement*
-typealias String                 <- byte*
+const STATEMENT_INAVLID              <- 0
+const STATEMENT_BLOCK                <- 1
+const STATEMENT_RETURN               <- 2
+const STATEMENT_VARIABLE_DECLARATION <- 3
+const STATEMENT_IF                   <- 4
+const STATEMENT_EXPRESSION           <- 5
+const STATEMENT_GOTO                 <- 6
+const STATEMENT_LABEL                <- 7
+
+const TYPE_INVALID                 <- 0
+const TYPE_VOID                    <- 1
+const TYPE_ATOMIC                  <- 2
+const TYPE_COMPOUND_STRUCT         <- 3
+const TYPE_COMPOUND_UNION          <- 4
+const TYPE_METHOD                  <- 5
+const TYPE_POINTER                 <- 6
+const TYPE_ARRAY                   <- 7
+const TYPE_REFERENCE               <- 8
+const TYPE_REFERENCE_TYPE_VARIABLE <- 9
+
+const T_NEWLINE        <- 256
+const T_INDENT         <- 257
+const T_DEDENT         <- 258
+const T_IDENTIFIER     <- 259
+const T_INTEGER        <- 260
+const T_STRING_LITERAL <- 261
+
+typealias Semantic                <- void
+typealias FILE                    <- void
+typealias EnvironmentEntry        <- void
+typealias IrNode                  <- void
+typealias IrType                  <- void
+typealias IrEntity                <- void
+typealias ParseStatementFunction  <- func () : Statement*
+typealias ParseAttributeFunction  <- func () : Attribute*
+typealias ParseExpressionFunction <- func (precedence : unsigned int) : Expression*
+typealias ParseExpressionInfixFunction <- func (precedence : unsigned int, \
+                                               left : Expression*) : Expression*
+typealias LowerStatementFunction  <- func (env : Semantic*, statement : Statement*) : Statement*
+typealias LowerExpressionFunction <- func (env : Semantic*, \
+                                        expression : Expression*) : Expression*
+typealias String                  <- byte*
 
 extern func register_new_token(token : String) : unsigned int
 extern func register_statement() : unsigned int
@@ -94,12 +172,19 @@ extern func register_statement_parser(parser : ParseStatementFunction*, \
                                       token_type : int)
 extern func register_attribute_parser(parser : ParseAttributeFunction*, \
                                       token_type : int)
+extern func register_expression_parser(parser : ParseExpressionFunction, \
+                                       token_type : int, \
+									   precedence : unsigned int)
+extern func register_expression_infix_parser( \
+				parser : ParseExpressionInfixFunction, token_type : int, \
+				precedence : unsigned int)
 extern func print_token(out : FILE*, token : Token*)
 extern func lexer_next_token(lexer : Lexer*, token : Token*)
 extern func allocate_ast(size : unsigned int) : void*
 extern func parser_print_error_prefix()
 extern func next_token()
 
+extern func parse_sub_expression(precedence : unsigned int) : Expression*
 extern func parse_expression() : Expression*
 extern func parse_statement() : Statement*
 
@@ -108,7 +193,9 @@ extern func print_warning_preifx(env : Semantic*, position : SourcePosition)
 extern func check_statement(env : Semantic*, statement : Statement*) : Statement*
 extern func check_expression(env : Semantic*, expression : Expression*) : Expression*
 extern func register_statement_lowerer(function : LowerStatementFunction*, \
-                                       statement_type : int)
+                                       statement_type : unsigned int)
+extern func register_expression_lowerer(function : LowerExpressionFunction*, \
+                                        expression_type : unsigned int)
 
 extern var stdout : FILE*
 extern var stderr : FILE*
@@ -126,31 +213,31 @@ func allocate_zero<T>() : T*:
 instance AllocateOnAst BlockStatement:
 	func allocate() : BlockStatement*:
 		var res <- allocate_zero<$BlockStatement>()
-		res.statement.type <- 1
+		res.statement.type <- STATEMENT_BLOCK
 		return res
 	
 instance AllocateOnAst IfStatement:
 	func allocate() : IfStatement*:
 		var res <- allocate_zero<$IfStatement>()
-		res.statement.type <- 4
+		res.statement.type <- STATEMENT_IF
 		return res
 
 instance AllocateOnAst ExpressionStatement:
 	func allocate() : ExpressionStatement*:
 		var res <- allocate_zero<$ExpressionStatement>()
-		res.statement.type <- 5
+		res.statement.type <- STATEMENT_EXPRESSION
 		return res
 
 instance AllocateOnAst GotoStatement:
 	func allocate() : GotoStatement*:
 		var res <- allocate_zero<$GotoStatement>()
-		res.statement.type <- 6
+		res.statement.type <- STATEMENT_GOTO
 		return res
 
 instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
 		var res <- allocate_zero<$LabelStatement>()
-		res.statement.type <- 7
+		res.statement.type <- STATEMENT_LABEL
 		return res
 
 func expect(token_type : int):

@@ -6,6 +6,10 @@ struct SqlTypeAttribute:
 	attribute : Attribute
 	typetext  : String
 
+struct SqlTableDefExpression:
+	expression : Expression
+	type       : Type*
+
 instance AllocateOnAst SqlAttribute:
 	func allocate() : SqlAttribute*:
 		var res <- allocate_zero<$SqlAttribute>()
@@ -18,10 +22,18 @@ instance AllocateOnAst SqlTypeAttribute:
 		res.attribute.type <- sqltype_attribute
 		return res
 
-var sql_attribute     : unsigned int
-var sqltype_attribute : unsigned int
-var token_sql         : int
-var token_sqltype     : int
+instance AllocateOnAst SqlTableDefExpression:
+	func allocate() : SqlTableDefExpression*:
+		var res <- allocate_zero<$SqlTableDefExpression>()
+		res.expression.type <- sqltable_expression
+		return res
+
+var sql_attribute       : unsigned int
+var sqltype_attribute   : unsigned int
+var sqltable_expression : unsigned int
+var token_sql           : int
+var token_sqltype       : int
+var token_sql_table_def : int
 
 func parse_sql_attribute() : Attribute*:
 	puts("parsing sql attribute...")
@@ -61,13 +73,43 @@ func parse_sqltype_attribute() : Attribute*:
 
 	return cast<Attribute* > attribute
 
+func parse_table_def_expression(precedence : unsigned int) : Expression*:
+	var expr <- allocate<$SqlTableDefExpression>()
+
+	//assert(token.type = token_sql_table_def)
+	next_token()
+
+	expect('<')
+	expr.type <- parse_type()
+	expect('>')
+
+	return cast<Expression* > expr
+
+func lower_table_def_expression(env : Semantic*, expression : Expression*) : Expression*:
+	var table_def_expression <- cast<SqlTableDefExpression> (expression)
+	var type                 <- table_def_expression.type
+
+	if type.type /= TYPE_COMPOUND_STRUCT:
+		//print_error_prefix(env, expression.source_position)
+		fputs("can only create sql table definition for struct types\n", stderr)
+		abort()
+	
+	var compound_type <- cast<ComoundType* > type
+	var entry         <- type.entries
+
+	return cast<Expression* > 0
+
 func init_plugin():
 	puts("init sql plugin")
-	sql_attribute     <- register_attribute()
-	sqltype_attribute <- register_attribute()
+	sql_attribute       <- register_attribute()
+	sqltype_attribute   <- register_attribute()
+	sqltable_expression <- register_expression()
 
-	token_sql     <- register_new_token("sql")
-	token_sqltype <- register_new_token("sqltype")
+	token_sql           <- register_new_token("sql")
+	token_sqltype       <- register_new_token("sqltype")
+	token_sql_table_def <- register_new_token("sql_table_def")
 
 	register_attribute_parser(parse_sql_attribute, token_sql)
 	register_attribute_parser(parse_sqltype_attribute, token_sqltype)
+	register_expression_parser(parse_table_def_expression, \
+	                           token_sql_table_def, 1)

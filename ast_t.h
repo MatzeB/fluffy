@@ -23,11 +23,13 @@ typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
 	EXPR_STRING_CONST,
+	EXPR_NULL_POINTER,
 	EXPR_REFERENCE,
 	EXPR_REFERENCE_VARIABLE,
 	EXPR_REFERENCE_METHOD,
 	EXPR_REFERENCE_METHOD_PARAMETER,
 	EXPR_REFERENCE_GLOBAL_VARIABLE,
+	EXPR_REFERENCE_CONSTANT,
 	EXPR_REFERENCE_TYPECLASS_METHOD,
 	EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE,
 	EXPR_CALL,
@@ -55,6 +57,10 @@ struct string_const_t {
 	const char   *value;
 };
 
+struct null_pointer_t {
+	expression_t  expression;
+};
+
 struct type_argument_t {
 	type_t          *type;
 	type_argument_t *next;
@@ -67,6 +73,7 @@ struct reference_expression_t {
 		variable_declaration_statement_t *variable;
 		method_t                         *method;
 		global_variable_t                *global_variable;
+		constant_t                       *constant;
 		method_parameter_t               *method_parameter;
 		typeclass_method_t               *typeclass_method;
 		typeclass_method_instance_t      *typeclass_method_instance;
@@ -216,6 +223,7 @@ enum namespace_entry_type_t {
 	NAMESPACE_ENTRY_INVALID,
 	NAMESPACE_ENTRY_METHOD,
 	NAMESPACE_ENTRY_VARIABLE,
+	NAMESPACE_ENTRY_CONSTANT,
 	NAMESPACE_ENTRY_TYPEALIAS,
 	NAMESPACE_ENTRY_TYPECLASS,
 	NAMESPACE_ENTRY_TYPECLASS_INSTANCE,
@@ -257,6 +265,13 @@ struct global_variable_t {
 	int                is_extern;
 
 	ir_entity         *entity;
+};
+
+struct constant_t {
+	namespace_entry_t  namespace_entry;
+	symbol_t          *symbol;
+	type_t            *type;
+	expression_t      *expression;
 };
 
 struct typealias_t {

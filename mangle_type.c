@@ -120,7 +120,8 @@ void mangle_type(struct obstack *obst, const type_t *type)
 	case TYPE_ATOMIC:
 		mangle_atomic_type(obst, (const atomic_type_t*) type);
 		return;
-	case TYPE_COMPOUND:
+	case TYPE_COMPOUND_UNION:
+	case TYPE_COMPOUND_STRUCT:
 		mangle_compound_type(obst, (const compound_type_t*) type);
 		return;
 	case TYPE_METHOD:

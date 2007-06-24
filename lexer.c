@@ -360,24 +360,38 @@ static
 void skip_multiline_comment(lexer_t *this)
 {
 	unsigned start_linenr = this->source_position.linenr;
+	unsigned level = 1;
 
 	while(1) {
-		if(this->c == '*') {
+		switch(this->c) {
+		case '*':
 			next_char(this);
 			if(this->c == '/') {
 				next_char(this);
-				return;
+				level--;
+				if(level == 0)
+					return;
 			}
-		} else if(this->c == EOF) {
+			break;
+		case '/':
+			next_char(this);
+			if(this->c == '*') {
+				next_char(this);
+				level++;
+			}
+			break;
+		case EOF:
 			error_prefix_at(this, this->source_position.input_name,
 			                start_linenr);
 			fprintf(stderr, "comment has no end\n");
 			return;
-		} else {
-			if(this->c == '\n') {
-				this->source_position.linenr++;
-			}
+		case '\n':
 			next_char(this);
+			this->source_position.linenr++;
+			break;
+		default:
+			next_char(this);
+			break;
 		}
 	}
 }

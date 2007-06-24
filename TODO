@@ -21,3 +21,5 @@ because they need no deep understanding of the design.
 - Add an alloca operator
 - forward source references to firm nodes
 - create a ++ and -- operator
+- make lexer accept \r, \r\n and \n as newline
+- make lexer unicode aware (so we can read different encodings and utf8)

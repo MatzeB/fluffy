@@ -8,10 +8,10 @@
 #include "semantic_t.h"
 
 static inline
-void match_error(semantic_env_t *env, type_t *variant, type_t *concrete,
+void match_error(type_t *variant, type_t *concrete,
                  const source_position_t source_position)
 {
-	print_error_prefix(env, source_position);
+	print_error_prefix(source_position);
 	fprintf(stderr, "can't match variant type ");
 	print_type(stderr, variant);
 	fprintf(stderr, " against ");
@@ -19,8 +19,7 @@ void match_error(semantic_env_t *env, type_t *variant, type_t *concrete,
 	fprintf(stderr, "\n");
 }
 
-void match_variant_to_concrete_type(semantic_env_t *env,
-                                    type_t *variant_type,
+void match_variant_to_concrete_type(type_t *variant_type,
                                     type_t *concrete_type,
                                     const source_position_t source_position)
 {
@@ -43,7 +42,7 @@ void match_variant_to_concrete_type(semantic_env_t *env,
 		if(current_type == NULL) {
 			type_var->current_type = concrete_type;
 		} else if(current_type != concrete_type) {
-			print_error_prefix(env, source_position);
+			print_error_prefix(source_position);
 			fprintf(stderr, "ambiguous matches found for type variable '%s': ",
 			        type_var->symbol->string);
 			print_type(stderr, current_type);
@@ -55,47 +54,48 @@ void match_variant_to_concrete_type(semantic_env_t *env,
 		break;
 
 	case TYPE_VOID:
-	case TYPE_COMPOUND:
+	case TYPE_COMPOUND_STRUCT:
+	case TYPE_COMPOUND_UNION:
 	case TYPE_ATOMIC:
 		if(concrete_type != variant_type) {
-			match_error(env, variant_type, concrete_type, source_position);
+			match_error(variant_type, concrete_type, source_position);
 		}
 		break;
 
 	case TYPE_POINTER:
 		if(concrete_type->type != TYPE_POINTER) {
-			match_error(env, variant_type, concrete_type, source_position);
+			match_error(variant_type, concrete_type, source_position);
 			break;
 		}
 		pointer_type_1 = (pointer_type_t*) variant_type;
 		pointer_type_2 = (pointer_type_t*) concrete_type;
-		match_variant_to_concrete_type(env, pointer_type_1->points_to,
+		match_variant_to_concrete_type(pointer_type_1->points_to,
 		                               pointer_type_2->points_to,
 		                               source_position);
 		break;
 
 	case TYPE_METHOD:
 		if(concrete_type->type != TYPE_METHOD) {
-			match_error(env, variant_type, concrete_type, source_position);
+			match_error(variant_type, concrete_type, source_position);
 			break;
 		}
 		method_type_1 = (method_type_t*) variant_type;
 		method_type_2 = (method_type_t*) concrete_type;
-		match_variant_to_concrete_type(env, method_type_1->result_type,
+		match_variant_to_concrete_type(method_type_1->result_type,
 		                               method_type_2->result_type,
 		                               source_position);
 
 		method_parameter_type_t *param1 = method_type_1->parameter_types;
 		method_parameter_type_t *param2 = method_type_2->parameter_types;
 		while(param1 != NULL && param2 != NULL) {
-			match_variant_to_concrete_type(env, param1->type, param2->type,
+			match_variant_to_concrete_type(param1->type, param2->type,
 			                               source_position);
 
 			param1 = param1->next;
 			param2 = param2->next;
 		}
 		if(param1 != NULL || param2 != NULL) {
-			match_error(env, variant_type, concrete_type, source_position);
+			match_error(variant_type, concrete_type, source_position);
 			break;
 		}
 

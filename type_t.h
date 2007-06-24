@@ -14,7 +14,8 @@ typedef enum {
 	TYPE_INVALID,
 	TYPE_VOID,
 	TYPE_ATOMIC,
-	TYPE_COMPOUND,
+	TYPE_COMPOUND_STRUCT,
+	TYPE_COMPOUND_UNION,
 	TYPE_METHOD,
 	TYPE_POINTER,
 	TYPE_ARRAY,
@@ -112,8 +113,8 @@ struct compound_type_t {
 	compound_entry_t  *entries;
 	symbol_t          *symbol;
 	attribute_t       *attributes;
+	type_variable_t   *type_parameters;
 	source_position_t  source_position;
-	int                is_union;
 };
 
 #endif

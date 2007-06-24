@@ -7,6 +7,7 @@ struct Person $sql("primary key(ID)") $sqltype("InnoDB") :
 	last_name   : byte[255] $sqltype("VARCHAR(255)")
 	suffix      : byte[255] $sqltype("VARCHAR(255)")
 
+/*
 func main() : int:
 	var mysql      <- mysql_init(cast<MYSQL* > 0)
 	mysql_options(mysql, 5 /*=MYSQL_READ_DEFAULT_GROUP*/, "mysqltest")
@@ -26,3 +27,8 @@ func main() : int:
 
 	mysql_close(mysql)
 	return 0
+*/
+
+func main() : int:
+	var tdef <- sql_table_def<Person>
+	puts(tdef)
