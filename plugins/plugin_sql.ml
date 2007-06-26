@@ -115,7 +115,7 @@ func lower_table_def_expression(expression : Expression*) : Expression*:
 		puts(" ")
 		print_sql_type(entry)
 
-		entry = entry.next
+		entry <- entry.next
 	
 		
 	return cast<Expression* > 0
@@ -126,7 +126,7 @@ func print_sql_type(entry : CompoundEntry*):
 	while attrib /= null:
 		if attrib.type = sqltype_attribute:
 			var sqltype_attrib <- cast<SqlTypeAttribute* > attrib
-			puts(attrib.typetext)
+			puts(sqltype_attrib.typetext)
 			return
 
 		attrib <- attrib.next

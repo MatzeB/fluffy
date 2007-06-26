@@ -317,6 +317,7 @@ type_t *parse_type(void)
 	case T_signed:
 	case T_bool:
 	case T_int:
+	case T_long:
 	case T_byte:
 	case T_short:
 	case T_float:
@@ -332,6 +333,11 @@ type_t *parse_type(void)
 		break;
 	case T_func:
 		type = parse_method_type();
+		break;
+	case '(':
+		next_token();
+		type = parse_type();
+		expect(')');
 		break;
 	default:
 		parse_error("Invalid type");
@@ -947,6 +953,24 @@ statement_t *parse_label_statement(void)
 }
 
 static
+statement_t *parse_sub_block(void)
+{
+	if(token.type != T_NEWLINE) {
+		return parse_statement();
+	}
+	eat(T_NEWLINE);
+
+	if(token.type == T_INDENT) {
+		return parse_statement();
+	}
+
+	/* create an empty block */
+	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
+	block->statement.type = STATEMENT_BLOCK;
+	return (statement_t*) block;
+}
+
+static
 statement_t *parse_if_statement(void)
 {
 	eat(T_if);
@@ -954,12 +978,12 @@ statement_t *parse_if_statement(void)
 	expression_t *condition = parse_expression();
 	expect(':');
 
-	statement_t *true_statement  = parse_statement();
+	statement_t *true_statement  = parse_sub_block();
 	statement_t *false_statement = NULL;
 	if(token.type == T_else) {
 		next_token();
 		expect(':');
-		false_statement = parse_statement();
+		false_statement = parse_sub_block();
 	}
 
 	if_statement_t *if_statement
@@ -1130,11 +1154,11 @@ statement_t *parse_statement(void)
 static
 statement_t *parse_block(void)
 {
+	eat(T_INDENT);
+
 	statement_t       *last = NULL;
 	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
 	block->statement.type = STATEMENT_BLOCK;
-
-	eat(T_INDENT);
 
 	while(token.type != T_DEDENT && token.type != T_EOF) {
 		/* parse statement */
@@ -1320,7 +1344,7 @@ namespace_entry_t *parse_method(void)
 		}
 	}
 
-	method->statement = parse_statement();
+	method->statement = parse_sub_block();
 
 	return (namespace_entry_t*) method;
 }
