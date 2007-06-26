@@ -295,6 +295,10 @@ ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 		n++;
 	}
 
+	if(method_type->variable_arguments) {
+		set_method_variadicity(irtype, variadicity_variadic);
+	}
+
 	return irtype;
 }
 
@@ -629,10 +633,6 @@ ir_entity* get_typeclass_method_instance_entity(
 		return method->entity;
 
 	method_type_t *method_type = method->type;
-	if(method_type->abi_style != NULL) {
-		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
-		        method_type->abi_style);
-	}
 
 	typeclass_method_t *typeclass_method = method_instance->typeclass_method;
 	typeclass_t        *typeclass        = typeclass_method->typeclass;
@@ -659,7 +659,7 @@ ir_entity* get_typeclass_method_instance_entity(
 
 	/* create the entity */
 	ir_type *global_type    = get_glob_type();
-	ir_type *ir_method_type = get_ir_type((type_t*) method->type);
+	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
@@ -678,11 +678,6 @@ ir_entity* get_method_entity(method_t *method)
 
 	method_type_t *method_type    = method->type;
 	int            is_polymorphic = is_polymorphic_method(method);
-
-	if(method_type->abi_style != NULL) {
-		fprintf(stderr, "Warning: ABI Style '%s' unknown\n",
-		        method_type->abi_style);
-	}
 
 	ident *id;
 	if(!is_polymorphic) {
@@ -1222,22 +1217,51 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	type_t         *points_to     = pointer_type->points_to;
 
 	assert(points_to->type == TYPE_METHOD);
-	method_type_t *method_type    = (method_type_t*) points_to;
-	ir_type       *ir_method_type = get_ir_type((type_t*) method_type);
+	method_type_t *method_type     = (method_type_t*) points_to;
+	ir_type       *ir_method_type  = get_ir_type((type_t*) method_type);
+	ir_type       *new_method_type = NULL;
 
-	int      n_parameters = get_method_n_params(ir_method_type);
+	int              n_parameters = 0;
+	call_argument_t *argument     = call->arguments;
+	while(argument != NULL) {
+		n_parameters++;
+		argument = argument->next;
+	}
+
+	if(method_type->variable_arguments) {
+		/* we need to construct a new method type matching the call
+		 * arguments... */
+		new_method_type = new_type_method(unique_id("Call."), n_parameters,
+		                                  get_method_n_ress(ir_method_type));
+		set_method_calling_convention(new_method_type,
+		               get_method_calling_convention(ir_method_type));
+		set_method_additional_properties(new_method_type,
+		               get_method_additional_properties(ir_method_type));
+
+		for(int i = 0; i < get_method_n_ress(ir_method_type); ++i) {
+			set_method_res_type(new_method_type, i,
+			                    get_method_res_type(ir_method_type, i));
+		}
+	}
 	ir_node *in[n_parameters];
 
-	call_argument_t *argument = call->arguments;
+	argument = call->arguments;
 	int n = 0;
 	while(argument != NULL) {
-		assert(n < n_parameters);
-		in[n] = expression_to_firm(argument->expression);
+		expression_t *expression = argument->expression;
+
+		in[n] = expression_to_firm(expression);
+		if(new_method_type != NULL) {
+			ir_type *irtype = get_ir_type(expression->datatype);
+			set_method_param_type(new_method_type, n, irtype);
+		}
 
 		argument = argument->next;
 		n++;
 	}
-	assert(n == n_parameters);
+
+	if(new_method_type != NULL)
+		ir_method_type = new_method_type;
 
 	ir_node *store = get_store();
 	ir_node *node  = new_Call(store, callee, n_parameters, in, ir_method_type);

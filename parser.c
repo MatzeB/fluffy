@@ -168,7 +168,7 @@ void maybe_eat_block(void)
 
 
 static
-void parse_parameter_declaration(method_parameter_type_t **parameter_types,
+void parse_parameter_declaration(method_type_t *method_type,
                                  method_parameter_t **parameters);
 
 static
@@ -288,7 +288,7 @@ type_t *parse_method_type(void)
 	method_type->type.type = TYPE_METHOD;
 
 	expect('(');
-	parse_parameter_declaration(&method_type->parameter_types, NULL);
+	parse_parameter_declaration(method_type, NULL);
 	expect(')');
 
 	expect(':');
@@ -1183,20 +1183,33 @@ statement_t *parse_block(void)
 }
 
 static
-void parse_parameter_declaration(method_parameter_type_t **parameter_types,
+void parse_parameter_declaration(method_type_t *method_type,
                                  method_parameter_t **parameters)
 {
+	assert(method_type != NULL);
+
 	if(token.type == ')')
 		return;
 
 	method_parameter_type_t *last_type = NULL;
 	method_parameter_t      *last_param = NULL;
-	if(parameter_types != NULL)
-		*parameter_types = NULL;
 	if(parameters != NULL)
 		*parameters = NULL;
 
 	while(1) {
+		if(token.type == T_DOTDOTDOT) {
+			method_type->variable_arguments = 1;
+			next_token();
+
+			if(token.type == ',') {
+				parse_error("'...' has to be the last argument in a function "
+				            "parameter list");
+				eat_until_newline();
+				return;
+			}
+			break;
+		}
+
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing parameter",
 			                     T_IDENTIFIER, 0);
@@ -1207,26 +1220,23 @@ void parse_parameter_declaration(method_parameter_type_t **parameter_types,
 		next_token();
 
 		expect_void(':');
-		type_t *type = parse_type();
 
-		if(parameter_types != NULL) {
-			method_parameter_type_t *param_type
-				= allocate_ast_zero(sizeof(param_type[0]));
-			param_type->type = type;
+		method_parameter_type_t *param_type
+			= allocate_ast_zero(sizeof(param_type[0]));
+		param_type->type = parse_type();
 
-			if(last_type != NULL) {
-				last_type->next = param_type;
-			} else {
-				*parameter_types = param_type;
-			}
-			last_type = param_type;
+		if(last_type != NULL) {
+			last_type->next = param_type;
+		} else {
+			method_type->parameter_types = param_type;
 		}
+		last_type = param_type;
 
 		if(parameters != NULL) {
 			method_parameter_t *method_param
 				= allocate_ast_zero(sizeof(method_param[0]));
 			method_param->symbol = symbol;
-			method_param->type   = type;
+			method_param->type   = param_type->type;
 
 			if(last_param != NULL) {
 				last_param->next = method_param;
@@ -1328,8 +1338,7 @@ namespace_entry_t *parse_method(void)
 
 		eat('(');
 
-		parse_parameter_declaration(&method_type->parameter_types,
-									&method->parameters);
+		parse_parameter_declaration(method_type, &method->parameters);
 
 		method->type = method_type;
 
@@ -1432,11 +1441,6 @@ namespace_entry_t *parse_extern_method(void)
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
-	if(token.type == T_STRING_LITERAL) {
-		method_type->abi_style = token.v.string;
-		next_token();
-	}
-
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing extern declaration",
 		                     T_IDENTIFIER, 0);
@@ -1447,8 +1451,7 @@ namespace_entry_t *parse_extern_method(void)
 	next_token();
 
 	expect('(');
-	parse_parameter_declaration(&method_type->parameter_types,
-	                            &method->parameters);
+	parse_parameter_declaration(method_type, &method->parameters);
 	expect(')');
 
 	if(token.type == ':') {
@@ -1681,8 +1684,7 @@ typeclass_method_t *parse_typeclass_method(void)
 	next_token();
 
 	expect('(');
-	parse_parameter_declaration(&method_type->parameter_types,
-	                            &method->parameters);
+	parse_parameter_declaration(method_type, &method->parameters);
 	expect(')');
 
 	if(token.type == ':') {

@@ -95,7 +95,7 @@ struct method_type_t {
 	type_t                   type;
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
-	const char              *abi_style;
+	int                      variable_arguments;
 };
 
 struct compound_entry_t {

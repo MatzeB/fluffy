@@ -25,6 +25,7 @@ static type_t *type_bool     = NULL;
 static type_t *type_byte     = NULL;
 static type_t *type_int      = NULL;
 static type_t *type_uint     = NULL;
+static type_t *type_double   = NULL;
 static type_t *type_byte_ptr = NULL;
 static type_t *type_void_ptr = NULL;
 
@@ -934,6 +935,76 @@ void check_type_constraints(type_variable_t *type_variables,
 	}
 }
 
+/**
+ * For variable argument functions, the last arguments are promoted as in the
+ * C language: all integer types get INT, all pointers to void*, float becomes
+ * double */
+static
+type_t *get_default_param_type(type_t *type, source_position_t source_position)
+{
+	atomic_type_t *atomic_type;
+
+	switch(type->type) {
+	case TYPE_ATOMIC:
+		atomic_type = (atomic_type_t*) type;
+		switch(atomic_type->atype) {
+		case ATOMIC_TYPE_INVALID:
+			print_error_prefix(source_position);
+			fprintf(stderr, "function argument has invalid type.\n");
+			return type;
+
+		case ATOMIC_TYPE_BOOL:
+		case ATOMIC_TYPE_BYTE:
+		case ATOMIC_TYPE_UBYTE:
+		case ATOMIC_TYPE_INT:
+		case ATOMIC_TYPE_UINT:
+		case ATOMIC_TYPE_SHORT:
+		case ATOMIC_TYPE_USHORT:
+		case ATOMIC_TYPE_LONG:
+		case ATOMIC_TYPE_ULONG:
+		case ATOMIC_TYPE_LONGLONG:
+		case ATOMIC_TYPE_ULONGLONG:
+			return type_int;
+
+		case ATOMIC_TYPE_FLOAT:
+		case ATOMIC_TYPE_DOUBLE:
+			return type_double;
+		}
+		break;
+
+	case TYPE_ARRAY:
+	case TYPE_POINTER:
+		return type_void_ptr;
+
+	case TYPE_METHOD:
+		print_error_prefix(source_position);
+		fprintf(stderr, "method type (");
+		print_type(stderr, type);
+		fprintf(stderr, ") not supported for function parameters.\n");
+		return type;
+
+	case TYPE_COMPOUND_STRUCT:
+	case TYPE_COMPOUND_UNION:
+		print_error_prefix(source_position);
+		fprintf(stderr, "compound type (");
+		print_type(stderr, type);
+		fprintf(stderr, ") not supported for function parameter.\n");
+		return type;		
+
+	case TYPE_REFERENCE:
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+	case TYPE_VOID:
+	case TYPE_INVALID:
+		print_error_prefix(source_position);
+		fprintf(stderr, "function argument has invalid type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+		return type;
+	}
+	print_error_prefix(source_position);
+	panic("invalid type for function argument");
+}
+
 static
 void check_call_expression(call_expression_t *call)
 {
@@ -1016,7 +1087,7 @@ void check_call_expression(call_expression_t *call)
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	int                      i          = 0;
 	while(argument != NULL) {
-		if(param_type == NULL) {
+		if(param_type == NULL && !method_type->variable_arguments) {
 			error_at(call->expression.source_position,
 			         "too much arguments for method call\n");
 			break;
@@ -1025,8 +1096,16 @@ void check_call_expression(call_expression_t *call)
 		argument->expression     = check_expression(argument->expression);
 		expression_t *expression = argument->expression;
 
-		type_t       *wanted_type     = param_type->type;
+		type_t       *wanted_type;
 		type_t       *expression_type = expression->datatype;
+
+		if(param_type != NULL) {
+			wanted_type = param_type->type;
+		} else {
+			wanted_type = get_default_param_type(expression_type,
+			                    argument->expression->source_position);
+		}
+
 
 		/* match type of argument against type variables */
 		if(type_variables != NULL && type_arguments == NULL) {
@@ -1050,7 +1129,8 @@ void check_call_expression(call_expression_t *call)
 		argument->expression = expression;
 
 		argument   = argument->next;
-		param_type = param_type->next;
+		if(param_type != NULL)
+			param_type = param_type->next;
 		++i;
 	}
 	if(param_type != NULL) {
@@ -2084,6 +2164,7 @@ int check_static_semantic(namespace_t *namespace)
 	type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
 	type_int      = make_atomic_type(ATOMIC_TYPE_INT);
 	type_uint     = make_atomic_type(ATOMIC_TYPE_UINT);
+	type_double   = make_atomic_type(ATOMIC_TYPE_DOUBLE);
 	type_void_ptr = make_pointer_type(type_void);
 	type_byte_ptr = make_pointer_type(type_byte);
 

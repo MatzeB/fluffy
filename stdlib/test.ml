@@ -8,3 +8,5 @@ func main():
 	flexarray_append_string(array, "</html>")
 	puts(array.buffer)
 	delete(array)
+
+	printf("Jo: %d\n", 42)

@@ -64,7 +64,8 @@ unsigned hash_method_type(const method_type_t *type)
 		result ^= hash_ptr(parameter->type);
 		parameter = parameter->next;
 	}
-	result ^= hash_ptr(type->abi_style);
+	if(type->variable_arguments)
+		result = ~result;
 
 	return result;
 }
@@ -137,7 +138,7 @@ int method_types_equal(const method_type_t *type1, const method_type_t *type2)
 	if(type1->result_type != type2->result_type)
 		return 0;
 
-	if(type1->abi_style != type2->abi_style)
+	if(type1->variable_arguments != type2->variable_arguments)
 		return 0;
 
 	method_parameter_type_t *param1 = type1->parameter_types;
