@@ -967,7 +967,6 @@ ir_op *binexpr_type_to_op(binary_expression_type_t type)
 	case BINEXPR_SHIFTRIGHT:
 		return op_Shr;
 	default:
-		abort();
 		return NULL;
 	}
 }

@@ -10,6 +10,8 @@ about the right way to do it yet.
 - change lexer to build a decision tree for the operators (so we can write
   <void*> again...)
 - fix handling of bool values in ast2firm (firms mode_b isn't really universal)
+- add possibility to specify default implementations for typeclass functions
+- add static ifs that can examine const expressions and types at compiletime
 
 Tasks suitable for contributors, because they don't affect the general design
 or need only design decision in a very specific part of the compiler and/or
