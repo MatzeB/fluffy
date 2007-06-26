@@ -967,6 +967,7 @@ ir_op *binexpr_type_to_op(binary_expression_type_t type)
 	case BINEXPR_SHIFTRIGHT:
 		return op_Shr;
 	default:
+		abort();
 		return NULL;
 	}
 }
@@ -1035,6 +1036,7 @@ static
 ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
 	ir_node *node      = expression_to_firm(cast->value);
+	assert(node != NULL);
 	ir_mode *mode      = get_ir_mode(cast->expression.datatype);
 	ir_node *conv_node = new_Conv(node, mode);
 

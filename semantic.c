@@ -1153,8 +1153,12 @@ void check_cast_expression(unary_expression_t *cast)
 		panic("Cast expression needs a datatype!");
 	}
 	cast->expression.datatype = normalize_type(cast->expression.datatype);
+	cast->value               = check_expression(cast->value);
 
-	cast->value = check_expression(cast->value);
+	if(cast->value->datatype == type_void) {
+		error_at(cast->expression.source_position,
+		         "can't cast void type to anything\n");
+	}
 }
 
 static

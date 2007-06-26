@@ -59,6 +59,7 @@ hi def link mlangConditional    Conditional
 hi def link mlangConstant       Constant
 hi def link mlangString         String
 hi def link mlangCharacter      Character
+hi def link mlangOperator       Operator
 hi def link mlangEscape         Special
 hi def link mlangComment        Comment
 hi def link mlangTodo           Todo

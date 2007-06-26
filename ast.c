@@ -194,6 +194,9 @@ void print_expression(FILE *out, const expression_t *expression)
 	case EXPR_STRING_CONST:
 		print_string_const(out, (const string_const_t*) expression);
 		break;
+	case EXPR_NULL_POINTER:
+		fprintf(out, "null");
+		break;
 	case EXPR_CALL:
 		print_call_expression(out, (const call_expression_t*) expression);
 		break;

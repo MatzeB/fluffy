@@ -1,5 +1,5 @@
 extern func calloc(nmemb : size_t, size : size_t) : void*
-extern func malloc(size : size_t) : void
+extern func malloc(size : size_t) : void*
 extern func realloc(ptr : void*, size : size_t) : void*
 extern func free(ptr : void*)
 

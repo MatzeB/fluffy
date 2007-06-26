@@ -1806,7 +1806,13 @@ namespace_entry_t *parse_typeclass_instance(void)
 			return NULL;
 		}
 
+		source_position_t source_position = lexer.source_position;
 		typeclass_method_instance_t *method	= parse_typeclass_method_instance();
+		
+		if(method == NULL)
+			continue;
+
+		method->method->namespace_entry.source_position = source_position;
 
 		if(last_method != NULL) {
 			last_method->next = method;
