@@ -3,8 +3,6 @@
 
 #include "ast.h"
 
-typedef struct environment_entry_t  environment_entry_t;
-
 int check_static_semantic(namespace_t *namespace);
 
 typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass);

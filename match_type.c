@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "type_t.h"
+#include "ast_t.h"
 #include "semantic_t.h"
 
 static inline
@@ -44,7 +45,7 @@ void match_variant_to_concrete_type(type_t *variant_type,
 		} else if(current_type != concrete_type) {
 			print_error_prefix(source_position);
 			fprintf(stderr, "ambiguous matches found for type variable '%s': ",
-			        type_var->symbol->string);
+			        type_var->declaration.symbol->string);
 			print_type(stderr, current_type);
 			fprintf(stderr, ", ");
 			print_type(stderr, concrete_type);

@@ -1,4 +1,6 @@
 - Input: utf-8
 - python like indentation to form blocks, but force user to either use spaces or tabs to indent
 
-
+- Only 1 hierarchic namespace (so 1 name specifies alway the same thing,
+  independent of the context; Different things might be defined in the
+  hierarchy)

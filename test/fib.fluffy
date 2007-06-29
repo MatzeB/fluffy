@@ -1,6 +1,5 @@
-extern func get_int() : int
-extern func print_int(someint : int) : void
-extern func atoi(string : byte* ) : int
+func extern atoi(string : byte* ) : int
+func extern printf(string : byte*, ...) : int
 
 func main(argc : int, argv : byte* * ) : int:
 	var number <- 10
@@ -9,7 +8,7 @@ func main(argc : int, argv : byte* * ) : int:
 
 	var result <- fib(number)
 
-	print_int(result)
+	printf("fib(%d) -> %d\n", number, result)
 
 	return 0
 

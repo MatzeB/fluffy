@@ -133,6 +133,10 @@ const TYPE_ARRAY                   <- 7
 const TYPE_REFERENCE               <- 8
 const TYPE_REFERENCE_TYPE_VARIABLE <- 9
 
+const ATOMIC_TYPE_INVALID          <- 0
+const ATOMIC_TYPE_BOOL             <- 1
+const ATOMIC_TYPE_BYTE             <- 2
+
 const T_NEWLINE        <- 256
 const T_INDENT         <- 257
 const T_DEDENT         <- 258

@@ -1,30 +1,19 @@
-extern func void print_int(int bla)
-extern func void* malloc(unsigned int size)
-extern func int puts(byte* string)
-
-/*
-typeclass Alloc<T>:
-	func T* alloc()
-
-instance Alloc int:
-	func int* alloc():
-		return cast<int* > malloc(__sizeof<int>)
-*/
+func extern print_int(bla : int)
+func extern malloc(size : unsigned int) : void*
+func extern puts(string : byte*) : int
 
 typeclass Print<T>:
-	func void print(T object)
+	func print(object : T)
 
 instance Print int:
-	func void print(int object):
+	func print(object : int):
 		print_int(object)
 
 instance Print byte*:
-	func void print(byte* object):
+	func print(object : byte*):
 		puts(object)
 
-func int main():
-	var dbl <- alloc()
-
+func main() : int:
 	print("Eine fünf:")
 	print(5)
 	return 0

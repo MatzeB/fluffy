@@ -1,0 +1,9 @@
+func extern print_int(val : int)
+
+func my_sizeof<T>() : unsigned int:
+	return sizeof<T>
+
+func main() : int:
+	print_int(my_sizeof<$int>())
+	print_int(my_sizeof<$double>())
+	return 0

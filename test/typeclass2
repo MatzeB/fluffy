@@ -1,6 +1,6 @@
-extern func malloc(size : unsigned int) : void*
-extern func print_int(val : int)
-extern func puts(val : byte*)
+func extern malloc(size : unsigned int) : void*
+func extern print_int(val : int)
+func extern puts(val : byte*)
 
 typeclass Ordered<T>:
 	/* TODO use bool as return type... */

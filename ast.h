@@ -4,6 +4,8 @@
 #include <stdio.h>
 
 typedef struct attribute_t              attribute_t;
+typedef struct declaration_t            declaration_t;
+typedef struct context_t                context_t;
 
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;
@@ -24,17 +26,19 @@ typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;
 typedef struct return_statement_t       return_statement_t;
 typedef struct if_statement_t           if_statement_t;
+typedef struct variable_declaration_t   variable_declaration_t;
 typedef struct variable_declaration_statement_t
                                         variable_declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
 typedef struct goto_statement_t         goto_statement_t;
+typedef struct label_declaration_t      label_declaration_t;
 typedef struct label_statement_t        label_statement_t;
 
-typedef enum   namespace_entry_type_t   namespace_entry_type_t;
-typedef struct namespace_entry_t        namespace_entry_t;
 typedef struct namespace_t              namespace_t;
+
 typedef struct method_parameter_t       method_parameter_t;
 typedef struct method_t                 method_t;
+typedef struct method_declaration_t     method_declaration_t;
 typedef struct constant_t               constant_t;
 typedef struct global_variable_t        global_variable_t;
 typedef struct typealias_t              typealias_t;
@@ -47,8 +51,6 @@ typedef struct typeclass_method_t       typeclass_method_t;
 void  init_ast_module(void);
 void  exit_ast_module(void);
 
-void  print_expression(FILE *out, const expression_t *expression);
-void  print_statement(FILE *out, int indent, const statement_t *statement);
 void  print_ast(FILE *out, const namespace_t *namespace);
 void *allocate_ast(size_t size);
 

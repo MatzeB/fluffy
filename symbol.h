@@ -2,15 +2,15 @@
 #define SYMBOL_H
 
 #include "ast.h"
-#include "semantic.h"
 
 typedef struct symbol_t symbol_t;
 
 struct symbol_t {
-	const char          *string;
-	unsigned             ID;
-	environment_entry_t *thing;
-	environment_entry_t *label;
+	const char      *string;
+	unsigned         ID;
+
+	declaration_t   *declaration;
+	const context_t *context;
 };
 
 #endif

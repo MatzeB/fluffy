@@ -34,23 +34,23 @@ struct Rect:
 	w : unsigned short
 	h : unsigned short
 
-extern func SDL_Init(flags : unsigned int) : int
-extern func SDL_Quit() : void
-extern func SDL_GetError() : byte*
+func extern SDL_Init(flags : unsigned int) : int
+func extern SDL_Quit() : void
+func extern SDL_GetError() : byte*
 
-extern func SDL_SetVideoMode(width : int, height : int, bpp : int, flags : int) : Surface*
-extern func SDL_UpperBlit(src : Surface*, srcrect : Rect*, dest : Surface*, destrect : Rect*) : int
-extern func SDL_FillRect(dest : Surface*, destrect : Rect*, color : unsigned int) : int
-extern func IMG_Load(filename : byte*) : Surface*
-extern func SDL_FreeSurface(surface : Surface*)
-extern func SDL_Delay(ms : unsigned int)
-extern func SDL_Flip(screen : Surface*)
+func extern SDL_SetVideoMode(width : int, height : int, bpp : int, flags : int) : Surface*
+func extern SDL_UpperBlit(src : Surface*, srcrect : Rect*, dest : Surface*, destrect : Rect*) : int
+func extern SDL_FillRect(dest : Surface*, destrect : Rect*, color : unsigned int) : int
+func extern IMG_Load(filename : byte*) : Surface*
+func extern SDL_FreeSurface(surface : Surface*)
+func extern SDL_Delay(ms : unsigned int)
+func extern SDL_Flip(screen : Surface*)
 
-extern func malloc(size : unsigned int) : void*
-extern func free(ptr : void*)
+func extern malloc(size : unsigned int) : void*
+func extern free(ptr : void*)
 
-extern func print_int(value : int)
-extern func print_string(string : byte* )
+func extern print_int(value : int)
+func extern print_string(string : byte* )
 
 func main(argc : int, argv : byte * * ) : int:
 	SDL_Init(cast<unsigned int> 0x0000FFFF)

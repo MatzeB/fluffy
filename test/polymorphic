@@ -1,9 +1,0 @@
-extern func print_int(val : int)
-
-func sizeof<T>() : unsigned int:
-	return __sizeof<T>
-
-func main() : int:
-	print_int(sizeof<$int>())
-	print_int(sizeof<$double>())
-	return 0

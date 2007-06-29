@@ -2,6 +2,7 @@
 
 #include "mangle_type.h"
 #include "type_t.h"
+#include "ast_t.h"
 #include "adt/error.h"
 
 static

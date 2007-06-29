@@ -83,14 +83,6 @@ struct type_constraint_t {
 	type_constraint_t *next;
 };
 
-struct type_variable_t {
-	type_constraint_t *constraints;
-	symbol_t          *symbol;
-	type_variable_t   *next;
-
-	type_t            *current_type;
-};
-
 struct method_type_t {
 	type_t                   type;
 	type_t                  *result_type;

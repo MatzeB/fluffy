@@ -20,8 +20,8 @@
 
 //#define DEBUG_TYPEVAR_BINDING
 
-static variable_declaration_statement_t **value_numbers = NULL;
-static label_statement_t                 *labels        = NULL;
+static const variable_declaration_t **value_numbers = NULL;
+static label_declaration_t           *labels        = NULL;
 
 typedef struct instantiate_method_t  instantiate_method_t;
 
@@ -30,6 +30,7 @@ static ir_type *void_ptr_type = NULL;
 
 struct instantiate_method_t {
 	method_t             *method;
+	symbol_t             *symbol;
 	type_argument_t      *type_arguments;
 	ir_entity            *entity;
 };
@@ -443,7 +444,7 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
 
 	if(current_type == NULL) {
 		fprintf(stderr, "Panic: trying to transform unbound type variable "
-		        "'%s'\n", type_variable->symbol->string);
+		        "'%s'\n", type_variable->declaration.symbol->string);
 		abort();
 	}
 	ir_type *ir_type = _get_ir_type(env, current_type);
@@ -519,13 +520,15 @@ ir_mode *get_ir_mode(type_t *type)
 }
 
 static
-instantiate_method_t *queue_method_instantiation(method_t *method)
+instantiate_method_t *queue_method_instantiation(method_t *method,
+                                                 symbol_t *symbol)
 {
 	instantiate_method_t *instantiate
 		= obstack_alloc(&obst, sizeof(instantiate[0]));
 	memset(instantiate, 0, sizeof(instantiate[0]));
 
 	instantiate->method = method;
+	instantiate->symbol = symbol;
 	pdeq_putr(instantiate_methods, instantiate);
 
 	return instantiate;
@@ -560,7 +563,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	type_var = type_parameters;
 	argument = type_arguments;
 	int old_top = typevar_binding_stack_top();
-	int top;
+	int top = ARR_LEN(typevar_binding_stack) + 1;
 	while(type_var != NULL) {
 		type_t *type = argument->type;
 		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
@@ -569,7 +572,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 
 			if(var->current_type == NULL) {
 				fprintf(stderr, "Type variable '%s' not bound\n",
-				        var->symbol->string);
+				        var->declaration.symbol->string);
 				abort();
 			}
 			type = var->current_type;
@@ -628,7 +631,7 @@ static
 ir_entity* get_typeclass_method_instance_entity(
 		typeclass_method_instance_t *method_instance)
 {
-	method_t *method = method_instance->method;
+	method_t *method = & method_instance->method;
 	if(method->entity != NULL)
 		return method->entity;
 
@@ -636,11 +639,12 @@ ir_entity* get_typeclass_method_instance_entity(
 
 	typeclass_method_t *typeclass_method = method_instance->typeclass_method;
 	typeclass_t        *typeclass        = typeclass_method->typeclass;
-	const char         *string           = typeclass->symbol->string;
+	const char         *string           
+		= typeclass->declaration.symbol->string;
 	size_t              len              = strlen(string);
 	obstack_printf(&obst, "_tcv%zu%s", len, string);
 
-	string = typeclass_method->symbol->string;
+	string = typeclass_method->declaration.symbol->string;
 	len    = strlen(string);
 	obstack_printf(&obst, "%zu%s", len, string);
 
@@ -670,7 +674,7 @@ ir_entity* get_typeclass_method_instance_entity(
 }
 
 static
-ir_entity* get_method_entity(method_t *method)
+ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 {
 	if(method->entity != NULL) {
 		return method->entity;
@@ -681,9 +685,9 @@ ir_entity* get_method_entity(method_t *method)
 
 	ident *id;
 	if(!is_polymorphic) {
-		id = new_id_from_str(method->symbol->string);
+		id = new_id_from_str(symbol->string);
 	} else {
-		const char *string = method->symbol->string;
+		const char *string = symbol->string;
 		size_t      len    = strlen(string);
 		obstack_printf(&obst, "_v%zu%s", len, string);
 
@@ -716,10 +720,6 @@ ir_entity* get_method_entity(method_t *method)
 		set_entity_visibility(entity, visibility_external_visible);
 	}
 
-	if(method->is_constructor) {
-		set_method_img_section(entity, section_constructors);
-	}
-
 	if(!is_polymorphic) {
 		method->entity = entity;
 	}
@@ -727,8 +727,7 @@ ir_entity* get_method_entity(method_t *method)
 }
 
 static
-ir_node *load_from_expression_addr(const expression_t *expression,
-                                   ir_node *addr);
+ir_node *load_from_expression_addr(type_t *type, ir_node *addr);
 
 static
 ir_node *expression_to_firm(const expression_t *expression);
@@ -784,10 +783,9 @@ ir_node *null_pointer_to_firm(void)
 }
 
 static
-ir_node *variable_reference_to_firm(const reference_expression_t *ref)
+ir_node *variable_reference_to_firm(const variable_declaration_t *variable)
 {
-	variable_declaration_statement_t *variable = ref->r.variable;
-	ir_mode                          *mode     = get_ir_mode(variable->type);
+	ir_mode *mode = get_ir_mode(variable->type);
 
 	assert(variable->value_number < get_irg_n_locs(current_ir_graph));
 	value_numbers[variable->value_number] = variable;
@@ -828,17 +826,17 @@ ir_node *array_access_expression_addr(const array_access_expression_t* access)
 }
 
 static
-void create_global_variable(global_variable_t *variable)
+void create_global_variable_entity(global_variable_t *variable)
 {
 	if(variable->entity != NULL)
 		return;
 
-	ir_type *global_type = get_glob_type();
-	ident   *ident       = new_id_from_str(variable->symbol->string);
-	type_t  *type        = variable->type;
-	ir_type *irtype      = get_ir_type(type);
+	ir_type *globtype = get_glob_type();
+	ident   *ident    = new_id_from_str(variable->declaration.symbol->string);
+	type_t  *type     = variable->type;
+	ir_type *irtype   = get_ir_type(type);
 
-	ir_entity *entity = new_entity(global_type, ident, irtype);
+	ir_entity *entity = new_entity(globtype, ident, irtype);
 	set_entity_ld_ident(entity, ident);
 	set_entity_variability(entity, variability_uninitialized);
 	if(variable->is_extern) {
@@ -851,26 +849,20 @@ void create_global_variable(global_variable_t *variable)
 }
 
 static
-ir_node *global_variable_reference_addr(const reference_expression_t *ref)
+ir_node *global_variable_addr(global_variable_t *variable)
 {
-	global_variable_t *variable = ref->r.global_variable;
-	create_global_variable(variable);
+	create_global_variable_entity(variable);
 
-	ir_entity *entity = variable->entity;
-	assert(entity != NULL);
-
-	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	ir_node *symconst = new_SymConst((union symconst_symbol) variable->entity,
 	                                 symconst_addr_ent);
-
 	return symconst;
 }
 
 static
-ir_node *global_variable_reference_to_firm(const reference_expression_t *ref)
+ir_node *global_variable_to_firm(global_variable_t *variable)
 {
-	ir_node           *addr     = global_variable_reference_addr(ref);
-	global_variable_t *variable = ref->r.global_variable;
-	type_t            *type     = variable->type;
+	ir_node *addr = global_variable_addr(variable);
+	type_t  *type = variable->type;
 
 	if(type->type == TYPE_COMPOUND_STRUCT 
 			|| type->type == TYPE_COMPOUND_UNION
@@ -878,14 +870,38 @@ ir_node *global_variable_reference_to_firm(const reference_expression_t *ref)
 		return addr;
 	}
 
-	return load_from_expression_addr(&ref->expression, addr);
+	return load_from_expression_addr(type, addr);
 }
 
 static
-ir_node *constant_reference_to_firm(const reference_expression_t *ref)
+ir_node *constant_reference_to_firm(const constant_t *constant)
 {
-	constant_t *constant = ref->r.constant;
 	return expression_to_firm(constant->expression);
+}
+
+static
+ir_node *reference_expression_addr(const reference_expression_t *reference)
+{
+	declaration_t *declaration = reference->declaration;
+
+	switch(declaration->type) {
+	case DECLARATION_GLOBAL_VARIABLE:
+		return global_variable_addr((global_variable_t*) declaration);
+
+	case DECLARATION_INVALID:
+	case DECLARATION_METHOD:
+	case DECLARATION_METHOD_PARAMETER:
+	case DECLARATION_VARIABLE:
+	case DECLARATION_CONSTANT:
+	case DECLARATION_LABEL:
+	case DECLARATION_TYPEALIAS:
+	case DECLARATION_TYPECLASS:
+	case DECLARATION_TYPECLASS_METHOD:
+	case DECLARATION_TYPE_VARIABLE:
+	case DECLARATION_LAST:
+		panic("internal error: trying to create address nodes for non-lvalue");
+	}
+	panic("Unknown declaration found in reference expression");
 }
 
 static
@@ -901,8 +917,8 @@ ir_node *expression_addr(const expression_t *expression)
 	case EXPR_ARRAY_ACCESS:
 		return array_access_expression_addr(
 				(const array_access_expression_t*) expression);
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
-		return global_variable_reference_addr(
+	case EXPR_REFERENCE:
+		return reference_expression_addr(
 				(const reference_expression_t*) expression);
 	case EXPR_UNARY:
 		unexpr = (const unary_expression_t*) expression;
@@ -923,20 +939,26 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	const expression_t *right = assign->right;
 	ir_node            *value = expression_to_firm(right);
 
-	if(left->type == EXPR_REFERENCE_VARIABLE) {
-		const reference_expression_t *ref
+	if(left->type == EXPR_REFERENCE) {
+		const reference_expression_t *ref 
 			= (const reference_expression_t*) left;
-		variable_declaration_statement_t *variable = ref->r.variable;
+		declaration_t *declaration = ref->declaration;
 
-		value_numbers[variable->value_number] = variable;
-		set_value(variable->value_number, value);
-	} else {
-		ir_node *addr       = expression_addr(left);
-		ir_node *store      = get_store();
-		ir_node *store_node = new_Store(store, addr, value);
-		ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
-		set_store(mem);
+		if(declaration->type == DECLARATION_VARIABLE) {
+			variable_declaration_t *variable 
+				= (variable_declaration_t*) declaration;
+
+			value_numbers[variable->value_number] = variable;
+			set_value(variable->value_number, value);
+			return value;
+		}
 	}
+
+	ir_node *addr       = expression_addr(left);
+	ir_node *store      = get_store();
+	ir_node *store_node = new_Store(store, addr, value);
+	ir_node *mem        = new_Proj(store_node, mode_M, pn_Store_M);
+	set_store(mem);
 
 	return value;
 }
@@ -1038,10 +1060,9 @@ ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 }
 
 static
-ir_node *load_from_expression_addr(const expression_t *expression,
-                                   ir_node *addr)
+ir_node *load_from_expression_addr(type_t *type, ir_node *addr)
 {
-	ir_mode *mode  = get_ir_mode(expression->datatype);
+	ir_mode *mode  = get_ir_mode(type);
 	ir_node *store = get_store();
 	ir_node *load  = new_Load(store, addr, mode);
 	ir_node *mem   = new_Proj(load, mode_M, pn_Load_M);
@@ -1061,7 +1082,8 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 		return cast_expression_to_firm(unary_expression);
 	case UNEXPR_DEREFERENCE:
 		addr = expression_addr(&unary_expression->expression);
-		return load_from_expression_addr(&unary_expression->expression, addr);
+		return load_from_expression_addr(unary_expression->expression.datatype,
+		                                 addr);
 	default:
 		abort();
 	}
@@ -1077,17 +1099,17 @@ ir_node *select_expression_to_firm(const select_expression_t *select)
 			|| entry_type->type == TYPE_ARRAY)
 		return addr;
 
-	return load_from_expression_addr(&select->expression, addr);
+	return load_from_expression_addr(select->expression.datatype, addr);
 }
 
 static
-ir_node *method_reference_to_firm(const reference_expression_t *ref)
+ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
+                                  type_argument_t *type_arguments)
 {
-	method_t   *method = ref->r.method;
 	int old_top        = typevar_binding_stack_top();
-	push_type_variable_bindings(method->type_parameters, ref->type_arguments);
+	push_type_variable_bindings(method->type_parameters, type_arguments);
 
-	ir_entity  *entity        = get_method_entity(method);
+	ir_entity  *entity        = get_method_entity(method, symbol);
 	const char *name          = get_entity_name(entity);
 	int        needs_instance = is_polymorphic_method(method);
 
@@ -1101,11 +1123,11 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 	}
 
 	if(needs_instance) {
-		instantiate_method_t *instantiate =
-			queue_method_instantiation(ref->r.method);
-		instantiate->entity         = entity;
+		instantiate_method_t *instantiate 
+			=	queue_method_instantiation(method, symbol);
+		instantiate->entity = entity;
 
-		type_argument_t *type_argument = ref->type_arguments;
+		type_argument_t *type_argument = type_arguments;
 		type_argument_t *last_argument = NULL;
 		while(type_argument != NULL) {
 			type_t          *type         = type_argument->type;
@@ -1134,33 +1156,32 @@ ir_node *method_reference_to_firm(const reference_expression_t *ref)
 	return symconst;
 }
 
+#if 0
 static
 ir_node *typeclass_method_instance_reference_to_firm(
-		const reference_expression_t *ref)
+		typeclass_method_instance_t *method_instance)
 {
-	typeclass_method_instance_t *method_instance 
-		= ref->r.typeclass_method_instance;
-
 	ir_entity *entity   = get_typeclass_method_instance_entity(method_instance);
 	ir_node   *symconst	= new_SymConst((union symconst_symbol) entity,
 	                                   symconst_addr_ent);
 	return symconst;
 }
+#endif
 
 static
-ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
+ir_node *typeclass_method_reference_to_firm(typeclass_method_t *method,
+                                            type_argument_t *type_arguments)
 {
-	typeclass_method_t *method    = ref->r.typeclass_method;
 	typeclass_t        *typeclass = method->typeclass;
 
 	int old_top = typevar_binding_stack_top();
-	push_type_variable_bindings(typeclass->type_parameters,
-	                            ref->type_arguments);
+	push_type_variable_bindings(typeclass->type_parameters, type_arguments);
 
 	typeclass_instance_t *instance = find_typeclass_instance(typeclass);
 	if(instance == NULL) {
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
-		        method->symbol->string, typeclass->symbol->string);
+		        method->declaration.symbol->string,
+		        typeclass->declaration.symbol->string);
 		print_type(stderr, typeclass->type_parameters->current_type);
 		panic("no typeclass instance found in ast2firm phase");
 		return NULL;
@@ -1170,7 +1191,8 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 		= get_method_from_typeclass_instance(instance, method);
 	if(method_instance == NULL) {
 		fprintf(stderr, "panic: no method '%s' in instance of typeclass '%s'\n",
-		        method->symbol->string, typeclass->symbol->string);
+		        method->declaration.symbol->string,
+		        typeclass->declaration.symbol->string);
 		panic("panic");
 		return NULL;
 	}
@@ -1184,12 +1206,12 @@ ir_node *typeclass_method_reference_to_firm(const reference_expression_t *ref)
 }
 
 static
-ir_node *method_parameter_reference_to_firm(const reference_expression_t *ref)
+ir_node *method_parameter_reference_to_firm(method_parameter_t *parameter)
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
-	ir_mode *mode  = get_ir_mode(ref->r.method_parameter->type);
+	ir_mode *mode  = get_ir_mode(parameter->type);
 	ir_node *block = get_irg_start_block(current_ir_graph);
-	long     pn    = ref->r.method_parameter->num;
+	long     pn    = parameter->num;
 	ir_node *proj  = new_r_Proj(current_ir_graph, block, args, mode, pn);
 
 	return proj;
@@ -1280,6 +1302,43 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 }
 
 static
+ir_node *reference_expression_to_firm(const reference_expression_t *reference)
+{
+	method_declaration_t *method_declaration;
+	declaration_t *declaration = reference->declaration;
+
+	switch(declaration->type) {
+	case DECLARATION_METHOD:
+		method_declaration = (method_declaration_t*) declaration;
+		return method_reference_to_firm(&method_declaration->method,
+		                                reference->symbol,
+		                                reference->type_arguments);
+	case DECLARATION_TYPECLASS_METHOD:
+		return typeclass_method_reference_to_firm(
+				(typeclass_method_t*) declaration, reference->type_arguments);
+	case DECLARATION_METHOD_PARAMETER:
+		return method_parameter_reference_to_firm(
+				(method_parameter_t*) declaration);
+	case DECLARATION_CONSTANT:
+		return constant_reference_to_firm((constant_t*) declaration);
+	case DECLARATION_GLOBAL_VARIABLE:
+		return global_variable_to_firm((global_variable_t*) declaration);
+	case DECLARATION_VARIABLE:
+		return variable_reference_to_firm(
+				(variable_declaration_t*) declaration);
+	case DECLARATION_LAST:
+	case DECLARATION_INVALID:
+	case DECLARATION_TYPEALIAS:
+	case DECLARATION_TYPECLASS:
+	case DECLARATION_LABEL:
+	case DECLARATION_TYPE_VARIABLE:
+		panic("internal error: trying to construct node for non-data "
+		      "reference");
+	}
+	panic("unknown declaration type found");
+}
+
+static
 ir_node *expression_to_firm(const expression_t *expression)
 {
 	ir_node *addr;
@@ -1291,26 +1350,8 @@ ir_node *expression_to_firm(const expression_t *expression)
 		return string_const_to_firm((const string_const_t*) expression);
 	case EXPR_NULL_POINTER:
 		return null_pointer_to_firm();
-	case EXPR_REFERENCE_VARIABLE:
-		return variable_reference_to_firm(
-				(const reference_expression_t*) expression);
-	case EXPR_REFERENCE_METHOD:
-		return method_reference_to_firm(
-		        (const reference_expression_t*) expression);
-	case EXPR_REFERENCE_METHOD_PARAMETER:
-		return method_parameter_reference_to_firm(
-				(const reference_expression_t*) expression);
-	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
-		return typeclass_method_instance_reference_to_firm(
-				(const reference_expression_t*) expression);
-	case EXPR_REFERENCE_TYPECLASS_METHOD:
-		return typeclass_method_reference_to_firm(
-				(const reference_expression_t*) expression);
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
-		return global_variable_reference_to_firm(
-				(const reference_expression_t*) expression);
-	case EXPR_REFERENCE_CONSTANT:
-		return constant_reference_to_firm(
+	case EXPR_REFERENCE:
+		return reference_expression_to_firm(
 				(const reference_expression_t*) expression);
 	case EXPR_BINARY:
 		return binary_expression_to_firm(
@@ -1323,14 +1364,12 @@ ir_node *expression_to_firm(const expression_t *expression)
 				(const select_expression_t*) expression);
 	case EXPR_ARRAY_ACCESS:
 		addr = expression_addr(expression);
-		return load_from_expression_addr(expression, addr);
+		return load_from_expression_addr(expression->datatype, addr);
 	case EXPR_CALL:
 		return call_expression_to_firm((const call_expression_t*) expression);
 	case EXPR_SIZEOF:
 		return sizeof_expression_to_firm(
 				(const sizeof_expression_t*) expression);
-	case EXPR_REFERENCE:
-		panic("reference expressions not lowered");
 	case EXPR_LAST:
 	case EXPR_INVALID:
 		break;
@@ -1415,7 +1454,7 @@ void expression_statement_to_firm(const expression_statement_t *statement)
 static
 void block_statement_to_firm(const block_statement_t *block)
 {
-	statement_t *statement = block->first_statement;
+	statement_t *statement = block->statements;
 	while(statement != NULL) {
 		statement_to_firm(statement);
 		statement = statement->next;
@@ -1425,8 +1464,8 @@ void block_statement_to_firm(const block_statement_t *block)
 static
 void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
-	label_statement_t *label = goto_statement->label;
-	ir_node           *block = label->block;
+	label_declaration_t *label = goto_statement->label;
+	ir_node             *block = label->block;
 
 	if(block == NULL) {
 		ir_node *temp = get_cur_block();
@@ -1443,8 +1482,9 @@ void goto_statement_to_firm(goto_statement_t *goto_statement)
 }
 
 static
-void label_statement_to_firm(label_statement_t *label)
+void label_statement_to_firm(label_statement_t *label_statement)
 {
+	label_declaration_t *label = &label_statement->declaration;
 	ir_node *block = label->block;
 
 	if(block == NULL) {
@@ -1501,7 +1541,8 @@ void statement_to_firm(statement_t *statement)
 }
 
 static
-void create_method(method_t *method, type_argument_t *type_arguments)
+void create_method(method_t *method, symbol_t *symbol,
+                   type_argument_t *type_arguments)
 {
 	if(method->is_extern)
 		return;
@@ -1512,7 +1553,7 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 		push_type_variable_bindings(method->type_parameters, type_arguments);
 	}
 	
-	ir_entity *entity = get_method_entity(method);
+	ir_entity *entity = get_method_entity(method, symbol);
 	ir_graph *irg     = new_ir_graph(entity, method->n_local_vars);
 
 	assert(value_numbers == NULL);
@@ -1533,7 +1574,7 @@ void create_method(method_t *method, type_argument_t *type_arguments)
 	mature_immBlock(firstblock);
 	mature_immBlock(end_block);
 
-	label_statement_t *label = labels;
+	label_declaration_t *label = labels;
 	while(label != NULL) {
 		mature_immBlock(label->block);
 		label = label->next;
@@ -1560,11 +1601,11 @@ void create_typeclass_instance(typeclass_instance_t *instance)
 {
 	typeclass_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
-		method_t *method  = method_instance->method;
+		method_t *method = & method_instance->method;
 		/* make sure the method entity is set */
 		get_typeclass_method_instance_entity(method_instance);
 		/* we can emit it like a normal method */
-		create_method(method, NULL);
+		create_method(method, method_instance->symbol, NULL);
 
 		method_instance  = method_instance->next;
 	}
@@ -1575,39 +1616,51 @@ void create_typeclass_instance(typeclass_instance_t *instance)
  */
 void ast2firm(namespace_t *namespace)
 {
-	method_t *method;
+	method_declaration_t *method_declaration;
+	method_t             *method;
+
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
 	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
 	instantiate_methods   = new_pdeq();
 
 	/* scan compilation unit for functions */
-	namespace_entry_t *entry = namespace->entries;
-	while(entry != NULL) {
-		switch(entry->type) {
-		case NAMESPACE_ENTRY_METHOD:
-			method = (method_t*) entry;
+	declaration_t *declaration = namespace->context.declarations;
+	while(declaration != NULL) {
+		switch(declaration->type) {
+		case DECLARATION_METHOD:
+			method_declaration = (method_declaration_t*) declaration;
+			method             = &method_declaration->method;
 
 			if(!is_polymorphic_method(method)) {
-				create_method(method, NULL);
+				create_method(method, method_declaration->declaration.symbol,
+				              NULL);
 			}
 			break;
-		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			create_typeclass_instance((typeclass_instance_t*) entry);
+		case DECLARATION_GLOBAL_VARIABLE:
+			create_global_variable_entity((global_variable_t*) declaration);
 			break;
-		case NAMESPACE_ENTRY_VARIABLE:
-			create_global_variable((global_variable_t*) entry);
+		case DECLARATION_VARIABLE:
+		case DECLARATION_TYPEALIAS:
+		case DECLARATION_TYPECLASS:
+		case DECLARATION_CONSTANT:
+		case DECLARATION_LABEL:
+		case DECLARATION_METHOD_PARAMETER:
+		case DECLARATION_TYPECLASS_METHOD:
+		case DECLARATION_TYPE_VARIABLE:
 			break;
-		case NAMESPACE_ENTRY_TYPEALIAS:
-		case NAMESPACE_ENTRY_TYPECLASS:
-		case NAMESPACE_ENTRY_CONSTANT:
-			break;
-		case NAMESPACE_ENTRY_LAST:
-		case NAMESPACE_ENTRY_INVALID:
+		case DECLARATION_LAST:
+		case DECLARATION_INVALID:
 			panic("Invalid namespace entry type found");
 		}
 
-		entry = entry->next;
+		declaration = declaration->next;
+	}
+
+	typeclass_instance_t *instance = namespace->context.typeclass_instances;
+	while(instance != NULL) {
+		create_typeclass_instance(instance);
+		instance = instance->next;
 	}
 
 	while(!pdeq_empty(instantiate_methods)) {
@@ -1615,6 +1668,7 @@ void ast2firm(namespace_t *namespace)
 			= pdeq_getl(instantiate_methods);
 
 		create_method(instantiate_method->method,
+		              instantiate_method->symbol,
 		              instantiate_method->type_arguments);
 	}
 

@@ -12,13 +12,18 @@
 
 //#define DEBUG_TYPEVAR_BINDINGS
 
+typedef struct environment_entry_t environment_entry_t;
+struct environment_entry_t {
+	symbol_t      *symbol;
+	declaration_t *up;
+	const void    *up_context;
+};
+
 static lower_statement_function  *statement_lowerers  = NULL;
 static lower_expression_function *expression_lowerers = NULL;
 
 static struct obstack        symbol_environment_obstack;
 static environment_entry_t **symbol_stack;
-static struct obstack        label_obstack;
-static symbol_t            **label_stack;
 static int                   found_errors;
 
 static type_t *type_bool     = NULL;
@@ -31,63 +36,6 @@ static type_t *type_void_ptr = NULL;
 
 static method_t *current_method            = NULL;
 int              last_statement_was_return = 0;
-
-typedef enum environment_entry_type_t environment_entry_type_t;
-
-enum environment_entry_type_t {
-	ENTRY_INVALID,
-	ENTRY_LOCAL_VARIABLE,
-	ENTRY_GLOBAL_VARIABLE,
-	ENTRY_CONSTANT,
-	ENTRY_METHOD_PARAMETER,
-	ENTRY_METHOD,
-	ENTRY_TYPECLASS,
-	ENTRY_TYPEALIAS,
-	ENTRY_TYPE_VARIABLE,
-	ENTRY_EXTERN_METHOD,
-	ENTRY_GOTO,
-	ENTRY_LABEL,
-	ENTRY_TYPECLASS_METHOD
-};
-
-struct environment_entry_t {
-	environment_entry_type_t  type;
-	symbol_t                 *symbol;
-	environment_entry_t      *up;
-	union {
-		method_t                         *method;
-		global_variable_t                *global_variable;
-		constant_t                       *constant;
-		method_parameter_t               *method_parameter;
-		type_t                           *stored_type;
-		type_variable_t                  *type_variable;
-		variable_declaration_statement_t *variable;
-		goto_statement_t                 *goto_statement;
-		label_statement_t                *label;
-		typeclass_t                      *typeclass;
-		typeclass_method_t               *typeclass_method;
-	} e;
-};
-
-const char *get_entry_type_name(environment_entry_type_t type)
-{
-	switch(type) {
-	case ENTRY_INVALID:          return "invalid reference";
-	case ENTRY_LOCAL_VARIABLE:   return "local variable";
-	case ENTRY_GLOBAL_VARIABLE:  return "global variable";
-	case ENTRY_CONSTANT:         return "constant";
-	case ENTRY_METHOD_PARAMETER: return "method parameter";
-	case ENTRY_METHOD:           return "method";
-	case ENTRY_TYPECLASS:        return "typeclass";
-	case ENTRY_TYPEALIAS:        return "type alias";
-	case ENTRY_TYPE_VARIABLE:    return "type variable";
-	case ENTRY_EXTERN_METHOD:    return "extern method";
-	case ENTRY_GOTO:             return "goto";
-	case ENTRY_LABEL:            return "label";
-	case ENTRY_TYPECLASS_METHOD: return "typeclass method";
-	}
-	panic("invalid environment entry found");
-}
 
 void print_error_prefix(const source_position_t position)
 {
@@ -112,7 +60,7 @@ void error_at(const source_position_t position,
  * corresponding symbol to the new entry
  */
 static inline
-environment_entry_t *environment_push(symbol_t *symbol)
+void environment_push(declaration_t *declaration, const void *context)
 {
 	environment_entry_t *entry 
 		= obstack_alloc(&symbol_environment_obstack, sizeof(entry[0]));
@@ -122,11 +70,24 @@ environment_entry_t *environment_push(symbol_t *symbol)
 	ARR_RESIZE(symbol_stack, top + 1);
 	symbol_stack[top] = entry;
 
-	entry->up     = symbol->thing;
-	entry->symbol = symbol;
-	symbol->thing = entry;
+	symbol_t *symbol = declaration->symbol;
 
-	return entry;
+	assert(declaration != symbol->declaration);
+
+	if(symbol->context == context) {
+		assert(symbol->declaration != NULL);
+		print_error_prefix(declaration->source_position);
+		fprintf(stderr, "multiple definitions for symbol '%s'.\n",
+		        symbol->string);
+		print_error_prefix(symbol->declaration->source_position);
+		fprintf(stderr, "this is the location of the previous declaration.\n");
+	}
+
+	entry->up           = symbol->declaration;
+	entry->up_context   = symbol->context;
+	entry->symbol       = symbol;
+	symbol->declaration = declaration;
+	symbol->context     = context;
 }
 
 /**
@@ -145,19 +106,23 @@ void environment_pop_to(size_t new_top)
 	assert(new_top < top);
 	i = top;
 	do {
-		          entry  = symbol_stack[i - 1];
-		symbol_t *symbol = entry->symbol;
+		entry  = symbol_stack[i - 1];
 
-		if(entry->type == ENTRY_LOCAL_VARIABLE
-				&& entry->e.variable->refs == 0) {
-			variable_declaration_statement_t *variable = entry->e.variable;
-			print_warning_prefix(variable->statement.source_position);
-			fprintf(stderr, "variable '%s' was declared but never read\n",
-			        symbol->string);
+		symbol_t      *symbol      = entry->symbol;
+		declaration_t *declaration = symbol->declaration;
+
+		if(declaration->type == DECLARATION_VARIABLE) {
+			variable_declaration_t *variable 
+				= (variable_declaration_t*) declaration;
+			if(variable->refs == 0) {
+				print_warning_prefix(declaration->source_position);
+				fprintf(stderr, "variable '%s' was declared but never read\n",
+				        symbol->string);
+			}
 		}
 
-		assert(symbol->thing == entry);
-		symbol->thing = entry->up;
+		symbol->declaration = entry->up;
+		symbol->context     = entry->up_context;
 
 		--i;
 	} while(i != new_top);
@@ -213,16 +178,17 @@ type_t *normalize_type(type_t *type);
 static
 type_t *resolve_type_reference(type_reference_t *type_ref)
 {
-	symbol_t            *symbol = type_ref->symbol;
-	environment_entry_t *entry  = symbol->thing;
-	if(entry == NULL) {
+	symbol_t            *symbol      = type_ref->symbol;
+	declaration_t       *declaration = symbol->declaration;
+	if(declaration == NULL) {
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "can't resolve type: symbol '%s' is unknown\n",
 		        symbol->string);
 		return NULL;
 	}
-	if(entry->type == ENTRY_TYPE_VARIABLE) {
-		type_variable_t *type_variable = entry->e.type_variable;
+
+	if(declaration->type == DECLARATION_TYPE_VARIABLE) {
+		type_variable_t *type_variable = (type_variable_t*) declaration;
 
 		if(type_variable->current_type != NULL) {
 			/* not sure if this is really a problem... */
@@ -231,20 +197,21 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 			return type_variable->current_type;
 		}
 		type_ref->type.type       = TYPE_REFERENCE_TYPE_VARIABLE;
-		type_ref->r.type_variable = entry->e.type_variable;
+		type_ref->r.type_variable = type_variable;
 		return typehash_insert((type_t*) type_ref);
-	}	
+	}
 
-	if(entry->type != ENTRY_TYPEALIAS) {
+	if(declaration->type != DECLARATION_TYPEALIAS) {
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
-		        symbol->string, get_entry_type_name(entry->type));
+		        symbol->string, get_declaration_type_name(declaration->type));
 		return NULL;
 	}
 
-	entry->e.stored_type = normalize_type(entry->e.stored_type);
+	typealias_t *typealias = (typealias_t*) declaration;
+	typealias->type        = normalize_type(typealias->type);
 
-	return entry->e.stored_type;
+	return typealias->type;
 }
 
 static
@@ -345,7 +312,7 @@ type_t *normalize_type(type_t *type)
 
 
 static
-void check_local_variable_type(variable_declaration_statement_t *declaration,
+void check_local_variable_type(variable_declaration_t *declaration,
                                type_t *type)
 {
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
@@ -355,98 +322,36 @@ void check_local_variable_type(variable_declaration_statement_t *declaration,
 			/* TODO: we need to be able to handle all types in local vars... */
 			type_reference_t *ref           = (type_reference_t*) type;
 			type_variable_t  *type_variable = ref->r.type_variable;
-			print_warning_prefix(declaration->statement.source_position);
+			print_warning_prefix(declaration->declaration.source_position);
 			fprintf(stderr, "can't decide whether type variable '%s' is atomic "
-			        "or pointer.\n", type_variable->symbol->string);
+			        "or pointer.\n", type_variable->declaration.symbol->string);
 			return;
 		}
-		print_error_prefix(declaration->statement.source_position);
+		print_error_prefix(declaration->declaration.source_position);
 		fprintf(stderr, "only atomic or pointer types allowed for local "
-		        "variables (at variable '%s')\n", declaration->symbol->string);
+		        "variables (at variable '%s')\n",
+		        declaration->declaration.symbol->string);
 	}
 }
 
 static
 void check_reference_expression(reference_expression_t *ref)
 {
-	variable_declaration_statement_t *variable;
-	method_t                         *method;
-	method_parameter_t               *method_parameter;
-	global_variable_t                *global_variable;
-	constant_t                       *constant;
-	typeclass_method_t               *typeclass_method;
-	symbol_t                         *symbol = ref->symbol;
-	environment_entry_t              *entry  = symbol->thing;
+	variable_declaration_t *variable;
+	method_declaration_t   *method;
+	method_parameter_t     *method_parameter;
+	global_variable_t      *global_variable;
+	constant_t             *constant;
+	typeclass_method_t     *typeclass_method;
+	symbol_t               *symbol      = ref->symbol;
+	declaration_t          *declaration = symbol->declaration;
 
-	if(entry == NULL) {
+	if(declaration == NULL) {
 		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
 		return;
 	}
-
-	/* resolve reference */
-	switch(entry->type) {
-	case ENTRY_LOCAL_VARIABLE:
-		variable                 = entry->e.variable;
-		ref->r.variable          = variable;
-		ref->expression.type     = EXPR_REFERENCE_VARIABLE;
-		ref->expression.datatype = variable->type;
-		variable->refs++;
-		break;
-	case ENTRY_METHOD:
-		method                   = entry->e.method;
-		ref->r.method            = method;
-		ref->expression.type     = EXPR_REFERENCE_METHOD;
-		ref->expression.datatype = make_pointer_type((type_t*) method->type);
-		break;
-	case ENTRY_GLOBAL_VARIABLE:
-		global_variable          = entry->e.global_variable;
-		ref->r.global_variable   = global_variable;
-		ref->expression.type     = EXPR_REFERENCE_GLOBAL_VARIABLE;
-		ref->expression.datatype = global_variable->type;
-		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
-				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
-				|| ref->expression.datatype->type == TYPE_ARRAY) {
-			ref->expression.datatype = make_pointer_type(
-					ref->expression.datatype);
-		}
-		break;
-	case ENTRY_CONSTANT:
-		constant                 = entry->e.constant;
-		ref->r.constant          = constant;
-		ref->expression.type     = EXPR_REFERENCE_CONSTANT;
-		if(constant->type == NULL) {
-			constant->expression = check_expression(constant->expression);
-			constant->type       = constant->expression->datatype;
-		}
-		ref->expression.datatype = constant->type;
-		break;
-	case ENTRY_METHOD_PARAMETER:
-		method_parameter         = entry->e.method_parameter;
-		ref->r.method_parameter  = method_parameter;
-		ref->expression.type     = EXPR_REFERENCE_METHOD_PARAMETER;
-		ref->expression.datatype = method_parameter->type;
-		break;
-	case ENTRY_TYPECLASS_METHOD:
-		typeclass_method         = entry->e.typeclass_method;
-		ref->r.typeclass_method  = typeclass_method;
-		ref->expression.type     = EXPR_REFERENCE_TYPECLASS_METHOD;
-		ref->expression.datatype = make_pointer_type((type_t*) typeclass_method->method_type);
-		break;
-	case ENTRY_GOTO:
-	case ENTRY_LABEL:
-	case ENTRY_TYPEALIAS:
-	case ENTRY_TYPECLASS:
-	case ENTRY_TYPE_VARIABLE:
-	case ENTRY_EXTERN_METHOD:
-		print_error_prefix(ref->expression.source_position);
-		fprintf(stderr, "'%s' is a '%s' and can't be used as expression\n",
-		        ref->symbol->string, get_entry_type_name(entry->type));
-		break;
-	case ENTRY_INVALID:
-		panic("Unknown reference type encountered");
-		break;
-	}
+	ref->declaration = declaration;
 
 	/* normalize type arguments */
 	type_argument_t *type_argument = ref->type_arguments;
@@ -455,17 +360,81 @@ void check_reference_expression(reference_expression_t *ref)
 
 		type_argument = type_argument->next;
 	}
+
+	switch(declaration->type) {
+	case DECLARATION_VARIABLE:
+		variable = (variable_declaration_t*) declaration;
+		variable->refs++;
+		ref->expression.datatype = variable->type;
+		return;
+	case DECLARATION_METHOD:
+		method                   = (method_declaration_t*) declaration;
+		ref->expression.datatype 
+			= make_pointer_type((type_t*) method->method.type);
+		return;
+	case DECLARATION_GLOBAL_VARIABLE:
+		global_variable          = (global_variable_t*) declaration;
+		ref->expression.datatype = global_variable->type;
+		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
+				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
+				|| ref->expression.datatype->type == TYPE_ARRAY) {
+			ref->expression.datatype = make_pointer_type(
+					ref->expression.datatype);
+		}
+		return;
+	case DECLARATION_CONSTANT:
+		constant                 = (constant_t*) declaration;
+		/* do type inference for the constant if needed */
+		if(constant->type == NULL) {
+			constant->expression = check_expression(constant->expression);
+			constant->type       = constant->expression->datatype;
+		}
+		ref->expression.datatype = constant->type;
+		return;
+	case DECLARATION_METHOD_PARAMETER:
+		method_parameter         = (method_parameter_t*) declaration;
+		ref->expression.datatype = method_parameter->type;
+		assert(ref->expression.datatype != NULL);
+		return;
+	case DECLARATION_TYPECLASS_METHOD:
+		typeclass_method         = (typeclass_method_t*) declaration;
+		ref->expression.datatype 
+			= make_pointer_type((type_t*) typeclass_method->method_type);
+		return;
+	case DECLARATION_LABEL:
+	case DECLARATION_TYPEALIAS:
+	case DECLARATION_TYPECLASS:
+	case DECLARATION_TYPE_VARIABLE:
+		print_error_prefix(ref->expression.source_position);
+		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
+		        declaration->symbol->string,
+		        get_declaration_type_name(declaration->type));
+		return;
+	case DECLARATION_LAST:
+	case DECLARATION_INVALID:
+		panic("reference to invalid declaration type encountered");
+		return;
+	}
+	panic("reference to unknown declaration type encountered");
 }
 
 static
 int is_lvalue(const expression_t *expression)
 {
-	unary_expression_t  *unexpr;
-	select_expression_t *select;
+	unary_expression_t     *unexpr;
+	select_expression_t    *select;
+	reference_expression_t *reference;
+	declaration_t          *declaration;
 
 	switch(expression->type) {
-	case EXPR_REFERENCE_VARIABLE:
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
+	case EXPR_REFERENCE:
+		reference = (reference_expression_t*) expression;
+		declaration = reference->declaration;
+		if(declaration->type == DECLARATION_VARIABLE ||
+		   declaration->type == DECLARATION_GLOBAL_VARIABLE) {
+			return 1;
+		}
+		break;
 	case EXPR_ARRAY_ACCESS:
 		return 1;
 	case EXPR_SELECT:
@@ -498,32 +467,34 @@ void check_assign_expression(binary_expression_t *assign)
 		         "left side of assign is not an lvalue.\n");
 		return;
 	}
-	if(left->type == EXPR_REFERENCE_VARIABLE) {
-		reference_expression_t *ref = (reference_expression_t*) left;
-		variable_declaration_statement_t *variable = ref->r.variable;
-		symbol_t                         *symbol   = variable->symbol;
+	if(left->type == EXPR_REFERENCE) {
+		reference_expression_t *reference   = (reference_expression_t*) left;
+		declaration_t          *declaration = reference->declaration;
 
-		/* do type inferencing if needed */
-		if(left->datatype == NULL) {
-			if(right->datatype == NULL) {
-				print_error_prefix(assign->expression.source_position);
-				fprintf(stderr, "can't infer type for '%s'\n", symbol->string);
-				return;
+		if(declaration->type == DECLARATION_VARIABLE) {
+			variable_declaration_t *variable 
+				= (variable_declaration_t*) declaration;
+			symbol_t *symbol = variable->symbol;
+
+			/* do type inference if needed */
+			if(left->datatype == NULL) {
+				if(right->datatype == NULL) {
+					print_error_prefix(assign->expression.source_position);
+					fprintf(stderr, "can't infer type for '%s'\n",
+					        symbol->string);
+					return;
+				}
+
+				variable->type = right->datatype;
+				left->datatype = right->datatype;
 			}
 
-			variable->type = right->datatype;
-			left->datatype = right->datatype;
-#if 0
-			fprintf(stderr, "Type inference for '%s': ", symbol->string);
-			print_type(stderr, right->datatype);
-			fputs("\n", stderr);
-#endif
-
 			check_local_variable_type(variable, right->datatype);
-		}
 
-		/* making an assignment is not reading the value */
-		variable->refs--;
+			/* the reference expression increased the ref pointer, but
+			 * making an assignment is not reading the value */
+			variable->refs--;
+		}
 	}
 }
 
@@ -752,7 +723,7 @@ typeclass_instance_t *_find_typeclass_instance(typeclass_t *typeclass,
 			parameter = parameter->next;
 		}
 		if(match == 1 && (argument != NULL || parameter != NULL)) {
-			print_error_prefix(instance->namespace_entry.source_position);
+			print_error_prefix(instance->source_position);
 			panic("type argument count of typeclass instance doesn't match "
 			      "type parameter count of typeclass");
 		}
@@ -802,11 +773,12 @@ typeclass_method_instance_t *get_method_from_typeclass_instance(
 }
 
 static
-void resolve_typeclass_method_instance(reference_expression_t *ref)
+void resolve_typeclass_method_instance(reference_expression_t *reference)
 {
-	assert(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD);
+	declaration_t *declaration = reference->declaration;
+	assert(declaration->type == DECLARATION_TYPECLASS_METHOD);
 
-	typeclass_method_t *typeclass_method = ref->r.typeclass_method;
+	typeclass_method_t *typeclass_method = (typeclass_method_t*) declaration;
 	typeclass_t        *typeclass        = typeclass_method->typeclass;
 
 	/* test whether 1 of the type variables points to another type variable.
@@ -825,12 +797,12 @@ void resolve_typeclass_method_instance(reference_expression_t *ref)
 			type_variable_t  *type_variable = type_ref->r.type_variable;
 
 			if(!type_variable_has_constraint(type_variable, typeclass)) {
-				print_error_prefix(ref->expression.source_position);
+				print_error_prefix(reference->expression.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
 				        "typeclass '%s' when using method '%s'.\n",
-				        type_variable->symbol->string,
-				        typeclass->symbol->string,
-				        typeclass_method->symbol->string);
+				        type_variable->declaration.symbol->string,
+				        typeclass->declaration.symbol->string,
+				        typeclass_method->declaration.symbol->string);
 				return;
 			}
 			cant_resolve = 1;
@@ -844,12 +816,12 @@ void resolve_typeclass_method_instance(reference_expression_t *ref)
 	}
 
 	/* we assume that all typevars have current_type set */
-	const source_position_t *pos = &ref->expression.source_position;
+	const source_position_t *pos   = &reference->expression.source_position;
 	typeclass_instance_t *instance = _find_typeclass_instance(typeclass, pos);
 	if(instance == NULL) {
-		print_error_prefix(ref->expression.source_position);
-		fprintf(stderr, "there's no instance of typeclass '%s' for ",
-		        typeclass->symbol->string);
+		print_error_prefix(reference->expression.source_position);
+		fprintf(stderr, "there's no instance of typeclass '%s' for type ",
+		        typeclass->declaration.symbol->string);
 		type_variable_t *typevar = typeclass->type_parameters;
 		while(typevar != NULL) {
 			if(typevar->current_type != NULL) {
@@ -865,23 +837,21 @@ void resolve_typeclass_method_instance(reference_expression_t *ref)
 	typeclass_method_instance_t *method_instance 
 		= get_method_from_typeclass_instance(instance, typeclass_method);
 	if(method_instance == NULL) {
-		print_error_prefix(ref->expression.source_position);
+		print_error_prefix(reference->expression.source_position);
 		fprintf(stderr, "no instance of method '%s' found in typeclass "
-		        "instance?\n", typeclass_method->symbol->string);
+		        "instance?\n", typeclass_method->declaration.symbol->string);
 		panic("panic");
 	}
 
-	type_t *type         = (type_t*) method_instance->method->type;
+	type_t *type         = (type_t*) method_instance->method.type;
 	type_t *pointer_type = make_pointer_type(type);
 
-	ref->expression.type             = EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE;
-	ref->expression.datatype         = pointer_type;
-	ref->r.typeclass_method_instance = method_instance;
+	reference->expression.datatype = pointer_type;
+	reference->declaration         = (declaration_t*) &method_instance->method;
 }
 
 static
 void check_type_constraints(type_variable_t *type_variables,
-                            const method_t *method_context,
                             const source_position_t source_position)
 {
 	type_variable_t *type_var     = type_variables;
@@ -902,8 +872,8 @@ void check_type_constraints(type_variable_t *type_variables,
 				if(!type_variable_has_constraint(type_var, typeclass)) {
 					print_error_prefix(source_position);
 					fprintf(stderr, "type variable '%s' needs constraint "
-					        "'%s'\n", type_var->symbol->string,
-					        typeclass->symbol->string);
+					        "'%s'\n", type_var->declaration.symbol->string,
+					        typeclass->declaration.symbol->string);
 				}
 				continue;
 			}
@@ -917,14 +887,13 @@ void check_type_constraints(type_variable_t *type_variables,
 			if(instance == NULL) {
 				print_error_prefix(source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of "
-				        "method '%s' doesn't match type constraints:\n",
-				        type_var->symbol->string,
-				        method_context->symbol->string);
+				        "method doesn't match type constraints:\n",
+				        type_var->declaration.symbol->string);
 				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
 				print_type(stderr, type_var->current_type);
 				fprintf(stderr, " is no instance of typeclass '%s'\n",
-				        typeclass->symbol->string);
+				        typeclass->declaration.symbol->string);
 			}
 
 			/* reset typevar binding */
@@ -1039,19 +1008,25 @@ void check_call_expression(call_expression_t *call)
 	 * of typeclass methods or polymorphic methods
 	 */
 	type_variable_t *type_variables = NULL;
-	if(method->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
-		reference_expression_t *ref 
+	if(method->type == EXPR_REFERENCE) {
+		reference_expression_t *reference
 			= (reference_expression_t*) method;
-		typeclass_method_t     *typeclass_method = ref->r.typeclass_method;
-		typeclass_t            *typeclass        = typeclass_method->typeclass;
+		declaration_t *declaration = reference->declaration;
+
+		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
+			typeclass_method_t *typeclass_method 
+				= (typeclass_method_t*) declaration;
+			typeclass_t        *typeclass        = typeclass_method->typeclass;
 		
-		type_variables = typeclass->type_parameters;
-		type_arguments = ref->type_arguments;
-	} else if(method->type == EXPR_REFERENCE_METHOD) {
-		reference_expression_t *ref	= (reference_expression_t*) method;
-		method_t *referenced_method = ref->r.method;
-		type_variables              = referenced_method->type_parameters;
-		type_arguments              = ref->type_arguments;
+			type_variables = typeclass->type_parameters;
+			type_arguments = reference->type_arguments;
+		} else if(method->type == DECLARATION_METHOD) {
+			method_declaration_t *method_declaration
+				= (method_declaration_t*) declaration;
+
+			type_variables = method_declaration->method.type_parameters;
+			type_arguments = reference->type_arguments;
+		}
 	}
 
 	/* clear typevariable configuration */
@@ -1146,11 +1121,11 @@ void check_call_expression(call_expression_t *call)
 			print_error_prefix(call->expression.source_position);
 			fprintf(stderr, "Couldn't determine concrete type for type "
 					"variable '%s' in call expression\n",
-			        type_var->symbol->string);
+			        type_var->declaration.symbol->string);
 		}
 #ifdef DEBUG_TYPEVAR_BINDING
-		fprintf(stderr, "TypeVar '%s'(%p) bound to ", type_var->symbol->string,
-				type_var->symbol);
+		fprintf(stderr, "TypeVar '%s'(%p) bound to ",
+		        type_var->declaration.symbol->string, type_var);
 		print_type(stderr, type_var->current_type);
 		fprintf(stderr, "\n");
 #endif
@@ -1163,24 +1138,29 @@ void check_call_expression(call_expression_t *call)
 	if(type_variables != NULL) {
 		int set_type_arguments = 1;
 		reference_expression_t *ref = (reference_expression_t*) method;
+		declaration_t          *declaration = ref->declaration;
 		type_variable_t        *type_parameters;
 		result_type                 = create_concrete_type(result_type);
 
-		if(method->type == EXPR_REFERENCE_TYPECLASS_METHOD) {
+		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
 			/* we might be able to resolve the typeclass_method_instance now */
 			resolve_typeclass_method_instance(ref);
-			if(ref->expression.type == EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE)
+			if(ref->declaration->type == DECLARATION_METHOD)
 				set_type_arguments = 0;
 
-			typeclass_t *typeclass = ref->r.typeclass_method->typeclass;
+			typeclass_method_t *typeclass_method
+				= (typeclass_method_t*) declaration;
+			typeclass_t *typeclass = typeclass_method->typeclass;
 			type_parameters        = typeclass->type_parameters;
 		} else {
 			/* check type constraints */
-			assert(method->type == EXPR_REFERENCE_METHOD);
-			check_type_constraints(type_variables, ref->r.method,
+			assert(declaration->type == DECLARATION_METHOD);
+			check_type_constraints(type_variables,
 			                       call->expression.source_position);
 
-			type_parameters = ref->r.method->type_parameters;
+			method_declaration_t *method_declaration
+				= (method_declaration_t*) declaration;
+			type_parameters = method_declaration->method.type_parameters;
 		}
 
 		/* set type arguments on the reference expression */
@@ -1215,8 +1195,8 @@ void check_call_expression(call_expression_t *call)
 			type_var->current_type = NULL;
 
 #ifdef DEBUG_TYPEVAR_BINDINGS
-			fprintf(stderr, "Unbind %s(%p)\n", type_var->symbol->string,
-					type_var->symbol);
+			fprintf(stderr, "Unbind %s(%p)\n",
+			        type_var->declaration.symbol->string, type_var);
 #endif
 
 			type_var = type_var->next;
@@ -1444,14 +1424,6 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_ARRAY_ACCESS:
 		check_array_access_expression((array_access_expression_t*) expression);
 		break;
-	case EXPR_REFERENCE_VARIABLE:
-	case EXPR_REFERENCE_GLOBAL_VARIABLE:
-	case EXPR_REFERENCE_CONSTANT:
-	case EXPR_REFERENCE_METHOD:
-	case EXPR_REFERENCE_METHOD_PARAMETER:
-	case EXPR_REFERENCE_TYPECLASS_METHOD:
-	case EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE:
-		break;
 	case EXPR_LAST:
 	case EXPR_INVALID:
 		panic("Invalid expression encountered");
@@ -1519,11 +1491,24 @@ void check_if_statement(if_statement_t *statement)
 }
 
 static
+void push_context(const context_t *context)
+{
+	declaration_t *declaration = context->declarations;
+	while(declaration != NULL) {
+		environment_push(declaration, context);
+
+		declaration = declaration->next;
+	}
+}
+
+static
 void check_block_statement(block_statement_t *block)
 {
 	int old_top = environment_top();
 
-	statement_t *statement = block->first_statement;
+	push_context(& block->context);
+
+	statement_t *statement = block->statements;
 	statement_t *last      = NULL;
 	while(statement != NULL) {
 		statement_t *next = statement->next;
@@ -1533,9 +1518,9 @@ void check_block_statement(block_statement_t *block)
 		statement->next = next;
 
 		if(last != NULL) {
-			last->next             = statement;
+			last->next        = statement;
 		} else {
-			block->first_statement = statement;
+			block->statements = statement;
 		}
 
 		last      = statement;
@@ -1551,19 +1536,22 @@ void check_variable_declaration(variable_declaration_statement_t *statement)
 	method_t *method = current_method;
 	assert(method != NULL);
 
-	statement->value_number = method->n_local_vars;
+	statement->declaration.value_number = method->n_local_vars;
 	method->n_local_vars++;
 
-	statement->refs         = 0;
-	if(statement->type != NULL) {
-		statement->type = normalize_type(statement->type);
-		check_local_variable_type(statement, statement->type);
-	}
+	/* TODO: try to catch cases where a variable is used before it is defined
+	 * (Note: Adding the variable just here to the environment is not a good
+	 *  idea the case were a variable is used earlier indicates an error
+	 *  typically)
+	 */
 
-	/* push the variable declaration on the environment stack */
-	environment_entry_t *entry = environment_push(statement->symbol);
-	entry->type                = ENTRY_LOCAL_VARIABLE;
-	entry->e.variable          = statement;
+	statement->declaration.refs = 0;
+	if(statement->declaration.type != NULL) {
+		statement->declaration.type 
+			= normalize_type(statement->declaration.type);
+		check_local_variable_type(&statement->declaration,
+		                          statement->declaration.type);
+	}
 }
 
 static
@@ -1587,6 +1575,14 @@ void check_expression_statement(expression_statement_t *statement)
 	if(expression->datatype != type_void && !may_be_unused) {
 		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "result of expression is unused\n");
+		if(expression->type == EXPR_BINARY) {
+			binary_expression_t *binexpr = (binary_expression_t*) expression;
+			if(binexpr->type == BINEXPR_EQUAL) {
+				print_warning_prefix(statement->statement.source_position);
+				fprintf(stderr, "Did you mean '<-' instead of '='?\n");
+			}
+		}
+		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "note: cast expression to void to avoid this "
 		        "warning\n");
 	}
@@ -1595,36 +1591,8 @@ void check_expression_statement(expression_statement_t *statement)
 static
 void check_label_statement(label_statement_t *label)
 {
-	symbol_t *symbol = label->symbol;
-	/* anonymous label */
-	if(symbol == NULL)
-		return;
-
-	environment_entry_t *entry = symbol->label;
-	if(entry != NULL && entry->type == ENTRY_LABEL) {
-		error_at(label->statement.source_position, "doubled label\n");
-		return;
-	}
-
-	if(entry == NULL) {
-		ARR_APP1(label_stack, symbol);
-	}
-
-	/* gotos prior to the label? */
-	while(entry != NULL) {
-		assert(entry->type == ENTRY_GOTO);
-		goto_statement_t *goto_statement = entry->e.goto_statement;
-
-		goto_statement->label = label;
-		entry = entry->up;
-	}
-
-	environment_entry_t *new_entry
-		= obstack_alloc(&label_obstack, sizeof(new_entry[0]));
-	memset(new_entry, 0, sizeof(new_entry[0]));
-	new_entry->type    = ENTRY_LABEL;
-	new_entry->e.label = label;
-	symbol->label      = new_entry;
+	(void) label;
+	/* nothing to do */
 }
 
 static
@@ -1641,22 +1609,22 @@ void check_goto_statement(goto_statement_t *goto_statement)
 		return;
 	}
 
-	environment_entry_t *entry = symbol->label;
-	if(entry != NULL && entry->type == ENTRY_LABEL) {
-		goto_statement->label = entry->e.label;
-	} else {
-		environment_entry_t *new_entry
-			= obstack_alloc(&label_obstack, sizeof(new_entry[0]));
-		memset(new_entry, 0, sizeof(new_entry[0]));
-		new_entry->type             = ENTRY_GOTO;
-		new_entry->e.goto_statement = goto_statement;
-		new_entry->up               = entry;
-		symbol->label               = new_entry;
-
-		if(entry == NULL) {
-			ARR_APP1(label_stack, symbol);
-		}
+	declaration_t *declaration = symbol->declaration;
+	if(declaration == NULL) {
+		print_error_prefix(goto_statement->statement.source_position);
+		fprintf(stderr, "goto argument '%s' is an unknown symbol.\n",
+		        symbol->string);
+		return;
 	}
+	if(declaration->type != DECLARATION_LABEL) {
+		print_error_prefix(goto_statement->statement.source_position);
+		fprintf(stderr, "goto argument '%s' should be a label but is a '%s'.\n",
+		        symbol->string, get_declaration_type_name(declaration->type));
+		return;
+	}
+
+	label_declaration_t *label = (label_declaration_t*) declaration;
+	goto_statement->label = label;
 }
 
 __attribute__((warn_unused_result))
@@ -1713,41 +1681,28 @@ statement_t *check_statement(statement_t *statement)
 }
 
 static
-void check_method(method_t *method)
+void check_method(method_t *method, symbol_t *symbol,
+                  const source_position_t source_position)
 {
 	if(method->is_extern)
 		return;
 
-	int old_top            = environment_top();
-	current_method         = method;
-	char *label_obst_start = obstack_alloc(&label_obstack, 1);
+	int old_top = environment_top();
+	push_context(&method->context);
 
-	/* push type variables */
-	type_variable_t *type_parameter = method->type_parameters;
-	while(type_parameter != NULL) {
-		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(symbol);
-		entry->type                 = ENTRY_TYPE_VARIABLE;
-		entry->e.type_variable      = type_parameter;
+	method_t *last_method = current_method;
+	current_method        = method;
 
-		assert(type_parameter->current_type == NULL);
-		type_parameter = type_parameter->next;
-	}
-
-	/* push method parameters */
+	/* set method parameter numbers */
 	method_parameter_t *parameter = method->parameters;
 	int n = 0;
 	while(parameter != NULL) {
-		environment_entry_t *entry = environment_push(parameter->symbol);
-		entry->type                = ENTRY_METHOD_PARAMETER;
-		entry->e.method_parameter  = parameter;
-		parameter->num             = n;
-		parameter->type            = normalize_type(parameter->type);
-
+		parameter->num = n;
 		n++;
 		parameter = parameter->next;
 	}
 
+	int last_last_statement_was_return = last_statement_was_return;
 	last_statement_was_return = 0;
 	if(method->statement != NULL) {
 		method->statement = check_statement(method->statement);
@@ -1757,33 +1712,16 @@ void check_method(method_t *method)
 		type_t *result_type = method->type->result_type;
 		if(result_type != type_void) {
 			/* TODO: report end-position of block-statement? */
-			print_error_prefix(method->namespace_entry.source_position);
-			fprintf(stderr, "missing return statement at end of method '%s'\n",
-			        method->symbol->string);
+			print_error_prefix(source_position);
+			fprintf(stderr, "missing return statement at end of function."
+			        "'%s'\n", symbol->string);
 			return;
 		}
 	}
 
-	/* reset pointers on symbols from labels */
-	int len = ARR_LEN(label_stack);
-	for(int i = 0; i < len; ++i) {
-		symbol_t            *symbol = label_stack[i];
-		environment_entry_t *entry  = symbol->label;
+	current_method            = last_method;
+	last_statement_was_return = last_last_statement_was_return;
 
-		/* this happens when we had a goto to a non-existing label */
-		if(entry->type != ENTRY_LABEL) {
-			assert(entry->type == ENTRY_GOTO);
-			goto_statement_t *goto_statement = entry->e.goto_statement;
-			print_error_prefix(goto_statement->statement.source_position);
-			fprintf(stderr, "no label '%s' defined in method '%s'\n",
-			        symbol->string, current_method->symbol->string);
-		}
-		symbol->label = NULL;
-	}
-	ARR_SHRINKLEN(label_stack, 0);
-	obstack_free(&label_obstack, label_obst_start);
-
-	current_method = NULL;
 	environment_pop_to(old_top);
 }
 
@@ -1795,7 +1733,7 @@ void check_constant(constant_t *constant)
 	expression = check_expression(expression);
 	if(expression->datatype != constant->type) {
 		expression = make_cast(expression, constant->type,
-		                       constant->namespace_entry.source_position);
+		                       constant->declaration.source_position);
 	}
 	constant->expression = expression;
 }
@@ -1804,22 +1742,22 @@ static
 void resolve_type_constraint(type_constraint_t *constraint,
                              const source_position_t source_position)
 {
-	symbol_t            *symbol = constraint->typeclass_symbol;
-	environment_entry_t *entry  = symbol->thing;
+	symbol_t      *symbol      = constraint->typeclass_symbol;
+	declaration_t *declaration = symbol->declaration;
 
-	if(entry == NULL) {
+	if(declaration == NULL) {
 		print_error_prefix(source_position);
 		fprintf(stderr, "nothing known about symbol '%s'\n", symbol->string);
 		return;
 	}
-	if(entry->type != ENTRY_TYPECLASS) {
+	if(declaration->type != DECLARATION_TYPECLASS) {
 		print_error_prefix(source_position);
-		fprintf(stderr, "expected a typeclass but '%s' is a '%s'\n",
-		        symbol->string, get_entry_type_name(entry->type));
+		fprintf(stderr, "expected a typeclass but symbol '%s' is a '%s'\n",
+		        symbol->string, get_declaration_type_name(declaration->type));
 		return;
 	}
 
-	constraint->typeclass = entry->e.typeclass;
+	constraint->typeclass = (typeclass_t*) declaration;
 }
 
 static
@@ -1840,22 +1778,15 @@ void resolve_type_variable_constraints(type_variable_t *type_variables,
 }
 
 static
-void resolve_method_types(method_t *method)
+void resolve_method_types(method_declaration_t *method_declaration)
 {
+	method_t *method = &method_declaration->method;
 	int old_top = environment_top();
 
 	/* push type variables */
-	type_variable_t *type_parameter = method->type_parameters;
-	while(type_parameter != NULL) {
-		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(symbol);
-		entry->type                 = ENTRY_TYPE_VARIABLE;
-		entry->e.type_variable      = type_parameter;
-
-		type_parameter = type_parameter->next;
-	}
+	push_context(&method->context);
 	resolve_type_variable_constraints(method->type_parameters,
-	                                  method->namespace_entry.source_position);
+                               method_declaration->declaration.source_position);
 
 	/* normalize parameter types */
 	method_parameter_t *parameter = method->parameters;
@@ -1864,8 +1795,7 @@ void resolve_method_types(method_t *method)
 		parameter       = parameter->next;
 	}
 
-	method->type 
-		= (method_type_t*) normalize_type((type_t*) method->type);
+	method->type = (method_type_t*) normalize_type((type_t*) method->type);
 
 	environment_pop_to(old_top);
 }
@@ -1875,8 +1805,9 @@ void check_typeclass_instance(typeclass_instance_t *instance)
 {
 	typeclass_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
-		method_t *method = method_instance->method;
-		check_method(method);
+		method_t *method = &method_instance->method;
+		check_method(method, method_instance->symbol,
+		             method_instance->source_position);
 
 		method_instance = method_instance->next;
 	}
@@ -1890,15 +1821,13 @@ void resolve_typeclass_types(typeclass_t *typeclass)
 	/* push type variables */
 	type_variable_t *type_parameter = typeclass->type_parameters;
 	while(type_parameter != NULL) {
-		symbol_t            *symbol = type_parameter->symbol;
-		environment_entry_t *entry  = environment_push(symbol);
-		entry->type                 = ENTRY_TYPE_VARIABLE;
-		entry->e.type_variable      = type_parameter;
+		declaration_t *declaration = (declaration_t*) type_parameter;
+		environment_push(declaration, typeclass);
 
 		type_parameter = type_parameter->next;
 	}
 	resolve_type_variable_constraints(typeclass->type_parameters,
-	                                typeclass->namespace_entry.source_position);
+	                                  typeclass->declaration.source_position);
 
 	/* normalize method types */
 	typeclass_method_t *typeclass_method = typeclass->methods;
@@ -1916,37 +1845,24 @@ void resolve_typeclass_types(typeclass_t *typeclass)
 
 
 static
-void push_typeclass_methods(typeclass_t *typeclass)
-{
-	typeclass_method_t *method = typeclass->methods;
-	while(method != NULL) {
-		environment_entry_t *entry = environment_push(method->symbol);
-		entry->type                = ENTRY_TYPECLASS_METHOD;
-		entry->e.typeclass_method  = method;
-
-		method = method->next;
-	}
-}
-
-static
 void resolve_typeclass_instance(typeclass_instance_t *instance)
 {
-	symbol_t            *symbol = instance->typeclass_symbol;
-	environment_entry_t *entry  = symbol->thing;
+	symbol_t      *symbol      = instance->typeclass_symbol;
+	declaration_t *declaration = symbol->declaration;
 
-	if(entry == NULL) {
-		print_error_prefix(instance->namespace_entry.source_position);
+	if(declaration == NULL) {
+		print_error_prefix(declaration->source_position);
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
-	if(entry->type != ENTRY_TYPECLASS) {
-		print_error_prefix(instance->namespace_entry.source_position);
-		fprintf(stderr, "expected a typeclass but '%s' is a '%s'\n",
-		        symbol->string, get_entry_type_name(entry->type));
+	if(declaration->type != DECLARATION_TYPECLASS) {
+		print_error_prefix(declaration->source_position);
+		fprintf(stderr, "expected a typeclass but symbol '%s' is a '%s'\n",
+		        symbol->string, get_declaration_type_name(declaration->type));
 		return;
 	}
 
-	typeclass_t *typeclass = entry->e.typeclass;
+	typeclass_t *typeclass = (typeclass_t*) declaration;
 	instance->typeclass    = typeclass;
 	instance->next         = typeclass->instances;
 	typeclass->instances   = instance;
@@ -1967,18 +1883,19 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 			= instance->method_instances;
 
 		while(method_instance != NULL) {
-			method_t *imethod = method_instance->method;
+			method_t *imethod = & method_instance->method;
 
-			if(imethod->symbol != method->symbol) {
+			if(method_instance->symbol != method->declaration.symbol) {
 				method_instance = method_instance->next;
 				continue;
 			}
 			
 			if(found_instance) {
-				print_error_prefix(imethod->namespace_entry.source_position);
+				print_error_prefix(method_instance->source_position);
 				fprintf(stderr, "multiple implementations of method '%s' found "
 				        "in instance of typeclass '%s'\n",
-				        method->symbol->string, typeclass->symbol->string);
+				        method->declaration.symbol->string,
+				        typeclass->declaration.symbol->string);
 			} else {
 				found_instance                      = 1;
 				method_instance->typeclass_method   = method;
@@ -1990,10 +1907,10 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 			method_instance = method_instance->next;
 		}
 		if(found_instance == 0) {
-			print_error_prefix(instance->namespace_entry.source_position);
+			print_error_prefix(instance->source_position);
 			fprintf(stderr, "instance of typeclass '%s' does not implement "
-					"method '%s'\n", typeclass->symbol->string,
-			        method->symbol->string);
+					"method '%s'\n", typeclass->declaration.symbol->string,
+			        method->declaration.symbol->string);
 		}
 
 		method = method->next;
@@ -2001,122 +1918,88 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 }
 
 static
-void check_namespace(namespace_t *namespace)
+void check_context(context_t *context)
 {
 	global_variable_t    *variable;
-	method_t             *method;
-	environment_entry_t  *env_entry;
+	method_declaration_t *method;
 	typealias_t          *typealias;
 	type_t               *type;
 	typeclass_t          *typeclass;
-	constant_t           *constant;
 	int                   old_top = environment_top();
 
-	/* record namespace entries in environment */
-	namespace_entry_t *entry = namespace->entries;
-	while(entry != NULL) {
-		switch(entry->type) {
-		case NAMESPACE_ENTRY_VARIABLE:
-			variable            = (global_variable_t*) entry;
-			env_entry           = environment_push(variable->symbol);
-			env_entry->type     = ENTRY_GLOBAL_VARIABLE;
-			env_entry->e.global_variable = variable;
-			break;
-		case NAMESPACE_ENTRY_METHOD:
-			method              = (method_t*) entry;
-			env_entry           = environment_push(method->symbol);
-			env_entry->type     = ENTRY_METHOD;
-			env_entry->e.method = method;
-			break;
-		case NAMESPACE_ENTRY_TYPEALIAS:
-			typealias              = (typealias_t*) entry;
-			env_entry              = environment_push(typealias->symbol);
-			env_entry->type        = ENTRY_TYPEALIAS;
-			env_entry->e.stored_type = (type_t*) typealias->type;
-			break;
-		case NAMESPACE_ENTRY_TYPECLASS:
-			typeclass              = (typeclass_t*) entry;
-			env_entry              = environment_push(typeclass->symbol);
-			env_entry->type        = ENTRY_TYPECLASS;
-			env_entry->e.typeclass = typeclass;
-			push_typeclass_methods(typeclass);
-			break;
-		case NAMESPACE_ENTRY_CONSTANT:
-			constant              = (constant_t*) entry;
-			env_entry             = environment_push(constant->symbol);
-			env_entry->type       = ENTRY_CONSTANT;
-			env_entry->e.constant = constant;
-			break;
-		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			break;
-		case NAMESPACE_ENTRY_LAST:
-		case NAMESPACE_ENTRY_INVALID:
-			panic("invalid namespace entry found");
-			break;
-		}
-		entry = entry->next;
-	}
+	push_context(context);
 
 	/* normalize types, resolve typeclass instance references */
-	entry = namespace->entries;
-	while(entry != NULL) {
-		switch(entry->type) {
-		case NAMESPACE_ENTRY_VARIABLE:
-			variable            = (global_variable_t*) entry;
-			env_entry           = variable->symbol->thing;
-			assert(env_entry->e.global_variable == variable);
-			variable->type      = normalize_type(variable->type);
+	declaration_t *declaration = context->declarations;
+	while(declaration != NULL) {
+		switch(declaration->type) {
+		case DECLARATION_VARIABLE:
+			variable       = (global_variable_t*) declaration;
+			variable->type = normalize_type(variable->type);
 			break;
-		case NAMESPACE_ENTRY_METHOD:
-			method              = (method_t*) entry;
-			env_entry           = method->symbol->thing;
-			assert(env_entry->e.method == method);
+		case DECLARATION_METHOD:
+			method = (method_declaration_t*) declaration;
 			resolve_method_types(method);
 			break;
-		case NAMESPACE_ENTRY_TYPEALIAS:
-			typealias  = (typealias_t*) entry;
-			env_entry  = typealias->symbol->thing;
-			type       = env_entry->e.stored_type;
+		case DECLARATION_TYPEALIAS:
+			typealias = (typealias_t*) declaration;
+			type      = normalize_type(typealias->type);
 			if(type->type == TYPE_COMPOUND_UNION
-					|| type->type == TYPE_COMPOUND_STRUCT) {
+				|| type->type == TYPE_COMPOUND_STRUCT) {
 				normalize_compound_entries((compound_type_t*) type);
 			}
+			typealias->type = type;
 			break;
-		case NAMESPACE_ENTRY_TYPECLASS:
-			typeclass = (typeclass_t*) entry;
+		case DECLARATION_TYPECLASS:
+			typeclass = (typeclass_t*) declaration;
 			resolve_typeclass_types(typeclass);
 			break;
-		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			resolve_typeclass_instance((typeclass_instance_t*) entry);
-			break;
 		default:
 			break;
 		}
 
-		entry = entry->next;
+		declaration = declaration->next;
 	}
+	typeclass_instance_t *instance = context->typeclass_instances;
+	while(instance != NULL) {
+		resolve_typeclass_instance(instance);
+
+		instance = instance->next;
+	}
+	
 
 	/* check semantics in methods */
-	entry = namespace->entries;
-	while(entry != NULL) {
-		switch(entry->type) {
-		case NAMESPACE_ENTRY_METHOD:
-			check_method((method_t*) entry);
+	declaration = context->declarations;
+	while(declaration != NULL) {
+		switch(declaration->type) {
+		case DECLARATION_METHOD:
+			method = (method_declaration_t*) declaration;
+			check_method(&method->method, method->declaration.symbol,
+			             method->declaration.source_position);
 			break;
-		case NAMESPACE_ENTRY_CONSTANT:
-			check_constant((constant_t*) entry);
-			break;
-		case NAMESPACE_ENTRY_TYPECLASS_INSTANCE:
-			check_typeclass_instance((typeclass_instance_t*) entry);
+		case DECLARATION_CONSTANT:
+			check_constant((constant_t*) declaration);
 			break;
 		default:
 			break;
 		}
 
-		entry = entry->next;
+		declaration = declaration->next;
+	}
+	/* check semantics in typeclasses */
+	instance = context->typeclass_instances;
+	while(instance != NULL) {
+		check_typeclass_instance(instance);
+		instance = instance->next;
 	}
 
 	environment_pop_to(old_top);
+}
+
+static
+void check_namespace(namespace_t *namespace)
+{
+	check_context(&namespace->context);
 }
 
 void register_statement_lowerer(lower_statement_function function,
@@ -2154,10 +2037,8 @@ void register_expression_lowerer(lower_expression_function function,
 int check_static_semantic(namespace_t *namespace)
 {
 	obstack_init(&symbol_environment_obstack);
-	obstack_init(&label_obstack);
 
 	symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
-	label_stack        = NEW_ARR_F(symbol_t*, 0);
 	found_errors       = 0;
 
 	type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
@@ -2171,10 +2052,8 @@ int check_static_semantic(namespace_t *namespace)
 	check_namespace(namespace);
 
 	DEL_ARR_F(symbol_stack);
-	DEL_ARR_F(label_stack);
 
 	obstack_free(&symbol_environment_obstack, NULL);
-	obstack_free(&label_obstack, NULL);
 
 	return !found_errors;
 }

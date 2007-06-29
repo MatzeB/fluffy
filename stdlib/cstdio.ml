@@ -15,4 +15,9 @@ extern func ungetc(c : int, stream : FILE*) : int
 
 extern func puts(s : String) : int
 extern func putchar(c : int) : int
+
 extern func printf(format : String, ...) : int
+extern func fprintf(stream : FILE*, format : String, ...) : int
+extern func sprintf(str : String, format : String, ...) : int
+extern func snprintf(std : String, size : size_t, format : String, ...) : int
+

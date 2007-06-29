@@ -9,13 +9,12 @@
 #include "lexer_t.h"
 #include "type.h"
 
-typedef expression_t* (*parse_expression_function)  (unsigned precedence);
+typedef expression_t* (*parse_expression_function)       (unsigned precedence);
 typedef expression_t* (*parse_expression_infix_function) (unsigned precedence,
                                                           expression_t *left);
-typedef statement_t*  (*parse_statement_function) (void);
-typedef namespace_entry_t*  (*parse_namespace_entry_function)
-                            (void);
-typedef attribute_t*  (*parse_attribute_function) (void);
+typedef statement_t*  (*parse_statement_function)       (void);
+typedef void          (*parse_namespace_entry_function) (void);
+typedef attribute_t*  (*parse_attribute_function)       (void);
 
 typedef struct expression_parse_function_t {
 	unsigned                         precedence;
@@ -41,13 +40,14 @@ void register_namespace_parser(parse_namespace_entry_function parser,
 void register_attribute_parser(parse_attribute_function parser, int token_type);
 
 expression_t *parse_sub_expression(unsigned precedence);
+void add_declaration(declaration_t *entry);
 
 void parser_print_error_prefix(void);
 
 expression_t      *parse_expression(void);
 statement_t       *parse_statement(void);
 type_t            *parse_type(void);
-namespace_entry_t *parse_namespace_entry(void);
+void               parse_namespace_entry(void);
 attribute_t       *parse_attributes(void);
 
 #endif

@@ -25,6 +25,8 @@ static parse_statement_function       *statement_parsers  = NULL;
 static parse_namespace_entry_function *namespace_parsers  = NULL;
 static parse_attribute_function       *attribute_parsers  = NULL;
 
+static context_t *current_context = NULL;
+
 static int      error = 0;
        token_t  token;
        lexer_t  lexer;
@@ -117,17 +119,9 @@ void parse_error_expected(const char *message, ...)
 	fprintf(stderr, "\n");
 }
 
-static
-void eat_until_newline(void)
-{
-	while(token.type != T_NEWLINE) {
-		next_token();
-		if(token.type == T_EOF)
-			return;
-	}
-	next_token();
-}
-
+/**
+ * error recovery: skip a block and all contained sub-blocks
+ */
 static
 void maybe_eat_block(void)
 {
@@ -145,6 +139,28 @@ void maybe_eat_block(void)
 			break;
 		}
 		next_token();
+	}
+}
+
+/**
+ * error recovery: try to got to the next line. If the current line ends in ':'
+ * then we skip blocks that might follow
+ */
+static
+void eat_until_newline(void)
+{
+	int prev = -1;
+
+	while(token.type != T_NEWLINE) {
+		prev = token.type;
+		next_token();
+		if(token.type == T_EOF)
+			return;
+	}
+	next_token();
+
+	if(prev == ':') {
+		maybe_eat_block();
 	}
 }
 
@@ -391,8 +407,10 @@ type_t *parse_type(void)
 
 
 static
-expression_t *parse_string_const(void)
+expression_t *parse_string_const(unsigned precedence)
 {
+	(void) precedence;
+
 	string_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_STRING_CONST;
@@ -404,8 +422,10 @@ expression_t *parse_string_const(void)
 }
 
 static
-expression_t *parse_int_const(void)
+expression_t *parse_int_const(unsigned precedence)
 {
+	(void) precedence;
+
 	int_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_INT_CONST;
@@ -417,8 +437,10 @@ expression_t *parse_int_const(void)
 }
 
 static
-expression_t *parse_null(void)
+expression_t *parse_null(unsigned precedence)
 {
+	(void) precedence;
+
 	eat(T_null);
 
 	null_pointer_t *expression      = allocate_ast_zero(sizeof(expression[0]));
@@ -455,8 +477,10 @@ type_argument_t *parse_type_arguments(void)
 }
 
 static
-expression_t *parse_reference(void)
+expression_t *parse_reference(unsigned precedence)
 {
+	(void) precedence;
+
 	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 
 	ref->expression.type            = EXPR_REFERENCE;
@@ -474,9 +498,11 @@ expression_t *parse_reference(void)
 }
 
 static
-expression_t *parse_sizeof(void)
+expression_t *parse_sizeof(unsigned precedence)
 {
-	eat(T___sizeof);
+	(void) precedence;
+
+	eat(T_sizeof);
 
 	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
 	expression->expression.type = EXPR_SIZEOF;
@@ -617,25 +643,6 @@ expression_t *expected_expression_error(void)
 }
 
 static
-expression_t *parse_primary_expression(void)
-{
-	switch(token.type) {
-	case T_INTEGER:
-		return parse_int_const();
-	case T_STRING_LITERAL:
-		return parse_string_const();
-	case T_IDENTIFIER:
-		return parse_reference();
-	case T_null:
-		return parse_null();
-	case T___sizeof:
-		return parse_sizeof();
-	default:
-		return expected_expression_error();
-	}
-}
-
-static
 expression_t *parse_brace_expression(unsigned precedence)
 {
 	(void) precedence;
@@ -643,6 +650,7 @@ expression_t *parse_brace_expression(unsigned precedence)
 	eat('(');
 
 	expression_t *result = parse_expression();
+
 	expect(')');
 
 	return result;
@@ -817,19 +825,19 @@ void register_expression_parsers(void)
 	                           T_LESSLESS, 16);
 	register_expression_infix_parser(parse_BINEXPR_SHIFTRIGHT,
 	                           T_GREATERGREATER, 16);
-	register_expression_infix_parser(parse_BINEXPR_ADD,       '+', 15);
-	register_expression_infix_parser(parse_BINEXPR_SUB,       '-', 15);
-	register_expression_infix_parser(parse_BINEXPR_LESS,      '<', 14);
-	register_expression_infix_parser(parse_BINEXPR_GREATER,   '>', 14);
+	register_expression_infix_parser(parse_BINEXPR_ADD,       '+',         15);
+	register_expression_infix_parser(parse_BINEXPR_SUB,       '-',         15);
+	register_expression_infix_parser(parse_BINEXPR_LESS,      '<',         14);
+	register_expression_infix_parser(parse_BINEXPR_GREATER,   '>',         14);
 	register_expression_infix_parser(parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
 	register_expression_infix_parser(parse_BINEXPR_GREATEREQUAL,
 	                           T_GREATEREQUAL, 14);
-	register_expression_infix_parser(parse_BINEXPR_EQUAL,     '=', 13);
+	register_expression_infix_parser(parse_BINEXPR_EQUAL,    '=',          13);
 	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
-	register_expression_infix_parser(parse_BINEXPR_AND,       '&', 12);
-	register_expression_infix_parser(parse_BINEXPR_XOR,       '^', 11);
-	register_expression_infix_parser(parse_BINEXPR_OR,        '|', 10);
-	register_expression_infix_parser(parse_BINEXPR_ASSIGN, T_ASSIGN, 2);
+	register_expression_infix_parser(parse_BINEXPR_AND,      '&',          12);
+	register_expression_infix_parser(parse_BINEXPR_XOR,      '^',          11);
+	register_expression_infix_parser(parse_BINEXPR_OR,       '|',          10);
+	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   T_ASSIGN,      2);
 
 	register_expression_infix_parser(parse_array_expression,  '[', 25);
 
@@ -841,7 +849,13 @@ void register_expression_parsers(void)
 	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
 	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);
 	register_expression_parser(parse_cast_expression,         T_cast,  3);
-	register_expression_parser(parse_brace_expression,        '(',     1);
+
+	register_expression_parser(parse_brace_expression,     '(',              1);
+	register_expression_parser(parse_sizeof,               T_sizeof,         1);
+	register_expression_parser(parse_int_const,            T_INTEGER,        1);
+	register_expression_parser(parse_string_const,         T_STRING_LITERAL, 1);
+	register_expression_parser(parse_null,                 T_null,           1);
+	register_expression_parser(parse_reference,            T_IDENTIFIER,     1);
 }
 
 expression_t *parse_sub_expression(unsigned precedence)
@@ -858,10 +872,10 @@ expression_t *parse_sub_expression(unsigned precedence)
 	if(parser->parser != NULL) {
 		left = parser->parser(parser->precedence);
 	} else {
-		left = parse_primary_expression();
+		left = expected_expression_error();
 	}
-	if(left != NULL)
-		left->source_position = source_position;
+	assert(left != NULL);
+	left->source_position = source_position;
 
 	while(1) {
 		if(token.type < 0) {
@@ -875,8 +889,8 @@ expression_t *parse_sub_expression(unsigned precedence)
 			break;
 
 		left = parser->infix_parser(parser->infix_precedence, left);
-		if(left != NULL)
-			left->source_position = source_position;
+		assert(left != NULL);
+		left->source_position = source_position;
 	}
 
 	return left;
@@ -937,15 +951,19 @@ statement_t *parse_label_statement(void)
 	eat(':');
 
 	label_statement_t *label = allocate_ast_zero(sizeof(label[0]));
-	label->statement.type = STATEMENT_LABEL;
+	label->statement.type    = STATEMENT_LABEL;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing label", T_IDENTIFIER, 0);
 		eat_until_newline();
 		return NULL;
 	}
-	label->symbol = token.v.symbol;
+	label->declaration.declaration.type            = DECLARATION_LABEL;
+	label->declaration.declaration.source_position = lexer.source_position;
+	label->declaration.declaration.symbol          = token.v.symbol;
 	next_token();
+
+	add_declaration((declaration_t*) &label->declaration);
 
 	expect(T_NEWLINE);
 
@@ -960,14 +978,14 @@ statement_t *parse_sub_block(void)
 	}
 	eat(T_NEWLINE);
 
-	if(token.type == T_INDENT) {
-		return parse_statement();
+	if(token.type != T_INDENT) {
+		/* create an empty block */
+		block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
+		block->statement.type = STATEMENT_BLOCK;
+		return (statement_t*) block;
 	}
-
-	/* create an empty block */
-	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
-	block->statement.type = STATEMENT_BLOCK;
-	return (statement_t*) block;
+		
+	return parse_statement();
 }
 
 static
@@ -1024,10 +1042,8 @@ statement_t *parse_initial_assignment(symbol_t *symbol)
 static
 statement_t *parse_variable_declaration(void)
 {
-	statement_t                      *first_statement = NULL;
-	statement_t                      *last_statement  = NULL;
-	variable_declaration_statement_t *decl;
-	type_t                           *type            = NULL;
+	statement_t *first_statement = NULL;
+	statement_t *last_statement  = NULL;
 
 	eat(T_var);
 
@@ -1039,32 +1055,42 @@ statement_t *parse_variable_declaration(void)
 			return NULL;
 		}
 
-		decl = allocate_ast_zero(sizeof(decl[0]));
-		decl->statement.type = STATEMENT_VARIABLE_DECLARATION;
-		decl->type           = type;
-		decl->symbol         = token.v.symbol;
+		variable_declaration_statement_t *declaration_statement
+			= allocate_ast_zero(sizeof(declaration_statement[0]));
+		declaration_statement->statement.type = STATEMENT_VARIABLE_DECLARATION;
+
+		declaration_t *declaration 
+			= &declaration_statement->declaration.declaration;
+		declaration->type            = DECLARATION_VARIABLE;
+		declaration->source_position = lexer.source_position;
+		declaration->symbol          = token.v.symbol;
 		next_token();
+
+		add_declaration(declaration);
+
+		variable_declaration_t *variable_declaration
+			= &declaration_statement->declaration;
 
 		if(token.type == ':') {
 			next_token();
-			decl->type = parse_type();
+			variable_declaration->type = parse_type();
 		}
 
 		/* append multiple variable declarations */
 		if(last_statement != NULL) {
-			last_statement->next = (statement_t*) decl;
+			last_statement->next = (statement_t*) declaration_statement;
 		} else {
-			first_statement = (statement_t*) decl;
+			first_statement = (statement_t*) declaration_statement;
 		}
-		last_statement = (statement_t*) decl;
+		last_statement = (statement_t*) declaration_statement;
 
 		/* do we have an assignment expression? */
 		if(token.type == T_ASSIGN) {
 			next_token();
-			statement_t *assign = parse_initial_assignment(decl->symbol);
+			statement_t *assign = parse_initial_assignment(declaration->symbol);
 
 			last_statement->next = assign;
-			last_statement = assign;
+			last_statement       = assign;
 		}
 
 		/* check if we have more declared symbols separated by ',' */
@@ -1156,26 +1182,32 @@ statement_t *parse_block(void)
 {
 	eat(T_INDENT);
 
-	statement_t       *last = NULL;
 	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
-	block->statement.type = STATEMENT_BLOCK;
+	block->statement.type    = STATEMENT_BLOCK;
 
+	context_t *last_context = current_context;
+	current_context         = &block->context;
+
+	statement_t *last_statement = NULL;
 	while(token.type != T_DEDENT && token.type != T_EOF) {
 		/* parse statement */
 		statement_t *statement = parse_statement();
 		if(statement == NULL)
 			continue;
 
-		if(last != NULL) {
-			last->next = statement;
+		if(last_statement != NULL) {
+			last_statement->next = statement;
 		} else {
-			block->first_statement = statement;
+			block->statements = statement;
 		}
-		last = statement;
+		last_statement = statement;
 		/* the parse rule might have produced multiple statements */
-		while(last->next != NULL)
-			last = last->next;
+		while(last_statement->next != NULL)
+			last_statement = last_statement->next;
 	}
+
+	assert(current_context == &block->context);
+	current_context = last_context;
 
 	expect(T_DEDENT);
 
@@ -1235,8 +1267,13 @@ void parse_parameter_declaration(method_type_t *method_type,
 		if(parameters != NULL) {
 			method_parameter_t *method_param
 				= allocate_ast_zero(sizeof(method_param[0]));
-			method_param->symbol = symbol;
-			method_param->type   = param_type->type;
+			method_param->declaration.type 
+				= DECLARATION_METHOD_PARAMETER;
+			method_param->declaration.symbol          = symbol;
+			method_param->declaration.source_position = lexer.source_position;
+			method_param->type                        = param_type->type;
+
+			add_declaration((declaration_t*) method_param);
 
 			if(last_param != NULL) {
 				last_param->next = method_param;
@@ -1253,38 +1290,52 @@ void parse_parameter_declaration(method_type_t *method_type,
 }
 
 static
-type_variable_t *parse_type_parameter(void)
+type_constraint_t *parse_type_constraints(void)
 {
-	type_constraint_t *last_constraint = NULL;
-	type_variable_t   *type_variable
-		= allocate_ast_zero(sizeof(type_variable[0]));
+	type_constraint_t *first_constraint = NULL;
+	type_constraint_t *last_constraint  = NULL;
 
-	while(1) {
-		if(token.type != T_IDENTIFIER) {
-			parse_error_expected("problem while parsing type parameter",
-			                     T_IDENTIFIER, 0);
-			eat_until_newline();
-			return NULL;
-		}
-		symbol_t *symbol = token.v.symbol;
+	while(token.type == T_IDENTIFIER) {
+		type_constraint_t *constraint 
+			= allocate_ast_zero(sizeof(constraint[0]));
+
+		constraint->typeclass_symbol = token.v.symbol;
 		next_token();
 
-		if(token.type == T_IDENTIFIER) {
-			type_constraint_t *constraint 
-				= allocate_ast_zero(sizeof(constraint[0]));
-
-			constraint->typeclass_symbol = symbol;
-			if(last_constraint == NULL) {
-				type_variable->constraints = constraint;
-			} else {
-				last_constraint->next = constraint;
-			}
-			last_constraint = constraint;
+		if(last_constraint == NULL) {
+			first_constraint = constraint;
 		} else {
-			type_variable->symbol = symbol;
-			break;
+			last_constraint->next = constraint;
 		}
+		last_constraint = constraint;
 	}
+
+	return first_constraint;
+}
+
+static
+type_variable_t *parse_type_parameter(void)
+{
+	type_variable_t *type_variable
+		= allocate_ast_zero(sizeof(type_variable[0]));
+	type_variable->declaration.type = DECLARATION_TYPE_VARIABLE;
+
+	if(token.type != T_IDENTIFIER) {
+		parse_error_expected("problem while parsing type parameter",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline();
+		return NULL;
+	}
+	type_variable->declaration.source_position = lexer.source_position;
+	type_variable->declaration.symbol          = token.v.symbol;
+	next_token();
+
+	if(token.type == ':') {
+		next_token();
+		type_variable->constraints = parse_type_constraints();
+	}
+
+	add_declaration((declaration_t*) type_variable);
 
 	return type_variable;
 }
@@ -1306,19 +1357,73 @@ type_variable_t *parse_type_parameters(void)
 	return first_variable;
 }
 
+void add_declaration(declaration_t *declaration)
+{
+	assert(declaration != NULL);
+	assert(declaration->source_position.input_name != NULL);
+	assert(current_context != NULL);
+
+	declaration->next             = current_context->declarations;
+	current_context->declarations = declaration;
+}
+
 static
-namespace_entry_t *parse_method(void)
+void parse_method(method_t *method)
+{
+	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
+	method_type->type.type     = TYPE_METHOD;
+
+	context_t *last_context = current_context;
+	current_context         = &method->context;
+
+	if(token.type == '<') {
+		next_token();
+		method->type_parameters = parse_type_parameters();
+		expect_void('>');
+	}
+
+	expect_void('(');
+
+	parse_parameter_declaration(method_type, &method->parameters);
+
+	method->type = method_type;
+
+	expect_void(')');
+
+	method_type->result_type = type_void;
+	if(token.type == ':') {
+		next_token();
+		if(token.type == T_NEWLINE) {
+			method->statement = parse_sub_block();
+			goto method_parser_end;
+		}
+
+		method_type->result_type = parse_type();
+
+		if(token.type == ':') {
+			next_token();
+			method->statement = parse_sub_block();
+			goto method_parser_end;
+		}
+	}
+	expect_void(T_NEWLINE);
+
+method_parser_end:
+	assert(current_context == &method->context);
+	current_context = last_context;
+}
+
+static
+void parse_method_declaration(void)
 {
 	eat(T_func);
 
-	method_t *method = allocate_ast_zero(sizeof(method[0]));
-	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
+	method_declaration_t *method_declaration
+		= allocate_ast_zero(sizeof(method_declaration[0]));
+	method_declaration->declaration.type            = DECLARATION_METHOD;
 
-	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
-	method_type->type.type = TYPE_METHOD;
-
-	if(token.type == T___constructor) {
-		method->is_constructor = 1;
+	if(token.type == T_extern) {
+		method_declaration->method.is_extern = 1;
 		next_token();
 	}
 
@@ -1326,188 +1431,105 @@ namespace_entry_t *parse_method(void)
 		parse_error_expected("Problem while parsing function",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-	} else {
-		method->symbol = token.v.symbol;
-		next_token();
-
-		if(token.type == '<') {
-			next_token();
-			method->type_parameters = parse_type_parameters();
-			expect('>');
-		}
-
-		eat('(');
-
-		parse_parameter_declaration(method_type, &method->parameters);
-
-		method->type = method_type;
-
-		expect(')');
-		expect(':');
-
-		if(token.type != T_NEWLINE) {
-			method_type->result_type = parse_type();
-			expect(':');
-		} else {
-			method_type->result_type = type_void;
-		}
+		return;
 	}
+	method_declaration->declaration.source_position = lexer.source_position;
+	method_declaration->declaration.symbol          = token.v.symbol;
+	next_token();
 
-	method->statement = parse_sub_block();
+	parse_method(&method_declaration->method);
 
-	return (namespace_entry_t*) method;
+	add_declaration((declaration_t*) method_declaration);
 }
 
 static
-namespace_entry_t *parse_global_variable(void)
+void parse_global_variable(void)
 {
 	eat(T_var);
 
-	global_variable_t *variable 
-		= allocate_ast_zero(sizeof(variable[0]));
-	variable->namespace_entry.type = NAMESPACE_ENTRY_VARIABLE;
+	global_variable_t *variable = allocate_ast_zero(sizeof(variable[0]));
+	variable->declaration.type  = DECLARATION_GLOBAL_VARIABLE;
+
+	if(token.type == T_extern) {
+		next_token();
+		variable->is_extern = 1;
+	}
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing global variable",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-		return NULL;
+		return;
 	}
-	variable->symbol               = token.v.symbol;
+
+	variable->declaration.source_position = lexer.source_position;
+	variable->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	expect(':');
-	variable->type = parse_type();
+	if(token.type != ':') {
+		parse_error_expected("global variables must have a type specified",
+		                     ':', 0);
+		eat_until_newline();
+	} else {
+		variable->type = parse_type();
+		expect_void(T_NEWLINE);
+	}
 
-	expect(T_NEWLINE);
-
-	return (namespace_entry_t*) variable;
+	add_declaration((declaration_t*) variable);
 }
 
 static
-namespace_entry_t *parse_constant(void)
+void parse_constant(void)
 {
 	eat(T_const);
 
-	constant_t *constant = allocate_ast_zero(sizeof(constant[0]));
-	constant->namespace_entry.type = NAMESPACE_ENTRY_CONSTANT;
+	constant_t *constant       = allocate_ast_zero(sizeof(constant[0]));
+	constant->declaration.type = DECLARATION_CONSTANT;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing constant", T_IDENTIFIER, 0);
 		eat_until_newline();
-		return NULL;
+		return;
 	}
-	constant->symbol = token.v.symbol;
+	constant->declaration.source_position = lexer.source_position; 
+	constant->declaration.symbol          = token.v.symbol;
 	next_token();
-
-	if(token.type == '<') {
-		next_token();
-		constant->type = parse_type();
-		expect('>');
-	}
-
-	expect(T_ASSIGN);
-	constant->expression = parse_expression();
-
-	expect(T_NEWLINE);
-
-	return (namespace_entry_t*) constant;
-}
-
-static
-namespace_entry_t *parse_extern_variable(void)
-{
-	namespace_entry_t *entry = parse_global_variable();
-	if(entry == NULL)
-		return NULL;
-
-	assert(entry->type == NAMESPACE_ENTRY_VARIABLE);
-	global_variable_t *variable = (global_variable_t*) entry;
-	variable->is_extern = 1;
-
-	return entry;
-}
-
-static
-namespace_entry_t *parse_extern_method(void)
-{
-	eat(T_func);
-
-	method_t *method = allocate_ast_zero(sizeof(method[0]));
-	method->namespace_entry.type = NAMESPACE_ENTRY_METHOD;
-	method->is_extern            = 1;
-
-	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
-	method_type->type.type = TYPE_METHOD;
-
-	if(token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing extern declaration",
-		                     T_IDENTIFIER, 0);
-		eat_until_newline();
-		return NULL;
-	}
-	method->symbol = token.v.symbol;
-	next_token();
-
-	expect('(');
-	parse_parameter_declaration(method_type, &method->parameters);
-	expect(')');
 
 	if(token.type == ':') {
 		next_token();
-		method_type->result_type = parse_type();
-	} else {
-		method_type->result_type = type_void;
+		constant->type = parse_type();
 	}
 
-	expect(T_NEWLINE);
+	expect_void(T_ASSIGN);
+	constant->expression = parse_expression();
 
-	method->type = method_type;
-
-	return (namespace_entry_t*) method;
+	expect_void(T_NEWLINE);
+	add_declaration((declaration_t*) constant);
 }
 
 static
-namespace_entry_t *parse_extern(void)
-{
-	eat(T_extern);
-
-	if(token.type == T_func) {
-		return parse_extern_method();
-	} else if(token.type == T_var) {
-		return parse_extern_variable();
-	}
-
-	parse_error_expected("Problem while parsing extern declaration",
-	                     T_func, T_var, 0);
-	eat_until_newline();
-	return NULL;
-}
-
-static
-namespace_entry_t *parse_typealias(void)
+void parse_typealias(void)
 {
 	eat(T_typealias);
 
-	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
-	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
+	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
+	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typealias",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-		return NULL;
+		return;
 	}
-	typealias->symbol = token.v.symbol;
+	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	expect(T_ASSIGN);
+	expect_void(T_ASSIGN);
 	typealias->type = parse_type();
 
-	expect(T_NEWLINE);
-
-	return (namespace_entry_t*) typealias;
+	expect_void(T_NEWLINE);
+	add_declaration((declaration_t*) typealias);
 }
 
 static
@@ -1593,73 +1615,75 @@ compound_entry_t *parse_compound_entries(void)
 }
 
 static
-namespace_entry_t *parse_struct(void)
+void parse_struct(void)
 {
 	eat(T_struct);
 
-	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
-	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
+	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
+	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing struct",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-		return NULL;
+		return;
 	}
-	typealias->symbol = token.v.symbol;
+	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
 	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
 	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
-	compound_type->symbol     = typealias->symbol;
+	compound_type->symbol     = typealias->declaration.symbol;
 	compound_type->attributes = parse_attributes();
 
 	typealias->type = (type_t*) compound_type;
 
-	expect(':');
-	expect(T_NEWLINE);
+	expect_void(':');
+	expect_void(T_NEWLINE);
 
 	if(token.type == T_INDENT) {
 		compound_type->entries = parse_compound_entries();
 	}
 
-	return (namespace_entry_t*) typealias;
+	add_declaration((declaration_t*) typealias);
 }
 
 static
-namespace_entry_t *parse_union(void)
+void parse_union(void)
 {
 	eat(T_union);
 
-	typealias_t *typealias = allocate_ast_zero(sizeof(typealias[0]));
-	typealias->namespace_entry.type = NAMESPACE_ENTRY_TYPEALIAS;
+	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
+	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing union",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-		return NULL;
+		return;
 	}
-	typealias->symbol = token.v.symbol;
+	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
 	compound_type_t *compound_type 
 		= allocate_ast_zero(sizeof(compound_type[0]));
 	compound_type->type.type  = TYPE_COMPOUND_UNION;
-	compound_type->symbol     = typealias->symbol;
+	compound_type->symbol     = typealias->declaration.symbol;
 	compound_type->attributes = parse_attributes();
 
 	typealias->type = (type_t*) compound_type;
 
-	expect(':');
-	expect(T_NEWLINE);
+	expect_void(':');
+	expect_void(T_NEWLINE);
 
 	if(token.type == T_INDENT) {
 		compound_type->entries = parse_compound_entries();
 	}
 
-	return (namespace_entry_t*) typealias;
+	add_declaration((declaration_t*) typealias);
 }
 
 static
@@ -1668,6 +1692,7 @@ typeclass_method_t *parse_typeclass_method(void)
 	eat(T_func);
 
 	typeclass_method_t *method = allocate_ast_zero(sizeof(method[0]));
+	method->declaration.type   = DECLARATION_TYPECLASS_METHOD;
 
 	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
@@ -1680,7 +1705,8 @@ typeclass_method_t *parse_typeclass_method(void)
 		return NULL;
 	}
 
-	method->symbol = token.v.symbol;
+	method->declaration.source_position = lexer.source_position;
+	method->declaration.symbol          = token.v.symbol;
 	next_token();
 
 	expect('(');
@@ -1697,43 +1723,54 @@ typeclass_method_t *parse_typeclass_method(void)
 
 	method->method_type = method_type;
 
+	add_declaration((declaration_t*) method);
+
 	return method;
 }
 
 static
-namespace_entry_t *parse_typeclass(void)
+void parse_typeclass(void)
 {
 	eat(T_typeclass);
 
-	typeclass_t *typeclass = allocate_ast_zero(sizeof(typeclass[0]));
-	typeclass->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS;
+	typeclass_t *typeclass      = allocate_ast_zero(sizeof(typeclass[0]));
+	typeclass->declaration.type = DECLARATION_TYPECLASS;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-	} else {
-		typeclass->symbol = token.v.symbol;
-		next_token();
-
-		if(token.type == '<') {
-			next_token();
-			typeclass->type_parameters = parse_type_parameters();
-			expect('>');
-		}
-		expect(':');
-		expect(T_NEWLINE);
+		return;
 	}
 
-	if(token.type != T_INDENT)
-		return (namespace_entry_t*) typeclass;
+	typeclass->declaration.source_position = lexer.source_position;
+	typeclass->declaration.symbol          = token.v.symbol;
+	next_token();
+
+	context_t *last_context = current_context;
+	current_context         = &typeclass->context;
+
+	if(token.type == '<') {
+		next_token();
+		typeclass->type_parameters = parse_type_parameters();
+		expect_void('>');
+	}
+	expect_void(':');
+	expect_void(T_NEWLINE);
+
+	assert(current_context == &typeclass->context);
+	current_context = last_context;
+
+	if(token.type != T_INDENT) {
+		goto end_of_parse_typeclass;
+	}
 	next_token();
 
 	typeclass_method_t *last_method = NULL;
 	while(token.type != T_DEDENT) {
 		if(token.type == T_EOF) {
 			parse_error("EOF while parsing typeclass");
-			return NULL;
+			goto end_of_parse_typeclass;
 		}
 
 		typeclass_method_t *method = parse_typeclass_method();
@@ -1748,73 +1785,70 @@ namespace_entry_t *parse_typeclass(void)
 	}
 	next_token();
 
-	return (namespace_entry_t*) typeclass;
+end_of_parse_typeclass:
+	add_declaration((declaration_t*) typeclass);
 }
 
 static
 typeclass_method_instance_t *parse_typeclass_method_instance(void)
 {
-	typeclass_method_instance_t *method_intance
-		= allocate_ast_zero(sizeof(method_intance[0]));
+	typeclass_method_instance_t *method_instance
+		= allocate_ast_zero(sizeof(method_instance[0]));
 
-	if(token.type != T_func) {
+	expect(T_func);
+	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass method "
-		                     "instance", T_func, 0);
+		                     "instance", T_IDENTIFIER, 0);
 		eat_until_newline();
-		maybe_eat_block();
 		return NULL;
 	}
-	namespace_entry_t *entry = parse_method();
-	if(entry == NULL)
-		return NULL;
+	method_instance->source_position = lexer.source_position;
+	method_instance->symbol          = token.v.symbol;
+	next_token();
 
-	assert(entry->type == NAMESPACE_ENTRY_METHOD);
-	method_intance->method = (method_t*) entry;
+	parse_method(& method_instance->method);
 
-	return method_intance;
+	return method_instance;
 }
 
 static
-namespace_entry_t *parse_typeclass_instance(void)
+void parse_typeclass_instance(void)
 {
 	eat(T_instance);
 
-	typeclass_instance_t *instance 
-		= allocate_ast_zero(sizeof(instance[0]));
-	instance->namespace_entry.type = NAMESPACE_ENTRY_TYPECLASS_INSTANCE;
+	typeclass_instance_t *instance = allocate_ast_zero(sizeof(instance[0]));
+	instance->source_position      = lexer.source_position;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass instance",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
-	} else {
-		instance->typeclass_symbol = token.v.symbol;
-		next_token();
-
-		instance->type_arguments = parse_type_arguments();
-		
-		expect(':');
-		expect(T_NEWLINE);
+		return;
 	}
 
-	if(token.type != T_INDENT)
-		return (namespace_entry_t*) instance;
+	instance->typeclass_symbol = token.v.symbol;
 	next_token();
+
+	instance->type_arguments = parse_type_arguments();
+	
+	expect_void(':');
+	expect_void(T_NEWLINE);
+
+	if(token.type != T_INDENT) {
+		goto add_instance;
+	}
+	eat(T_INDENT);
 
 	typeclass_method_instance_t *last_method = NULL;
 	while(token.type != T_DEDENT) {
 		if(token.type == T_EOF) {
 			parse_error("EOF while parsing typeclass instance");
-			return NULL;
+			return;
 		}
 
-		source_position_t source_position = lexer.source_position;
 		typeclass_method_instance_t *method	= parse_typeclass_method_instance();
-		
 		if(method == NULL)
 			continue;
-
-		method->method->namespace_entry.source_position = source_position;
 
 		if(last_method != NULL) {
 			last_method->next = method;
@@ -1823,23 +1857,24 @@ namespace_entry_t *parse_typeclass_instance(void)
 		}
 		last_method = method;
 	}
-	next_token();
-	
-	return (namespace_entry_t*) instance;
+	eat(T_DEDENT);
+
+add_instance:
+	assert(current_context != NULL);
+	instance->next                       = current_context->typeclass_instances;
+	current_context->typeclass_instances = instance;
 }
 
-namespace_entry_t *parse_namespace_entry(void)
+void parse_namespace_entry(void)
 {
-	namespace_entry_t *entry = NULL;
-
 	if(token.type < 0) {
 		if(token.type == T_EOF)
-			return NULL;
+			return;
 
 		/* this shouldn't happen if the lexer is correct... */
 		parse_error_expected("problem while parsing namespace entry",
 		                     T_DEDENT, 0);
-		return NULL;
+		return;
 	}
 
 	parse_namespace_entry_function parser = NULL;
@@ -1851,15 +1886,12 @@ namespace_entry_t *parse_namespace_entry(void)
 		                     T_func, T_var, T_extern, T_struct, T_typeclass,
 		                     T_instance, 0);
 		eat_until_newline();
-		maybe_eat_block();
-		return NULL;
+		return;
 	}
 
 	if(parser != NULL) {
-		entry = parser();
+		parser();
 	}
-
-	return entry;
 }
 
 static
@@ -1874,7 +1906,7 @@ namespace_t *get_namespace(symbol_t *symbol)
 		namespace = namespace->next;
 	}
 
-	namespace = allocate_ast_zero(sizeof(namespace[0]));
+	namespace         = allocate_ast_zero(sizeof(namespace[0]));
 	namespace->symbol = symbol;
 
 	namespace->next = namespaces;
@@ -1905,39 +1937,35 @@ namespace_t *parse_namespace(void)
 		} else {
 			next_token();
 		}
-	}
-		
+	}	
+
 	namespace_t *namespace = get_namespace(namespace_symbol);
+	assert(current_context == NULL);
+	current_context        = &namespace->context;
 
 	/* parse namespace entries */
 	while(token.type != T_EOF) {
-		source_position_t  source_position = lexer.source_position;
-		namespace_entry_t *entry           = parse_namespace_entry();
-
-		if(entry != NULL) {
-			entry->next            = namespace->entries;
-			entry->source_position = source_position;
-			namespace->entries     = entry;
-		}
+		parse_namespace_entry();
 	}
+
+	assert(current_context == &namespace->context);
+	current_context = NULL;
 
 	return namespace;
 }
 
 static
-namespace_entry_t *skip_namespace_entry(void)
+void skip_namespace_entry(void)
 {
 	next_token();
-	return NULL;
 }
 
 static
 void register_namespace_parsers(void)
 {
-	register_namespace_parser(parse_method,             T_func);
+	register_namespace_parser(parse_method_declaration, T_func);
 	register_namespace_parser(parse_global_variable,    T_var);
 	register_namespace_parser(parse_constant,           T_const);
-	register_namespace_parser(parse_extern,             T_extern);
 	register_namespace_parser(parse_struct,             T_struct);
 	register_namespace_parser(parse_union,              T_union);
 	register_namespace_parser(parse_typealias,          T_typealias);

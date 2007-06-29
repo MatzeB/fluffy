@@ -13,10 +13,56 @@
 extern struct obstack  ast_obstack;
 extern namespace_t    *namespaces;
 
+typedef enum {
+	DECLARATION_INVALID,
+	DECLARATION_METHOD,
+	DECLARATION_METHOD_PARAMETER,
+	DECLARATION_VARIABLE,
+	DECLARATION_GLOBAL_VARIABLE,
+	DECLARATION_CONSTANT,
+	DECLARATION_TYPE_VARIABLE,
+	DECLARATION_TYPEALIAS,
+	DECLARATION_TYPECLASS,
+	DECLARATION_TYPECLASS_METHOD,
+	DECLARATION_LABEL,
+	DECLARATION_LAST
+} declaration_type_t;
+
+/**
+ * base struct for a declaration
+ */
+struct declaration_t {
+	declaration_type_t  type;
+	symbol_t           *symbol;
+	declaration_t      *next;
+	source_position_t   source_position;
+};
+
+/**
+ * a naming context. Containts a list of declarations valid in this context
+ * (it does not include valid declarations from parent contexts)
+ */
+struct context_t {
+	declaration_t        *declarations;
+	typeclass_instance_t *typeclass_instances;
+};
+
+/**
+ * base structure for attributes (meta-data which can be attached to several
+ * language elements)
+ */
 struct attribute_t {
 	unsigned           type;
 	source_position_t  source_position;
 	attribute_t       *next;
+};
+
+struct type_variable_t {
+	declaration_t      declaration;
+	type_constraint_t *constraints;
+	type_variable_t   *next;
+
+	type_t            *current_type;
 };
 
 typedef enum {
@@ -25,13 +71,6 @@ typedef enum {
 	EXPR_STRING_CONST,
 	EXPR_NULL_POINTER,
 	EXPR_REFERENCE,
-	EXPR_REFERENCE_VARIABLE,
-	EXPR_REFERENCE_METHOD,
-	EXPR_REFERENCE_METHOD_PARAMETER,
-	EXPR_REFERENCE_GLOBAL_VARIABLE,
-	EXPR_REFERENCE_CONSTANT,
-	EXPR_REFERENCE_TYPECLASS_METHOD,
-	EXPR_REFERENCE_TYPECLASS_METHOD_INSTANCE,
 	EXPR_CALL,
 	EXPR_UNARY,
 	EXPR_BINARY,
@@ -41,6 +80,9 @@ typedef enum {
 	EXPR_LAST
 } expresion_type_t;
 
+/**
+ * base structure for expressions
+ */
 struct expression_t {
 	expresion_type_t   type;
 	type_t            *datatype;
@@ -67,17 +109,9 @@ struct type_argument_t {
 };
 
 struct reference_expression_t {
-	expression_t                      expression;
-	symbol_t                         *symbol;
-	union {
-		variable_declaration_statement_t *variable;
-		method_t                         *method;
-		global_variable_t                *global_variable;
-		constant_t                       *constant;
-		method_parameter_t               *method_parameter;
-		typeclass_method_t               *typeclass_method;
-		typeclass_method_instance_t      *typeclass_method_instance;
-	} r;
+	expression_t     expression;
+	symbol_t        *symbol;
+	declaration_t   *declaration;
 	type_argument_t *type_arguments;
 };
 
@@ -156,6 +190,7 @@ struct sizeof_expression_t {
 	type_t       *type;
 };
 
+
 typedef enum {
 	STATEMENT_INVALID,
 	STATEMENT_BLOCK,
@@ -181,16 +216,22 @@ struct return_statement_t {
 
 struct block_statement_t {
 	statement_t  statement;
-	statement_t *first_statement;
+	statement_t *statements;
+	context_t    context;
+};
+
+struct variable_declaration_t {
+	declaration_t  declaration;
+	type_t        *type;
+	symbol_t      *symbol;
+
+	int          value_number;
+	int          refs;         /**< temporarily used by semantic phase */
 };
 
 struct variable_declaration_statement_t {
-	statement_t  statement;
-	type_t      *type;
-	symbol_t    *symbol;
-
-	int          value_number; /**< filled in by semantic phase */
-	int          refs;
+	statement_t             statement;
+	variable_declaration_t  declaration;
 };
 
 struct if_statement_t {
@@ -200,18 +241,21 @@ struct if_statement_t {
 	statement_t  *false_statement;
 };
 
+struct label_declaration_t {
+	declaration_t        declaration;
+	ir_node             *block;
+	label_declaration_t *next;
+};
+
 struct goto_statement_t {
-	statement_t        statement;
-	symbol_t          *label_symbol;
-	label_statement_t *label;
+	statement_t          statement;
+	symbol_t            *label_symbol;
+	label_declaration_t *label;
 };
 
 struct label_statement_t {
-	statement_t        statement;
-	symbol_t          *symbol;
-
-	ir_node           *block;
-	label_statement_t *next;
+	statement_t          statement;
+	label_declaration_t  declaration;
 };
 
 struct expression_statement_t {
@@ -219,69 +263,57 @@ struct expression_statement_t {
 	expression_t *expression;
 };
 
-enum namespace_entry_type_t {
-	NAMESPACE_ENTRY_INVALID,
-	NAMESPACE_ENTRY_METHOD,
-	NAMESPACE_ENTRY_VARIABLE,
-	NAMESPACE_ENTRY_CONSTANT,
-	NAMESPACE_ENTRY_TYPEALIAS,
-	NAMESPACE_ENTRY_TYPECLASS,
-	NAMESPACE_ENTRY_TYPECLASS_INSTANCE,
-	NAMESPACE_ENTRY_LAST
-};
 
-struct namespace_entry_t {
-	namespace_entry_type_t  type;
-	namespace_entry_t      *next;
-	source_position_t       source_position;
-};
+
 
 struct method_parameter_t {
+	declaration_t       declaration;
 	method_parameter_t *next;
-	symbol_t           *symbol;
 	type_t             *type;
 	int                 num;
 };
 
 struct method_t {
-	namespace_entry_t   namespace_entry;
-	symbol_t           *symbol;
 	method_type_t      *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
-	int                 is_constructor;
 	int                 is_extern;
 
+	context_t           context;
 	statement_t        *statement;
 
 	int                 n_local_vars;
 	ir_entity          *entity;
 };
 
-struct global_variable_t {
-	namespace_entry_t  namespace_entry;
-	symbol_t          *symbol;
-	type_t            *type;
-	int                is_extern;
+struct method_declaration_t {
+	declaration_t  declaration;
+	method_t       method;
+};
 
-	ir_entity         *entity;
+struct global_variable_t {
+	declaration_t  declaration;
+	type_t        *type;
+	int            is_extern;
+
+	ir_entity     *entity;
 };
 
 struct constant_t {
-	namespace_entry_t  namespace_entry;
-	symbol_t          *symbol;
-	type_t            *type;
-	expression_t      *expression;
+	declaration_t  declaration;
+	type_t        *type;
+	expression_t  *expression;
 };
 
 struct typealias_t {
-	namespace_entry_t  namespace_entry;
-	symbol_t          *symbol;
-	type_t            *type;
+	declaration_t  declaration;
+	type_t        *type;
 };
 
 struct typeclass_method_instance_t {
-	method_t                    *method;
+	method_t                     method;
+	symbol_t                    *symbol;
+	source_position_t            source_position;
 	typeclass_method_instance_t *next;
 
 	typeclass_method_t          *typeclass_method;
@@ -289,17 +321,17 @@ struct typeclass_method_instance_t {
 };
 
 struct typeclass_instance_t {
-	namespace_entry_t            namespace_entry;
-
 	symbol_t                    *typeclass_symbol;
+	source_position_t            source_position;
 	typeclass_t                 *typeclass;
 	type_argument_t             *type_arguments;
 	typeclass_method_instance_t *method_instances;
 	typeclass_instance_t        *next;
+	typeclass_instance_t        *next_in_typeclass;
 };
 
 struct typeclass_method_t {
-	symbol_t           *symbol;
+	declaration_t       declaration;
 	method_type_t      *method_type;
 	method_parameter_t *parameters;
 	typeclass_t        *typeclass;
@@ -308,19 +340,21 @@ struct typeclass_method_t {
 };
 
 struct typeclass_t {
-	namespace_entry_t     namespace_entry;
-	symbol_t             *symbol;
+	declaration_t         declaration;
 
 	type_variable_t      *type_parameters;
 	typeclass_method_t   *methods;
 	typeclass_instance_t *instances;
+	context_t             context;
 };
 
 struct namespace_t {
-	symbol_t          *symbol;
-	const char        *filename;
-	namespace_entry_t *entries;
-	namespace_t       *next;
+	symbol_t             *symbol;
+	const char           *filename;
+
+	context_t             context;
+
+	namespace_t          *next;
 };
 
 static inline
@@ -331,11 +365,13 @@ void *_allocate_ast(size_t size)
 
 #define allocate_ast(size)                 _allocate_ast(size)
 
+const char *get_declaration_type_name(declaration_type_t type);
+
 /* ----- helpers for plugins ------ */
 
 unsigned register_expression();
 unsigned register_statement();
-unsigned register_namespace_entry();
+unsigned register_declaration();
 unsigned register_attribute();
 
 #endif

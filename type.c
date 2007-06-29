@@ -1,6 +1,7 @@
 #include <config.h>
 
 #include "type_t.h"
+#include "ast_t.h"
 #include "type_hash.h"
 #include "adt/error.h"
 
@@ -94,7 +95,7 @@ void print_type_reference_variable(FILE *out, const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->r.type_variable;
 
-	fprintf(out, "%s:", type_variable->symbol->string);
+	fprintf(out, "%s:", type_variable->declaration.symbol->string);
 
 	type_constraint_t *constraint = type_variable->constraints;
 	int first = 1;

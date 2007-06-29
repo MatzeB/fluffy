@@ -37,8 +37,7 @@ Keyword(union)
 Keyword(unsigned)
 Keyword(var)
 Keyword(void)
-Keyword(__sizeof)
-Keyword(__constructor)
+Keyword(sizeof)
 #undef S
 
 T(DOTDOT, "..",)

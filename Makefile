@@ -1,4 +1,4 @@
-GOAL = mlang
+GOAL = fluffy
 
 #FIRM_CFLAGS = `pkg-config --cflags libfirm`
 #FIRM_LIBS = `pkg-config --libs libfirm`
@@ -8,7 +8,7 @@ FIRM_LIBS = -L$(HOME)/projects/firm/build/i686-pc-linux-gnu/debug -lfirm -llpp -
 CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
-CFLAGS += $(FIRM_CFLAGS)
+CFLAGS += $(FIRM_CFLAGS) $(ADDCFLAGS)
 
 LFLAGS = $(FIRM_LIBS) -llpp -ldl --export-dynamic
 

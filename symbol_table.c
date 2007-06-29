@@ -9,10 +9,10 @@ struct obstack symbol_obstack;
 static inline
 void init_symbol_table_entry(symbol_t *entry, const char *string)
 {
-	entry->ID     = 0;
-	entry->string = string;
-	entry->thing  = NULL;
-	entry->label  = NULL;
+	entry->ID          = 0;
+	entry->string      = string;
+	entry->declaration = NULL;
+	entry->context     = NULL;
 }
 
 #define HashSet                    symbol_table_t

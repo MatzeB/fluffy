@@ -1,6 +1,6 @@
 /*
  * TODO (error detection/reporting):
- *   - how can make sure sqltype attributes are only defined on compound type
+ *   - how to make sure sqltype attributes are only defined on compound type
  *     entries?
  *   - how to make sure there's only 1 sqltype attribute per entry?
  */
@@ -134,6 +134,8 @@ func print_sql_type(entry : CompoundEntry*):
 	// no attribute defined, try to guess one from the datatype
 	var type <- entry.type
 	if type.type = TYPE_ATOMIC:
+		var atomic_type <- cast<AtomicType* > type
+		if atomic_type.atype = AtomicType
 
 
 func init_plugin():
