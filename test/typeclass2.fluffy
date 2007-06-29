@@ -1,5 +1,5 @@
 func extern malloc(size : unsigned int) : void*
-func extern print_int(val : int)
+func extern printf(format : byte*, ...) : int
 func extern puts(val : byte*)
 
 typeclass Ordered<T>:
@@ -21,7 +21,7 @@ instance Printable byte*:
 
 instance Printable int:
 	func print(obj : int):
-		print_int(obj)
+		printf("%d\n", obj)
 
 func bubblesort<T : Ordered> (array : T*, len : int):
 	var sorted <- 1

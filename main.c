@@ -17,9 +17,16 @@
 #include "type_hash.h"
 #include "adt/error.h"
 
-static const char *outname     = NULL;
-static int         dump_graphs = 0;
-static int         dump_asts   = 0;
+#define LINKER    "gcc"
+
+static int dump_graphs = 0;
+static int dump_asts   = 0;
+static int verbose     = 0;
+
+typedef enum compile_mode_t {
+	Compile,
+	CompileAndLink
+} compile_mode_t;
 
 static
 void optimize()
@@ -100,24 +107,18 @@ void get_output_name(char *buf, size_t buflen, const char *inputname,
 }
 
 static
-void backend(const char *inputname)
+void backend(const char *inputname, const char *outname)
 {
-	char outfname[4096];
-
-	if(outname != NULL) {
-		snprintf(outfname, sizeof(outfname), "%s", outname);
-	} else {
-		get_output_name(outfname, sizeof(outfname), inputname, ".s");
-	}
-
-	FILE *out = fopen(outfname, "w");
+	FILE *out = fopen(outname, "w");
 	if(out == NULL) {
-		fprintf(stderr, "Couldn't open '%s': %s\n", outfname,
+		fprintf(stderr, "couldn't open '%s' for writing: %s\n", outname,
 				strerror(errno));
 		exit(1);
 	}
 
 	be_main(out, inputname);
+
+	fclose(out);
 }
 
 static
@@ -145,7 +146,8 @@ void parse_file(const char *fname)
 {
 	FILE *in = fopen(fname, "r");
 	if(in == NULL) {
-		fprintf(stderr, "Couldn't open '%s': %s\n", fname, strerror(errno));
+		fprintf(stderr, "couldn't open '%s' for reading: %s\n", fname,
+		        strerror(errno));
 		exit(1);
 	}
 
@@ -159,7 +161,7 @@ void parse_file(const char *fname)
 }
 
 static
-void check_semantic_emit()
+void check_semantic(void)
 {
 	namespace_t *namespace = namespaces;
 	while(namespace != NULL) {
@@ -172,8 +174,14 @@ void check_semantic_emit()
 
 		namespace = namespace->next;
 	}
+}
 
-	namespace = namespaces;
+static
+void emit(const char *outname)
+{
+	char outfname[4096];
+
+	namespace_t *namespace = namespaces;
 	while(namespace != NULL) {
 		ast2firm(namespace);
 
@@ -185,22 +193,42 @@ void check_semantic_emit()
 	optimize();
 
 	const char *fname = namespaces->filename;
-	backend(fname);
+	if(outname == NULL) {
+		get_output_name(outfname, sizeof(outfname), fname, ".s");
+		outname = outfname;
+	}
+
+	backend(fname, outname);
 }
 
 static
-void usage()
+void link(const char *in, const char *out)
 {
-	fprintf(stderr, "Usage: mlang input1 input2 [-o output]\n");
+	char buf[4096];
+
+	if(out == NULL) {
+		out = "a.out";
+	}
+
+	snprintf(buf, sizeof(buf), "%s %s -o %s", LINKER, in, out);
+	if(verbose) {
+		puts(buf);
+	}
+	int err = system(buf);
+	if(err != 0) {
+		fprintf(stderr, "linker reported an error\n");
+		exit(1);
+	}
+}
+
+static
+void usage(const char *argv0)
+{
+	fprintf(stderr, "Usage: %s input1 input2 [-o output]\n", argv0);
 }
 
 int main(int argc, char **argv)
 {
-	if(argc < 2) {
-		fprintf(stderr, "no input files.\n");
-		return 0;
-	}
-
 	initialize_firm();
 	init_symbol_table();
 	init_tokens();
@@ -212,12 +240,16 @@ int main(int argc, char **argv)
 	search_plugins();
 	initialize_plugins();
 
+	const char *outname = NULL;
+	compile_mode_t mode = CompileAndLink;
+	int parsed = 0;
+
 	for(int i = 1; i < argc; ++i) {
 		const char *arg = argv[i];
 		if(strcmp(arg, "-o") == 0) {
 			++i;
 			if(i >= argc) {
-				usage();
+				usage(argv[0]);
 				return 1;
 			}
 			outname = argv[i];
@@ -229,14 +261,32 @@ int main(int argc, char **argv)
 		} else if(strcmp(arg, "--dump-graph") == 0) {
 			dump_graphs = 1;
 		} else if(strcmp(arg, "--help") == 0) {
-			usage();
+			usage(argv[0]);
 			return 0;
+		} else if(strcmp(arg, "-S") == 0) {
+			mode = Compile;
+		} else if(strcmp(arg, "-v") == 0) {
+			verbose = 1;
 		} else {
+			parsed++;
 			parse_file(argv[i]);
 		}
 	}
+	if(parsed == 0) {
+		fprintf(stderr, "Error: no input files specified\n");
+	}
 
-	check_semantic_emit();
+	check_semantic();
+	const char *asmname;
+	if(mode == Compile) {
+		asmname = outname;
+	} else {
+		asmname = "/tmp/fluffy.s";
+	}
+	emit(asmname);
+	if(mode == CompileAndLink) {
+		link(asmname, outname);
+	}
 
 	free_plugins();
 	exit_semantic_module();
