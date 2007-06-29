@@ -602,14 +602,17 @@ void lexer_next_token(lexer_t *this, token_t *token)
 			token->v.intvalue = this->c;
 			next_char(this);
 		}
-		int err_displayed = 0;
-		while(this->c != '\'' && this->c != EOF) {
-			if(!err_displayed) {
-				parse_error(this, "multibyte character constant");
-				err_displayed = 1;
+
+		{
+			int err_displayed = 0;
+			while(this->c != '\'' && this->c != EOF) {
+				if(!err_displayed) {
+					parse_error(this, "multibyte character constant");
+					err_displayed = 1;
+				}
+				token->type = T_ERROR;
+				next_char(this);
 			}
-			token->type = T_ERROR;
-			next_char(this);
 		}
 		next_char(this);
 		break;

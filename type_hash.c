@@ -18,7 +18,7 @@
 static
 unsigned hash_ptr(const void *ptr)
 {
-	unsigned ptr_int = (ptr - NULL);
+	unsigned ptr_int = ((const char*) ptr - (const char*) NULL);
 	return ptr_int >> 3;
 }
 

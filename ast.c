@@ -578,7 +578,7 @@ void print_typealias(const typealias_t *alias)
 static
 void print_declaration(const declaration_t *declaration)
 {
-	print_indent(out);
+	print_indent();
 
 	switch(declaration->type) {
 	case DECLARATION_METHOD:
