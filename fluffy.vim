@@ -31,7 +31,7 @@ syn keyword fluffyStatement   typeclass nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   typealias nextgroup=fluffyIdentifier
 syn match   fluffyIdentifier	 "[a-zA-Z_][a-zA-Z0-9_]*" contained
 
-syn keyword fluffyOperator   cast __sizeof __typeof
+syn keyword fluffyOperator   cast sizeof
 
 syn match   fluffyComment	+//.*$+ contains=fluffyTodo,fluffyComment
 syn region  fluffyComment    start=+/\*+ end=+\*/+ contains=fluffyTodo

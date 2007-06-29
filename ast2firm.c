@@ -61,7 +61,7 @@ static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
 	fprintf(stderr, "Warning: variable '%s' might be used uninitialized\n",
-			value_numbers[pos]->symbol->string);
+			value_numbers[pos]->declaration.symbol->string);
 	return new_r_Unknown(irg, mode);
 }
 

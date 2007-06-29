@@ -158,59 +158,59 @@ typealias LowerStatementFunction  <- func (statement : Statement*) : Statement*
 typealias LowerExpressionFunction <- func (expression : Expression*) : Expression*
 typealias String                  <- byte*
 
-extern func register_new_token(token : String) : unsigned int
-extern func register_statement() : unsigned int
-extern func register_expression() : unsigned int
-extern func register_namespace_entry() : unsigned int
-extern func register_attribute() : unsigned int
+func extern register_new_token(token : String) : unsigned int
+func extern register_statement() : unsigned int
+func extern register_expression() : unsigned int
+func extern register_namespace_entry() : unsigned int
+func extern register_attribute() : unsigned int
 
-extern func puts(string : String) : int
-extern func fputs(string : String, stream : FILE*) : int
-extern func printf(string : String, ptr : void*)
-extern func abort()
-extern func memset(ptr : void*, c : int, size : unsigned int)
+func extern puts(string : String) : int
+func extern fputs(string : String, stream : FILE*) : int
+func extern printf(string : String, ptr : void*)
+func extern abort()
+func extern memset(ptr : void*, c : int, size : unsigned int)
 
-extern func register_statement_parser(parser : ParseStatementFunction*, \
+func extern register_statement_parser(parser : ParseStatementFunction*, \
                                       token_type : int)
-extern func register_attribute_parser(parser : ParseAttributeFunction*, \
+func extern register_attribute_parser(parser : ParseAttributeFunction*, \
                                       token_type : int)
-extern func register_expression_parser(parser : ParseExpressionFunction*, \
+func extern register_expression_parser(parser : ParseExpressionFunction*, \
                                        token_type : int, \
 									   precedence : unsigned int)
-extern func register_expression_infix_parser( \
+func extern register_expression_infix_parser( \
 				parser : ParseExpressionInfixFunction, token_type : int, \
 				precedence : unsigned int)
-extern func print_token(out : FILE*, token : Token*)
-extern func lexer_next_token(lexer : Lexer*, token : Token*)
-extern func allocate_ast(size : unsigned int) : void*
-extern func parser_print_error_prefix()
-extern func next_token()
+func extern print_token(out : FILE*, token : Token*)
+func extern lexer_next_token(lexer : Lexer*, token : Token*)
+func extern allocate_ast(size : unsigned int) : void*
+func extern parser_print_error_prefix()
+func extern next_token()
 
-extern func parse_sub_expression(precedence : unsigned int) : Expression*
-extern func parse_expression() : Expression*
-extern func parse_statement() : Statement*
-extern func parse_type() : Type*
+func extern parse_sub_expression(precedence : unsigned int) : Expression*
+func extern parse_expression() : Expression*
+func extern parse_statement() : Statement*
+func extern parse_type() : Type*
 
-extern func print_error_prefix(position : SourcePosition)
-extern func print_warning_preifx(position : SourcePosition)
-extern func check_statement(statement : Statement*) : Statement*
-extern func check_expression(expression : Expression*) : Expression*
-extern func register_statement_lowerer(function : LowerStatementFunction*, \
+func extern print_error_prefix(position : SourcePosition)
+func extern print_warning_preifx(position : SourcePosition)
+func extern check_statement(statement : Statement*) : Statement*
+func extern check_expression(expression : Expression*) : Expression*
+func extern register_statement_lowerer(function : LowerStatementFunction*, \
                                        statement_type : unsigned int)
-extern func register_expression_lowerer(function : LowerExpressionFunction*, \
+func extern register_expression_lowerer(function : LowerExpressionFunction*, \
                                         expression_type : unsigned int)
 
-extern var stdout : FILE*
-extern var stderr : FILE*
-extern var token  : Token
-extern var lexer  : Lexer
+var extern stdout : FILE*
+var extern stderr : FILE*
+var extern token  : Token
+var extern lexer  : Lexer
 
 typeclass AllocateOnAst<T>:
 	func allocate() : T*
 
 func allocate_zero<T>() : T*:
-	var res <- cast<T* > allocate_ast(__sizeof<T>)
-	memset(res, 0, __sizeof<T>)
+	var res <- cast<T* > allocate_ast(sizeof<T>)
+	memset(res, 0, sizeof<T>)
 	return res
 
 instance AllocateOnAst BlockStatement:

@@ -356,7 +356,10 @@ type_t *parse_type(void)
 		expect(')');
 		break;
 	default:
-		parse_error("Invalid type");
+		parser_print_error_prefix();
+		fprintf(stderr, "Token ");
+		print_token(stderr, &token);
+		fprintf(stderr, " doesn't start a type\n");
 		type = type_invalid;
 		break;
 	}
@@ -1273,8 +1276,6 @@ void parse_parameter_declaration(method_type_t *method_type,
 			method_param->declaration.source_position = lexer.source_position;
 			method_param->type                        = param_type->type;
 
-			add_declaration((declaration_t*) method_param);
-
 			if(last_param != NULL) {
 				last_param->next = method_param;
 			} else {
@@ -1335,8 +1336,6 @@ type_variable_t *parse_type_parameter(void)
 		type_variable->constraints = parse_type_constraints();
 	}
 
-	add_declaration((declaration_t*) type_variable);
-
 	return type_variable;
 }
 
@@ -1379,14 +1378,34 @@ void parse_method(method_t *method)
 	if(token.type == '<') {
 		next_token();
 		method->type_parameters = parse_type_parameters();
+
+		/* add type parameters to context */
+		type_variable_t *type_parameter = method->type_parameters;
+		while(type_parameter != NULL) {
+			declaration_t *declaration    = (declaration_t*) type_parameter;
+			declaration->next             = current_context->declarations;
+			current_context->declarations = declaration;
+
+			type_parameter = type_parameter->next;
+		}
+
 		expect_void('>');
 	}
 
 	expect_void('(');
 
 	parse_parameter_declaration(method_type, &method->parameters);
-
 	method->type = method_type;
+
+	/* add parameters to context */
+	method_parameter_t *parameter = method->parameters;
+	while(parameter != NULL) {
+		declaration_t *declaration    = (declaration_t*) parameter;
+		declaration->next             = current_context->declarations;
+		current_context->declarations = declaration;
+
+		parameter = parameter->next;
+	}
 
 	expect_void(')');
 
@@ -1471,6 +1490,7 @@ void parse_global_variable(void)
 		                     ':', 0);
 		eat_until_newline();
 	} else {
+		next_token();
 		variable->type = parse_type();
 		expect_void(T_NEWLINE);
 	}
@@ -1735,7 +1755,7 @@ void parse_typeclass(void)
 
 	typeclass_t *typeclass      = allocate_ast_zero(sizeof(typeclass[0]));
 	typeclass->declaration.type = DECLARATION_TYPECLASS;
-
+	
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass",
 		                     T_IDENTIFIER, 0);
@@ -1747,19 +1767,25 @@ void parse_typeclass(void)
 	typeclass->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	context_t *last_context = current_context;
-	current_context         = &typeclass->context;
-
 	if(token.type == '<') {
 		next_token();
 		typeclass->type_parameters = parse_type_parameters();
+
+		/* add type parameters to context */
+		context_t       *context       = &typeclass->context;
+		type_variable_t *type_parameter = typeclass->type_parameters;
+		while(type_parameter != NULL) {
+			declaration_t *declaration = (declaration_t*) type_parameter;
+			declaration->next          = context->declarations;
+			context->declarations      = declaration;
+
+			type_parameter = type_parameter->next;
+		}
+
 		expect_void('>');
 	}
 	expect_void(':');
 	expect_void(T_NEWLINE);
-
-	assert(current_context == &typeclass->context);
-	current_context = last_context;
 
 	if(token.type != T_INDENT) {
 		goto end_of_parse_typeclass;

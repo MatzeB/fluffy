@@ -37,6 +37,9 @@ static type_t *type_void_ptr = NULL;
 static method_t *current_method            = NULL;
 int              last_statement_was_return = 0;
 
+static
+void check_and_push_context(context_t *context);
+
 void print_error_prefix(const source_position_t position)
 {
 	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
@@ -474,7 +477,7 @@ void check_assign_expression(binary_expression_t *assign)
 		if(declaration->type == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
-			symbol_t *symbol = variable->symbol;
+			symbol_t *symbol = variable->declaration.symbol;
 
 			/* do type inference if needed */
 			if(left->datatype == NULL) {
@@ -730,7 +733,7 @@ typeclass_instance_t *_find_typeclass_instance(typeclass_t *typeclass,
 		if(match == 1)
 			return instance;
 
-		instance = instance->next;
+		instance = instance->next_in_typeclass;
 	}
 
 	return NULL;
@@ -811,7 +814,7 @@ void resolve_typeclass_method_instance(reference_expression_t *reference)
 		type_var = type_var->next;
 	}
 	/* we have to defer the resolving for the ast2firm phase */
-	if(cant_resolve) {
+	if(1 || cant_resolve) {
 		return;
 	}
 
@@ -1008,10 +1011,15 @@ void check_call_expression(call_expression_t *call)
 	 * of typeclass methods or polymorphic methods
 	 */
 	type_variable_t *type_variables = NULL;
+	print_warning_prefix(method->source_position);
+	fprintf(stderr, "...checking...\n");
 	if(method->type == EXPR_REFERENCE) {
 		reference_expression_t *reference
 			= (reference_expression_t*) method;
 		declaration_t *declaration = reference->declaration;
+
+		fprintf(stderr, "decltype: %s\n",
+				get_declaration_type_name(declaration->type));
 
 		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
 			typeclass_method_t *typeclass_method 
@@ -1020,12 +1028,14 @@ void check_call_expression(call_expression_t *call)
 		
 			type_variables = typeclass->type_parameters;
 			type_arguments = reference->type_arguments;
-		} else if(method->type == DECLARATION_METHOD) {
+		} else if(declaration->type == DECLARATION_METHOD) {
 			method_declaration_t *method_declaration
 				= (method_declaration_t*) declaration;
 
 			type_variables = method_declaration->method.type_parameters;
 			type_arguments = reference->type_arguments;
+
+			fprintf(stderr, "typeargs: %p\n", type_arguments);
 		}
 	}
 
@@ -1145,8 +1155,10 @@ void check_call_expression(call_expression_t *call)
 		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
 			/* we might be able to resolve the typeclass_method_instance now */
 			resolve_typeclass_method_instance(ref);
+#if 0
 			if(ref->declaration->type == DECLARATION_METHOD)
 				set_type_arguments = 0;
+#endif
 
 			typeclass_method_t *typeclass_method
 				= (typeclass_method_t*) declaration;
@@ -1186,6 +1198,10 @@ void check_call_expression(call_expression_t *call)
 
 		ref->expression.datatype 
 			= create_concrete_type(ref->expression.datatype);
+		print_warning_prefix(ref->expression.source_position);
+		fprintf(stderr, " concrete type: \n");
+		print_type(stderr, ref->expression.datatype);
+		fprintf(stderr, "\n");
 	}
 
 	/* clear typevariable configuration */
@@ -1506,7 +1522,7 @@ void check_block_statement(block_statement_t *block)
 {
 	int old_top = environment_top();
 
-	push_context(& block->context);
+	check_and_push_context(& block->context);
 
 	statement_t *statement = block->statements;
 	statement_t *last      = NULL;
@@ -1862,10 +1878,10 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 		return;
 	}
 
-	typeclass_t *typeclass = (typeclass_t*) declaration;
-	instance->typeclass    = typeclass;
-	instance->next         = typeclass->instances;
-	typeclass->instances   = instance;
+	typeclass_t *typeclass      = (typeclass_t*) declaration;
+	instance->typeclass         = typeclass;
+	instance->next_in_typeclass = typeclass->instances;
+	typeclass->instances        = instance;
 
 	/* normalize argument types */
 	type_argument_t *type_argument = instance->type_arguments;
@@ -1918,14 +1934,13 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 }
 
 static
-void check_context(context_t *context)
+void check_and_push_context(context_t *context)
 {
 	global_variable_t    *variable;
 	method_declaration_t *method;
 	typealias_t          *typealias;
 	type_t               *type;
 	typeclass_t          *typeclass;
-	int                   old_top = environment_top();
 
 	push_context(context);
 
@@ -1933,7 +1948,7 @@ void check_context(context_t *context)
 	declaration_t *declaration = context->declarations;
 	while(declaration != NULL) {
 		switch(declaration->type) {
-		case DECLARATION_VARIABLE:
+		case DECLARATION_GLOBAL_VARIABLE:
 			variable       = (global_variable_t*) declaration;
 			variable->type = normalize_type(variable->type);
 			break;
@@ -1992,14 +2007,16 @@ void check_context(context_t *context)
 		check_typeclass_instance(instance);
 		instance = instance->next;
 	}
-
-	environment_pop_to(old_top);
 }
 
 static
 void check_namespace(namespace_t *namespace)
 {
-	check_context(&namespace->context);
+	int old_top = environment_top();
+
+	check_and_push_context(&namespace->context);
+
+	environment_pop_to(old_top);
 }
 
 void register_statement_lowerer(lower_statement_function function,

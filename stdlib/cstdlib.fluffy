@@ -1,0 +1,21 @@
+func extern calloc(nmemb : size_t, size : size_t) : void*
+func extern malloc(size : size_t) : void*
+func extern realloc(ptr : void*, size : size_t) : void*
+func extern free(ptr : void*)
+
+func extern abort()
+func extern atexit(function : (func() : void)* )
+func extern exit(status : int)
+
+func extern getenc(name : String) : String
+func extern system(string : String) : int
+func extern abs(j : int) : int
+func extern llabs(k : long) : long
+
+func extern atof(nptr : String) : double
+func extern atoi(nptr : String) : int
+func extern atoll(nptr : String) : long
+
+func extern rand() : int
+func extern srand(seed : unsigned int)
+

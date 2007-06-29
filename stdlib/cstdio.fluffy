@@ -1,0 +1,23 @@
+typealias FILE <- void
+
+var extern stdout : FILE*
+var extern stderr : FILE*
+var extern stdin  : FILE*
+
+func extern fputc(c : int, stream : FILE* ) : int
+func extern fputs(s : String, stream : FILE* ) : int
+func extern fopen(path : String, mode : String) : FILE*
+func extern fclose(stream : FILE* ) : int
+func extern fflush(stream : FILE* ) : int
+func extern fread(ptr : void*, size : size_t, nmemb : size_t, stream : FILE*) : size_t
+func extern fwrite(ptr : void*, size : size_t, nmemb : size_t, stream : FILE*) : size_t
+func extern ungetc(c : int, stream : FILE*) : int
+
+func extern puts(s : String) : int
+func extern putchar(c : int) : int
+
+func extern printf(format : String, ...) : int
+func extern fprintf(stream : FILE*, format : String, ...) : int
+func extern sprintf(str : String, format : String, ...) : int
+func extern snprintf(std : String, size : size_t, format : String, ...) : int
+

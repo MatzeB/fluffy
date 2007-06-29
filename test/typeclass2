@@ -23,7 +23,7 @@ instance Printable int:
 	func print(obj : int):
 		print_int(obj)
 
-func bubblesort<Ordered T> (array : T*, len : int):
+func bubblesort<T : Ordered> (array : T*, len : int):
 	var sorted <- 1
 
 	var i <- 0
@@ -42,7 +42,7 @@ func bubblesort<Ordered T> (array : T*, len : int):
 	i <- i + 1
 	goto loop
 
-func print_array<Printable T>(array : T*, len : int):
+func print_array<T : Printable>(array : T*, len : int):
 	var i <- 0
 	:loop
 	if i >= len:
@@ -54,9 +54,7 @@ func print_array<Printable T>(array : T*, len : int):
 	goto loop
 
 func main() : int:
-	var array <- cast<int* > malloc( \
-			(cast<unsigned int> 10) * \
-			__sizeof<int>)
+	var array <- cast<int* > malloc( cast<unsigned int> 10 * sizeof<int>)
 	array[0] <- 20
 	array[1] <- 10
 	array[2] <- 5

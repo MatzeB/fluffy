@@ -1,0 +1,15 @@
+func extern memcpy(dest : void*, src : void*, size : size_t) : void*
+func extern memmove(dest : void*, src : void*, size : size_t) : void*
+func extern memcmp(s1 : void*, s2 : void*) : int
+func extern memset(s : void*, c : int, size : size_t) : void*
+
+func extern strcpy(dest : String, src : String) : String
+func extern strncpy(dest : String, src : String, n : size_t) : String
+func extern strcat(s1 : String, s2 : String) : String
+func extern strncat(s1 : String, s2 : String, n : size_t) : String
+func extern strcmp(s1 : String, s2 : String) : int
+func extern strncmp(s1 : String, s2 : String, n : size_t) : int
+func extern strlen(s : String) : size_t
+
+func extern strerror(errnum : int) : String
+

@@ -30,7 +30,22 @@ static
 void print_string_const(const string_const_t *string_const)
 {
 	/* TODO escape " and non-printable chars */
-	fprintf(out, "\"%s\"", string_const->value);
+	fputc('"', out);
+	for(const char *c = string_const->value; *c != 0; ++c) {
+		switch(*c) {
+		case '\a': fputs("\\a", out); break;
+		case '\b': fputs("\\b", out); break;
+		case '\f': fputs("\\f", out); break;
+		case '\n': fputs("\\n", out); break;
+		case '\r': fputs("\\r", out); break;
+		case '\t': fputs("\\t", out); break;
+		case '\v': fputs("\\v", out); break;
+		case '\\': fputs("\\\\", out); break;
+		case '"':  fputs("\\\"", out); break;
+		default:   fputc(*c, out); break;
+		}
+	}
+	fputc('"', out);
 }
 
 static
@@ -312,7 +327,7 @@ void print_variable_declaration(const variable_declaration_t *var)
 		print_type(out, var->type);
 		fprintf(out, ">");
 	}
-	fprintf(out, " %s", var->symbol->string);
+	fprintf(out, " %s", var->declaration.symbol->string);
 }
 
 static
@@ -547,9 +562,9 @@ void print_global_variable(const global_variable_t *variable)
 	if(variable->is_extern) {
 		fprintf(out, "extern ");
 	}
-	fprintf(out, " %s\n", variable->declaration.symbol->string);
-	fprintf(out, " : ");
+	fprintf(out, " %s : ", variable->declaration.symbol->string);
 	print_type(out, variable->type);
+	fprintf(out, "\n");
 }
 
 static

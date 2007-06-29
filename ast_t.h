@@ -223,7 +223,6 @@ struct block_statement_t {
 struct variable_declaration_t {
 	declaration_t  declaration;
 	type_t        *type;
-	symbol_t      *symbol;
 
 	int          value_number;
 	int          refs;         /**< temporarily used by semantic phase */
