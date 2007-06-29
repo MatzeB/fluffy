@@ -49,8 +49,7 @@ func extern SDL_Flip(screen : Surface*)
 func extern malloc(size : unsigned int) : void*
 func extern free(ptr : void*)
 
-func extern print_int(value : int)
-func extern print_string(string : byte* )
+func extern printf(format : byte*, ...) : int
 
 func main(argc : int, argv : byte * * ) : int:
 	SDL_Init(cast<unsigned int> 0x0000FFFF)
@@ -61,14 +60,13 @@ func main(argc : int, argv : byte * * ) : int:
 	var i           <- 0
 	var rect        <- cast<Rect* > (malloc(cast<unsigned int> 8))
 
-	print_int(screen.w)
-	print_int(screen.h)
+	printf("Screen: %dx%d\n", screen.w, screen.h)
 
 	:loop
 	if i >= image_count:
 		goto end
 
-	print_string(*filename)
+	printf("Loading file: %s\n", *filename)
 	var image <- IMG_Load(*filename)
 	if image = null:
 		return 1

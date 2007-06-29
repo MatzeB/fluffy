@@ -1,4 +1,0 @@
-extern func print_int(val : int)
-
-func main() : int:
-	print_int(cast<short> 0xffffffff)

@@ -1,19 +1,19 @@
-extern func print_int(bla : int)
-extern func malloc(size : unsigned int) : void*
-extern func puts(string : byte*) : int
+func extern printf(format : byte*, ...) : int
+func extern malloc(size : unsigned int) : void*
+func extern puts(string : byte*) : int
 
 typeclass Print<T>:
 	func print(object : T)
 
 instance Print int:
 	func print(object : int):
-		print_int(object)
+		printf("%d\n", object)
 
 instance Print byte*:
 	func print(object : byte*):
 		puts(object)
 
-func swap<Print ST, Print ST2>(obj1 : ST, obj2 : ST2) : void:
+func swap<ST : Print, ST2 : Print>(obj1 : ST, obj2 : ST2) : void:
 	print(obj1)
 	print(obj2)
 	swap(obj2, obj1)
