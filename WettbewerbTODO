@@ -8,3 +8,46 @@ Homepage:
 	- Sql Plugins
 	- How to write plugins
 
+Text:
+
+2. Die Motivation
+
+(Das hat mich / uns zur Umsetzung meiner / unserer Software	bewegt:* (max. 800 Zeichen)
+Um mein
+	Wissen im Übersetzerbau in der Praxis zu beweisen und zu vertiefen enstand
+	der Plan eine eigene Programmiersprache zu entwerfen.
+	
+
+3. Projektsteckbrief
+
+Projektname: fluffy
+
+Das kann meine / unsere Software (Funktionalität):* (max 500 Zeichen)
+	fluffy ist eine neuartige Programmiersprache mit Unterstützung für 
+	parametrische Polymorphie, Typklassen, Spracherweiterungen durch Plugins.
+	Gängige imperative Programmierparadigmen werden untestützt mit einem Fokus
+	auf System-Low-Level Programmierung so dass die Performanz von C
+	Programmen erreicht werden kann.
+
+Verwendete Technologien / Drittkomponenten:* (max 500 Zeichen)
+	libfirm - Optimierungen/Backends für verschiedene Architekturen
+	yasm    - Assembler library
+
+Verwendete Programmiersprachen:* (max 500 Zeichen)
+	C (Ansi C99)
+
+Geschätzte Zeit, die ich / wir bisher in das Projekt investiert haben: *
+	230 Stunden
+
+Wie ist die Idee zur Software entstanden und wie hast Du / habt Ihr sie
+umgesetzt? * (max 800 Zeichen)
+	Beim Programmieren in den Sprachen C/C++, Java, C#, Haskell, sind mir immer
+	wieder Dinge aufgefallen die man verbessern könnte und die mangels
+	Erweiterbarkeit dieser Sprachen nicht umsetzbar waren.
+	Die Umsetzung erfolgte als Frontend für ein existierendes Übersetzer
+	Backend.
+
+Das macht mein / unser Projekt preisverdächtig:* (max 500 Zeichen):
+	- Die elegante verständliche Implementierung in C
+	- Neuartiges Konzept erweiterbarer Programmiersprachen
+
