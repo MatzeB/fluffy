@@ -47,9 +47,19 @@ struct TypeConstraint:
 	type_class       : TypeClass*
 	next             : TypeConstraint*
 
-struct TypeVariable:
-	constraints      : TypeConstraint
+struct Declaration:
+	type             : unsigned int
 	symbol           : Symbol*
+	next             : Declaration*
+	source_position  : SourcePosition
+
+struct Context:
+	declarations        : Declaration*
+	typeclass_instances : TypeClassInstance*
+
+struct TypeVariable:
+	declaration      : Declaration
+	constraints      : TypeConstraint*
 	next             : TypeVariable*
 	current_type     : Type*
 
@@ -66,17 +76,25 @@ struct Expression:
 struct BlockStatement:
 	statement       : Statement
 	statements      : Statement*
+	context         : Context
 
 struct ExpressionStatement:
 	statement       : Statement
 	expression      : Expression*
 
+struct LabelDeclaration:
+	declaration     : Declaration
+	block           : IrNode*
+	next            : LabelDeclaration*
+
 struct LabelStatement:
 	statement       : Statement
-	symbol          : Symbol*
+	declaration     : LabelDeclaration
 
-	block           : IrNode*
-	next            : LabelStatement*
+struct GotoStatement:
+	statement       : Statement
+	symbol_t        : Symbol*
+	label           : LabelDeclaration*
 
 struct IfStatement:
 	statement       : Statement
@@ -84,22 +102,13 @@ struct IfStatement:
 	true_statement  : Statement*
 	false_statement : Statement*
 
-struct GotoStatement:
-	statement    : Statement
-	label_symbol : Symbol*
-	label        : LabelStatement*
-
-struct NamespaceEntry:
-	type            : unsigned int
-	next            : NamespaceEntry*
-	source_position : SourcePosition
-
 struct TypeClass:
-	namespace_entry : NamespaceEntry
-	symbol          : Symbol*
+	declaration     : Declaration*
+	
 	type_parameters : TypeVariable*
 	methods         : TypeClassMethod*
 	instances       : TypeClassInstance*
+	context         : Context
 
 struct TypeClassMethod:
 	// TODO

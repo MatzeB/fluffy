@@ -44,7 +44,7 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	var loop_body_block        <- cast<BlockStatement* > loop_body
 
 	var goto_statement   <- allocate<$GotoStatement>()
-	goto_statement.label <- label
+	goto_statement.label <- label.declaration
 	block_append(loop_body_block, cast<Statement* > goto_statement)
 
 	var block                 <- allocate<$BlockStatement>()

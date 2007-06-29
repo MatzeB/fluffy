@@ -1011,15 +1011,10 @@ void check_call_expression(call_expression_t *call)
 	 * of typeclass methods or polymorphic methods
 	 */
 	type_variable_t *type_variables = NULL;
-	print_warning_prefix(method->source_position);
-	fprintf(stderr, "...checking...\n");
 	if(method->type == EXPR_REFERENCE) {
 		reference_expression_t *reference
 			= (reference_expression_t*) method;
 		declaration_t *declaration = reference->declaration;
-
-		fprintf(stderr, "decltype: %s\n",
-				get_declaration_type_name(declaration->type));
 
 		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
 			typeclass_method_t *typeclass_method 
@@ -1034,8 +1029,6 @@ void check_call_expression(call_expression_t *call)
 
 			type_variables = method_declaration->method.type_parameters;
 			type_arguments = reference->type_arguments;
-
-			fprintf(stderr, "typeargs: %p\n", type_arguments);
 		}
 	}
 
@@ -1198,10 +1191,6 @@ void check_call_expression(call_expression_t *call)
 
 		ref->expression.datatype 
 			= create_concrete_type(ref->expression.datatype);
-		print_warning_prefix(ref->expression.source_position);
-		fprintf(stderr, " concrete type: \n");
-		print_type(stderr, ref->expression.datatype);
-		fprintf(stderr, "\n");
 	}
 
 	/* clear typevariable configuration */
