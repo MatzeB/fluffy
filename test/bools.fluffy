@@ -1,0 +1,17 @@
+
+func f1() : bool:
+	printf("im1\n")
+	return true
+
+func f2() : bool:
+	printf("im2\n")
+	return false
+
+func main() : int:
+	printf("f1: %d f2: %d\n", f1(), f2())
+	printf("f1 && f2: %d\n", f1() && f2())
+	printf("f2 && f1: %d\n", f2() && f1())
+	printf("f1 || f2: %d\n", f1() || f2())
+	printf("f2 || f1: %d\n", f2() || f1())
+
+	return 0

@@ -15,7 +15,6 @@ instance AllocateOnAst ForStatement:
 		return res
 
 func parse_for_statement() : Statement*:
-	puts("parsing a for...")
 	var statement <- allocate<$ForStatement>()
 
 	//assert(token.type = token_for)
@@ -76,7 +75,6 @@ func lower_for_statement(statement : Statement*) : Statement*:
 	return cast<Statement* > block
 
 func init_plugin():
-	puts("init_plugin is here")
 	token_for     <- register_new_token("for")
 	for_statement <- register_statement()
 	register_statement_parser(parse_for_statement, token_for)

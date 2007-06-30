@@ -229,7 +229,6 @@ void usage(const char *argv0)
 
 int main(int argc, char **argv)
 {
-	initialize_firm();
 	init_symbol_table();
 	init_tokens();
 	init_type_module();
@@ -239,6 +238,7 @@ int main(int argc, char **argv)
 	init_semantic_module();
 	search_plugins();
 	initialize_plugins();
+	initialize_firm();
 
 	const char *outname = NULL;
 	compile_mode_t mode = CompileAndLink;
@@ -288,6 +288,7 @@ int main(int argc, char **argv)
 		link(asmname, outname);
 	}
 
+	exit_firm();
 	free_plugins();
 	exit_semantic_module();
 	exit_parser();
@@ -296,7 +297,6 @@ int main(int argc, char **argv)
 	exit_typehash();
 	exit_tokens();
 	exit_symbol_table();
-	exit_firm();
 
 	return 0;
 }

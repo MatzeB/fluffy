@@ -109,5 +109,8 @@ struct compound_type_t {
 	source_position_t  source_position;
 };
 
+type_t *make_atomic_type(atomic_type_type_t type);
+type_t *make_pointer_type(type_t *type);
+
 #endif
 

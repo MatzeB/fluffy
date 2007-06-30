@@ -144,38 +144,6 @@ size_t environment_top(void)
 }
 
 static
-type_t* make_atomic_type(atomic_type_type_t atype)
-{
-	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_ATOMIC;
-	type->atype     = atype;
-
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
-		obstack_free(type_obst, type);
-	}
-
-	return normalized_type;
-}
-
-static
-type_t* make_pointer_type(type_t *points_to)
-{
-	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_POINTER;
-	type->points_to = points_to;
-
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
-		obstack_free(type_obst, type);
-	}
-
-	return normalized_type;
-}
-
-static
 type_t *normalize_type(type_t *type);
 
 static
@@ -318,6 +286,9 @@ static
 void check_local_variable_type(variable_declaration_t *declaration,
                                type_t *type)
 {
+	if(type == NULL)
+		return;
+
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
 			&& type->type != TYPE_COMPOUND_STRUCT
 			&& type->type != TYPE_COMPOUND_UNION) {
@@ -501,6 +472,9 @@ void check_assign_expression(binary_expression_t *assign)
 	}
 }
 
+/**
+ * creates an implicit cast if possible or reports an error
+ */
 static
 expression_t *make_cast(expression_t *from,
                         type_t *dest_type,
@@ -551,6 +525,10 @@ expression_t *make_cast(expression_t *from,
 			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
 
 			switch(from_atype) {
+			case ATOMIC_TYPE_BOOL:
+				implicit_cast_allowed |=
+					(dest_atype == ATOMIC_TYPE_BYTE) ||
+					(dest_atype == ATOMIC_TYPE_UBYTE);
 			case ATOMIC_TYPE_UBYTE:
 				implicit_cast_allowed |=
 					(dest_atype == ATOMIC_TYPE_USHORT) ||
@@ -590,7 +568,6 @@ expression_t *make_cast(expression_t *from,
 			case ATOMIC_TYPE_LONGLONG:
 			case ATOMIC_TYPE_ULONGLONG:
 			case ATOMIC_TYPE_INVALID:
-			case ATOMIC_TYPE_BOOL:
 				implicit_cast_allowed = 0;
 				break;
 			}
@@ -682,6 +659,11 @@ void check_binary_expression(binary_expression_t *binexpr)
 		/* TODO find out greatest common type... */
 		lefttype  = left->datatype;
 		righttype = left->datatype;
+	} else if(binexpr_type == BINEXPR_LAZY_AND ||
+			binexpr_type == BINEXPR_LAZY_OR) {
+		exprtype  = type_bool;
+		lefttype  = type_bool;
+		righttype = type_bool;
 	} else {
 		abort();
 	}
@@ -926,6 +908,8 @@ type_t *get_default_param_type(type_t *type, source_position_t source_position)
 			return type;
 
 		case ATOMIC_TYPE_BOOL:
+			return type_uint;
+
 		case ATOMIC_TYPE_BYTE:
 		case ATOMIC_TYPE_UBYTE:
 		case ATOMIC_TYPE_INT:
@@ -1083,7 +1067,6 @@ void check_call_expression(call_expression_t *call)
 			wanted_type = get_default_param_type(expression_type,
 			                    argument->expression->source_position);
 		}
-
 
 		/* match type of argument against type variables */
 		if(type_variables != NULL && type_arguments == NULL) {
@@ -1248,19 +1231,127 @@ void check_dereference_expression(unary_expression_t *dereference)
 }
 
 static
+void check_take_address_expression(unary_expression_t *expression)
+{
+	expression->value   = check_expression(expression->value);
+	type_t *type        = expression->value->datatype;
+	type_t *result_type = make_pointer_type(type);
+
+	expression->expression.datatype = result_type;
+}
+
+static
+int is_arithmetic_type(type_t *type)
+{
+	if(type->type != TYPE_ATOMIC)
+		return 0;
+
+	atomic_type_t *atomic_type = (atomic_type_t*) type;
+
+	switch(atomic_type->atype) {
+	case ATOMIC_TYPE_BYTE:
+	case ATOMIC_TYPE_UBYTE:
+	case ATOMIC_TYPE_INT:
+	case ATOMIC_TYPE_UINT:
+	case ATOMIC_TYPE_SHORT:
+	case ATOMIC_TYPE_USHORT:
+	case ATOMIC_TYPE_LONG:
+	case ATOMIC_TYPE_ULONG:
+	case ATOMIC_TYPE_LONGLONG:
+	case ATOMIC_TYPE_ULONGLONG:
+	case ATOMIC_TYPE_FLOAT:
+	case ATOMIC_TYPE_DOUBLE:
+		return 1;
+
+	case ATOMIC_TYPE_INVALID:
+	case ATOMIC_TYPE_BOOL:
+		return 0;
+	}
+
+	return 0;
+}
+
+static
+void check_negate_expression(unary_expression_t *expression)
+{
+	expression->value = check_expression(expression->value);
+
+	type_t *type = expression->value->datatype;
+
+	if(!is_arithmetic_type(type)) {
+		print_error_prefix(expression->expression.source_position);
+		fprintf(stderr, "negate expression only valid for arithmetic types, "
+		        "but argument has type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+	}
+
+	expression->expression.datatype = type;
+}
+
+static
+void check_bitwise_not_expression(unary_expression_t *expression)
+{
+	expression->value = check_expression(expression->value);
+
+	type_t *type = expression->value->datatype;
+
+	if(!is_type_int(type)) {
+		print_error_prefix(expression->expression.source_position);
+		fprintf(stderr, "not expression only valid for integer types, "
+		        "but argument has type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+	}
+
+	expression->expression.datatype = type;
+}
+
+static
+void check_not_expression(unary_expression_t *expression)
+{
+	expression->value = check_expression(expression->value);
+
+	type_t *type = expression->value->datatype;
+
+	if(type != type_bool) {
+		print_error_prefix(expression->expression.source_position);
+		fprintf(stderr, "not expression only valid for bool type, "
+		        "but argument has type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+	}
+
+	expression->expression.datatype = type;
+}
+
+static
 void check_unary_expression(unary_expression_t *unary_expression)
 {
 	switch(unary_expression->type) {
 	case UNEXPR_CAST:
 		check_cast_expression(unary_expression);
-		break;
+		return;
 	case UNEXPR_DEREFERENCE:
 		check_dereference_expression(unary_expression);
-		break;
-	default:
+		return;
+	case UNEXPR_TAKE_ADDRESS:
+		check_take_address_expression(unary_expression);
+		return;
+	case UNEXPR_NOT:
+		check_not_expression(unary_expression);
+		return;
+	case UNEXPR_BITWISE_NOT:
+		check_bitwise_not_expression(unary_expression);
+		return;
+	case UNEXPR_NEGATE:
+		check_negate_expression(unary_expression);
+		return;
+
+	case UNEXPR_INVALID:
 		abort();
-		break;
 	}
+	panic("Unknown unary expression found");
 }
 
 static
@@ -1401,6 +1492,9 @@ expression_t *check_expression(expression_t *expression)
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		expression->datatype = type_int;
+		break;
+	case EXPR_BOOL_CONST:
+		expression->datatype = type_bool;
 		break;
 	case EXPR_STRING_CONST:
 		expression->datatype = type_byte_ptr;

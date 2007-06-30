@@ -27,6 +27,7 @@ typedef struct instantiate_method_t  instantiate_method_t;
 
 static ir_type *byte_ir_type  = NULL;
 static ir_type *void_ptr_type = NULL;
+static type_t  *type_bool     = NULL;
 
 struct instantiate_method_t {
 	method_t             *method;
@@ -48,9 +49,9 @@ struct typevar_binding_t {
 };
 
 static struct obstack obst;
-static strset_t              instantiated_methods;
-static pdeq                 *instantiate_methods  = NULL;
-static typevar_binding_t    *typevar_binding_stack = NULL;
+static strset_t           instantiated_methods;
+static pdeq              *instantiate_methods   = NULL;
+static typevar_binding_t *typevar_binding_stack = NULL;
 
 static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
@@ -88,6 +89,8 @@ void initialize_firm(void)
 
 	/* intialize firm itself */
 	init_firm(&params);
+
+	type_bool = make_atomic_type(ATOMIC_TYPE_BOOL);
 
 	atomic_type_t byte_type;
 	memset(&byte_type, 0, sizeof(byte_type));
@@ -145,7 +148,7 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 	case ATOMIC_TYPE_DOUBLE:
 		return mode_D;
 	case ATOMIC_TYPE_BOOL:
-		return mode_Is;
+		return mode_Iu;
 	default:
 		panic("Encountered unknown atomic type");
 	}
@@ -742,6 +745,12 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 }
 
 static
+ir_node *bool_const_to_firm(const bool_const_t *cnst)
+{
+	return new_Const_long(mode_Iu, cnst->value);
+}
+
+static
 ir_node *string_const_to_firm(const string_const_t* cnst)
 {
 	ir_type   *global_type = get_glob_type();
@@ -964,6 +973,31 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 }
 
 static
+ir_node *get_bool_as_int(ir_node *node, ir_mode *mode)
+{
+	/* create a psi to select 0/1 */
+	ir_node *conds[1];
+	ir_node *vals[2];
+
+	vals[0]  = new_Const_long(mode, 1);
+	vals[1]  = new_Const_long(mode, 0);
+	conds[0] = node;
+
+	return new_Psi(1, conds, vals, mode);
+}
+
+static
+ir_node *get_int_as_bool(ir_node *node)
+{
+	ir_mode *mode    = get_irn_mode(node);
+	tarval  *tv_zero = get_tarval_null(mode);
+	ir_node *zero    = new_Const(mode, tv_zero);
+	ir_node *cmp     = new_Cmp(node, zero);
+
+	return new_Proj(cmp, mode_b, pn_Cmp_Lg);
+}
+
+static
 ir_op *binexpr_type_to_op(binary_expression_type_t type)
 {
 	switch(type) {
@@ -1010,19 +1044,71 @@ long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 }
 
 static
+ir_node *create_lazy_op(const binary_expression_t *binary_expression)
+{
+	int is_or = binary_expression->type == BINEXPR_LAZY_OR;
+	assert(is_or || binary_expression->type == BINEXPR_LAZY_AND);
+
+	ir_node *val1 = expression_to_firm(binary_expression->left);
+	ir_node *val1_bool = get_int_as_bool(val1);
+
+	ir_node *cond       = new_Cond(val1_bool);
+	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
+	ir_node *false_proj = new_Proj(cond, mode_X, pn_Cond_false);
+
+	ir_node *fallthrough_block = new_immBlock();
+
+	/* the true case */
+	ir_node *calc_val2_block = new_immBlock();
+	if(is_or) {
+		add_immBlock_pred(calc_val2_block, false_proj);
+	} else {
+		add_immBlock_pred(calc_val2_block, true_proj);
+	}
+
+	mature_immBlock(calc_val2_block);
+
+	ir_node *val2 = expression_to_firm(binary_expression->right);
+	if(get_cur_block() != NULL) {
+		ir_node *jmp = new_Jmp();
+		add_immBlock_pred(fallthrough_block, jmp);
+	}
+
+	/* fallthrough */
+	if(is_or) {
+		add_immBlock_pred(fallthrough_block, true_proj);
+	} else {
+		add_immBlock_pred(fallthrough_block, false_proj);
+	}
+	mature_immBlock(fallthrough_block);
+
+	set_cur_block(fallthrough_block);
+
+	ir_node *in[2] = { val2, val1 };
+	ir_node *val   = new_Phi(2, in, mode_Iu);
+
+	return val;
+}
+
+static
 ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 {
-	switch(binary_expression->type) {
+	binary_expression_type_t btype = binary_expression->type;
+
+	switch(btype) {
 	case BINEXPR_ASSIGN:
 		return assign_expression_to_firm(binary_expression);
 	/* TODO construct Div,Mod nodes (they need special treatment with memory
 	 * edges */
+	case BINEXPR_LAZY_OR:
+	case BINEXPR_LAZY_AND:
+		return create_lazy_op(binary_expression);
 	default:
 		break;
 	}
 
-	/* an arithmetic binexpressions? */
-	ir_op *irop = binexpr_type_to_op(binary_expression->type);
+	/* an arithmetic binexpression? */
+	ir_op *irop = binexpr_type_to_op(btype);
 	if(irop != NULL) {
 		ir_node *in[2] = {
 			expression_to_firm(binary_expression->left),
@@ -1030,33 +1116,40 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 		};
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *block = get_cur_block();
-		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,
-				irop, mode, 2, in);
+		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,	irop, mode,
+		                             2, in);
 		return node;
 	}
 
 	/* a comparison expression? */
-	long compare_pn = binexpr_type_to_cmp_pn(binary_expression->type);
+	long compare_pn = binexpr_type_to_cmp_pn(btype);
 	if(compare_pn != 0) {
 		ir_node *left  = expression_to_firm(binary_expression->left);
 		ir_node *right = expression_to_firm(binary_expression->right);
 		ir_node *cmp   = new_Cmp(left, right);
 		ir_node *proj  = new_Proj(cmp, mode_b, compare_pn);
-		return proj;
+
+		return get_bool_as_int(proj, mode_Iu);
 	}
 
-	abort();
+	panic("found unknown binexpr type");
 }
 
 static
 ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
+	type_t  *to_type   = cast->expression.datatype;
+	type_t  *from_type = cast->value->datatype;
 	ir_node *node      = expression_to_firm(cast->value);
+	ir_mode *mode      = get_ir_mode(to_type);
 	assert(node != NULL);
-	ir_mode *mode      = get_ir_mode(cast->expression.datatype);
-	ir_node *conv_node = new_Conv(node, mode);
 
-	return conv_node;
+	if(from_type == type_bool) {
+		ir_node *as_mode_b = get_int_as_bool(node);
+		return get_bool_as_int(as_mode_b, mode);
+	}
+
+	return new_Conv(node, mode);
 }
 
 static
@@ -1073,6 +1166,37 @@ ir_node *load_from_expression_addr(type_t *type, ir_node *addr)
 }
 
 static
+ir_node *not_expression_to_firm(const unary_expression_t *expression)
+{
+	type_t  *type  = expression->expression.datatype;
+	ir_node *value = expression_to_firm(expression->value);
+
+	assert(type == type_bool);
+
+	ir_node *one = new_Const_long(mode_Iu, 1);
+	return new_Eor(value, one, mode_Iu);
+}
+
+static
+ir_node *bitwise_not_expression_to_firm(const unary_expression_t *expression)
+{
+	type_t  *type  = expression->expression.datatype;
+	ir_mode *mode  = get_ir_mode(type);
+	ir_node *value = expression_to_firm(expression->value);
+
+	return new_Not(value, mode);
+}
+
+static
+ir_node *negate_expression_to_firm(const unary_expression_t *expression)
+{
+	ir_mode *mode  = get_ir_mode(expression->expression.datatype);
+	ir_node *value = expression_to_firm(expression->value);
+
+	return new_Minus(value, mode);
+}
+
+static
 ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 {
 	ir_node *addr;
@@ -1081,12 +1205,21 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 	case UNEXPR_CAST:
 		return cast_expression_to_firm(unary_expression);
 	case UNEXPR_DEREFERENCE:
-		addr = expression_addr(&unary_expression->expression);
+		addr = expression_addr(unary_expression->value);
 		return load_from_expression_addr(unary_expression->expression.datatype,
 		                                 addr);
-	default:
+	case UNEXPR_TAKE_ADDRESS:
+		return expression_addr(&unary_expression->expression);
+	case UNEXPR_NOT:
+		return not_expression_to_firm(unary_expression);
+	case UNEXPR_BITWISE_NOT:
+		return bitwise_not_expression_to_firm(unary_expression);
+	case UNEXPR_NEGATE:
+		return negate_expression_to_firm(unary_expression);
+	case UNEXPR_INVALID:
 		abort();
 	}
+	panic("found unknown unary expression");
 }
 
 static
@@ -1235,8 +1368,8 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node       *callee = expression_to_firm(method);
 
 	assert(method->datatype->type == TYPE_POINTER);
-	pointer_type_t *pointer_type  = (pointer_type_t*) method->datatype;
-	type_t         *points_to     = pointer_type->points_to;
+	pointer_type_t *pointer_type = (pointer_type_t*) method->datatype;
+	type_t         *points_to    = pointer_type->points_to;
 
 	assert(points_to->type == TYPE_METHOD);
 	method_type_t *method_type     = (method_type_t*) points_to;
@@ -1272,7 +1405,9 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	while(argument != NULL) {
 		expression_t *expression = argument->expression;
 
-		in[n] = expression_to_firm(expression);
+		ir_node *arg_node = expression_to_firm(expression);
+
+		in[n] = arg_node;
 		if(new_method_type != NULL) {
 			ir_type *irtype = get_ir_type(expression->datatype);
 			set_method_param_type(new_method_type, n, irtype);
@@ -1348,6 +1483,8 @@ ir_node *expression_to_firm(const expression_t *expression)
 		return int_const_to_firm((const int_const_t*) expression);
 	case EXPR_STRING_CONST:
 		return string_const_to_firm((const string_const_t*) expression);
+	case EXPR_BOOL_CONST:
+		return bool_const_to_firm((const bool_const_t*) expression);
 	case EXPR_NULL_POINTER:
 		return null_pointer_to_firm();
 	case EXPR_REFERENCE:
@@ -1408,6 +1545,8 @@ void if_statement_to_firm(const if_statement_t *statement)
 {
 	ir_node *condition = expression_to_firm(statement->condition);
 	assert(condition != NULL);
+
+	condition = get_int_as_bool(condition);
 
 	ir_node *cond       = new_Cond(condition);
 	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);

@@ -20,7 +20,7 @@ syn keyword fluffyAttribute	extern
 syn keyword fluffyRepeat	        for while
 syn keyword fluffyConditional	if else
 
-syn keyword fluffyConstant    null
+syn keyword fluffyConstant    null true false
 
 syn keyword fluffyStatement   struct nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   union nextgroup=fluffyIdentifier

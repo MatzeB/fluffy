@@ -187,6 +187,36 @@ int is_type_int(const type_t *type)
 	}
 }
 
+type_t* make_atomic_type(atomic_type_type_t atype)
+{
+	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_ATOMIC;
+	type->atype     = atype;
+
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(type_obst, type);
+	}
+
+	return normalized_type;
+}
+
+type_t* make_pointer_type(type_t *points_to)
+{
+	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
+	memset(type, 0, sizeof(type[0]));
+	type->type.type = TYPE_POINTER;
+	type->points_to = points_to;
+
+	type_t *normalized_type = typehash_insert((type_t*) type);
+	if(normalized_type != (type_t*) type) {
+		obstack_free(type_obst, type);
+	}
+
+	return normalized_type;
+}
+
 static __attribute__((unused))
 void dbg_type(const type_t *type)
 {

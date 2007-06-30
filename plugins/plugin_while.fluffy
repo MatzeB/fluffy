@@ -13,7 +13,6 @@ instance AllocateOnAst WhileStatement:
 		return res
 
 func parse_while_statement() : Statement*:
-	puts("parsing a while...")
 	var statement <- allocate<$WhileStatement>()
 
 	//assert(token.type = token_while)
@@ -54,7 +53,6 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	return cast<Statement* > block
 
 func init_plugin():
-	puts("init_plugin while is here")
 	token_while          <- register_new_token("while")
 	while_statement_type <- register_statement()
 	register_statement_parser(parse_while_statement, token_while)

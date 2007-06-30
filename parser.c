@@ -314,7 +314,7 @@ type_t *parse_method_type(void)
 }
 
 static
-type_t *make_pointer_type(type_t *type)
+type_t *make_pointer_type_no_hash(type_t *type)
 {
 	pointer_type_t *pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
 
@@ -370,7 +370,7 @@ type_t *parse_type(void)
 		switch(token.type) {
 		case '*': {
 			next_token();
-			type = make_pointer_type(type);
+			type = make_pointer_type_no_hash(type);
 			break;
 		}
 		case '[': {
@@ -435,6 +435,34 @@ expression_t *parse_int_const(unsigned precedence)
 	cnst->value           = token.v.intvalue;
 
 	next_token();
+
+	return (expression_t*) cnst;
+}
+
+static
+expression_t *parse_true(unsigned precedence)
+{
+	(void) precedence;
+	eat(T_true);
+
+	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
+
+	cnst->expression.type = EXPR_BOOL_CONST;
+	cnst->value           = 1;
+
+	return (expression_t*) cnst;
+}
+
+static
+expression_t *parse_false(unsigned precedence)
+{
+	(void) precedence;
+	eat(T_false);
+
+	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
+
+	cnst->expression.type = EXPR_BOOL_CONST;
+	cnst->value           = 0;
 
 	return (expression_t*) cnst;
 }
@@ -780,6 +808,7 @@ expression_t *parse_##unexpression_type(unsigned precedence)              \
 
 CREATE_UNARY_EXPRESSION_PARSER('-', UNEXPR_NEGATE);
 CREATE_UNARY_EXPRESSION_PARSER('!', UNEXPR_NOT);
+CREATE_UNARY_EXPRESSION_PARSER('~', UNEXPR_BITWISE_NOT);
 CREATE_UNARY_EXPRESSION_PARSER('*', UNEXPR_DEREFERENCE);
 CREATE_UNARY_EXPRESSION_PARSER('&', UNEXPR_TAKE_ADDRESS);
 
@@ -816,6 +845,8 @@ CREATE_BINEXPR_PARSER(T_GREATEREQUAL, BINEXPR_GREATEREQUAL);
 CREATE_BINEXPR_PARSER('&', BINEXPR_AND);
 CREATE_BINEXPR_PARSER('|', BINEXPR_OR);
 CREATE_BINEXPR_PARSER('^', BINEXPR_XOR);
+CREATE_BINEXPR_PARSER(T_ANDAND, BINEXPR_LAZY_AND);
+CREATE_BINEXPR_PARSER(T_PIPEPIPE, BINEXPR_LAZY_OR);
 CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
 CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
 
@@ -838,8 +869,10 @@ void register_expression_parsers(void)
 	register_expression_infix_parser(parse_BINEXPR_EQUAL,    '=',          13);
 	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
 	register_expression_infix_parser(parse_BINEXPR_AND,      '&',          12);
+	register_expression_infix_parser(parse_BINEXPR_LAZY_AND, T_ANDAND,     12);
 	register_expression_infix_parser(parse_BINEXPR_XOR,      '^',          11);
 	register_expression_infix_parser(parse_BINEXPR_OR,       '|',          10);
+	register_expression_infix_parser(parse_BINEXPR_LAZY_OR,  T_PIPEPIPE,   10);
 	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   T_ASSIGN,      2);
 
 	register_expression_infix_parser(parse_array_expression,  '[', 25);
@@ -849,6 +882,8 @@ void register_expression_parsers(void)
 
 	register_expression_parser(parse_UNEXPR_NEGATE,           '-',    25);
 	register_expression_parser(parse_UNEXPR_NOT,              '!',    25);
+	register_expression_parser(parse_UNEXPR_BITWISE_NOT,      '~',    25);
+
 	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
 	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);
 	register_expression_parser(parse_cast_expression,         T_cast,  3);
@@ -856,6 +891,8 @@ void register_expression_parsers(void)
 	register_expression_parser(parse_brace_expression,     '(',              1);
 	register_expression_parser(parse_sizeof,               T_sizeof,         1);
 	register_expression_parser(parse_int_const,            T_INTEGER,        1);
+	register_expression_parser(parse_true,                 T_true,           1);
+	register_expression_parser(parse_false,                T_false,          1);
 	register_expression_parser(parse_string_const,         T_STRING_LITERAL, 1);
 	register_expression_parser(parse_null,                 T_null,           1);
 	register_expression_parser(parse_reference,            T_IDENTIFIER,     1);
@@ -1709,7 +1746,7 @@ void parse_union(void)
 static
 typeclass_method_t *parse_typeclass_method(void)
 {
-	eat(T_func);
+	expect(T_func);
 
 	typeclass_method_t *method = allocate_ast_zero(sizeof(method[0]));
 	method->declaration.type   = DECLARATION_TYPECLASS_METHOD;

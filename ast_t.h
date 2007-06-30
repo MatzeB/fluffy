@@ -68,6 +68,7 @@ struct type_variable_t {
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
+	EXPR_BOOL_CONST,
 	EXPR_STRING_CONST,
 	EXPR_NULL_POINTER,
 	EXPR_REFERENCE,
@@ -87,6 +88,11 @@ struct expression_t {
 	expresion_type_t   type;
 	type_t            *datatype;
 	source_position_t  source_position;
+};
+
+struct bool_const_t {
+	expression_t  expression;
+	int           value;
 };
 
 struct int_const_t {
@@ -130,10 +136,9 @@ typedef enum {
 	UNEXPR_INVALID = 0,
 	UNEXPR_NEGATE,
 	UNEXPR_NOT,
+	UNEXPR_BITWISE_NOT,
 	UNEXPR_DEREFERENCE,
 	UNEXPR_TAKE_ADDRESS,
-	UNEXPR_INCREMENT,
-	UNEXPR_DECREMENT,
 	UNEXPR_CAST
 } unary_expression_type_t;
 
@@ -156,6 +161,8 @@ typedef enum {
 	BINEXPR_LESSEQUAL,
 	BINEXPR_GREATER,
 	BINEXPR_GREATEREQUAL,
+	BINEXPR_LAZY_AND,
+	BINEXPR_LAZY_OR,
 	BINEXPR_AND,
 	BINEXPR_OR,
 	BINEXPR_XOR,
