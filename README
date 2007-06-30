@@ -1,0 +1,57 @@
+1. Introduction
+
+fluffy is an experimental language designed around the following features:
+	- support the low-level constructs and performance needed for system
+	  programming and speed critical algorithms
+	- generic programming with parametric polymorphy and typeclasses
+	- extensible through plugins
+	- consistent syntax
+
+The implementation utilizes the libfirm backend for producing highly optimized
+machine assembly.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2. Building and Installation
+
+2.1 Prerequisites
+
+* Any ANSI C99 compiler (the makefiles are configure for gcc)
+
+* libfirm 1.9.0 or later
+* libcore 0.9.0 or later (needed for libfirm)
+* gcc is needed if you want to assemble and link programs produces by the
+  fluffy compiler
+
+2.2 Building
+
+Open the Makefile and change the variables if needed (on linux systems it
+should work out of the box). Then type
+
+make
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+3. Language
+
+There's no detailed language description yet as the language is still evolving.
+However you could look at the code here:
+
+	test/typeclass2.fluffy	- generic sorting algorithm implemented with
+                              typeclasses
+	test/sdl                - simple image viewer utlitzing the libSDL library
+	                          (you currently have to manually link the assembly
+							   against libsdl)
+	stdlib/*                - declarations for large parts of the C standard
+	                          library. Also including some helper coder for
+							  variable sized array.
+	plugins/*               - Language extensions plugins (for and while loops)
+	                          developed in the language itself
+	benchmarks/*            - several smaller benchmark programs
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+4. Contact
+
+Matthias Braun <matze@braunis.de>
+
