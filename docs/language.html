@@ -1,0 +1,152 @@
+<html>
+	<body>
+		<h1>Lexical Structure</h1>
+
+		A fluffy program consists of one or more source files. Source Files are
+		typically files on the file system with the .fluffy extension. A source
+		file is a stream of ASCII characters. Compilation conceptually happens in 3
+		phases:
+
+		<ul>
+			<li>The character stream the source files is divided into a sequence of lexical tokens.</li>
+			<li>Syntactic analysis is performed on the token sequence.</li>
+		</ul>
+
+		<h2>Tokens</h2>
+
+		Tokens are described using regular expressions. If there are multiple
+		possible token matches, then the longest match is taken.
+
+		<h3>Comments</h3>
+		
+		<p>
+			line-comment:<br/>
+			<p style="margin-left:100px">
+				<b>//</b> <i>a sequence of any character except newline</i>
+			</p>
+		</p>
+
+		<p>
+			multi-line-comment:<br/>
+			<p style="margin-left:100px">
+				<b>/*</b> <i>multi-line-comment-contents</i> <b>*/</b>
+			</p>
+		</p>
+
+		<p>
+			<i>multi-line-comments-contents:</i><br/>
+			<p style="margin-left:100px">
+				<b>/*</b> <i>multi-line-comments-contents</i> <b>*/</b><br/>
+				<i>a sequence of characters not including</i> <b>*/</b> <i>and</i> <b>/*</b>
+		</p>
+
+		<h3>Identifiers</h3>
+
+		<p style="margin-left:100px">
+			<b>[a-zA-Z_][a-zA-Z_0-9]*</b>
+		</p>
+
+		<p>
+			Identifiers starting with a single _ are reserved for future language
+			extensions, identifiers starting with __ are reserved for compiler
+			extensions and plugins.
+		</p>
+
+		<h3>Layout</h3>
+
+		Indent, Dedent, Newline
+
+		<h3>Keywords</h3>
+
+		One of:
+
+		<p>
+			<b>bool</b> <b>byte</b> <b>cast</b> <b>const</b> <b>double</b> <b>else</b>
+			<b>extern</b> <b>false</b> <b>float</b> <b>func</b> <b>func</b> <b>goto</b>
+			<b>if</b> <b>instance</b> <b>int</b> <b>int</b> <b>long</b>
+			<b>namespace</b> <b>null</b> <b>return</b> <b>short</b> <b>signed</b>
+			<b>static</b> <b>struct</b> <b>true</b> <b>typealias</b> <b>typeclass</b>
+			<b>union</b>
+			<b>unsigned</b> <b>var</b> <b>void</b> <b>sizeof</b>
+		</p>
+
+		<h3>Operators</h3>
+	
+		One of:
+
+		<p>
+			<b>,</b> <b>(</b> <b>)</b> <b>[</b> <b>]</b> <b>:</b>
+			<b>+</b> <b>-</b> <b>*</b> <b>/</b> <b>%</b> <b>=</b> <b>&lt;</b>
+			<b>&gt;</b> <b>.</b> <b>^</b> <b>!</b> <b>?</b> <b>&</b> <b>~</b>
+			<b>|</b> <b>$</b> <b>...</b> <b>/=</b> <b>&lt;=</b> <b>&gt;=</b>
+			<b>&lt;&lt;</b> <b>&gt;&gt;</b>
+		</p>
+
+
+		<h1>Syntax</h1>
+
+		<h2>Declarations</h2>
+
+		<i>declaration-context:</i>
+		<p style="margin-left:100px">
+			<i>variable declaration</i><br/>
+			<i>constant declaration</i><br/>
+			<i>method declaration</i><br/>
+			<i>typealias declaration</i><br/>
+			<i>struct declaration</i><br/>
+			<i>union declaration</i><br/>
+			<i>typeclass declaration</i><br/>
+			<i>typeclass instance</i><br/>
+		</p>
+
+		<h2>Statements</h2>
+
+		<p>
+			<i>statement:</i>
+			<p style="margin-left:100px">
+				<i>block-statement</i><br/>
+				<i>expression-statement</i><br/>
+				<i>if-statement</i><br/>
+				<i>label-statement</i><br/>
+				<i>goto-statement</i><br/>
+				<i>return-statement</i><br/>
+				<i>empty-statement</i><br/>
+			</p>
+		</p>
+
+		<p>
+			<i>block-statement:</i>	INDENT [ <i>statements</i> ]* DEDENT<br/>
+			<i>expression-statement:</i> <i>expression</i> NEWLINE<br/>
+			<i>empty-statement:</i> NEWLINE<br/>
+		</p>
+
+		<h2>Expressions</h2>
+
+		<p>
+			<i>primary-expression:</i>
+			<p style="margin-left:100px">
+				IDENTIFIER<br/>
+				INTEGER LITERAL<br/>
+				STRING LITERAL<br/>
+				<b>true</b><br/>
+				<b>false</b><br/>
+				<b>null</b><br/>
+				<b>(</b> <i>expression</i> <b>)</b><br/>
+				<b>cast&lt;</b> <i>type</i> <b>&gt;</b> <i>expression</i><br/>
+				<b>cast&lt;</b> <i>type</i> <b>&gt;</b> <br/>
+			</p>
+
+			<i>assign-expression:</i>
+			<p style="margin-left:100px">
+				<i>primary-expression</i> <b>&lt;-</b> <i>expression</i>
+			</p>
+
+			<i>expression:</i>
+			<p style="margin-left:100px">
+				TODO
+			</p>
+		</p>
+
+		<h2>Types</h2>
+	</body>
+</html>
