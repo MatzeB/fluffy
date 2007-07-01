@@ -833,6 +833,7 @@ expression_t *parse_##binexpression_type(unsigned precedence,    \
 
 CREATE_BINEXPR_PARSER('*', BINEXPR_MUL);
 CREATE_BINEXPR_PARSER('/', BINEXPR_DIV);
+CREATE_BINEXPR_PARSER('%', BINEXPR_MOD);
 CREATE_BINEXPR_PARSER('+', BINEXPR_ADD);
 CREATE_BINEXPR_PARSER('-', BINEXPR_SUB);
 CREATE_BINEXPR_PARSER('<', BINEXPR_LESS);
@@ -855,6 +856,7 @@ void register_expression_parsers(void)
 {
 	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', 16);
 	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', 16);
+	register_expression_infix_parser(parse_BINEXPR_MOD,       '%', 16);
 	register_expression_infix_parser(parse_BINEXPR_SHIFTLEFT, 
 	                           T_LESSLESS, 16);
 	register_expression_infix_parser(parse_BINEXPR_SHIFTRIGHT,

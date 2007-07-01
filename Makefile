@@ -2,21 +2,21 @@ GOAL = fluffy
 
 #FIRM_CFLAGS = `pkg-config --cflags libfirm`
 #FIRM_LIBS = `pkg-config --libs libfirm`
-FIRM_CFLAGS = -I$(HOME)/projects/firm/libfirm/include -I$(HOME)/projects/firm/libcore
-FIRM_LIBS = -L$(HOME)/projects/firm/build/i686-pc-linux-gnu/debug -lfirm -llpp -lcore -lm
+FIRM_HOME = $(HOME)/projects/firm/
+FIRM_BUILD = $(FIRM_HOME)/build/i686-pc-linux-gnu/debug/
+FIRM_CFLAGS = -I$(FIRM_HOME)/libfirm/include -I$(HOME)/projects/firm/obstack -I$(HOME)/projects/firm/libcore
+FIRM_LIBS = -L$(FIRM_BUILD) -lfirm -llpp -lcore -lm -ldl
 
-CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
+CFLAGS += -Wall -W -O0 -g3 -std=c99
 CFLAGS += -DHAVE_CONFIG_H
 CFLAGS += -I .
 CFLAGS += $(FIRM_CFLAGS) $(ADDCFLAGS)
 
-LFLAGS = $(FIRM_LIBS) -llpp -ldl --export-dynamic
+LFLAGS = $(FIRM_LIBS)
 
 SOURCES := \
-	adt/hashset.c \
 	adt/pset.c \
 	adt/strset.c \
-	adt/xmalloc.c \
 	ast.c \
 	ast2firm.c \
 	lexer.c \

@@ -17,7 +17,13 @@
 #include "type_hash.h"
 #include "adt/error.h"
 
-#define LINKER    "gcc"
+#ifdef _WIN32
+#define LINKER "gcc.exe"
+#define TMPDIR ""
+#else
+#define LINKER "gcc"
+#define TMPDIR "/tmp/"
+#endif
 
 static int dump_graphs = 0;
 static int dump_asts   = 0;
@@ -274,6 +280,7 @@ int main(int argc, char **argv)
 	}
 	if(parsed == 0) {
 		fprintf(stderr, "Error: no input files specified\n");
+		return 0;
 	}
 
 	check_semantic();
@@ -281,7 +288,7 @@ int main(int argc, char **argv)
 	if(mode == Compile) {
 		asmname = outname;
 	} else {
-		asmname = "/tmp/fluffy.s";
+		asmname = TMPDIR "fluffy.s";
 	}
 	emit(asmname);
 	if(mode == CompileAndLink) {

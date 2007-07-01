@@ -4,8 +4,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifndef _WIN32
 #include <dlfcn.h>
 #include <glob.h>
+#endif
 
 #include "adt/xmalloc.h"
 
@@ -14,6 +17,9 @@ plugin_t *plugins = NULL;
 static
 void load_plugin(const char *filename)
 {
+#ifdef _WIN32
+	// TODO...
+#else
 	printf("Opening plugin '%s'...\n", filename);
 
 	void *handle = dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
@@ -35,10 +41,12 @@ void load_plugin(const char *filename)
 	plugin->dlhandle      = handle;
 	plugin->next          = plugins;
 	plugins               = plugin;	
+#endif
 }
 
 void search_plugins(void)
 {
+#ifndef _WIN32
 	/* search for plugins */
 	glob_t globbuf;
 	if(glob("plugins/plugin_*.so", 0, NULL, &globbuf) == 0) {
@@ -50,6 +58,7 @@ void search_plugins(void)
 
 		globfree(&globbuf);
 	}
+#endif
 }
 
 void initialize_plugins(void)
@@ -65,6 +74,7 @@ void initialize_plugins(void)
 
 void free_plugins(void)
 {
+#ifndef _WIN32
 	/* close dl handles */
 	plugin_t *plugin = plugins;
 	while(plugin != NULL) {
@@ -77,5 +87,6 @@ void free_plugins(void)
 
 		plugin = plugin->next;
 	}
+#endif
 
 }

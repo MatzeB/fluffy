@@ -1098,8 +1098,6 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 	switch(btype) {
 	case BINEXPR_ASSIGN:
 		return assign_expression_to_firm(binary_expression);
-	/* TODO construct Div,Mod nodes (they need special treatment with memory
-	 * edges */
 	case BINEXPR_LAZY_OR:
 	case BINEXPR_LAZY_AND:
 		return create_lazy_op(binary_expression);
@@ -1107,13 +1105,33 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 		break;
 	}
 
+	ir_node *left  = expression_to_firm(binary_expression->left);
+	ir_node *right = expression_to_firm(binary_expression->right);
+
+	if(btype == BINEXPR_DIV) {
+		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
+		ir_node *store = get_store();
+		ir_node *node  = new_Div(store, left, right, mode);
+		
+		store = new_Proj(node, mode_M, pn_Div_M);
+		set_store(store);
+		return new_Proj(node, mode, pn_Div_res);
+	}
+
+	if(btype == BINEXPR_MOD) {
+		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
+		ir_node *store = get_store();
+		ir_node *node  = new_Mod(store, left, right, mode);
+		
+		store = new_Proj(node, mode_M, pn_Mod_M);
+		set_store(store);
+		return new_Proj(node, mode, pn_Mod_res);
+	}
+
 	/* an arithmetic binexpression? */
 	ir_op *irop = binexpr_type_to_op(btype);
 	if(irop != NULL) {
-		ir_node *in[2] = {
-			expression_to_firm(binary_expression->left),
-			expression_to_firm(binary_expression->right)
-		};
+		ir_node *in[2] = { left, right };
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *block = get_cur_block();
 		ir_node *node  = new_ir_node(NULL, current_ir_graph, block,	irop, mode,
@@ -1124,10 +1142,8 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 	/* a comparison expression? */
 	long compare_pn = binexpr_type_to_cmp_pn(btype);
 	if(compare_pn != 0) {
-		ir_node *left  = expression_to_firm(binary_expression->left);
-		ir_node *right = expression_to_firm(binary_expression->right);
-		ir_node *cmp   = new_Cmp(left, right);
-		ir_node *proj  = new_Proj(cmp, mode_b, compare_pn);
+		ir_node *cmp  = new_Cmp(left, right);
+		ir_node *proj = new_Proj(cmp, mode_b, compare_pn);
 
 		return get_bool_as_int(proj, mode_Iu);
 	}

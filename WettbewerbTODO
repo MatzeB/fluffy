@@ -13,41 +13,52 @@ Text:
 2. Die Motivation
 
 (Das hat mich / uns zur Umsetzung meiner / unserer Software	bewegt:* (max. 800 Zeichen)
-Um mein
-	Wissen im Übersetzerbau in der Praxis zu beweisen und zu vertiefen enstand
-	der Plan eine eigene Programmiersprache zu entwerfen.
-	
+
+	Programmiersprachen sind das wichtigste Hilfsmittel zum schreiben neuer
+	Programme. Von ihnen geht für mich als Hacker eine große Faszination aus.
+	Ich will sie verstehen, bis ins letzte ausreizen oder selber neue Sprachen
+	schaffen.
+
+	Um eine Technik richtig zu begreifen muss man sie meiner Meinung nach
+	selbst einmal implementiert haben. An diesem Projekt hat mich die
+	Möglichkeit gereizt etwas kreatives neues zu schaffen, das mir und
+	vielleicht auch anderen bei ihren Probleme hilft.
 
 3. Projektsteckbrief
 
 Projektname: fluffy
 
 Das kann meine / unsere Software (Funktionalität):* (max 500 Zeichen)
-	fluffy ist eine neuartige Programmiersprache mit Unterstützung für 
-	parametrische Polymorphie, Typklassen, Spracherweiterungen durch Plugins.
-	Gängige imperative Programmierparadigmen werden untestützt mit einem Fokus
-	auf System-Low-Level Programmierung so dass die Performanz von C
-	Programmen erreicht werden kann.
+	Es handelt sich um eine neuartige Programmiersprache mit Unterstützung für 
+	parametrische Polymorphie, Typklassen und Spracherweiterungen durch Plugins.
+	Gängige Programmierparadigmen werden untestützt mit einem Fokus
+	auf System-Level und High-Performance Programmen. Sie soll ein leichtes
+	angenehmen programmieren ermöglichen - daher der Name Fluffy.
 
 Verwendete Technologien / Drittkomponenten:* (max 500 Zeichen)
-	libfirm - Optimierungen/Backends für verschiedene Architekturen
-	yasm    - Assembler library
+	Es wurde die firm Bibliothek für Zwischensprache und Codeerzeugung für verschiedene Architekturen verwendet (http://www.info.uni-karlsruhe.de/software/libfirm/)
 
 Verwendete Programmiersprachen:* (max 500 Zeichen)
 	C (Ansi C99)
 
 Geschätzte Zeit, die ich / wir bisher in das Projekt investiert haben: *
-	230 Stunden
+	170 Stunden
 
 Wie ist die Idee zur Software entstanden und wie hast Du / habt Ihr sie
 umgesetzt? * (max 800 Zeichen)
-	Beim Programmieren in den Sprachen C/C++, Java, C#, Haskell, sind mir immer
-	wieder Dinge aufgefallen die man verbessern könnte und die mangels
-	Erweiterbarkeit dieser Sprachen nicht umsetzbar waren.
-	Die Umsetzung erfolgte als Frontend für ein existierendes Übersetzer
-	Backend.
+
+	Schon seit langem träumte ich davon eine eigene Programmiersprache zu
+	entwerfen. Die freie Zeit in den Osterferien gaben schließlich den Ausschlag
+	den Traum zu verwirklichen.
+
+	Die implementierung erfolgte ohne die typischen Parsergeneratoren, da diese
+	keine dynamischen Sracherweiterungen durch plugins erlauben. Stattdessen
+	wurde ein LL(1) Parser von Hand Programmiert.
 
 Das macht mein / unser Projekt preisverdächtig:* (max 500 Zeichen):
-	- Die elegante verständliche Implementierung in C
-	- Neuartiges Konzept erweiterbarer Programmiersprachen
-
+	Das Projekt ist eine ideale Platform zum Experimentieren mit neuartigen
+	Sprachkonzepten. Die Implementierung ist in elegantem verständlichen C
+	geschrieben. Die elegante und verständliche Implementierung in C und die
+	Möglichkeit für Spracherweiterungen durch Plugins erlauben einen
+	vielfältigen Einsatz in Bereichen wo die Mittel existierender
+	Programmiersprachen nicht ausreichen.
