@@ -54,7 +54,8 @@ func print_array<T : Printable>(array : T*, len : int):
 	goto loop
 
 func main() : int:
-	var array <- cast<int* > malloc( cast<unsigned int> 10 * sizeof<int>)
+	typealias arr_type <- int*
+	var array <- cast<arr_type> malloc( cast<unsigned int> 10 * sizeof<int>)
 	array[0] <- 20
 	array[1] <- 10
 	array[2] <- 5

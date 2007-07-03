@@ -4,6 +4,9 @@
 
 #include <assert.h>
 #include <string.h>
+
+#define WITH_LIBCORE
+
 #include <libfirm/firm.h>
 #include <libfirm/be.h>
 
@@ -31,9 +34,8 @@ static type_t  *type_bool     = NULL;
 
 struct instantiate_method_t {
 	method_t             *method;
-	symbol_t             *symbol;
-	type_argument_t      *type_arguments;
 	ir_entity            *entity;
+	type_argument_t      *type_arguments;
 };
 
 typedef struct type2firm_env_t type2firm_env_t;
@@ -57,6 +59,8 @@ static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
 static
 ir_type *get_ir_type(type_t *type);
+static
+void context2firm(const context_t *context);
 
 static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
@@ -68,14 +72,12 @@ ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 
 void initialize_firm(void)
 {
+	be_opt_register();
+	firm_init_options(NULL, 0, NULL);
+
 	const backend_params *be_params;
 	firm_parameter_t params;
 	memset(&params, 0, sizeof(params));
-
-#if 0
-	/* read firm options */
-	firm_init_options("mlang", 0, NULL);
-#endif
 
 	params.size = sizeof(params);
 	params.enable_statistics = 0;
@@ -108,15 +110,30 @@ void exit_firm(void)
 {
 }
 
+static unsigned unique_id = 0;
+
 static
-ident *unique_id(const char *tag)
+ident *unique_ident(const char *tag)
 {
-	static unsigned id = 0;
 	char            buf[256];
 
-	snprintf(buf, sizeof(buf), "%s%d", tag, id);
-	id++;
+	snprintf(buf, sizeof(buf), "%s.%d", tag, unique_id);
+	unique_id++;
 	return new_id_from_str(buf);
+}
+
+static
+symbol_t *unique_symbol(const char *tag)
+{
+	obstack_printf(&symbol_obstack, "%s.%d", tag, unique_id);
+	unique_id++;
+
+	const char *string = obstack_finish(&symbol_obstack);
+	symbol_t   *symbol = symbol_table_insert(string);
+
+	assert(symbol->string == string);
+
+	return symbol;
 }
 
 static
@@ -279,7 +296,7 @@ ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
 
-	ident   *id           = unique_id("methodtype");
+	ident   *id           = unique_ident("methodtype");
 	int      n_parameters = count_parameters(method_type);
 	int      n_results    = result_type->type == TYPE_VOID ? 0 : 1;
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
@@ -316,7 +333,7 @@ ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	 * and then set the real points_to type
 	 */
 	ir_type *ir_type_void = get_ir_type(type_void);
-	ir_type *ir_type      = new_type_pointer(unique_id("pointer"),
+	ir_type *ir_type      = new_type_pointer(unique_ident("pointer"),
                                              ir_type_void, mode_P_data);
 	type->type.firm_type  = ir_type;
 
@@ -332,7 +349,7 @@ ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 	type_t  *element_type    = type->element_type;
 	ir_type *ir_element_type = _get_ir_type(env, element_type);
 
-	ir_type *ir_type = new_type_array(unique_id("array"), 1, ir_element_type);
+	ir_type *ir_type = new_type_array(unique_ident("array"), 1, ir_element_type);
 	set_array_bounds_int(ir_type, 0, 0, type->size);
 
 	size_t elemsize = get_type_size_bytes(ir_element_type);
@@ -352,7 +369,7 @@ ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 static
 ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
-	ir_type *ir_type = new_type_struct(unique_id(type->symbol->string));
+	ir_type *ir_type = new_type_struct(unique_ident(type->symbol->string));
 	type->type.firm_type = ir_type;
 
 	int align_all = 1;
@@ -395,7 +412,7 @@ static
 ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol  = type->symbol;
-	ident    *id      = unique_id(symbol->string);
+	ident    *id      = unique_ident(symbol->string);
 	ir_type  *ir_type = new_type_union(id);
 
 	type->type.firm_type = ir_type;
@@ -523,15 +540,15 @@ ir_mode *get_ir_mode(type_t *type)
 }
 
 static
-instantiate_method_t *queue_method_instantiation(method_t *method,
-                                                 symbol_t *symbol)
+instantiate_method_t *queue_method_instantiation(method_t  *method,
+                                                 ir_entity *entity)
 {
 	instantiate_method_t *instantiate
 		= obstack_alloc(&obst, sizeof(instantiate[0]));
 	memset(instantiate, 0, sizeof(instantiate[0]));
 
 	instantiate->method = method;
-	instantiate->symbol = symbol;
+	instantiate->entity = entity;
 	pdeq_putr(instantiate_methods, instantiate);
 
 	return instantiate;
@@ -733,7 +750,7 @@ static
 ir_node *load_from_expression_addr(type_t *type, ir_node *addr);
 
 static
-ir_node *expression_to_firm(const expression_t *expression);
+ir_node *expression_to_firm(expression_t *expression);
 
 static
 ir_node *int_const_to_firm(const int_const_t *cnst)
@@ -754,10 +771,10 @@ static
 ir_node *string_const_to_firm(const string_const_t* cnst)
 {
 	ir_type   *global_type = get_glob_type();
-	ir_type   *type        = new_type_array(unique_id("bytearray"), 1,
+	ir_type   *type        = new_type_array(unique_ident("bytearray"), 1,
 	                                        byte_ir_type);
 
-	ir_entity *ent = new_entity(global_type, unique_id("str"), type);
+	ir_entity *ent = new_entity(global_type, unique_ident("str"), type);
 	set_entity_variability(ent, variability_constant);
 
 	ir_type    *elem_type = byte_ir_type;
@@ -789,17 +806,6 @@ ir_node *null_pointer_to_firm(void)
 	tarval  *tv   = get_tarval_null(mode);
 
 	return new_Const(mode, tv);
-}
-
-static
-ir_node *variable_reference_to_firm(const variable_declaration_t *variable)
-{
-	ir_mode *mode = get_ir_mode(variable->type);
-
-	assert(variable->value_number < get_irg_n_locs(current_ir_graph));
-	value_numbers[variable->value_number] = variable;
-
-	return get_value(variable->value_number, mode);
 }
 
 static
@@ -835,9 +841,11 @@ ir_node *array_access_expression_addr(const array_access_expression_t* access)
 }
 
 static
-void create_global_variable_entity(global_variable_t *variable)
+void create_variable_entity(variable_declaration_t *variable)
 {
 	if(variable->entity != NULL)
+		return;
+	if(!variable->is_global && !variable->needs_entity)
 		return;
 
 	ir_type *globtype = get_glob_type();
@@ -858,9 +866,11 @@ void create_global_variable_entity(global_variable_t *variable)
 }
 
 static
-ir_node *global_variable_addr(global_variable_t *variable)
+ir_node *variable_addr(variable_declaration_t *variable)
 {
-	create_global_variable_entity(variable);
+	assert(variable->is_global);
+
+	create_variable_entity(variable);
 
 	ir_node *symconst = new_SymConst((union symconst_symbol) variable->entity,
 	                                 symconst_addr_ent);
@@ -868,18 +878,27 @@ ir_node *global_variable_addr(global_variable_t *variable)
 }
 
 static
-ir_node *global_variable_to_firm(global_variable_t *variable)
+ir_node *variable_to_firm(variable_declaration_t *variable)
 {
-	ir_node *addr = global_variable_addr(variable);
-	type_t  *type = variable->type;
+	if(variable->is_global) {
+		ir_node *addr = variable_addr(variable);
+		type_t  *type = variable->type;
 
-	if(type->type == TYPE_COMPOUND_STRUCT 
-			|| type->type == TYPE_COMPOUND_UNION
-			|| type->type == TYPE_ARRAY) {
-		return addr;
+		if(type->type == TYPE_COMPOUND_STRUCT 
+				|| type->type == TYPE_COMPOUND_UNION
+				|| type->type == TYPE_ARRAY) {
+			return addr;
+		}
+
+		return load_from_expression_addr(type, addr);
+	} else {
+		ir_mode *mode = get_ir_mode(variable->type);
+
+		assert(variable->value_number < get_irg_n_locs(current_ir_graph));
+		value_numbers[variable->value_number] = variable;
+
+		return get_value(variable->value_number, mode);
 	}
-
-	return load_from_expression_addr(type, addr);
 }
 
 static
@@ -894,13 +913,12 @@ ir_node *reference_expression_addr(const reference_expression_t *reference)
 	declaration_t *declaration = reference->declaration;
 
 	switch(declaration->type) {
-	case DECLARATION_GLOBAL_VARIABLE:
-		return global_variable_addr((global_variable_t*) declaration);
+	case DECLARATION_VARIABLE:
+		return variable_addr((variable_declaration_t*) declaration);
 
 	case DECLARATION_INVALID:
 	case DECLARATION_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
-	case DECLARATION_VARIABLE:
 	case DECLARATION_CONSTANT:
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
@@ -944,9 +962,9 @@ ir_node *expression_addr(const expression_t *expression)
 static
 ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 {
-	const expression_t *left  = assign->left;
-	const expression_t *right = assign->right;
-	ir_node            *value = expression_to_firm(right);
+	expression_t *left  = assign->left;
+	expression_t *right = assign->right;
+	ir_node      *value = expression_to_firm(right);
 
 	if(left->type == EXPR_REFERENCE) {
 		const reference_expression_t *ref 
@@ -957,9 +975,11 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
 
-			value_numbers[variable->value_number] = variable;
-			set_value(variable->value_number, value);
-			return value;
+			if(!variable->is_global && !variable->needs_entity) {
+				value_numbers[variable->value_number] = variable;
+				set_value(variable->value_number, value);
+				return value;
+			}
 		}
 	}
 
@@ -1252,52 +1272,54 @@ ir_node *select_expression_to_firm(const select_expression_t *select)
 }
 
 static
-ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
-                                  type_argument_t *type_arguments)
+ir_entity *assure_instance(method_t *method, symbol_t *symbol,
+                           type_argument_t *type_arguments)
 {
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(method->type_parameters, type_arguments);
 
 	ir_entity  *entity        = get_method_entity(method, symbol);
 	const char *name          = get_entity_name(entity);
-	int        needs_instance = is_polymorphic_method(method);
 
 	pop_type_variable_bindings(old_top);
 
-	if(needs_instance) {
-		const char *name = get_entity_name(entity);
-		if(strset_find(&instantiated_methods, name) != NULL) {
-			needs_instance = 0;
-		}
+	if(strset_find(&instantiated_methods, name) != NULL) {
+		return entity;
 	}
 
-	if(needs_instance) {
-		instantiate_method_t *instantiate 
-			=	queue_method_instantiation(method, symbol);
-		instantiate->entity = entity;
+	instantiate_method_t *instantiate 
+		= queue_method_instantiation(method, entity);
 
-		type_argument_t *type_argument = type_arguments;
-		type_argument_t *last_argument = NULL;
-		while(type_argument != NULL) {
-			type_t          *type         = type_argument->type;
-			type_argument_t *new_argument
-				= obstack_alloc(&obst, sizeof(new_argument[0]));
-			memset(new_argument, 0, sizeof(new_argument[0]));
+	type_argument_t *type_argument = type_arguments;
+	type_argument_t *last_argument = NULL;
+	while(type_argument != NULL) {
+		type_t          *type         = type_argument->type;
+		type_argument_t *new_argument
+			= obstack_alloc(&obst, sizeof(new_argument[0]));
+		memset(new_argument, 0, sizeof(new_argument[0]));
 
-			new_argument->type = create_concrete_type(type);
+		new_argument->type = create_concrete_type(type);
 
-			if(last_argument != NULL) {
-				last_argument->next = new_argument;
-			} else {
-				instantiate->type_arguments = new_argument;
-			}
-			last_argument = new_argument;
-
-			type_argument = type_argument->next;
+		if(last_argument != NULL) {
+			last_argument->next = new_argument;
+		} else {
+			instantiate->type_arguments = new_argument;
 		}
+		last_argument = new_argument;
 
-		strset_insert(&instantiated_methods, name);
+		type_argument = type_argument->next;
 	}
+
+	strset_insert(&instantiated_methods, name);
+
+	return entity;
+}
+
+static
+ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
+                                  type_argument_t *type_arguments)
+{
+	ir_entity *entity = assure_instance(method, symbol, type_arguments);
 
 	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
 	                                 symconst_addr_ent);
@@ -1402,7 +1424,8 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	if(method_type->variable_arguments) {
 		/* we need to construct a new method type matching the call
 		 * arguments... */
-		new_method_type = new_type_method(unique_id("Call."), n_parameters,
+		new_method_type = new_type_method(unique_ident("calltype"),
+		                                  n_parameters,
 		                                  get_method_n_ress(ir_method_type));
 		set_method_calling_convention(new_method_type,
 		               get_method_calling_convention(ir_method_type));
@@ -1453,6 +1476,24 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 }
 
 static
+ir_node *func_expression_to_firm(func_expression_t *expression)
+{
+	method_t  *method = & expression->method;
+	ir_entity *entity = method->entity;
+
+	if(entity == NULL) {
+		symbol_t *symbol = unique_symbol("anonfunc");
+		entity           = get_method_entity(method, symbol);
+	}
+	queue_method_instantiation(method, entity);
+
+	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	                                 symconst_addr_ent);
+
+	return symconst;
+}
+
+static
 ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 {
 	method_declaration_t *method_declaration;
@@ -1472,11 +1513,8 @@ ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 				(method_parameter_t*) declaration);
 	case DECLARATION_CONSTANT:
 		return constant_reference_to_firm((constant_t*) declaration);
-	case DECLARATION_GLOBAL_VARIABLE:
-		return global_variable_to_firm((global_variable_t*) declaration);
 	case DECLARATION_VARIABLE:
-		return variable_reference_to_firm(
-				(variable_declaration_t*) declaration);
+		return variable_to_firm((variable_declaration_t*) declaration);
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 	case DECLARATION_TYPEALIAS:
@@ -1490,7 +1528,7 @@ ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 }
 
 static
-ir_node *expression_to_firm(const expression_t *expression)
+ir_node *expression_to_firm(expression_t *expression)
 {
 	ir_node *addr;
 
@@ -1523,6 +1561,9 @@ ir_node *expression_to_firm(const expression_t *expression)
 	case EXPR_SIZEOF:
 		return sizeof_expression_to_firm(
 				(const sizeof_expression_t*) expression);
+	case EXPR_FUNC:
+		return func_expression_to_firm(
+				(func_expression_t*) expression);
 	case EXPR_LAST:
 	case EXPR_INVALID:
 		break;
@@ -1609,6 +1650,8 @@ void expression_statement_to_firm(const expression_statement_t *statement)
 static
 void block_statement_to_firm(const block_statement_t *block)
 {
+	context2firm(&block->context);
+
 	statement_t *statement = block->statements;
 	while(statement != NULL) {
 		statement_to_firm(statement);
@@ -1696,7 +1739,7 @@ void statement_to_firm(statement_t *statement)
 }
 
 static
-void create_method(method_t *method, symbol_t *symbol,
+void create_method(method_t *method, ir_entity *entity,
                    type_argument_t *type_arguments)
 {
 	if(method->is_extern)
@@ -1707,8 +1750,9 @@ void create_method(method_t *method, symbol_t *symbol,
 		assert(type_arguments != NULL);
 		push_type_variable_bindings(method->type_parameters, type_arguments);
 	}
+
+	context2firm(&method->context);
 	
-	ir_entity *entity = get_method_entity(method, symbol);
 	ir_graph *irg     = new_ir_graph(entity, method->n_local_vars);
 
 	assert(value_numbers == NULL);
@@ -1758,29 +1802,23 @@ void create_typeclass_instance(typeclass_instance_t *instance)
 	while(method_instance != NULL) {
 		method_t *method = & method_instance->method;
 		/* make sure the method entity is set */
-		get_typeclass_method_instance_entity(method_instance);
+		ir_entity *entity 
+			= get_typeclass_method_instance_entity(method_instance);
 		/* we can emit it like a normal method */
-		create_method(method, method_instance->symbol, NULL);
+		queue_method_instantiation(method, entity);
 
 		method_instance  = method_instance->next;
 	}
 }
 
-/**
- * Build a firm representation of an AST programm
- */
-void ast2firm(namespace_t *namespace)
+static
+void context2firm(const context_t *context)
 {
 	method_declaration_t *method_declaration;
 	method_t             *method;
 
-	obstack_init(&obst);
-	strset_init(&instantiated_methods);
-	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
-	instantiate_methods   = new_pdeq();
-
-	/* scan compilation unit for functions */
-	declaration_t *declaration = namespace->context.declarations;
+	/* scan context for functions */
+	declaration_t *declaration = context->declarations;
 	while(declaration != NULL) {
 		switch(declaration->type) {
 		case DECLARATION_METHOD:
@@ -1788,14 +1826,14 @@ void ast2firm(namespace_t *namespace)
 			method             = &method_declaration->method;
 
 			if(!is_polymorphic_method(method)) {
-				create_method(method, method_declaration->declaration.symbol,
-				              NULL);
+				fprintf(stderr, "Queue Method: %s\n", declaration->symbol->string);
+				assure_instance(method, declaration->symbol, NULL);
 			}
-			break;
-		case DECLARATION_GLOBAL_VARIABLE:
-			create_global_variable_entity((global_variable_t*) declaration);
+
 			break;
 		case DECLARATION_VARIABLE:
+			create_variable_entity((variable_declaration_t*) declaration);
+			break;
 		case DECLARATION_TYPEALIAS:
 		case DECLARATION_TYPECLASS:
 		case DECLARATION_CONSTANT:
@@ -1812,18 +1850,32 @@ void ast2firm(namespace_t *namespace)
 		declaration = declaration->next;
 	}
 
-	typeclass_instance_t *instance = namespace->context.typeclass_instances;
+	typeclass_instance_t *instance = context->typeclass_instances;
 	while(instance != NULL) {
 		create_typeclass_instance(instance);
 		instance = instance->next;
 	}
+}
+
+/**
+ * Build a firm representation of an AST programm
+ */
+void ast2firm(namespace_t *namespace)
+{
+	obstack_init(&obst);
+	strset_init(&instantiated_methods);
+	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
+	instantiate_methods   = new_pdeq();
+
+	context2firm(& namespace->context);
 
 	while(!pdeq_empty(instantiate_methods)) {
 		instantiate_method_t *instantiate_method 
 			= pdeq_getl(instantiate_methods);
 
+		printf("Create method: %s\n", get_entity_name(instantiate_method->entity));
 		create_method(instantiate_method->method,
-		              instantiate_method->symbol,
+		              instantiate_method->entity,
 		              instantiate_method->type_arguments);
 	}
 

@@ -233,7 +233,7 @@ void usage(const char *argv0)
 	fprintf(stderr, "Usage: %s input1 input2 [-o output]\n", argv0);
 }
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	init_symbol_table();
 	init_tokens();
@@ -273,6 +273,24 @@ int main(int argc, char **argv)
 			mode = Compile;
 		} else if(strcmp(arg, "-v") == 0) {
 			verbose = 1;
+		} else if(strncmp(arg, "-b", 2) == 0) {
+			const char *bearg = arg+2;
+			if(bearg[0] == 0) {
+				++i;
+				if(i >= argc) {
+					usage(argv[0]);
+					return 1;
+				}
+				bearg = argv[i];
+			}
+			if(!be_parse_arg(bearg)) {
+				fprintf(stderr, "Invalid backend option: %s\n", bearg);
+				usage(argv[0]);
+				return 1;
+			}
+			if(strcmp(bearg, "help") == 0) {
+				return 1;
+			}
 		} else {
 			parsed++;
 			parse_file(argv[i]);

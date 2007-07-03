@@ -40,6 +40,14 @@ int              last_statement_was_return = 0;
 static
 void check_and_push_context(context_t *context);
 
+static
+void check_method(method_t *method, symbol_t *symbol,
+                  const source_position_t source_position);
+
+static
+void resolve_method_types(method_t *method,
+                          const source_position_t source_position);
+
 void print_error_prefix(const source_position_t position)
 {
 	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
@@ -314,7 +322,6 @@ void check_reference_expression(reference_expression_t *ref)
 	variable_declaration_t *variable;
 	method_declaration_t   *method;
 	method_parameter_t     *method_parameter;
-	global_variable_t      *global_variable;
 	constant_t             *constant;
 	typeclass_method_t     *typeclass_method;
 	symbol_t               *symbol      = ref->symbol;
@@ -340,21 +347,21 @@ void check_reference_expression(reference_expression_t *ref)
 		variable = (variable_declaration_t*) declaration;
 		variable->refs++;
 		ref->expression.datatype = variable->type;
+		if(ref->expression.datatype == NULL)
+			return;
+
+		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
+				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
+				|| ref->expression.datatype->type == TYPE_ARRAY) {
+			variable->needs_entity   = 1;
+			ref->expression.datatype = make_pointer_type(
+					ref->expression.datatype);
+		}
 		return;
 	case DECLARATION_METHOD:
 		method                   = (method_declaration_t*) declaration;
 		ref->expression.datatype 
 			= make_pointer_type((type_t*) method->method.type);
-		return;
-	case DECLARATION_GLOBAL_VARIABLE:
-		global_variable          = (global_variable_t*) declaration;
-		ref->expression.datatype = global_variable->type;
-		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
-				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
-				|| ref->expression.datatype->type == TYPE_ARRAY) {
-			ref->expression.datatype = make_pointer_type(
-					ref->expression.datatype);
-		}
 		return;
 	case DECLARATION_CONSTANT:
 		constant                 = (constant_t*) declaration;
@@ -402,10 +409,9 @@ int is_lvalue(const expression_t *expression)
 
 	switch(expression->type) {
 	case EXPR_REFERENCE:
-		reference = (reference_expression_t*) expression;
+		reference   = (reference_expression_t*) expression;
 		declaration = reference->declaration;
-		if(declaration->type == DECLARATION_VARIABLE ||
-		   declaration->type == DECLARATION_GLOBAL_VARIABLE) {
+		if(declaration->type == DECLARATION_VARIABLE) {
 			return 1;
 		}
 		break;
@@ -1473,6 +1479,17 @@ void check_sizeof_expression(sizeof_expression_t *expression)
 	expression->expression.datatype = type_uint;
 }
 
+static
+void check_func_expression(func_expression_t *expression)
+{
+	method_t *method = & expression->method;
+
+	resolve_method_types(method, expression->expression.source_position);
+	check_method(method, NULL, expression->expression.source_position);
+
+	expression->expression.datatype = make_pointer_type((type_t*) method->type);
+}
+
 __attribute__((warn_unused_result))
 expression_t *check_expression(expression_t *expression)
 {
@@ -1502,6 +1519,10 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_NULL_POINTER:
 		expression->datatype = type_void_ptr;
 		break;
+	case EXPR_FUNC:
+		check_func_expression((func_expression_t*) expression);
+		break;
+
 	case EXPR_REFERENCE:
 		check_reference_expression((reference_expression_t*) expression);
 		break;
@@ -1812,8 +1833,13 @@ void check_method(method_t *method, symbol_t *symbol,
 		if(result_type != type_void) {
 			/* TODO: report end-position of block-statement? */
 			print_error_prefix(source_position);
-			fprintf(stderr, "missing return statement at end of function."
-			        "'%s'\n", symbol->string);
+			if(symbol != NULL) {
+				fprintf(stderr, "missing return statement at end of function "
+				        "'%s'\n", symbol->string);
+			} else {
+				fprintf(stderr, "missing return statement at end of anonymous "
+				        "function\n");
+			}
 			return;
 		}
 	}
@@ -1877,15 +1903,15 @@ void resolve_type_variable_constraints(type_variable_t *type_variables,
 }
 
 static
-void resolve_method_types(method_declaration_t *method_declaration)
+void resolve_method_types(method_t *method,
+                          const source_position_t source_position)
 {
-	method_t *method = &method_declaration->method;
 	int old_top = environment_top();
 
 	/* push type variables */
 	push_context(&method->context);
 	resolve_type_variable_constraints(method->type_parameters,
-                               method_declaration->declaration.source_position);
+                                      source_position);
 
 	/* normalize parameter types */
 	method_parameter_t *parameter = method->parameters;
@@ -2019,11 +2045,11 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 static
 void check_and_push_context(context_t *context)
 {
-	global_variable_t    *variable;
-	method_declaration_t *method;
-	typealias_t          *typealias;
-	type_t               *type;
-	typeclass_t          *typeclass;
+	variable_declaration_t *variable;
+	method_declaration_t   *method;
+	typealias_t            *typealias;
+	type_t                 *type;
+	typeclass_t            *typeclass;
 
 	push_context(context);
 
@@ -2031,13 +2057,13 @@ void check_and_push_context(context_t *context)
 	declaration_t *declaration = context->declarations;
 	while(declaration != NULL) {
 		switch(declaration->type) {
-		case DECLARATION_GLOBAL_VARIABLE:
-			variable       = (global_variable_t*) declaration;
+		case DECLARATION_VARIABLE:
+			variable       = (variable_declaration_t*) declaration;
 			variable->type = normalize_type(variable->type);
 			break;
 		case DECLARATION_METHOD:
 			method = (method_declaration_t*) declaration;
-			resolve_method_types(method);
+			resolve_method_types(&method->method, declaration->source_position);
 			break;
 		case DECLARATION_TYPEALIAS:
 			typealias = (typealias_t*) declaration;

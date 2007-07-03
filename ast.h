@@ -22,6 +22,7 @@ typedef struct unary_expression_t       unary_expression_t;
 typedef struct select_expression_t      select_expression_t;
 typedef struct array_access_expression_t array_access_expression_t;
 typedef struct sizeof_expression_t      sizeof_expression_t;
+typedef struct func_expression_t        func_expression_t;
 
 typedef struct statement_t              statement_t;
 typedef struct block_statement_t        block_statement_t;

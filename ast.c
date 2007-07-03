@@ -93,10 +93,11 @@ void print_type_arguments(const type_argument_t *type_arguments)
 static
 void print_reference_expression(const reference_expression_t *ref)
 {
-	if(ref->expression.type == EXPR_REFERENCE) {
-		fprintf(out, "?");
+	if(ref->declaration == NULL) {
+		fprintf(out, "?%s", ref->symbol->string);
+	} else {
+		fprintf(out, "%s", ref->declaration->symbol->string);
 	}
-	fprintf(out, "%s", ref->symbol->string);
 
 	print_type_arguments(ref->type_arguments);
 }
@@ -556,18 +557,6 @@ void print_typeclass_instance(const typeclass_instance_t *instance)
 }
 
 static
-void print_global_variable(const global_variable_t *variable)
-{
-	fprintf(out, "var ");
-	if(variable->is_extern) {
-		fprintf(out, "extern ");
-	}
-	fprintf(out, " %s : ", variable->declaration.symbol->string);
-	print_type(out, variable->type);
-	fprintf(out, "\n");
-}
-
-static
 void print_typealias(const typealias_t *alias)
 {
 	fprintf(out, "typealias %s <- ", alias->declaration.symbol->string);
@@ -587,15 +576,14 @@ void print_declaration(const declaration_t *declaration)
 	case DECLARATION_TYPECLASS:
 		print_typeclass((const typeclass_t*) declaration);
 		break;
-	case DECLARATION_GLOBAL_VARIABLE:
-		print_global_variable((const global_variable_t*) declaration);
+	case DECLARATION_VARIABLE:
+		print_variable_declaration((const variable_declaration_t*) declaration);
 		break;
 	case DECLARATION_TYPEALIAS:
 		print_typealias((const typealias_t*) declaration);
 		break;
 	case DECLARATION_TYPECLASS_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
-	case DECLARATION_VARIABLE:
 	case DECLARATION_CONSTANT:
 		fprintf(out, "some declaration of type %d\n", declaration->type);
 		// TODO
@@ -644,8 +632,7 @@ const char *get_declaration_type_name(declaration_type_t type)
 	switch(type) {
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:          return "invalid reference";
-	case DECLARATION_VARIABLE:         return "local variable";
-	case DECLARATION_GLOBAL_VARIABLE:  return "global variable";
+	case DECLARATION_VARIABLE:         return "variable";
 	case DECLARATION_CONSTANT:         return "constant";
 	case DECLARATION_METHOD_PARAMETER: return "method parameter";
 	case DECLARATION_METHOD:           return "method";

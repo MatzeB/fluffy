@@ -20,10 +20,10 @@
 //#define ABORT_ON_ERROR
 //#define PRINT_TOKENS
 
-static expression_parse_function_t    *expression_parsers = NULL;
-static parse_statement_function       *statement_parsers  = NULL;
-static parse_namespace_entry_function *namespace_parsers  = NULL;
-static parse_attribute_function       *attribute_parsers  = NULL;
+static expression_parse_function_t *expression_parsers = NULL;
+static parse_statement_function    *statement_parsers  = NULL;
+static parse_declaration_function  *declaration_parsers  = NULL;
+static parse_attribute_function    *attribute_parsers  = NULL;
 
 static context_t *current_context = NULL;
 
@@ -181,7 +181,11 @@ void eat_until_newline(void)
 	next_token();
 
 
+static
+void parse_method(method_t *method);
 
+static
+statement_t *parse_block(void);
 
 static
 void parse_parameter_declaration(method_type_t *method_type,
@@ -482,6 +486,21 @@ expression_t *parse_null(unsigned precedence)
 }
 
 static
+expression_t *parse_func_expression(unsigned precedence)
+{
+	(void) precedence;
+
+	eat(T_func);
+
+	func_expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
+	expression->expression.type   = EXPR_FUNC;
+
+	parse_method(&expression->method);
+
+	return (expression_t*) expression;
+}
+
+static
 type_argument_t *parse_type_argument(void)
 {
 	type_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
@@ -566,26 +585,26 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 	statement_parsers[token_type] = parser;
 }
 
-void register_namespace_parser(parse_namespace_entry_function parser,
-                               int token_type)
+void register_declaration_parser(parse_declaration_function parser,
+                                 int token_type)
 {
 	if(token_type < 0)
 		panic("can't register parser for negative token");
 
-	int len = ARR_LEN(namespace_parsers);
+	int len = ARR_LEN(declaration_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(namespace_parsers, token_type + 1);
-		memset(& namespace_parsers[len], 0,
-				(token_type - len + 1) * sizeof(namespace_parsers[0]));
+		ARR_RESIZE(declaration_parsers, token_type + 1);
+		memset(& declaration_parsers[len], 0,
+				(token_type - len + 1) * sizeof(declaration_parsers[0]));
 	}
 
-	if(namespace_parsers[token_type] != NULL) {
+	if(declaration_parsers[token_type] != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
 		panic("trying to register multiple namespace parsers for 1 token");
 	}
-	namespace_parsers[token_type] = parser;
+	declaration_parsers[token_type] = parser;
 }
 
 void register_attribute_parser(parse_attribute_function parser, int token_type)
@@ -898,6 +917,7 @@ void register_expression_parsers(void)
 	register_expression_parser(parse_string_const,         T_STRING_LITERAL, 1);
 	register_expression_parser(parse_null,                 T_null,           1);
 	register_expression_parser(parse_reference,            T_IDENTIFIER,     1);
+	register_expression_parser(parse_func_expression,      T_func,           1);
 }
 
 expression_t *parse_sub_expression(unsigned precedence)
@@ -1027,7 +1047,7 @@ statement_t *parse_sub_block(void)
 		return (statement_t*) block;
 	}
 		
-	return parse_statement();
+	return parse_block();
 }
 
 static
@@ -1159,9 +1179,6 @@ statement_t *parse_expression_statement(void)
 }
 
 static
-statement_t *parse_block(void);
-
-static
 statement_t *parse_newline(void)
 {
 	eat(T_NEWLINE);
@@ -1186,7 +1203,7 @@ void register_statement_parsers(void)
 
 statement_t *parse_statement(void)
 {
-	statement_t       *statement;
+	statement_t       *statement       = NULL;
 	source_position_t  source_position = lexer.source_position;
 
 	if(token.type < 0) {
@@ -1203,7 +1220,15 @@ statement_t *parse_statement(void)
 	if(parser != NULL) {
 		statement = parser();
 	} else {
-		statement = parse_expression_statement();
+		parse_declaration_function declaration_parser = NULL;
+		if(token.type < ARR_LEN(declaration_parsers))
+			declaration_parser = declaration_parsers[token.type];
+
+		if(declaration_parser != NULL) {
+			declaration_parser();
+		} else {
+			statement = parse_expression_statement();
+		}
 	}
 
 	if(statement == NULL)
@@ -1505,8 +1530,9 @@ void parse_global_variable(void)
 {
 	eat(T_var);
 
-	global_variable_t *variable = allocate_ast_zero(sizeof(variable[0]));
-	variable->declaration.type  = DECLARATION_GLOBAL_VARIABLE;
+	variable_declaration_t *variable = allocate_ast_zero(sizeof(variable[0]));
+	variable->declaration.type = DECLARATION_VARIABLE;
+	variable->is_global        = 1;
 
 	if(token.type == T_extern) {
 		next_token();
@@ -1930,7 +1956,7 @@ add_instance:
 	current_context->typeclass_instances = instance;
 }
 
-void parse_namespace_entry(void)
+void parse_declaration(void)
 {
 	if(token.type < 0) {
 		if(token.type == T_EOF)
@@ -1942,9 +1968,9 @@ void parse_namespace_entry(void)
 		return;
 	}
 
-	parse_namespace_entry_function parser = NULL;
-	if(token.type < ARR_LEN(namespace_parsers))
-		parser = namespace_parsers[token.type];
+	parse_declaration_function parser = NULL;
+	if(token.type < ARR_LEN(declaration_parsers))
+		parser = declaration_parsers[token.type];
 
 	if(parser == NULL) {
 		parse_error_expected("Couldn't parse compilation unit entry",
@@ -2010,7 +2036,7 @@ namespace_t *parse_namespace(void)
 
 	/* parse namespace entries */
 	while(token.type != T_EOF) {
-		parse_namespace_entry();
+		parse_declaration();
 	}
 
 	assert(current_context == &namespace->context);
@@ -2020,23 +2046,23 @@ namespace_t *parse_namespace(void)
 }
 
 static
-void skip_namespace_entry(void)
+void skip_declaration(void)
 {
 	next_token();
 }
 
 static
-void register_namespace_parsers(void)
+void register_declaration_parsers(void)
 {
-	register_namespace_parser(parse_method_declaration, T_func);
-	register_namespace_parser(parse_global_variable,    T_var);
-	register_namespace_parser(parse_constant,           T_const);
-	register_namespace_parser(parse_struct,             T_struct);
-	register_namespace_parser(parse_union,              T_union);
-	register_namespace_parser(parse_typealias,          T_typealias);
-	register_namespace_parser(parse_typeclass,          T_typeclass);
-	register_namespace_parser(parse_typeclass_instance, T_instance);
-	register_namespace_parser(skip_namespace_entry,     T_NEWLINE);
+	register_declaration_parser(parse_method_declaration, T_func);
+	register_declaration_parser(parse_global_variable,    T_var);
+	register_declaration_parser(parse_constant,           T_const);
+	register_declaration_parser(parse_struct,             T_struct);
+	register_declaration_parser(parse_union,              T_union);
+	register_declaration_parser(parse_typealias,          T_typealias);
+	register_declaration_parser(parse_typeclass,          T_typeclass);
+	register_declaration_parser(parse_typeclass_instance, T_instance);
+	register_declaration_parser(skip_declaration,         T_NEWLINE);
 }
 
 namespace_t *parse(FILE *in, const char *input_name)
@@ -2060,20 +2086,20 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 void init_parser(void)
 {
-	expression_parsers = NEW_ARR_F(expression_parse_function_t, 0);
-	statement_parsers  = NEW_ARR_F(parse_statement_function, 0);
-	namespace_parsers  = NEW_ARR_F(parse_namespace_entry_function, 0);
-	attribute_parsers  = NEW_ARR_F(parse_attribute_function, 0);
+	expression_parsers  = NEW_ARR_F(expression_parse_function_t, 0);
+	statement_parsers   = NEW_ARR_F(parse_statement_function, 0);
+	declaration_parsers = NEW_ARR_F(parse_declaration_function, 0);
+	attribute_parsers   = NEW_ARR_F(parse_attribute_function, 0);
 
 	register_expression_parsers();
 	register_statement_parsers();
-	register_namespace_parsers();
+	register_declaration_parsers();
 }
 
 void exit_parser(void)
 {
 	DEL_ARR_F(attribute_parsers);
-	DEL_ARR_F(namespace_parsers);
+	DEL_ARR_F(declaration_parsers);
 	DEL_ARR_F(expression_parsers);
 	DEL_ARR_F(statement_parsers);
 }

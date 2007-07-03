@@ -454,8 +454,19 @@ void parse_indent(lexer_t *this, token_t *token)
 		return;
 	}
 
+	if(this->newline_after_dedents) {
+		token->type = T_NEWLINE;
+		this->at_line_begin         = 0;
+		this->newline_after_dedents = 0;
+		return;
+	}
+
+	int      skipped_line = 0;
 	char     indent[MAX_INDENT];
-	unsigned indent_len = 0;
+	unsigned indent_len;
+
+start_indent_parsing:
+	indent_len = 0;
 	while(this->c == ' ' || this->c == '\t') {
 		indent[indent_len] = this->c;
 		indent_len++;
@@ -481,8 +492,8 @@ void parse_indent(lexer_t *this, token_t *token)
 	if(this->c == '\n') {
 		next_char(this);
 		this->source_position.linenr++;
-		lexer_next_token(this, token);
-		return;
+		skipped_line = 1;
+		goto start_indent_parsing;
 	}
 	this->at_line_begin = 0;
 
@@ -521,9 +532,17 @@ void parse_indent(lexer_t *this, token_t *token)
 			return;
 		}
 		assert(dedents >= 1);
-		this->not_returned_dedents  = dedents - 1;
-		if(this->not_returned_dedents > 0)
-			this->at_line_begin = 1;
+
+		this->not_returned_dedents = dedents - 1;
+		if(skipped_line) {
+			this->newline_after_dedents = 1;
+			this->at_line_begin         = 1;
+		} else {
+			this->newline_after_dedents = 0;
+			if(this->not_returned_dedents > 0) {
+				this->at_line_begin = 1;
+			}
+		}
 
 		this->last_line_indent_len = indent_len;
 

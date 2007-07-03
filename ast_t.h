@@ -18,7 +18,6 @@ typedef enum {
 	DECLARATION_METHOD,
 	DECLARATION_METHOD_PARAMETER,
 	DECLARATION_VARIABLE,
-	DECLARATION_GLOBAL_VARIABLE,
 	DECLARATION_CONSTANT,
 	DECLARATION_TYPE_VARIABLE,
 	DECLARATION_TYPEALIAS,
@@ -65,6 +64,24 @@ struct type_variable_t {
 	type_t            *current_type;
 };
 
+struct method_t {
+	method_type_t      *type;
+	type_variable_t    *type_parameters;
+	method_parameter_t *parameters;
+	int                 is_extern;
+
+	context_t           context;
+	statement_t        *statement;
+
+	ir_entity          *entity;
+	int                 n_local_vars;
+};
+
+struct method_declaration_t {
+	declaration_t  declaration;
+	method_t       method;
+};
+
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
@@ -78,6 +95,7 @@ typedef enum {
 	EXPR_SELECT,
 	EXPR_ARRAY_ACCESS,
 	EXPR_SIZEOF,
+	EXPR_FUNC,
 	EXPR_LAST
 } expresion_type_t;
 
@@ -107,6 +125,11 @@ struct string_const_t {
 
 struct null_pointer_t {
 	expression_t  expression;
+};
+
+struct func_expression_t {
+	expression_t  expression;
+	method_t      method;
 };
 
 struct type_argument_t {
@@ -231,8 +254,13 @@ struct variable_declaration_t {
 	declaration_t  declaration;
 	type_t        *type;
 
+	unsigned char  is_extern;
+	unsigned char  is_global;
+	unsigned char  needs_entity;
+	int            refs;         /**< temporarily used by semantic phase */
+
+	ir_entity     *entity;
 	int          value_number;
-	int          refs;         /**< temporarily used by semantic phase */
 };
 
 struct variable_declaration_statement_t {
@@ -277,32 +305,6 @@ struct method_parameter_t {
 	method_parameter_t *next;
 	type_t             *type;
 	int                 num;
-};
-
-struct method_t {
-	method_type_t      *type;
-	type_variable_t    *type_parameters;
-	method_parameter_t *parameters;
-	int                 is_extern;
-
-	context_t           context;
-	statement_t        *statement;
-
-	int                 n_local_vars;
-	ir_entity          *entity;
-};
-
-struct method_declaration_t {
-	declaration_t  declaration;
-	method_t       method;
-};
-
-struct global_variable_t {
-	declaration_t  declaration;
-	type_t        *type;
-	int            is_extern;
-
-	ir_entity     *entity;
 };
 
 struct constant_t {
