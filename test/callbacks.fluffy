@@ -1,0 +1,29 @@
+typealias String <- byte*
+func extern printf(format : String, ...) : int
+
+var callback : (func(prefix : String) : int)*
+
+func callit(prefix : String):
+	var res <- callback(prefix)
+	printf("Result: %d\n", res)
+
+func impl1(prefix : String) : int:
+	printf("%s -> I'm impl1\n", prefix)
+	return 42
+
+func impl2(prefix : String) : int:
+	printf("%s: I'm impl2\n", prefix)
+	return 23
+
+func main() : int:
+	callback <- impl1
+	callit("pre1")
+	callit("pre2")
+	callback <- impl2
+	callit("pre1")
+	callback <- func(prefix : String) : int:
+		printf("%s: I'm an anonymous func\n", prefix)
+		return 1
+	
+	callit("pre4")
+	return 0
