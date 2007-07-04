@@ -6,6 +6,7 @@
 typedef struct attribute_t              attribute_t;
 typedef struct declaration_t            declaration_t;
 typedef struct context_t                context_t;
+typedef struct export_t                 export_t;
 
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;

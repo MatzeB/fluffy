@@ -449,7 +449,7 @@ void parse_indent(lexer_t *this, token_t *token)
 	if(this->not_returned_dedents > 0) {
 		token->type = T_DEDENT;
 		this->not_returned_dedents--;
-		if(this->not_returned_dedents == 0)
+		if(this->not_returned_dedents == 0 && !this->newline_after_dedents)
 			this->at_line_begin = 0;
 		return;
 	}
@@ -509,7 +509,8 @@ start_indent_parsing:
 	if(this->last_line_indent_len < indent_len) {
 		/* more indentation */
 		memcpy(& this->last_line_indent[i], & indent[i], indent_len - i);
-		this->last_line_indent_len = indent_len;
+		this->last_line_indent_len  = indent_len;
+		this->newline_after_dedents = 0;
 
 		this->indent_levels[this->indent_levels_len] = indent_len;
 		this->indent_levels_len++;

@@ -37,13 +37,21 @@ struct declaration_t {
 	source_position_t   source_position;
 };
 
+struct export_t {
+	symbol_t          *symbol;
+	export_t          *next;
+	source_position_t  source_position;
+};
+
 /**
  * a naming context. Containts a list of declarations valid in this context
- * (it does not include valid declarations from parent contexts)
+ * (note that contexts are hierarchic, declarations from parent contexts are
+ *  not explicitely included)
  */
 struct context_t {
 	declaration_t        *declarations;
 	typeclass_instance_t *typeclass_instances;
+	export_t             *exports;
 };
 
 /**
@@ -68,7 +76,8 @@ struct method_t {
 	method_type_t      *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
-	int                 is_extern;
+	unsigned char       export;
+	unsigned char       is_extern;
 
 	context_t           context;
 	statement_t        *statement;
@@ -255,6 +264,7 @@ struct variable_declaration_t {
 	type_t        *type;
 
 	unsigned char  is_extern;
+	unsigned char  export;
 	unsigned char  is_global;
 	unsigned char  needs_entity;
 	int            refs;         /**< temporarily used by semantic phase */

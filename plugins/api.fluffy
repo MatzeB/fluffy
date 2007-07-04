@@ -53,9 +53,15 @@ struct Declaration:
 	next             : Declaration*
 	source_position  : SourcePosition
 
+struct Export:
+	symbol           : Symbol
+	next             : Export*
+	source_position  : SourcePosition
+
 struct Context:
 	declarations        : Declaration*
 	typeclass_instances : TypeClassInstance*
+	exports             : Export*
 
 struct TypeVariable:
 	declaration      : Declaration

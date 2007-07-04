@@ -14,8 +14,8 @@ syn keyword fluffyType       byte short int long float double void
 syn keyword fluffyType       unsigned signed bool
 
 syn keyword fluffyStatement	goto return
-syn keyword fluffyStatement  instance
-syn keyword fluffyStatement  namespace
+syn keyword fluffyStatement instance
+syn keyword fluffyStatement export
 syn keyword fluffyAttribute	extern
 syn keyword fluffyRepeat	        for while
 syn keyword fluffyConditional	if else

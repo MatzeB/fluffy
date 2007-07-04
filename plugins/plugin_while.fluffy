@@ -52,6 +52,7 @@ func lower_while_statement(statement : Statement*) : Statement*:
 
 	return cast<Statement* > block
 
+export init_plugin
 func init_plugin():
 	token_while          <- register_new_token("while")
 	while_statement_type <- register_statement()

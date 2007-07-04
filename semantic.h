@@ -3,7 +3,7 @@
 
 #include "ast.h"
 
-int check_static_semantic(namespace_t *namespace);
+int check_static_semantic(void);
 
 typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass);
 

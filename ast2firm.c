@@ -5,10 +5,7 @@
 #include <assert.h>
 #include <string.h>
 
-#define WITH_LIBCORE
-
 #include <libfirm/firm.h>
-#include <libfirm/be.h>
 
 #include "ast_t.h"
 #include "type_t.h"
@@ -62,7 +59,6 @@ ir_type *get_ir_type(type_t *type);
 static
 void context2firm(const context_t *context);
 
-static
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
 	fprintf(stderr, "Warning: variable '%s' might be used uninitialized\n",
@@ -70,28 +66,8 @@ ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 	return new_r_Unknown(irg, mode);
 }
 
-void initialize_firm(void)
+void init_ast2firm(void)
 {
-	be_opt_register();
-	firm_init_options(NULL, 0, NULL);
-
-	const backend_params *be_params;
-	firm_parameter_t params;
-	memset(&params, 0, sizeof(params));
-
-	params.size = sizeof(params);
-	params.enable_statistics = 0;
-	params.initialize_local_func = uninitialized_local_var;
-	params.cc_mask = 0;
-	params.builtin_dbg = NULL;
-
-	/* initialize backend */
-	be_params = be_init();
-	params.arch_op_settings = be_params->arch_op_settings;
-
-	/* intialize firm itself */
-	init_firm(&params);
-
 	type_bool = make_atomic_type(ATOMIC_TYPE_BOOL);
 
 	atomic_type_t byte_type;
@@ -106,7 +82,7 @@ void initialize_firm(void)
 	                                         ir_type_void, mode_P_data);
 }
 
-void exit_firm(void)
+void exit_ast2firm(void)
 {
 }
 
@@ -165,7 +141,7 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 	case ATOMIC_TYPE_DOUBLE:
 		return mode_D;
 	case ATOMIC_TYPE_BOOL:
-		return mode_Iu;
+		return mode_b;
 	default:
 		panic("Encountered unknown atomic type");
 	}
@@ -733,11 +709,15 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	set_entity_ld_ident(entity, id);
 	if(method->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
-	} else if(!is_polymorphic) {
+	} else if(!is_polymorphic && method->export) {
 		set_entity_visibility(entity, visibility_external_visible);
 	} else {
+		if(is_polymorphic && method->export) {
+			fprintf(stderr, "Warning: exporting polymorphic methods not "
+			        "supported.\n");
+		}
 		/* TODO find out why visibility_local doesn't work */
-		set_entity_visibility(entity, visibility_external_visible);
+		set_entity_visibility(entity, visibility_local);
 	}
 
 	if(!is_polymorphic) {
@@ -764,7 +744,11 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 static
 ir_node *bool_const_to_firm(const bool_const_t *cnst)
 {
-	return new_Const_long(mode_Iu, cnst->value);
+	if(cnst->value == 0) {
+		return new_Const(mode_b, get_tarval_b_false());
+	} else {
+		return new_Const(mode_b, get_tarval_b_true());
+	}
 }
 
 static
@@ -992,6 +976,7 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	return value;
 }
 
+#if 0
 static
 ir_node *get_bool_as_int(ir_node *node, ir_mode *mode)
 {
@@ -1005,17 +990,21 @@ ir_node *get_bool_as_int(ir_node *node, ir_mode *mode)
 
 	return new_Psi(1, conds, vals, mode);
 }
+#endif
 
+#if 0
 static
 ir_node *get_int_as_bool(ir_node *node)
 {
 	ir_mode *mode    = get_irn_mode(node);
+	assert(mode != mode_b);
 	tarval  *tv_zero = get_tarval_null(mode);
 	ir_node *zero    = new_Const(mode, tv_zero);
 	ir_node *cmp     = new_Cmp(node, zero);
 
 	return new_Proj(cmp, mode_b, pn_Cmp_Lg);
 }
+#endif
 
 static
 ir_op *binexpr_type_to_op(binary_expression_type_t type)
@@ -1070,9 +1059,9 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	assert(is_or || binary_expression->type == BINEXPR_LAZY_AND);
 
 	ir_node *val1 = expression_to_firm(binary_expression->left);
-	ir_node *val1_bool = get_int_as_bool(val1);
+	//ir_node *val1_bool = get_int_as_bool(val1);
 
-	ir_node *cond       = new_Cond(val1_bool);
+	ir_node *cond       = new_Cond(val1);
 	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
 	ir_node *false_proj = new_Proj(cond, mode_X, pn_Cond_false);
 
@@ -1105,7 +1094,7 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	set_cur_block(fallthrough_block);
 
 	ir_node *in[2] = { val2, val1 };
-	ir_node *val   = new_Phi(2, in, mode_Iu);
+	ir_node *val   = new_Phi(2, in, mode_b);
 
 	return val;
 }
@@ -1165,7 +1154,8 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 		ir_node *cmp  = new_Cmp(left, right);
 		ir_node *proj = new_Proj(cmp, mode_b, compare_pn);
 
-		return get_bool_as_int(proj, mode_Iu);
+		//return get_bool_as_int(proj, mode_Iu);
+		return proj;
 	}
 
 	panic("found unknown binexpr type");
@@ -1175,15 +1165,18 @@ static
 ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
 	type_t  *to_type   = cast->expression.datatype;
-	type_t  *from_type = cast->value->datatype;
+	//type_t  *from_type = cast->value->datatype;
 	ir_node *node      = expression_to_firm(cast->value);
 	ir_mode *mode      = get_ir_mode(to_type);
 	assert(node != NULL);
 
+#if 0
 	if(from_type == type_bool) {
-		ir_node *as_mode_b = get_int_as_bool(node);
-		return get_bool_as_int(as_mode_b, mode);
+		//ir_node *as_mode_b = get_int_as_bool(node);
+		//return get_bool_as_int(as_mode_b, mode);
+		return get_bool_as_int(node, mode);
 	}
+#endif
 
 	return new_Conv(node, mode);
 }
@@ -1204,13 +1197,17 @@ ir_node *load_from_expression_addr(type_t *type, ir_node *addr)
 static
 ir_node *not_expression_to_firm(const unary_expression_t *expression)
 {
-	type_t  *type  = expression->expression.datatype;
 	ir_node *value = expression_to_firm(expression->value);
 
+#if 0
+	type_t  *type  = expression->expression.datatype;
 	assert(type == type_bool);
 
 	ir_node *one = new_Const_long(mode_Iu, 1);
 	return new_Eor(value, one, mode_Iu);
+#else
+	return new_Not(value, mode_b);
+#endif
 }
 
 static
@@ -1603,7 +1600,7 @@ void if_statement_to_firm(const if_statement_t *statement)
 	ir_node *condition = expression_to_firm(statement->condition);
 	assert(condition != NULL);
 
-	condition = get_int_as_bool(condition);
+	//condition = get_int_as_bool(condition);
 
 	ir_node *cond       = new_Cond(condition);
 	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
@@ -1826,7 +1823,6 @@ void context2firm(const context_t *context)
 			method             = &method_declaration->method;
 
 			if(!is_polymorphic_method(method)) {
-				fprintf(stderr, "Queue Method: %s\n", declaration->symbol->string);
 				assure_instance(method, declaration->symbol, NULL);
 			}
 
@@ -1857,23 +1853,32 @@ void context2firm(const context_t *context)
 	}
 }
 
+static
+void namespace2firm(namespace_t *namespace)
+{
+	context2firm(& namespace->context);
+}
+
 /**
- * Build a firm representation of an AST programm
+ * Build a firm representation of the program
  */
-void ast2firm(namespace_t *namespace)
+void ast2firm(void)
 {
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
 	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
 	instantiate_methods   = new_pdeq();
 
-	context2firm(& namespace->context);
+	namespace_t *namespace = namespaces;
+	while(namespace != NULL) {
+		namespace2firm(namespace);
+		namespace = namespace->next;
+	}
 
 	while(!pdeq_empty(instantiate_methods)) {
 		instantiate_method_t *instantiate_method 
 			= pdeq_getl(instantiate_methods);
 
-		printf("Create method: %s\n", get_entity_name(instantiate_method->entity));
 		create_method(instantiate_method->method,
 		              instantiate_method->entity,
 		              instantiate_method->type_arguments);

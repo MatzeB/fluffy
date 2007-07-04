@@ -5,8 +5,9 @@
 #include <errno.h>
 #include <string.h>
 
-#include <libfirm/be.h>
+#define WITH_LIBCORE
 #include <libfirm/firm.h>
+#include <libfirm/be.h>
 
 #include "type.h"
 #include "parser.h"
@@ -34,6 +35,33 @@ typedef enum compile_mode_t {
 	CompileAndLink
 } compile_mode_t;
 
+const opt_if_conv_info_t *if_conv_info = NULL;
+
+static
+void initialize_firm(void)
+{
+	be_opt_register();
+	firm_init_options(NULL, 0, NULL);
+
+	const backend_params *be_params;
+	firm_parameter_t params;
+	memset(&params, 0, sizeof(params));
+
+	params.size = sizeof(params);
+	params.enable_statistics = 0;
+	params.initialize_local_func = uninitialized_local_var;
+	params.cc_mask = 0;
+	params.builtin_dbg = NULL;
+
+	/* initialize backend */
+	be_params = be_init();
+	params.arch_op_settings = be_params->arch_op_settings;
+	if_conv_info            = be_params->if_conv_info;
+
+	/* intialize firm itself */
+	init_firm(&params);
+}
+
 static
 void optimize()
 {
@@ -55,6 +83,7 @@ void optimize()
 	optimize_funccalls(1);
 	inline_leave_functions(500, 80, 30, 0);
 
+	n_irgs = get_irp_n_irgs();
 	for(i = 0; i < n_irgs; ++i) {
 		ir_graph *irg = get_irp_irg(i);
 
@@ -63,12 +92,13 @@ void optimize()
 			dump_ir_block_graph(irg, "-lower");
 
 		/* TODO: improve this and make it configurabble */
-
+		scalar_replacement_opt(irg);
 		optimize_graph_df(irg);
 		optimize_reassociation(irg);
 		optimize_cf(irg);
 		construct_confirms(irg);
 		optimize_graph_df(irg);
+		compute_doms(irg);
 		set_opt_global_cse(1);
 		optimize_graph_df(irg);
 		place_code(irg);
@@ -76,8 +106,21 @@ void optimize()
 
 		optimize_cf(irg);
 		remove_confirms(irg);
-
+		
 		optimize_load_store(irg);
+		conv_opt(irg);
+		opt_cond_eval(irg);
+
+		compute_doms(irg);
+		compute_postdoms(irg);
+		construct_backedges(irg);
+
+		optimize_cf(irg);
+		opt_if_conv(irg, if_conv_info);
+		optimize_graph_df(irg);
+		optimize_cf(irg);
+		optimize_graph_df(irg);
+		dead_node_elimination(irg);
 
 		if(dump_graphs)
 			dump_ir_block_graph(irg, "-opt");
@@ -169,16 +212,21 @@ void parse_file(const char *fname)
 static
 void check_semantic(void)
 {
-	namespace_t *namespace = namespaces;
-	while(namespace != NULL) {
-		if(!check_static_semantic(namespace)) {
-			fprintf(stderr, "Semantic errors found\n");
+	if(!check_static_semantic()) {
+		fprintf(stderr, "Semantic errors found\n");
+		namespace_t *namespace = namespaces;
+		while(namespace != NULL) {
 			dump_ast(namespace, "-error.txt");
-			exit(1);
 		}
-		dump_ast(namespace, "-semantic.txt");
+		exit(1);
+	}
 
-		namespace = namespace->next;
+	if(dump_asts) {
+		namespace_t *namespace = namespaces;
+		while(namespace != NULL) {
+			dump_ast(namespace, "-semantic.txt");
+			namespace = namespace->next;
+		}
 	}
 }
 
@@ -187,13 +235,7 @@ void emit(const char *outname)
 {
 	char outfname[4096];
 
-	namespace_t *namespace = namespaces;
-	while(namespace != NULL) {
-		ast2firm(namespace);
-
-		namespace = namespace->next;
-	}
-
+	ast2firm();
     lower_highlevel();
 
 	optimize();
@@ -245,6 +287,7 @@ int main(int argc, const char **argv)
 	search_plugins();
 	initialize_plugins();
 	initialize_firm();
+	init_ast2firm();
 
 	const char *outname = NULL;
 	compile_mode_t mode = CompileAndLink;
@@ -313,7 +356,7 @@ int main(int argc, const char **argv)
 		link(asmname, outname);
 	}
 
-	exit_firm();
+	exit_ast2firm();
 	free_plugins();
 	exit_semantic_module();
 	exit_parser();

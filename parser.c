@@ -1936,6 +1936,10 @@ void parse_typeclass_instance(void)
 			parse_error("EOF while parsing typeclass instance");
 			return;
 		}
+		if(token.type == T_NEWLINE) {
+			next_token();
+			continue;
+		}
 
 		typeclass_method_instance_t *method	= parse_typeclass_method_instance();
 		if(method == NULL)
@@ -1954,6 +1958,45 @@ add_instance:
 	assert(current_context != NULL);
 	instance->next                       = current_context->typeclass_instances;
 	current_context->typeclass_instances = instance;
+}
+
+static
+void skip_declaration(void)
+{
+	next_token();
+}
+
+static
+void parse_export(void)
+{
+	eat(T_export);
+
+	while(1) {
+		if(token.type == T_NEWLINE) {
+			break;
+		}
+		if(token.type != T_IDENTIFIER) {
+			parse_error_expected("problem while parsing export declaration",
+			                     T_IDENTIFIER, 0);
+			eat_until_newline();
+			return;
+		}
+
+		export_t *export        = allocate_ast_zero(sizeof(export[0]));
+		export->symbol          = token.v.symbol;
+		export->source_position = lexer.source_position;
+		next_token();
+
+		assert(current_context != NULL);
+		export->next             = current_context->exports;
+		current_context->exports = export;
+
+		if(token.type != ',') {
+			break;
+		}
+		next_token();
+	}
+	expect_void(T_NEWLINE);
 }
 
 void parse_declaration(void)
@@ -2046,12 +2089,6 @@ namespace_t *parse_namespace(void)
 }
 
 static
-void skip_declaration(void)
-{
-	next_token();
-}
-
-static
 void register_declaration_parsers(void)
 {
 	register_declaration_parser(parse_method_declaration, T_func);
@@ -2062,6 +2099,7 @@ void register_declaration_parsers(void)
 	register_declaration_parser(parse_typealias,          T_typealias);
 	register_declaration_parser(parse_typeclass,          T_typeclass);
 	register_declaration_parser(parse_typeclass_instance, T_instance);
+	register_declaration_parser(parse_export,             T_export);
 	register_declaration_parser(skip_declaration,         T_NEWLINE);
 }
 

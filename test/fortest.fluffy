@@ -1,5 +1,6 @@
 func extern printf(format : byte*, ...) : int
 
+export main
 func main() : int:
 	var i <- 0
 	for(i <- 23; i < 42; i <- i + 1):

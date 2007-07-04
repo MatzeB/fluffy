@@ -24,6 +24,7 @@ static lower_expression_function *expression_lowerers = NULL;
 
 static struct obstack        symbol_environment_obstack;
 static environment_entry_t **symbol_stack;
+static int                   found_export;
 static int                   found_errors;
 
 static type_t *type_bool     = NULL;
@@ -2043,6 +2044,41 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 }
 
 static
+void check_export(const export_t *export)
+{
+	method_declaration_t   *method;
+	variable_declaration_t *variable;
+
+	symbol_t      *symbol      = export->symbol;
+	declaration_t *declaration = symbol->declaration;
+
+	if(declaration == NULL) {
+		print_error_prefix(export->source_position);
+		fprintf(stderr, "Exported symbol '%s' is unknown\n", symbol->string);
+		return;
+	}
+
+	switch(declaration->type) {
+	case DECLARATION_METHOD:
+		method                = (method_declaration_t*) declaration;
+		method->method.export = 1;
+		break;
+	case DECLARATION_VARIABLE:
+		variable         = (variable_declaration_t*) declaration;
+		variable->export = 1;
+		break;
+	default:
+		print_error_prefix(export->source_position);
+		fprintf(stderr, "Can only export functions and variables but '%s' "
+		        "is a %s\n", symbol->string,
+		        get_declaration_type_name(declaration->type));
+		return;
+	}
+
+	found_export = 1;
+}
+
+static
 void check_and_push_context(context_t *context)
 {
 	variable_declaration_t *variable;
@@ -2116,6 +2152,12 @@ void check_and_push_context(context_t *context)
 		check_typeclass_instance(instance);
 		instance = instance->next;
 	}
+	/* handle export declarations */
+	export_t *export = context->exports;
+	while(export != NULL) {
+		check_export(export);
+		export = export->next;
+	}
 }
 
 static
@@ -2160,12 +2202,13 @@ void register_expression_lowerer(lower_expression_function function,
 	expression_lowerers[expression_type] = function;
 }
 
-int check_static_semantic(namespace_t *namespace)
+int check_static_semantic(void)
 {
 	obstack_init(&symbol_environment_obstack);
 
-	symbol_stack       = NEW_ARR_F(environment_entry_t*, 0);
-	found_errors       = 0;
+	symbol_stack  = NEW_ARR_F(environment_entry_t*, 0);
+	found_errors  = 0;
+	found_export  = 0;
 
 	type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
 	type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
@@ -2175,7 +2218,15 @@ int check_static_semantic(namespace_t *namespace)
 	type_void_ptr = make_pointer_type(type_void);
 	type_byte_ptr = make_pointer_type(type_byte);
 
-	check_namespace(namespace);
+	namespace_t *namespace = namespaces;
+	while(namespace != NULL) {
+		check_namespace(namespace);
+		namespace = namespace->next;
+	}
+
+	if(!found_export) {
+		fprintf(stderr, "warning: no symbol exported\n");
+	}
 
 	DEL_ARR_F(symbol_stack);
 

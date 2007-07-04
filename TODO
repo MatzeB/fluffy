@@ -2,14 +2,12 @@ This does not describe the goals and visions but short term things that should
 not be forgotten and are not done yet because I was lazy or did not decide
 about the right way to do it yet.
 
-- Declaring a variable, function, etc. twice is not detected in semantic phase
 - semantic should check that structs don't contain themselfes
 - having the same entry twice in a struct is not detected
 - correct pointer arithmetic
 - A typeof operator (resulting in the type of the enclosed expression)
 - change lexer to build a decision tree for the operators (so we can write
   <void*> again...)
-- fix handling of bool values in ast2firm (firms mode_b isn't really universal)
 - add possibility to specify default implementations for typeclass functions
 - add static ifs that can examine const expressions and types at compiletime
 

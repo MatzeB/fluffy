@@ -74,6 +74,7 @@ func lower_for_statement(statement : Statement*) : Statement*:
 
 	return cast<Statement* > block
 
+export init_plugin
 func init_plugin():
 	token_for     <- register_new_token("for")
 	for_statement <- register_statement()

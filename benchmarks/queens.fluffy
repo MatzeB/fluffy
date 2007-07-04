@@ -39,6 +39,7 @@ func solve(n : int) : int:
 
 	return res
 
+export main
 func main(argc : int, argv : byte* *) : int:
 	var n <- 8
 	if argc > 1:
