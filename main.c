@@ -60,6 +60,31 @@ void initialize_firm(void)
 
 	/* intialize firm itself */
 	init_firm(&params);
+
+	set_opt_constant_folding(1);
+	set_opt_unreachable_code(1);
+	set_opt_control_flow_straightening(1);
+	set_opt_control_flow_weak_simplification(1);
+	set_opt_control_flow_strong_simplification(1);
+	set_opt_dead_node_elimination(1);
+	set_opt_reassociation(1);
+	set_opt_inline(1);
+	set_opt_dyn_meth_dispatch(1);
+	set_opt_normalize(1);
+	set_opt_tail_recursion(1);
+	set_opt_dead_method_elimination(1);
+	set_opt_precise_exc_context(0);
+	set_opt_loop_unrolling(0);
+	set_opt_strength_red(0);
+	set_opt_redundant_loadstore(1);
+	set_opt_fragile_ops(0);
+	set_opt_function_call(1);
+	set_opt_optimize_class_casts(0);
+	set_opt_suppress_downcast_optimization(0);
+	set_opt_remove_confirm(1);
+	set_opt_scalar_replacement(1);
+	set_opt_ldst_only_null_ptr_exceptions(1);
+	set_opt_alias_analysis(1);
 }
 
 static
@@ -217,6 +242,7 @@ void check_semantic(void)
 		namespace_t *namespace = namespaces;
 		while(namespace != NULL) {
 			dump_ast(namespace, "-error.txt");
+			namespace = namespace->next;
 		}
 		exit(1);
 	}

@@ -2225,7 +2225,8 @@ int check_static_semantic(void)
 	}
 
 	if(!found_export) {
-		fprintf(stderr, "warning: no symbol exported\n");
+		fprintf(stderr, "error: no symbol exported\n");
+		found_errors = 1;
 	}
 
 	DEL_ARR_F(symbol_stack);
