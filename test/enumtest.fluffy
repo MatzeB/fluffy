@@ -1,0 +1,15 @@
+func extern printf(format : byte*, ...) : int
+
+enum Blup:
+	DECLARATION_INVALID
+	DECLARATION_METHOD
+	DECLARATION_METHOD_PARAMETER
+	DECLARATION_CONSTANT         <- 34*2
+	DECLARATION_CONSTANT_2
+	DECLARATION_CONSTANT_3
+
+func main() : int:
+	printf("Result: %d %d %d %d\n", DECLARATION_INVALID, DECLARATION_METHOD, \
+	       DECLARATION_CONSTANT, DECLARATION_CONSTANT_3)
+	return 0
+export main
