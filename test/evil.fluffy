@@ -23,3 +23,4 @@ func callit():
 
 func main() : int:
 	return 0
+export main

@@ -10,3 +10,4 @@ func main():
 	delete(array)
 
 	printf("Jo: %d\n", 42)
+export main

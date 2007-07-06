@@ -1,9 +1,10 @@
-func extern print_int(val : int)
+func extern printf(format : byte*, ...) : int
 
 func my_sizeof<T>() : unsigned int:
 	return sizeof<T>
 
 func main() : int:
-	print_int(my_sizeof<$int>())
-	print_int(my_sizeof<$double>())
+	printf("sizeof<int>: %d siyeof<double>: %d\n", my_sizeof<$int>(), \
+	                                               my_sizeof<$double>())
 	return 0
+export main

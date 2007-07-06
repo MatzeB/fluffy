@@ -27,3 +27,4 @@ func main() : int:
 	
 	callit("pre4")
 	return 0
+export main

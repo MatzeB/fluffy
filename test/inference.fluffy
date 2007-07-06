@@ -4,3 +4,4 @@ func main() : int:
 	var v <- cast<short> 0xffffffff
 	printf("%d\n", v)
 	return 0
+export main

@@ -1776,8 +1776,6 @@ void create_method(method_t *method, ir_entity *entity,
 	if(method->is_extern)
 		return;
 
-	ir_fprintf(stderr, "Create Method %+F\n", entity);
-
 	int old_top = typevar_binding_stack_top();
 	if(is_polymorphic_method(method)) {
 		assert(type_arguments != NULL);
