@@ -1485,17 +1485,19 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	if(new_method_type != NULL)
 		ir_method_type = new_method_type;
 
-	ir_node *store = get_store();
-	ir_node *node  = new_Call(store, callee, n_parameters, in, ir_method_type);
-	ir_node *mem   = new_Proj(node, mode_M, pn_Call_M_regular);
+	dbg_info *dbgi  = get_dbg_info(&call->expression.source_position);
+	ir_node  *store = get_store();
+	ir_node  *node  = new_d_Call(dbgi, store, callee, n_parameters, in,
+	                             ir_method_type);
+	ir_node  *mem   = new_d_Proj(dbgi, node, mode_M, pn_Call_M_regular);
 	set_store(mem);
 
 	type_t  *result_type = method_type->result_type;
 	ir_node *result      = NULL;
 	if(result_type->type != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
-		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
-		result           = new_Proj(resproj, mode, 0);
+		ir_node *resproj = new_d_Proj(dbgi, node, mode_T, pn_Call_T_result);
+		result           = new_d_Proj(dbgi, resproj, mode, 0);
 	}
 
 	return result;
@@ -1774,6 +1776,8 @@ void create_method(method_t *method, ir_entity *entity,
 	if(method->is_extern)
 		return;
 
+	ir_fprintf(stderr, "Create Method %+F\n", entity);
+
 	int old_top = typevar_binding_stack_top();
 	if(is_polymorphic_method(method)) {
 		assert(type_arguments != NULL);
@@ -1808,7 +1812,8 @@ void create_method(method_t *method, ir_entity *entity,
 	label_declaration_t *label = labels;
 	while(label != NULL) {
 		mature_immBlock(label->block);
-		label = label->next;
+		label->block = NULL;
+		label        = label->next;
 	}
 	labels = NULL;
 

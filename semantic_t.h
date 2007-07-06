@@ -1,6 +1,7 @@
 #ifndef SEMANTIC_T_H
 #define SEMANTIC_T_H
 
+#include "compiler.h"
 #include "semantic.h"
 #include "ast.h"
 #include "type.h"
@@ -21,10 +22,10 @@ void register_statement_lowerer(lower_statement_function function,
 void register_expression_lowerer(lower_expression_function function,
                                  unsigned int expression_type);
 
-__attribute__((warn_unused_result))
+WARN_UNUSED
 statement_t* check_statement(statement_t *statement);
 
-__attribute__((warn_unused_result))
+WARN_UNUSED
 expression_t* check_expression(expression_t *expression);
 
 #endif

@@ -273,7 +273,7 @@ struct variable_declaration_t {
 	int            refs;         /**< temporarily used by semantic phase */
 
 	ir_entity     *entity;
-	int          value_number;
+	int            value_number;
 };
 
 struct variable_declaration_statement_t {

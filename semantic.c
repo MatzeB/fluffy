@@ -1515,7 +1515,7 @@ void check_func_expression(func_expression_t *expression)
 	expression->expression.datatype = make_pointer_type((type_t*) method->type);
 }
 
-__attribute__((warn_unused_result))
+WARN_UNUSED
 expression_t *check_expression(expression_t *expression)
 {
 	if(expression == NULL)
@@ -1772,7 +1772,7 @@ void check_goto_statement(goto_statement_t *goto_statement)
 	goto_statement->label = label;
 }
 
-__attribute__((warn_unused_result))
+WARN_UNUSED
 statement_t *check_statement(statement_t *statement)
 {
 	if(statement == NULL)
@@ -1956,6 +1956,7 @@ void check_typeclass_instance(typeclass_instance_t *instance)
 	typeclass_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
 		method_t *method = &method_instance->method;
+		resolve_method_types(method, method_instance->source_position);
 		check_method(method, method_instance->symbol,
 		             method_instance->source_position);
 

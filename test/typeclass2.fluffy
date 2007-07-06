@@ -1,22 +1,26 @@
+typealias String <- byte*
+
 func extern malloc(size : unsigned int) : void*
-func extern printf(format : byte*, ...) : int
-func extern puts(val : byte*)
+func extern printf(format : String, ...) : int
+func extern puts(val : String)
+func extern strcmp(s1 : String, s2 : String) : int
 
 typeclass Ordered<T>:
-	/* TODO use bool as return type... */
-	func less(obj1 : T, obj2 : T) : int
+	func less(obj1 : T, obj2 : T) : bool
 
 instance Ordered int:
-	func less(obj1 : int, obj2 : int) : int:
-		if obj1 < obj2:
-			return 1
-		return 0
+	func less(obj1 : int, obj2 : int) : bool:
+		return obj1 < obj2
+
+instance Ordered String:
+	func less(obj1 : String, obj2 : String) : bool:
+		return strcmp(obj1, obj2) < 0
 
 typeclass Printable<T>:
 	func print(obj : T)
 
-instance Printable byte*:
-	func print(obj : byte*):
+instance Printable String:
+	func print(obj : String):
 		puts(obj)
 
 instance Printable int:
@@ -33,7 +37,7 @@ func bubblesort<T : Ordered> (array : T*, len : int):
 			bubblesort(array, len)
 		return
 	
-	if array[i] > array[i+1]:
+	if less(array[i+1], array[i]):
 		var temp   <- array[i]
 		array[i]   <- array[i+1]
 		array[i+1] <- temp
@@ -48,6 +52,7 @@ func print_array<T : Printable>(array : T*, len : int):
 	if i >= len:
 		return
 
+	printf("\t")
 	print(array[i])
 	
 	i <- i + 1
@@ -67,6 +72,13 @@ func main() : int:
 	array[8] <- 66
 	array[9] <- 5
 
+	var sarray <- cast<String* > malloc(cast<unsigned int> 5 * sizeof<String>)
+	sarray[0] <- "Eva"
+	sarray[1] <- "Adam"
+	sarray[2] <- "Mr. Fluffy"
+	sarray[3] <- "Peter"
+	sarray[4] <- "Hugo"
+
 	print("Initial array:")
 	print_array(array, 10)
 	
@@ -74,6 +86,16 @@ func main() : int:
 
 	print("Sorted array:")
 	print_array(array, 10)
+
+
+	print("Initial array:")
+	print_array(sarray, 5)
+	
+	bubblesort(sarray, 5)
+
+	print("Sorted array:")
+	print_array(sarray, 5)
+	
 	
 	return 0
 
