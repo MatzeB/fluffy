@@ -14,4 +14,4 @@ func main(argc : int, argv : byte* *) : int:
 	printf("Fib %u: %u\n", n, fib(n))
 	return 0
 
-func test():
+export main

@@ -182,6 +182,7 @@ struct unary_expression_t {
 
 typedef enum {
 	BINEXPR_INVALID = 0,
+	BINEXPR_ASSIGN,
 	BINEXPR_ADD,
 	BINEXPR_SUB,
 	BINEXPR_MUL,
@@ -200,7 +201,6 @@ typedef enum {
 	BINEXPR_XOR,
 	BINEXPR_SHIFTLEFT,
 	BINEXPR_SHIFTRIGHT,
-	BINEXPR_ASSIGN
 } binary_expression_type_t;
 
 struct binary_expression_t {

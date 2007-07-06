@@ -89,3 +89,4 @@ func main(argc : int, argv : byte * * ) : int:
 
 	return 0
 
+export main

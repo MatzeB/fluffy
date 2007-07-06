@@ -675,6 +675,9 @@ void check_binary_expression(binary_expression_t *binexpr)
 		abort();
 	}
 
+	if(left == NULL || right == NULL)
+		return;
+
 	if(left->datatype != lefttype) {
 		binexpr->left  = make_cast(left, lefttype,
 		                           binexpr->expression.source_position);
@@ -1243,6 +1246,27 @@ void check_take_address_expression(unary_expression_t *expression)
 	expression->value   = check_expression(expression->value);
 	type_t *type        = expression->value->datatype;
 	type_t *result_type = make_pointer_type(type);
+	expression_t *value = expression->value;
+
+	if(!is_lvalue(value)) {
+		/* TODO lvalue is confusing language, improve this... */
+		error_at(expression->expression.source_position,
+		         "can only take address of l-values\n");
+		return;
+	}
+
+	if(value->type == EXPR_REFERENCE) {
+		reference_expression_t *reference   = (reference_expression_t*) value;
+		declaration_t          *declaration = reference->declaration;
+
+		if(declaration->type == DECLARATION_VARIABLE) {
+			variable_declaration_t *variable 
+				= (variable_declaration_t*) declaration;
+			variable->needs_entity = 1;
+		}
+	}
+
+	// taking addresses is not possible with all expressions...
 
 	expression->expression.datatype = result_type;
 }

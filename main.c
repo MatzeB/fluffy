@@ -55,11 +55,13 @@ void initialize_firm(void)
 
 	/* initialize backend */
 	be_params = be_init();
+	be_set_debug_retrieve(retrieve_dbg);
 	params.arch_op_settings = be_params->arch_op_settings;
 	if_conv_info            = be_params->if_conv_info;
 
 	/* intialize firm itself */
 	init_firm(&params);
+	dbg_init(NULL, NULL, dbg_snprint);
 
 	set_opt_constant_folding(1);
 	set_opt_unreachable_code(1);
@@ -99,18 +101,23 @@ void optimize()
 			dump_ir_block_graph(irg, "-begin");
 	}
 
+	set_irp_memory_disambiguator_options(aa_opt_type_based | aa_opt_byte_type_may_alias);
+
 	int arr_len;
 	ir_entity **keep_methods;
 	cgana(&arr_len, &keep_methods);
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
 
-	optimize_funccalls(1);
+	opt_tail_recursion();
+
+	optimize_funccalls(0);
 	inline_leave_functions(500, 80, 30, 0);
 
-	n_irgs = get_irp_n_irgs();
-	for(i = 0; i < n_irgs; ++i) {
+	for(i = 0; i < get_irp_n_irgs(); ++i) {
 		ir_graph *irg = get_irp_irg(i);
+
+		current_ir_graph = irg;
 
 		dump_consts_local(1);
 		if(dump_graphs)

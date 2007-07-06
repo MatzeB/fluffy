@@ -77,3 +77,4 @@ func main() : int:
 	
 	return 0
 
+export main

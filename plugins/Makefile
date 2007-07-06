@@ -14,5 +14,7 @@ all: $(PLUGINS)
 
 plugin_sql.s: plugin_while.so
 
+plugin_enum.s: plugin_while.so
+
 clean:
 	rm -rf $(PLUGINS)

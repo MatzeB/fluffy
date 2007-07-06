@@ -20,10 +20,10 @@
 //#define ABORT_ON_ERROR
 //#define PRINT_TOKENS
 
-static expression_parse_function_t *expression_parsers = NULL;
-static parse_statement_function    *statement_parsers  = NULL;
-static parse_declaration_function  *declaration_parsers  = NULL;
-static parse_attribute_function    *attribute_parsers  = NULL;
+static expression_parse_function_t *expression_parsers  = NULL;
+static parse_statement_function    *statement_parsers   = NULL;
+static parse_declaration_function  *declaration_parsers = NULL;
+static parse_attribute_function    *attribute_parsers   = NULL;
 
 static context_t *current_context = NULL;
 
@@ -928,7 +928,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 
 	expression_parse_function_t *parser	
 		= & expression_parsers[token.type];
-	source_position_t  source_position  = lexer.source_position;
+	source_position_t  source_position = lexer.source_position;
 	expression_t      *left;
 	
 	if(parser->parser != NULL) {

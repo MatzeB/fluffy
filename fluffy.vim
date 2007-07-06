@@ -15,7 +15,7 @@ syn keyword fluffyType       unsigned signed bool
 
 syn keyword fluffyStatement	goto return
 syn keyword fluffyStatement instance
-syn keyword fluffyStatement export
+syn keyword fluffyStatement export enum
 syn keyword fluffyAttribute	extern
 syn keyword fluffyRepeat	        for while
 syn keyword fluffyConditional	if else

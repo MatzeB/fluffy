@@ -69,6 +69,11 @@ struct TypeVariable:
 	next             : TypeVariable*
 	current_type     : Type*
 
+struct Constant:
+	declaration     : Declaration
+	type            : Type*
+	expression      : Expression*
+
 struct Statement:
 	type            : unsigned int
 	next            : Statement*
@@ -78,6 +83,16 @@ struct Expression:
 	type            : unsigned int
 	datatype        : Type*
 	source_position : SourcePosition
+
+struct IntConst:
+	expression      : Expression
+	value           : int
+
+struct BinaryExpression:
+	expression      : Expression
+	type            : int
+	left            : Expression*
+	right           : Expression*
 
 struct BlockStatement:
 	statement       : Statement
@@ -148,16 +163,50 @@ const TYPE_ARRAY                   <- 7
 const TYPE_REFERENCE               <- 8
 const TYPE_REFERENCE_TYPE_VARIABLE <- 9
 
+const DECLARATION_INVALID          <- 0
+const DECLARATION_METHOD           <- 1
+const DECLARATION_METHOD_PARAMETER <- 2
+const DECLARATION_VARIABLE         <- 3
+const DECLARATION_CONSTANT         <- 4
+const DECLARATION_TYPE_VARIABLE    <- 5
+const DECLARATION_TYPEALIAS        <- 6
+const DECLARATION_TYPECLASS        <- 7
+const DECLARATION_TYPECLASS_METHOD <- 8
+const DECLARATION_LABEL            <- 9
+
 const ATOMIC_TYPE_INVALID          <- 0
 const ATOMIC_TYPE_BOOL             <- 1
 const ATOMIC_TYPE_BYTE             <- 2
+const ATOMIC_TYPE_UBYTE            <- 3
+const ATOMIC_TYPE_SHORT            <- 4
+const ATOMIC_TYPE_USHORT           <- 5
+const ATOMIC_TYPE_INT              <- 6
+const ATOMIC_TYPE_UINT             <- 7
+const ATOMIC_TYPE_LONG             <- 8
+const ATOMIC_TYPE_ULONG            <- 9
 
+const EXPR_INVALID                 <- 0
+const EXPR_INT_CONST               <- 1
+const EXPR_BOOL_CONST              <- 2
+const EXPR_STRING_CONST            <- 3
+const EXPR_NULL_POINTER            <- 4
+const EXPR_REFERENCE               <- 5
+const EXPR_CALL                    <- 6
+const EXPR_UNARY                   <- 7
+const EXPR_BINARY                  <- 8
+
+const BINEXPR_INVALID              <- 0
+const BINEXPR_ASSIGN               <- 1
+const BINEXPR_ADD                  <- 2
+
+const T_EOF            <- -1
 const T_NEWLINE        <- 256
 const T_INDENT         <- 257
 const T_DEDENT         <- 258
 const T_IDENTIFIER     <- 259
 const T_INTEGER        <- 260
 const T_STRING_LITERAL <- 261
+const T_ASSIGN         <- 295
 
 typealias FILE                    <- void
 typealias EnvironmentEntry        <- void
@@ -171,12 +220,13 @@ typealias ParseExpressionInfixFunction <- func (precedence : unsigned int, \
                                                left : Expression*) : Expression*
 typealias LowerStatementFunction  <- func (statement : Statement*) : Statement*
 typealias LowerExpressionFunction <- func (expression : Expression*) : Expression*
+typealias ParseDeclarationFunction <- func() : void
 typealias String                  <- byte*
 
 func extern register_new_token(token : String) : unsigned int
 func extern register_statement() : unsigned int
 func extern register_expression() : unsigned int
-func extern register_namespace_entry() : unsigned int
+func extern register_declaration() : unsigned int
 func extern register_attribute() : unsigned int
 
 func extern puts(string : String) : int
@@ -195,11 +245,14 @@ func extern register_expression_parser(parser : ParseExpressionFunction*, \
 func extern register_expression_infix_parser( \
 				parser : ParseExpressionInfixFunction, token_type : int, \
 				precedence : unsigned int)
+func extern register_declaration_parser(parser : ParseDeclarationFunction*, \
+                                        token_type : int)
 func extern print_token(out : FILE*, token : Token*)
 func extern lexer_next_token(lexer : Lexer*, token : Token*)
 func extern allocate_ast(size : unsigned int) : void*
 func extern parser_print_error_prefix()
 func extern next_token()
+func extern add_declaration(declaration : Declaration*)
 
 func extern parse_sub_expression(precedence : unsigned int) : Expression*
 func extern parse_expression() : Expression*
@@ -214,6 +267,10 @@ func extern register_statement_lowerer(function : LowerStatementFunction*, \
                                        statement_type : unsigned int)
 func extern register_expression_lowerer(function : LowerExpressionFunction*, \
                                         expression_type : unsigned int)
+
+func extern make_atomic_type(type : int) : Type*
+func extern make_pointer_type(type : Type*) : Type*
+
 
 var extern stdout : FILE*
 var extern stderr : FILE*
@@ -258,6 +315,24 @@ instance AllocateOnAst LabelStatement:
 		res.statement.type <- STATEMENT_LABEL
 		return res
 
+instance AllocateOnAst Constant:
+	func allocate() : Constant*:
+		var res <- allocate_zero<$Constant>()
+		res.declaration.type <- DECLARATION_CONSTANT
+		return res
+
+instance AllocateOnAst BinaryExpression:
+	func allocate() : BinaryExpression*:
+		var res <- allocate_zero<$BinaryExpression>()
+		res.expression.type <- EXPR_BINARY
+		return res
+
+instance AllocateOnAst IntConst:
+	func allocate() : IntConst*:
+		var res <- allocate_zero<$IntConst>()
+		res.expression.type <- EXPR_INT_CONST
+		return res
+
 func expect(token_type : int):
 	if token.type /= token_type:
 		parser_print_error_prefix()
@@ -265,8 +340,8 @@ func expect(token_type : int):
 		abort()
 	next_token()
 
-func assert(expr : int):
-	if expr /= 0:
+func assert(expr : bool):
+	if !expr:
 		fputs("Assert failed\n", stderr)
 		abort()
 

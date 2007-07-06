@@ -17,7 +17,7 @@ instance AllocateOnAst ForStatement:
 func parse_for_statement() : Statement*:
 	var statement <- allocate<$ForStatement>()
 
-	//assert(token.type = token_for)
+	assert(token.type = token_for)
 	next_token()
 
 	expect('(')

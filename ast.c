@@ -171,6 +171,12 @@ void print_binary_expression(const binary_expression_t *binexpr)
 	case BINEXPR_SUB:
 		fprintf(out, "-");
 		break;
+	case BINEXPR_MUL:
+		fprintf(out, "*");
+		break;
+	case BINEXPR_DIV:
+		fprintf(out, "/");
+		break;
 	case BINEXPR_NOTEQUAL:
 		fprintf(out, "/=");
 		break;
@@ -557,6 +563,21 @@ void print_typeclass_instance(const typeclass_instance_t *instance)
 }
 
 static
+void print_constant(const constant_t *constant)
+{
+	fprintf(out, "const %s", constant->declaration.symbol->string);
+	if(constant->type != NULL) {
+		fprintf(out, " ");
+		print_type(out, constant->type);
+	}
+	if(constant->expression != NULL) {
+		fprintf(out, " <- ");
+		print_expression(constant->expression);
+	}
+	fprintf(out, "\n");
+}
+
+static
 void print_typealias(const typealias_t *alias)
 {
 	fprintf(out, "typealias %s <- ", alias->declaration.symbol->string);
@@ -582,9 +603,11 @@ void print_declaration(const declaration_t *declaration)
 	case DECLARATION_TYPEALIAS:
 		print_typealias((const typealias_t*) declaration);
 		break;
+	case DECLARATION_CONSTANT:
+		print_constant((const constant_t*) declaration);
+		break;
 	case DECLARATION_TYPECLASS_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
-	case DECLARATION_CONSTANT:
 		fprintf(out, "some declaration of type %d\n", declaration->type);
 		// TODO
 		break;
