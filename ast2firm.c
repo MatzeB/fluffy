@@ -649,8 +649,8 @@ ir_entity* get_typeclass_method_instance_entity(
 		typeclass_method_instance_t *method_instance)
 {
 	method_t *method = & method_instance->method;
-	if(method->entity != NULL)
-		return method->entity;
+	if(method->e.entity != NULL)
+		return method->e.entity;
 
 	method_type_t *method_type = method->type;
 
@@ -684,23 +684,22 @@ ir_entity* get_typeclass_method_instance_entity(
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	//set_entity_visibility(entity, visibility_external_visible);
 	set_entity_visibility(entity, visibility_local);
-	set_entity_peculiarity(entity, peculiarity_existent);
 
-	method->entity = entity;
+	method->e.entity = entity;
+
 	return entity;
 }
 
 static
 ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 {
-	if(method->entity != NULL) {
-		return method->entity;
-	}
-
 	method_type_t *method_type    = method->type;
 	int            is_polymorphic = is_polymorphic_method(method);
+
+	if(!is_polymorphic && method->e.entity != NULL) {
+		return method->e.entity;
+	}
 
 	ident *id;
 	if(!is_polymorphic) {
@@ -724,6 +723,17 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 		obstack_free(&obst, str);
 	}
 
+	/* search for an existing entity */
+	if(is_polymorphic && method->e.entities != NULL) {
+		int len = ARR_LEN(method->e.entities);
+		for(int i = 0; i < len; ++i) {
+			ir_entity *entity = method->e.entities[i];
+			if(get_entity_ident(entity) == id) {
+				return entity;
+			}
+		}
+	}
+
 	/* create the entity */
 	ir_type *global_type    = get_glob_type();
 	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
@@ -734,19 +744,20 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 		set_entity_visibility(entity, visibility_external_allocated);
 	} else if(!is_polymorphic && method->export) {
 		set_entity_visibility(entity, visibility_external_visible);
-		set_entity_peculiarity(entity, peculiarity_existent);
 	} else {
 		if(is_polymorphic && method->export) {
 			fprintf(stderr, "Warning: exporting polymorphic methods not "
 			        "supported.\n");
 		}
-		/* TODO find out why visibility_local doesn't work */
 		set_entity_visibility(entity, visibility_local);
-		set_entity_peculiarity(entity, peculiarity_existent);
 	}
 
 	if(!is_polymorphic) {
-		method->entity = entity;
+		method->e.entity = entity;
+	} else {
+		if(method->e.entities == NULL)
+			method->e.entities = NEW_ARR_F(ir_entity*, 0);
+		ARR_APP1(method->e.entities, entity);
 	}
 	return entity;
 }
@@ -1494,7 +1505,7 @@ static
 ir_node *func_expression_to_firm(func_expression_t *expression)
 {
 	method_t  *method = & expression->method;
-	ir_entity *entity = method->entity;
+	ir_entity *entity = method->e.entity;
 
 	if(entity == NULL) {
 		symbol_t *symbol = unique_symbol("anonfunc");

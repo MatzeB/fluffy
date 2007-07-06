@@ -1,4 +1,4 @@
-func extern print_int(bla : int)
+func extern printf(format : byte*, ...) : int
 func extern malloc(size : unsigned int) : void*
 func extern puts(string : byte*) : int
 
@@ -7,7 +7,7 @@ typeclass Print<T>:
 
 instance Print int:
 	func print(object : int):
-		print_int(object)
+		printf("%d\n", object)
 
 instance Print byte*:
 	func print(object : byte*):
@@ -18,3 +18,4 @@ func main() : int:
 	print(5)
 	return 0
 
+export main

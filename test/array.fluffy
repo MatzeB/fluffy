@@ -11,3 +11,4 @@ func main() : int:
 	printf("Size: %d\n", sizeof<Blo>)
 	blo.array[2] <- 5
 	return blo.array[2]
+export main

@@ -82,7 +82,10 @@ struct method_t {
 	context_t           context;
 	statement_t        *statement;
 
-	ir_entity          *entity;
+	union {
+		ir_entity      *entity;
+		ir_entity     **entities;
+	} e;
 	int                 n_local_vars;
 };
 
