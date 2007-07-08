@@ -1,4 +1,5 @@
 GOAL = fluffy
+#CC   = apgcc
 
 #FIRM_CFLAGS = `pkg-config --cflags libfirm`
 #FIRM_LIBS = `pkg-config --libs libfirm`

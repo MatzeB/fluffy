@@ -257,9 +257,10 @@ struct return_statement_t {
 };
 
 struct block_statement_t {
-	statement_t  statement;
-	statement_t *statements;
-	context_t    context;
+	statement_t        statement;
+	statement_t       *statements;
+	source_position_t  end_position;
+	context_t          context;
 };
 
 struct variable_declaration_t {

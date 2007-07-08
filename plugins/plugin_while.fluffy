@@ -13,9 +13,10 @@ instance AllocateOnAst WhileStatement:
 		return res
 
 func parse_while_statement() : Statement*:
-	var statement <- allocate<$WhileStatement>()
+	var statement                       <- allocate<$WhileStatement>()
+	statement.statement.source_position <- lexer.source_position
 
-	//assert(token.type = token_while)
+	assert(token.type = token_while)
 	next_token()
 
 	statement.loop_control <- parse_expression()
@@ -34,16 +35,20 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	while_statement.loop_control \
 		<- check_expression(while_statement.loop_control)
 
-	var label             <- allocate<$LabelStatement>()
+	var label <- allocate<$LabelStatement>()
 
 	var if_statement            <- allocate<$IfStatement>()
+	if_statement.statement.source_position \
+		<- while_statement.statement.source_position
 	if_statement.condition      <- while_statement.loop_control
 	if_statement.true_statement <- loop_body
 
-	var loop_body_block        <- cast<BlockStatement* > loop_body
+	var loop_body_block         <- cast<BlockStatement* > loop_body
 
 	var goto_statement   <- allocate<$GotoStatement>()
-	goto_statement.label <- label.declaration
+	goto_statement.statement.source_position \
+		<- loop_body.source_position
+	goto_statement.label <- & label.declaration
 	block_append(loop_body_block, cast<Statement* > goto_statement)
 
 	var block                 <- allocate<$BlockStatement>()

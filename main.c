@@ -35,7 +35,7 @@ typedef enum compile_mode_t {
 	CompileAndLink
 } compile_mode_t;
 
-const opt_if_conv_info_t *if_conv_info = NULL;
+const ir_settings_if_conv_t *if_conv_info = NULL;
 
 static
 void initialize_firm(void)

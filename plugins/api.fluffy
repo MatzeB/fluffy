@@ -97,6 +97,7 @@ struct BinaryExpression:
 struct BlockStatement:
 	statement       : Statement
 	statements      : Statement*
+	end_position    : SourcePosition
 	context         : Context
 
 struct ExpressionStatement:

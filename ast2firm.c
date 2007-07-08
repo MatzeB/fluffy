@@ -1037,13 +1037,25 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 		}
 	}
 
-	ir_node  *addr       = expression_addr(left);
-	ir_node  *store      = get_store();
-	dbg_info *dbgi       = get_dbg_info(&assign->expression.source_position);
-	ir_node  *store_node = new_d_Store(dbgi, store, addr, value);
-	ir_node  *mem        = new_d_Proj(dbgi, store_node, mode_M, pn_Store_M);
-	set_store(mem);
+	ir_node  *addr  = expression_addr(left);
+	ir_node  *store = get_store();
+	dbg_info *dbgi  = get_dbg_info(&assign->expression.source_position);
+	type_t   *type  = left->datatype;
+	ir_node  *result;
 
+	if(type->type == TYPE_COMPOUND_STRUCT 
+	         || type->type == TYPE_COMPOUND_UNION) {
+		ir_type *irtype = get_ir_type(type);
+
+		result       = new_d_CopyB(dbgi, store, addr, value, irtype);
+		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M_regular);
+		set_store(mem);
+	} else {
+		result        = new_d_Store(dbgi, store, addr, value);
+		ir_node  *mem = new_d_Proj(dbgi, result, mode_M, pn_Store_M);
+		set_store(mem);
+	}
+	
 	return value;
 }
 
@@ -1103,7 +1115,6 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 		= get_dbg_info(&binary_expression->expression.source_position);
 
 	ir_node *val1 = expression_to_firm(binary_expression->left);
-	//ir_node *val1_bool = get_int_as_bool(val1);
 
 	ir_node *cond       = new_d_Cond(dbgi, val1);
 	ir_node *true_proj  = new_d_Proj(dbgi, cond, mode_X, pn_Cond_true);
@@ -1201,7 +1212,6 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 		ir_node *cmp  = new_d_Cmp(dbgi, left, right);
 		ir_node *proj = new_d_Proj(dbgi, cmp, mode_b, compare_pn);
 
-		//return get_bool_as_int(proj, mode_Iu);
 		return proj;
 	}
 

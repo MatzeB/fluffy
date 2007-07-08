@@ -355,8 +355,10 @@ void check_reference_expression(reference_expression_t *ref)
 				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
 				|| ref->expression.datatype->type == TYPE_ARRAY) {
 			variable->needs_entity   = 1;
+#if 0
 			ref->expression.datatype = make_pointer_type(
 					ref->expression.datatype);
+#endif
 		}
 		return;
 	case DECLARATION_METHOD:
@@ -404,7 +406,6 @@ static
 int is_lvalue(const expression_t *expression)
 {
 	unary_expression_t     *unexpr;
-	select_expression_t    *select;
 	reference_expression_t *reference;
 	declaration_t          *declaration;
 
@@ -419,12 +420,7 @@ int is_lvalue(const expression_t *expression)
 	case EXPR_ARRAY_ACCESS:
 		return 1;
 	case EXPR_SELECT:
-		select = (select_expression_t*) expression;
-		type_t *entry_type = select->compound_entry->type;
-
-		return entry_type->type != TYPE_COMPOUND_STRUCT &&
-			entry_type->type != TYPE_COMPOUND_UNION &&
-			entry_type->type != TYPE_ARRAY;
+		return 1;
 	case EXPR_UNARY:
 		unexpr = (unary_expression_t*) expression;
 		if(unexpr->type == UNEXPR_DEREFERENCE)
@@ -1249,7 +1245,7 @@ void check_take_address_expression(unary_expression_t *expression)
 	expression_t *value = expression->value;
 
 	if(!is_lvalue(value)) {
-		/* TODO lvalue is confusing language, improve this... */
+		/* TODO use another word than lvalue to explain this to the user... */
 		error_at(expression->expression.source_position,
 		         "can only take address of l-values\n");
 		return;
@@ -1265,8 +1261,6 @@ void check_take_address_expression(unary_expression_t *expression)
 			variable->needs_entity = 1;
 		}
 	}
-
-	// taking addresses is not possible with all expressions...
 
 	expression->expression.datatype = result_type;
 }
@@ -1395,29 +1389,37 @@ void check_select_expression(select_expression_t *select)
 	if(datatype == NULL)
 		return;
 
-	if(datatype->type != TYPE_POINTER) {
-		print_error_prefix(select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to compound type but found "
-		        "type ");
-		print_type(stderr, datatype);
-		fprintf(stderr, "\n");
-		return;
+	compound_type_t *compound_type;
+
+	if(datatype->type == TYPE_COMPOUND_STRUCT
+			|| datatype->type == TYPE_COMPOUND_UNION) {
+		compound_type = (compound_type_t*) datatype;
+	} else {
+		if(datatype->type != TYPE_POINTER) {
+			print_error_prefix(select->expression.source_position);
+			fprintf(stderr, "select needs a (pointer to a ) compound type but "
+					"found type ");
+			print_type(stderr, datatype);
+			fprintf(stderr, "\n");
+			return;
+		}
+
+		pointer_type_t *pointer_type = (pointer_type_t*) datatype;
+		
+		type_t *points_to = pointer_type->points_to;
+		if(points_to->type != TYPE_COMPOUND_STRUCT
+				&& points_to->type != TYPE_COMPOUND_UNION) {
+			print_error_prefix(select->expression.source_position);
+			fprintf(stderr, "select needs a pointer to compound type but found "
+					"type");
+			print_type(stderr, datatype);
+			fprintf(stderr, "\n");
+			return;
+		}
+
+		compound_type =  (compound_type_t*) points_to;
 	}
 
-	pointer_type_t *pointer_type = (pointer_type_t*) datatype;
-	
-	type_t *points_to = pointer_type->points_to;
-	if(points_to->type != TYPE_COMPOUND_STRUCT
-			&& points_to->type != TYPE_COMPOUND_UNION) {
-		print_error_prefix(select->expression.source_position);
-		fprintf(stderr, "select needs a pointer to compound type but found "
-		        "type");
-		print_type(stderr, datatype);
-		fprintf(stderr, "\n");
-		return;
-	}
-
-	compound_type_t  *compound_type = (compound_type_t*) points_to;
 	compound_entry_t *entry         = compound_type->entries;
 	symbol_t         *symbol        = select->symbol;
 	while(entry != NULL) {
@@ -1429,7 +1431,7 @@ void check_select_expression(select_expression_t *select)
 	if(entry == NULL) {
 		print_error_prefix(select->expression.source_position);
 		fprintf(stderr, "compound type ");
-		print_type(stderr, points_to);
+		print_type(stderr, (type_t*) compound_type);
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
 		return;
 	}
@@ -1438,7 +1440,9 @@ void check_select_expression(select_expression_t *select)
 	type_t *result_type = entry->type;
 	if(result_type->type == TYPE_COMPOUND_STRUCT ||
 			result_type->type == TYPE_COMPOUND_UNION) {
+#if 0
 		result_type = make_pointer_type(result_type);
+#endif
 	} else if(result_type->type == TYPE_ARRAY) {
 		array_type_t *array_type = (array_type_t*) result_type;
 

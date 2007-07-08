@@ -1276,6 +1276,7 @@ statement_t *parse_block(void)
 	assert(current_context == &block->context);
 	current_context = last_context;
 
+	block->end_position = lexer.source_position;
 	expect(T_DEDENT);
 
 	return (statement_t*) block;

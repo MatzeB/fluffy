@@ -17,13 +17,10 @@ func parse_enum():
 	while token.type /= T_DEDENT && token.type /= T_EOF:
 		assert(token.type = T_IDENTIFIER)
 
-		var constant                <- allocate<$Constant>()
-		constant.declaration.symbol <- token.v.symbol
-		constant.declaration.source_position.input_name \
-			<- lexer.source_position.input_name
-		constant.declaration.source_position.linenr \
-			<- lexer.source_position.linenr
-		constant.type               <- type_int
+		var constant                         <- allocate<$Constant>()
+		constant.declaration.symbol          <- token.v.symbol
+		constant.declaration.source_position <- lexer.source_position
+		constant.type                        <- type_int
 		next_token()
 
 		if token.type = T_ASSIGN:
