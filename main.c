@@ -132,10 +132,13 @@ void optimize()
 		construct_confirms(irg);
 		optimize_graph_df(irg);
 		compute_doms(irg);
+
 		set_opt_global_cse(1);
 		optimize_graph_df(irg);
 		place_code(irg);
 		set_opt_global_cse(0);
+
+		dump_ir_block_graph(irg, "-after_gcse");
 
 		optimize_cf(irg);
 		remove_confirms(irg);
@@ -156,7 +159,23 @@ void optimize()
 		dead_node_elimination(irg);
 
 		if(dump_graphs)
-			dump_ir_block_graph(irg, "-opt");
+			dump_ir_block_graph(irg, "-opt-run1");
+
+		set_opt_global_cse(1);
+		optimize_graph_df(irg);
+		place_code(irg);
+		set_opt_global_cse(0);
+
+		dump_ir_block_graph(irg, "-after_gcse");
+
+		optimize_cf(irg);
+		remove_confirms(irg);
+		
+		optimize_load_store(irg);
+		conv_opt(irg);
+	
+		if(dump_graphs)
+			dump_ir_block_graph(irg, "-opt-run2");
 	}
 
 	cgana(&arr_len, &keep_methods);
