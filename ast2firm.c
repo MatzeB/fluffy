@@ -1139,16 +1139,19 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	}
 
 	/* fallthrough */
+	ir_node *constb;
 	if(is_or) {
+		constb = new_d_Const(dbgi, mode_b, get_tarval_b_true());
 		add_immBlock_pred(fallthrough_block, true_proj);
 	} else {
+		constb = new_d_Const(dbgi, mode_b, get_tarval_b_false());
 		add_immBlock_pred(fallthrough_block, false_proj);
 	}
 	mature_immBlock(fallthrough_block);
 
 	set_cur_block(fallthrough_block);
 
-	ir_node *in[2] = { val2, val1 };
+	ir_node *in[2] = { val2, constb };
 	ir_node *val   = new_d_Phi(dbgi, 2, in, mode_b);
 
 	return val;

@@ -355,10 +355,6 @@ void check_reference_expression(reference_expression_t *ref)
 				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
 				|| ref->expression.datatype->type == TYPE_ARRAY) {
 			variable->needs_entity   = 1;
-#if 0
-			ref->expression.datatype = make_pointer_type(
-					ref->expression.datatype);
-#endif
 		}
 		return;
 	case DECLARATION_METHOD:
@@ -1438,17 +1434,7 @@ void check_select_expression(select_expression_t *select)
 
 	/* we return a pointer to sub-compounds instead of the compound itself */
 	type_t *result_type = entry->type;
-	if(result_type->type == TYPE_COMPOUND_STRUCT ||
-			result_type->type == TYPE_COMPOUND_UNION) {
-#if 0
-		result_type = make_pointer_type(result_type);
-#endif
-	} else if(result_type->type == TYPE_ARRAY) {
-		array_type_t *array_type = (array_type_t*) result_type;
-
-		result_type = make_pointer_type(array_type->element_type);
-	}
-
+	
 	select->compound_entry      = entry;
 	select->expression.datatype = result_type;
 }

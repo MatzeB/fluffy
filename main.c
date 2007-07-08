@@ -87,6 +87,8 @@ void initialize_firm(void)
 	set_opt_scalar_replacement(1);
 	set_opt_ldst_only_null_ptr_exceptions(1);
 	set_opt_alias_analysis(1);
+
+	dump_consts_local(1);
 }
 
 static
@@ -119,7 +121,6 @@ void optimize()
 
 		current_ir_graph = irg;
 
-		dump_consts_local(1);
 		if(dump_graphs)
 			dump_ir_block_graph(irg, "-lower");
 
