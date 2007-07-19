@@ -219,6 +219,7 @@ struct select_expression_t {
 	symbol_t         *symbol;
 
 	compound_entry_t *compound_entry;
+	declaration_t    *declaration;
 };
 
 struct array_access_expression_t {

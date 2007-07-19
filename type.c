@@ -121,36 +121,35 @@ void print_type(FILE *out, const type_t *type)
 	switch(type->type) {
 	case TYPE_INVALID:
 		fputs("invalid", out);
-		break;
+		return;
 	case TYPE_VOID:
 		fputs("void", out);
-		break;
+		return;
 	case TYPE_ATOMIC:
 		print_atomic_type(out, (const atomic_type_t*) type);
-		break;
+		return;
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		fprintf(out, "%s", ((const compound_type_t*) type)->symbol->string);
-		break;
+		return;
 	case TYPE_METHOD:
 		print_method_type(out, (const method_type_t*) type);
-		break;
+		return;
 	case TYPE_POINTER:
 		print_pointer_type(out, (const pointer_type_t*) type);
-		break;
+		return;
 	case TYPE_ARRAY:
 		print_array_type(out, (const array_type_t*) type);
-		break;
+		return;
 	case TYPE_REFERENCE:
 		print_type_reference(out, (const type_reference_t*) type);
-		break;
+		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		print_type_reference_variable(out, (const type_reference_t*) type);
-		break;
-	default:
-		fputs("unknown", out);
-		break;
+		return;
 	}
+	fputs("unknown", out);
 }
 
 int type_valid(const type_t *type)
@@ -342,6 +341,7 @@ type_t *create_concrete_type(type_t *type)
 		return type_void;
 	case TYPE_ATOMIC:
 		return type;
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return create_concrete_compound_type((compound_type_t*) type);

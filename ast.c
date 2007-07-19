@@ -256,6 +256,13 @@ void print_expression(const expression_t *expression)
 }
 
 static
+void print_indent()
+{
+	for(int i = 0; i < indent; ++i)
+		fprintf(out, "\t");
+}
+
+static
 void print_block_statement(const block_statement_t *block)
 {
 	statement_t *statement = block->statements;
@@ -320,6 +327,7 @@ void print_if_statement(const if_statement_t *statement)
 		print_statement(statement->true_statement);
 
 	if(statement->false_statement != NULL) {
+		print_indent();
 		fprintf(out, "else:\n");
 		print_statement(statement->false_statement);
 	}
@@ -342,13 +350,6 @@ void print_variable_declaration_statement(
 		                     const variable_declaration_statement_t *statement)
 {
 	print_variable_declaration(&statement->declaration);
-}
-
-static
-void print_indent()
-{
-	for(int i = 0; i < indent; ++i)
-		fprintf(out, "\t");
 }
 
 void print_statement(const statement_t *statement)

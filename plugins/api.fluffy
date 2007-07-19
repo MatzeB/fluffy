@@ -40,6 +40,7 @@ struct CompoundType:
 	symbol          : Symbol*
 	attributes      : Attribute
 	type_parameters : TypeVariable*
+	context         : Context*
 	source_position : SourcePosition
 
 struct TypeConstraint:
@@ -207,7 +208,7 @@ const T_DEDENT         <- 258
 const T_IDENTIFIER     <- 259
 const T_INTEGER        <- 260
 const T_STRING_LITERAL <- 261
-const T_ASSIGN         <- 295
+const T_ASSIGN         <- 296
 
 typealias FILE                    <- void
 typealias EnvironmentEntry        <- void

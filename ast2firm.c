@@ -112,7 +112,7 @@ static unsigned unique_id = 0;
 static
 ident *unique_ident(const char *tag)
 {
-	char            buf[256];
+	char buf[256];
 
 	snprintf(buf, sizeof(buf), "%s.%d", tag, unique_id);
 	unique_id++;
@@ -163,11 +163,11 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 		return mode_D;
 	case ATOMIC_TYPE_BOOL:
 		return mode_b;
-	default:
-		panic("Encountered unknown atomic type");
+	case ATOMIC_TYPE_INVALID:
+		break;
 	}
+	panic("Encountered unknown atomic type");
 }
-
 
 
 static
@@ -239,6 +239,7 @@ unsigned get_type_size(type_t *type)
 		return 0;
 	case TYPE_ATOMIC:
 		return get_atomic_type_size((const atomic_type_t*) type);
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		return get_compound_type_size((compound_type_t*) type);
@@ -449,6 +450,62 @@ ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	return ir_type;
 }
 
+static
+ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
+{
+	symbol_t *symbol        = type->symbol;
+	ident    *id            = unique_ident(symbol->string);
+	ir_type  *class_ir_type = new_type_class(id);
+
+	type->type.firm_type = class_ir_type;
+
+	int align_all = 1;
+	int size      = 0;
+	declaration_t *declaration = type->context.declarations;
+	while(declaration != NULL) {
+		if(declaration->type == DECLARATION_METHOD) {
+			/* TODO */
+			continue;
+		}
+		if(declaration->type != DECLARATION_VARIABLE)
+			continue;
+
+		variable_declaration_t *variable 
+			= (variable_declaration_t*) declaration;
+
+		ident    *ident       = new_id_from_str(declaration->symbol->string);
+		ir_type  *var_ir_type = _get_ir_type(env, variable->type);
+
+		int entry_size      = get_type_size_bytes(var_ir_type);
+		int entry_alignment = get_type_alignment_bytes(var_ir_type);
+
+		ir_entity *entity = new_entity(class_ir_type, ident, var_ir_type);
+		add_class_member(class_ir_type, entity);
+		set_entity_offset(entity, 0);
+		variable->entity = entity;
+
+		if(entry_size > size) {
+			size = entry_size;
+		}
+		if(entry_alignment > align_all) {
+			if(entry_alignment % align_all != 0) {
+				panic("Uneven alignments not supported yet");
+			}
+			align_all = entry_alignment;
+		}
+
+		declaration = declaration->next;
+	}
+
+	set_type_alignment_bytes(class_ir_type, align_all);
+	set_type_size_bytes(class_ir_type, size);
+	set_type_state(class_ir_type, layout_fixed);
+
+	return class_ir_type;
+}
+
+
+
 
 
 static
@@ -496,7 +553,7 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		break;
 	case TYPE_VOID:
 		/* there is no mode_VOID in firm, use mode_C */
-		firm_type = new_type_primitive(new_id_from_str("void"), mode_C);
+		firm_type = new_type_primitive(new_id_from_str("void"), mode_ANY);
 		break;
 	case TYPE_COMPOUND_STRUCT:
 		firm_type = get_struct_type(env, (compound_type_t*) type);
@@ -504,12 +561,20 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	case TYPE_COMPOUND_UNION:
 		firm_type = get_union_type(env, (compound_type_t*) type);
 		break;
+	case TYPE_COMPOUND_CLASS:
+		firm_type = get_class_type(env, (compound_type_t*) type);
+		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
 		break;
-	default:
-		panic("unknown type");
+	case TYPE_REFERENCE:
+		panic("unresolved reference type found");
+		break;
+	case TYPE_INVALID:
+		break;
 	}
+	if(firm_type == NULL)
+		panic("unknown type found");
 
 	if(env->can_cache) {
 		type->firm_type = firm_type;
@@ -843,17 +908,21 @@ ir_node *null_pointer_to_firm(void)
 static
 ir_node *select_expression_addr(const select_expression_t *select)
 {
-	expression_t *compound_ptr      = select->compound;
+	expression_t *compound_ptr = select->compound;
 	/* make sure the firm type for the struct is constructed */
 	get_ir_type(compound_ptr->datatype);
-	ir_node      *compound_ptr_node = expression_to_firm(compound_ptr);
-	ir_node      *nomem             = new_NoMem();
-	ir_entity    *entity            = select->compound_entry->entity;
-	dbg_info     *dbgi 
-		= get_dbg_info(&select->expression.source_position);
-	ir_node      *addr              = new_d_simpleSel(dbgi, nomem,
-	                                                  compound_ptr_node,
-	                                                  entity);
+
+	ir_node   *compound_ptr_node = expression_to_firm(compound_ptr);
+	ir_node   *nomem             = new_NoMem();
+	ir_entity *entity;
+	if(select->compound_entry != NULL) {
+		entity = select->compound_entry->entity;
+	} else {
+		// TODO
+	}
+
+	dbg_info *dbgi = get_dbg_info(&select->expression.source_position);
+	ir_node  *addr = new_d_simpleSel(dbgi, nomem, compound_ptr_node, entity);
 
 	return addr;
 }
@@ -962,10 +1031,8 @@ ir_node *constant_reference_to_firm(const constant_t *constant)
 }
 
 static
-ir_node *reference_expression_addr(const reference_expression_t *reference)
+ir_node *declaration_addr(declaration_t *declaration)
 {
-	declaration_t *declaration = reference->declaration;
-
 	switch(declaration->type) {
 	case DECLARATION_VARIABLE:
 		return variable_addr((variable_declaration_t*) declaration);
@@ -983,6 +1050,13 @@ ir_node *reference_expression_addr(const reference_expression_t *reference)
 		panic("internal error: trying to create address nodes for non-lvalue");
 	}
 	panic("Unknown declaration found in reference expression");
+}
+
+static
+ir_node *reference_expression_addr(const reference_expression_t *reference)
+{
+	declaration_t *declaration = reference->declaration;
+	return declaration_addr(declaration);
 }
 
 static
@@ -1535,20 +1609,19 @@ ir_node *func_expression_to_firm(func_expression_t *expression)
 }
 
 static
-ir_node *reference_expression_to_firm(const reference_expression_t *reference)
+ir_node *declaration_reference_to_firm(declaration_t *declaration,
+                                       type_argument_t *type_arguments)
 {
 	method_declaration_t *method_declaration;
-	declaration_t *declaration = reference->declaration;
 
 	switch(declaration->type) {
 	case DECLARATION_METHOD:
 		method_declaration = (method_declaration_t*) declaration;
 		return method_reference_to_firm(&method_declaration->method,
-		                                reference->symbol,
-		                                reference->type_arguments);
+		                                declaration->symbol, type_arguments);
 	case DECLARATION_TYPECLASS_METHOD:
 		return typeclass_method_reference_to_firm(
-				(typeclass_method_t*) declaration, reference->type_arguments);
+				(typeclass_method_t*) declaration, type_arguments);
 	case DECLARATION_METHOD_PARAMETER:
 		return method_parameter_reference_to_firm(
 				(method_parameter_t*) declaration);
@@ -1566,6 +1639,14 @@ ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 		      "reference");
 	}
 	panic("unknown declaration type found");
+}
+
+static
+ir_node *reference_expression_to_firm(const reference_expression_t *reference)
+{
+	declaration_t   *declaration    = reference->declaration;
+	type_argument_t *type_arguments = reference->type_arguments;
+	return declaration_reference_to_firm(declaration, type_arguments);
 }
 
 static

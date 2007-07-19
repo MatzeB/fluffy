@@ -1,0 +1,853 @@
+/* WARNING: Automatically generated file */
+struct SDL_RWops:
+	seek : /*TODO funcptr*/ void*
+	read : /*TODO funcptr*/ void*
+	write : /*TODO funcptr*/ void*
+	close : /*TODO funcptr*/ void*
+	type : unsigned int
+
+
+
+
+
+struct _SDL_TimerID:
+
+struct SDL_AudioSpec:
+	freq : int
+	format : unsigned short
+	channels : unsigned byte
+	silence : unsigned byte
+	samples : unsigned short
+	padding : unsigned short
+	size : unsigned int
+	callback : /*TODO funcptr*/ void*
+	userdata : void*
+
+struct SDL_AudioCVT:
+	needed : int
+	src_format : unsigned short
+	dst_format : unsigned short
+	rate_incr : double
+	buf : unsigned byte*
+	len : int
+	len_cvt : int
+	len_mult : int
+	len_ratio : double
+	filters : /*TODO funcptr*/ void*
+	filter_index : int
+
+struct SDL_CDtrack:
+	id : unsigned byte
+	type : unsigned byte
+	unused : unsigned short
+	length : unsigned int
+	offset : unsigned int
+
+struct SDL_CD:
+	id : int
+	status : int
+	numtracks : int
+	cur_track : int
+	cur_frame : int
+	track : SDL_CDtrack
+
+struct SDL_Joystick:
+
+struct SDL_keysym:
+	scancode : unsigned byte
+	sym : int
+	mod : int
+	unicode : unsigned short
+
+struct SDL_mutex:
+
+struct SDL_sem:
+
+struct SDL_cond:
+
+struct SDL_Rect:
+	x : short
+	y : short
+	w : unsigned short
+	h : unsigned short
+
+struct SDL_Color:
+	r : unsigned byte
+	g : unsigned byte
+	b : unsigned byte
+	unused : unsigned byte
+
+struct SDL_Palette:
+	ncolors : int
+	colors : SDL_Color*
+
+struct SDL_PixelFormat:
+	palette : SDL_Palette*
+	BitsPerPixel : unsigned byte
+	BytesPerPixel : unsigned byte
+	Rloss : unsigned byte
+	Gloss : unsigned byte
+	Bloss : unsigned byte
+	Aloss : unsigned byte
+	Rshift : unsigned byte
+	Gshift : unsigned byte
+	Bshift : unsigned byte
+	Ashift : unsigned byte
+	Rmask : unsigned int
+	Gmask : unsigned int
+	Bmask : unsigned int
+	Amask : unsigned int
+	colorkey : unsigned int
+	alpha : unsigned byte
+
+struct SDL_Surface:
+	flags : unsigned int
+	format : SDL_PixelFormat*
+	w : int
+	h : int
+	pitch : unsigned short
+	pixels : void*
+	offset : int
+	hwdata : private_hwdata*
+	clip_rect : SDL_Rect
+	unused1 : unsigned int
+	locked : unsigned int
+	map : SDL_BlitMap*
+	format_version : unsigned int
+	refcount : int
+
+struct private_hwdata:
+
+struct SDL_BlitMap:
+
+struct SDL_VideoInfo:
+	hw_available : unsigned int
+	wm_available : unsigned int
+	UnusedBits1 : unsigned int
+	UnusedBits2 : unsigned int
+	blit_hw : unsigned int
+	blit_hw_CC : unsigned int
+	blit_hw_A : unsigned int
+	blit_sw : unsigned int
+	blit_sw_CC : unsigned int
+	blit_sw_A : unsigned int
+	blit_fill : unsigned int
+	UnusedBits3 : unsigned int
+	video_mem : unsigned int
+	vfmt : SDL_PixelFormat*
+
+struct SDL_Overlay:
+	format : unsigned int
+	w : int
+	h : int
+	planes : int
+	pitches : unsigned short*
+	pixels : unsigned byte**
+	hwfuncs : private_yuvhwfuncs*
+	hwdata : private_yuvhwdata*
+	hw_overlay : unsigned int
+	UnusedBits : unsigned int
+
+struct private_yuvhwfuncs:
+
+struct private_yuvhwdata:
+
+struct WMcursor:
+
+struct SDL_Cursor:
+	area : SDL_Rect
+	hot_x : short
+	hot_y : short
+	data : unsigned byte*
+	mask : unsigned byte*
+	save : unsigned byte*
+	wm_cursor : WMcursor*
+
+struct SDL_ActiveEvent:
+	type : unsigned byte
+	gain : unsigned byte
+	state : unsigned byte
+
+struct SDL_KeyboardEvent:
+	type : unsigned byte
+	which : unsigned byte
+	state : unsigned byte
+	keysym : SDL_keysym
+
+struct SDL_MouseMotionEvent:
+	type : unsigned byte
+	which : unsigned byte
+	state : unsigned byte
+	x : unsigned short
+	y : unsigned short
+	xrel : short
+	yrel : short
+
+struct SDL_MouseButtonEvent:
+	type : unsigned byte
+	which : unsigned byte
+	button : unsigned byte
+	state : unsigned byte
+	x : unsigned short
+	y : unsigned short
+
+struct SDL_JoyAxisEvent:
+	type : unsigned byte
+	which : unsigned byte
+	axis : unsigned byte
+	value : short
+
+struct SDL_JoyBallEvent:
+	type : unsigned byte
+	which : unsigned byte
+	ball : unsigned byte
+	xrel : short
+	yrel : short
+
+struct SDL_JoyHatEvent:
+	type : unsigned byte
+	which : unsigned byte
+	hat : unsigned byte
+	value : unsigned byte
+
+struct SDL_JoyButtonEvent:
+	type : unsigned byte
+	which : unsigned byte
+	button : unsigned byte
+	state : unsigned byte
+
+struct SDL_ResizeEvent:
+	type : unsigned byte
+	w : int
+	h : int
+
+struct SDL_ExposeEvent:
+	type : unsigned byte
+
+struct SDL_QuitEvent:
+	type : unsigned byte
+
+struct SDL_UserEvent:
+	type : unsigned byte
+	code : int
+	data1 : void*
+	data2 : void*
+
+struct SDL_SysWMmsg:
+
+struct SDL_SysWMEvent:
+	type : unsigned byte
+	msg : SDL_SysWMmsg*
+
+union SDL_Event:
+	type : unsigned byte
+	active : SDL_ActiveEvent
+	key : SDL_KeyboardEvent
+	motion : SDL_MouseMotionEvent
+	button : SDL_MouseButtonEvent
+	jaxis : SDL_JoyAxisEvent
+	jball : SDL_JoyBallEvent
+	jhat : SDL_JoyHatEvent
+	jbutton : SDL_JoyButtonEvent
+	resize : SDL_ResizeEvent
+	expose : SDL_ExposeEvent
+	quit : SDL_QuitEvent
+	user : SDL_UserEvent
+	syswm : SDL_SysWMEvent
+
+struct SDL_version:
+	major : unsigned byte
+	minor : unsigned byte
+	patch : unsigned byte
+
+enum SDL_bool:
+	SDL_FALSE <- 0
+	SDL_TRUE <- 1
+
+enum SDL_DUMMY_ENUM:
+	DUMMY_ENUM_VALUE
+
+
+enum SDL_errorcode:
+	SDL_ENOMEM
+	SDL_EFREAD
+	SDL_EFWRITE
+	SDL_EFSEEK
+	SDL_LASTERROR
+
+enum SDL_audiostatus:
+	SDL_AUDIO_STOPPED <- 0
+	SDL_AUDIO_PLAYING
+	SDL_AUDIO_PAUSED
+
+enum CDstatus:
+	CD_TRAYEMPTY
+	CD_STOPPED
+	CD_PLAYING
+	CD_PAUSED
+	CD_ERROR <- cast<int> (-1)
+
+enum SDLKey:
+	SDLK_UNKNOWN <- 0
+	SDLK_FIRST <- 0
+	SDLK_BACKSPACE <- 8
+	SDLK_TAB <- 9
+	SDLK_CLEAR <- 12
+	SDLK_RETURN <- 13
+	SDLK_PAUSE <- 19
+	SDLK_ESCAPE <- 27
+	SDLK_SPACE <- 32
+	SDLK_EXCLAIM <- 33
+	SDLK_QUOTEDBL <- 34
+	SDLK_HASH <- 35
+	SDLK_DOLLAR <- 36
+	SDLK_AMPERSAND <- 38
+	SDLK_QUOTE <- 39
+	SDLK_LEFTPAREN <- 40
+	SDLK_RIGHTPAREN <- 41
+	SDLK_ASTERISK <- 42
+	SDLK_PLUS <- 43
+	SDLK_COMMA <- 44
+	SDLK_MINUS <- 45
+	SDLK_PERIOD <- 46
+	SDLK_SLASH <- 47
+	SDLK_0 <- 48
+	SDLK_1 <- 49
+	SDLK_2 <- 50
+	SDLK_3 <- 51
+	SDLK_4 <- 52
+	SDLK_5 <- 53
+	SDLK_6 <- 54
+	SDLK_7 <- 55
+	SDLK_8 <- 56
+	SDLK_9 <- 57
+	SDLK_COLON <- 58
+	SDLK_SEMICOLON <- 59
+	SDLK_LESS <- 60
+	SDLK_EQUALS <- 61
+	SDLK_GREATER <- 62
+	SDLK_QUESTION <- 63
+	SDLK_AT <- 64
+	SDLK_LEFTBRACKET <- 91
+	SDLK_BACKSLASH <- 92
+	SDLK_RIGHTBRACKET <- 93
+	SDLK_CARET <- 94
+	SDLK_UNDERSCORE <- 95
+	SDLK_BACKQUOTE <- 96
+	SDLK_a <- 97
+	SDLK_b <- 98
+	SDLK_c <- 99
+	SDLK_d <- 100
+	SDLK_e <- 101
+	SDLK_f <- 102
+	SDLK_g <- 103
+	SDLK_h <- 104
+	SDLK_i <- 105
+	SDLK_j <- 106
+	SDLK_k <- 107
+	SDLK_l <- 108
+	SDLK_m <- 109
+	SDLK_n <- 110
+	SDLK_o <- 111
+	SDLK_p <- 112
+	SDLK_q <- 113
+	SDLK_r <- 114
+	SDLK_s <- 115
+	SDLK_t <- 116
+	SDLK_u <- 117
+	SDLK_v <- 118
+	SDLK_w <- 119
+	SDLK_x <- 120
+	SDLK_y <- 121
+	SDLK_z <- 122
+	SDLK_DELETE <- 127
+	SDLK_WORLD_0 <- 160
+	SDLK_WORLD_1 <- 161
+	SDLK_WORLD_2 <- 162
+	SDLK_WORLD_3 <- 163
+	SDLK_WORLD_4 <- 164
+	SDLK_WORLD_5 <- 165
+	SDLK_WORLD_6 <- 166
+	SDLK_WORLD_7 <- 167
+	SDLK_WORLD_8 <- 168
+	SDLK_WORLD_9 <- 169
+	SDLK_WORLD_10 <- 170
+	SDLK_WORLD_11 <- 171
+	SDLK_WORLD_12 <- 172
+	SDLK_WORLD_13 <- 173
+	SDLK_WORLD_14 <- 174
+	SDLK_WORLD_15 <- 175
+	SDLK_WORLD_16 <- 176
+	SDLK_WORLD_17 <- 177
+	SDLK_WORLD_18 <- 178
+	SDLK_WORLD_19 <- 179
+	SDLK_WORLD_20 <- 180
+	SDLK_WORLD_21 <- 181
+	SDLK_WORLD_22 <- 182
+	SDLK_WORLD_23 <- 183
+	SDLK_WORLD_24 <- 184
+	SDLK_WORLD_25 <- 185
+	SDLK_WORLD_26 <- 186
+	SDLK_WORLD_27 <- 187
+	SDLK_WORLD_28 <- 188
+	SDLK_WORLD_29 <- 189
+	SDLK_WORLD_30 <- 190
+	SDLK_WORLD_31 <- 191
+	SDLK_WORLD_32 <- 192
+	SDLK_WORLD_33 <- 193
+	SDLK_WORLD_34 <- 194
+	SDLK_WORLD_35 <- 195
+	SDLK_WORLD_36 <- 196
+	SDLK_WORLD_37 <- 197
+	SDLK_WORLD_38 <- 198
+	SDLK_WORLD_39 <- 199
+	SDLK_WORLD_40 <- 200
+	SDLK_WORLD_41 <- 201
+	SDLK_WORLD_42 <- 202
+	SDLK_WORLD_43 <- 203
+	SDLK_WORLD_44 <- 204
+	SDLK_WORLD_45 <- 205
+	SDLK_WORLD_46 <- 206
+	SDLK_WORLD_47 <- 207
+	SDLK_WORLD_48 <- 208
+	SDLK_WORLD_49 <- 209
+	SDLK_WORLD_50 <- 210
+	SDLK_WORLD_51 <- 211
+	SDLK_WORLD_52 <- 212
+	SDLK_WORLD_53 <- 213
+	SDLK_WORLD_54 <- 214
+	SDLK_WORLD_55 <- 215
+	SDLK_WORLD_56 <- 216
+	SDLK_WORLD_57 <- 217
+	SDLK_WORLD_58 <- 218
+	SDLK_WORLD_59 <- 219
+	SDLK_WORLD_60 <- 220
+	SDLK_WORLD_61 <- 221
+	SDLK_WORLD_62 <- 222
+	SDLK_WORLD_63 <- 223
+	SDLK_WORLD_64 <- 224
+	SDLK_WORLD_65 <- 225
+	SDLK_WORLD_66 <- 226
+	SDLK_WORLD_67 <- 227
+	SDLK_WORLD_68 <- 228
+	SDLK_WORLD_69 <- 229
+	SDLK_WORLD_70 <- 230
+	SDLK_WORLD_71 <- 231
+	SDLK_WORLD_72 <- 232
+	SDLK_WORLD_73 <- 233
+	SDLK_WORLD_74 <- 234
+	SDLK_WORLD_75 <- 235
+	SDLK_WORLD_76 <- 236
+	SDLK_WORLD_77 <- 237
+	SDLK_WORLD_78 <- 238
+	SDLK_WORLD_79 <- 239
+	SDLK_WORLD_80 <- 240
+	SDLK_WORLD_81 <- 241
+	SDLK_WORLD_82 <- 242
+	SDLK_WORLD_83 <- 243
+	SDLK_WORLD_84 <- 244
+	SDLK_WORLD_85 <- 245
+	SDLK_WORLD_86 <- 246
+	SDLK_WORLD_87 <- 247
+	SDLK_WORLD_88 <- 248
+	SDLK_WORLD_89 <- 249
+	SDLK_WORLD_90 <- 250
+	SDLK_WORLD_91 <- 251
+	SDLK_WORLD_92 <- 252
+	SDLK_WORLD_93 <- 253
+	SDLK_WORLD_94 <- 254
+	SDLK_WORLD_95 <- 255
+	SDLK_KP0 <- 256
+	SDLK_KP1 <- 257
+	SDLK_KP2 <- 258
+	SDLK_KP3 <- 259
+	SDLK_KP4 <- 260
+	SDLK_KP5 <- 261
+	SDLK_KP6 <- 262
+	SDLK_KP7 <- 263
+	SDLK_KP8 <- 264
+	SDLK_KP9 <- 265
+	SDLK_KP_PERIOD <- 266
+	SDLK_KP_DIVIDE <- 267
+	SDLK_KP_MULTIPLY <- 268
+	SDLK_KP_MINUS <- 269
+	SDLK_KP_PLUS <- 270
+	SDLK_KP_ENTER <- 271
+	SDLK_KP_EQUALS <- 272
+	SDLK_UP <- 273
+	SDLK_DOWN <- 274
+	SDLK_RIGHT <- 275
+	SDLK_LEFT <- 276
+	SDLK_INSERT <- 277
+	SDLK_HOME <- 278
+	SDLK_END <- 279
+	SDLK_PAGEUP <- 280
+	SDLK_PAGEDOWN <- 281
+	SDLK_F1 <- 282
+	SDLK_F2 <- 283
+	SDLK_F3 <- 284
+	SDLK_F4 <- 285
+	SDLK_F5 <- 286
+	SDLK_F6 <- 287
+	SDLK_F7 <- 288
+	SDLK_F8 <- 289
+	SDLK_F9 <- 290
+	SDLK_F10 <- 291
+	SDLK_F11 <- 292
+	SDLK_F12 <- 293
+	SDLK_F13 <- 294
+	SDLK_F14 <- 295
+	SDLK_F15 <- 296
+	SDLK_NUMLOCK <- 300
+	SDLK_CAPSLOCK <- 301
+	SDLK_SCROLLOCK <- 302
+	SDLK_RSHIFT <- 303
+	SDLK_LSHIFT <- 304
+	SDLK_RCTRL <- 305
+	SDLK_LCTRL <- 306
+	SDLK_RALT <- 307
+	SDLK_LALT <- 308
+	SDLK_RMETA <- 309
+	SDLK_LMETA <- 310
+	SDLK_LSUPER <- 311
+	SDLK_RSUPER <- 312
+	SDLK_MODE <- 313
+	SDLK_COMPOSE <- 314
+	SDLK_HELP <- 315
+	SDLK_PRINT <- 316
+	SDLK_SYSREQ <- 317
+	SDLK_BREAK <- 318
+	SDLK_MENU <- 319
+	SDLK_POWER <- 320
+	SDLK_EURO <- 321
+	SDLK_UNDO <- 322
+	SDLK_LAST
+
+enum SDLMod:
+	KMOD_NONE <- 0x0000
+	KMOD_LSHIFT <- 0x0001
+	KMOD_RSHIFT <- 0x0002
+	KMOD_LCTRL <- 0x0040
+	KMOD_RCTRL <- 0x0080
+	KMOD_LALT <- 0x0100
+	KMOD_RALT <- 0x0200
+	KMOD_LMETA <- 0x0400
+	KMOD_RMETA <- 0x0800
+	KMOD_NUM <- 0x1000
+	KMOD_CAPS <- 0x2000
+	KMOD_MODE <- 0x4000
+	KMOD_RESERVED <- 0x8000
+
+enum SDL_GLattr:
+	SDL_GL_RED_SIZE
+	SDL_GL_GREEN_SIZE
+	SDL_GL_BLUE_SIZE
+	SDL_GL_ALPHA_SIZE
+	SDL_GL_BUFFER_SIZE
+	SDL_GL_DOUBLEBUFFER
+	SDL_GL_DEPTH_SIZE
+	SDL_GL_STENCIL_SIZE
+	SDL_GL_ACCUM_RED_SIZE
+	SDL_GL_ACCUM_GREEN_SIZE
+	SDL_GL_ACCUM_BLUE_SIZE
+	SDL_GL_ACCUM_ALPHA_SIZE
+	SDL_GL_STEREO
+	SDL_GL_MULTISAMPLEBUFFERS
+	SDL_GL_MULTISAMPLESAMPLES
+
+enum SDL_GrabMode:
+	SDL_GRAB_QUERY <- cast<int> (-1)
+	SDL_GRAB_OFF <- 0
+	SDL_GRAB_ON <- 1
+	SDL_GRAB_FULLSCREEN
+
+
+
+enum SDL_eventaction:
+	SDL_ADDEVENT
+	SDL_PEEKEVENT
+	SDL_GETEVENT
+
+
+const AUDIO_S16 : unsigned int <- 0x8010
+const AUDIO_S16LSB : unsigned int <- 0x8010
+const AUDIO_S16MSB : unsigned int <- 0x9010
+const AUDIO_S8 : unsigned int <- 0x8008
+const AUDIO_U16 : unsigned int <- 0x0010
+const AUDIO_U16LSB : unsigned int <- 0x0010
+const AUDIO_U16MSB : unsigned int <- 0x1010
+const AUDIO_U8 : unsigned int <- 0x0008
+const CD_FPS : int <- 75
+const SDL_ALL_HOTKEYS : unsigned int <- 0xFFFFFFFF
+const SDL_ALLEVENTS : unsigned int <- 0xFFFFFFFF
+const SDL_ALPHA_OPAQUE : int <- 255
+const SDL_ALPHA_TRANSPARENT : int <- 0
+const SDL_ANYFORMAT : unsigned int <- 0x10000000
+const SDL_APPACTIVE : unsigned int <- 0x04
+const SDL_APPINPUTFOCUS : unsigned int <- 0x02
+const SDL_APPMOUSEFOCUS : unsigned int <- 0x01
+const SDL_ASYNCBLIT : unsigned int <- 0x00000004
+const SDL_AUDIO_TRACK : unsigned int <- 0x00
+const SDL_BIG_ENDIAN : int <- 4321
+const SDL_BUTTON_LEFT : int <- 1
+const SDL_BUTTON_MIDDLE : int <- 2
+const SDL_BUTTON_RIGHT : int <- 3
+const SDL_BUTTON_WHEELDOWN : int <- 5
+const SDL_BUTTON_WHEELUP : int <- 4
+const SDL_DATA_TRACK : unsigned int <- 0x04
+const SDL_DEFAULT_REPEAT_DELAY : int <- 500
+const SDL_DEFAULT_REPEAT_INTERVAL : int <- 30
+const SDL_DISABLE : int <- 0
+const SDL_DOUBLEBUF : unsigned int <- 0x40000000
+const SDL_ENABLE : int <- 1
+const SDL_FULLSCREEN : unsigned int <- 0x80000000
+const SDL_HAT_CENTERED : unsigned int <- 0x00
+const SDL_HAT_DOWN : unsigned int <- 0x04
+const SDL_HAT_LEFT : unsigned int <- 0x08
+const SDL_HAT_RIGHT : unsigned int <- 0x02
+const SDL_HAT_UP : unsigned int <- 0x01
+const SDL_HWACCEL : unsigned int <- 0x00000100
+const SDL_HWPALETTE : unsigned int <- 0x20000000
+const SDL_HWSURFACE : unsigned int <- 0x00000001
+const SDL_IGNORE : int <- 0
+const SDL_INIT_AUDIO : unsigned int <- 0x00000010
+const SDL_INIT_CDROM : unsigned int <- 0x00000100
+const SDL_INIT_EVENTTHREAD : unsigned int <- 0x01000000
+const SDL_INIT_EVERYTHING : unsigned int <- 0x0000FFFF
+const SDL_INIT_JOYSTICK : unsigned int <- 0x00000200
+const SDL_INIT_NOPARACHUTE : unsigned int <- 0x00100000
+const SDL_INIT_TIMER : unsigned int <- 0x00000001
+const SDL_INIT_VIDEO : unsigned int <- 0x00000020
+const SDL_IYUV_OVERLAY : unsigned int <- 0x56555949
+const SDL_LIL_ENDIAN : int <- 1234
+const SDL_LOGPAL : unsigned int <- 0x01
+const SDL_MAJOR_VERSION : int <- 1
+const SDL_MAX_TRACKS : int <- 99
+const SDL_MINOR_VERSION : int <- 2
+const SDL_MIX_MAXVOLUME : int <- 128
+const SDL_MUTEX_TIMEDOUT : int <- 1
+const SDL_NOFRAME : unsigned int <- 0x00000020
+const SDL_OPENGL : unsigned int <- 0x00000002
+const SDL_OPENGLBLIT : unsigned int <- 0x0000000A
+const SDL_PATCHLEVEL : int <- 8
+const SDL_PHYSPAL : unsigned int <- 0x02
+const SDL_PREALLOC : unsigned int <- 0x01000000
+const SDL_QUERY : int <- -1
+const SDL_RESIZABLE : unsigned int <- 0x00000010
+const SDL_RLEACCEL : unsigned int <- 0x00004000
+const SDL_RLEACCELOK : unsigned int <- 0x00002000
+const SDL_SRCALPHA : unsigned int <- 0x00010000
+const SDL_SRCCOLORKEY : unsigned int <- 0x00001000
+const SDL_SWSURFACE : unsigned int <- 0x00000000
+const SDL_TIMESLICE : int <- 10
+const SDL_UYVY_OVERLAY : unsigned int <- 0x59565955
+const SDL_YUY2_OVERLAY : unsigned int <- 0x32595559
+const SDL_YV12_OVERLAY : unsigned int <- 0x32315659
+const SDL_YVYU_OVERLAY : unsigned int <- 0x55595659
+const TIMER_RESOLUTION : int <- 10
+const SDL_PRESSED : int <- 0x01
+const SDL_RELEASED : int <- 0x00
+const SDL_NOEVENT : int <- 0
+const SDL_ACTIVEEVENT : int <- 1
+const SDL_KEYDOWN : int <- 2
+const SDL_KEYUP : int <- 3
+const SDL_MOUSEMOTION : int <- 4
+const SDL_MOUSEBUTTONDOWN : int <- 5
+const SDL_MOUSEBUTTONUP : int <- 6
+const SDL_JOYAXISMOTION : int <- 7
+const SDL_JOYBALLMOTION : int <- 8
+const SDL_JOYHATMOTION : int <- 9
+const SDL_JOYBUTTONDOWN : int <- 10
+const SDL_JOYBUTTONUP : int <- 11
+const SDL_QUIT : int <- 12
+const SDL_SYSWMEVENT : int <- 13
+const SDL_EVENT_RESERVEDA : int <- 14
+const SDL_EVENT_RESERVEDB : int <- 15
+const SDL_VIDEORESIZE : int <- 16
+const SDL_VIDEOEXPOSE : int <- 17
+const SDL_EVENT_RESERVED2 : int <- 18
+const SDL_EVENT_RESERVED3 : int <- 19
+const SDL_EVENT_RESERVED4 : int <- 20
+const SDL_EVENT_RESERVED5 : int <- 21
+const SDL_EVENT_RESERVED6 : int <- 22
+const SDL_EVENT_RESERVED7 : int <- 23
+const SDL_USEREVENT : int <- 24
+const SDL_NUMEVENTS : int <- 32
+const SDL_ACTIVEEVENTMASK : int <- cast<int> (1 << SDL_ACTIVEEVENT)
+const SDL_KEYDOWNMASK : int <- cast<int> (1 << SDL_KEYDOWN)
+const SDL_KEYUPMASK : int <- cast<int> (1 << SDL_KEYUP)
+const SDL_MOUSEMOTIONMASK : int <- cast<int> (1 << SDL_MOUSEMOTION)
+const SDL_MOUSEBUTTONDOWNMASK : int <- cast<int> (1 << SDL_MOUSEBUTTONDOWN)
+const SDL_MOUSEBUTTONUPMASK : int <- cast<int> (1 << SDL_MOUSEBUTTONUP)
+const SDL_MOUSEEVENTMASK : int <- cast<int> (1 << SDL_MOUSEMOTION | 1 << SDL_MOUSEBUTTONDOWN | 1 << SDL_MOUSEBUTTONUP)
+const SDL_JOYAXISMOTIONMASK : int <- cast<int> (1 << SDL_JOYAXISMOTION)
+const SDL_JOYBALLMOTIONMASK : int <- cast<int> (1 << SDL_JOYBALLMOTION)
+const SDL_JOYHATMOTIONMASK : int <- cast<int> (1 << SDL_JOYHATMOTION)
+const SDL_JOYBUTTONDOWNMASK : int <- cast<int> (1 << SDL_JOYBUTTONDOWN)
+const SDL_JOYBUTTONUPMASK : int <- cast<int> (1 << SDL_JOYBUTTONUP)
+const SDL_JOYEVENTMASK : int <- cast<int> (1 << SDL_JOYAXISMOTION | 1 << SDL_JOYBALLMOTION | 1 << SDL_JOYHATMOTION | 1 << SDL_JOYBUTTONDOWN | 1 << SDL_JOYBUTTONUP)
+const SDL_VIDEORESIZEMASK : int <- cast<int> (1 << SDL_VIDEORESIZE)
+const SDL_VIDEOEXPOSEMASK : int <- cast<int> (1 << SDL_VIDEOEXPOSE)
+const SDL_QUITMASK : int <- cast<int> (1 << SDL_QUIT)
+const SDL_SYSWMEVENTMASK : int <- cast<int> (1 << SDL_SYSWMEVENT)
+
+func extern SDL_SetError(fmt : byte*, ...) : void
+func extern SDL_GetError() : byte*
+func extern SDL_ClearError() : void
+func extern SDL_Error(code : int) : void
+func extern SDL_RWFromFile(file : byte*, mode : byte*) : SDL_RWops*
+func extern SDL_RWFromFP(fp : void*, autoclose : int) : SDL_RWops*
+func extern SDL_RWFromMem(mem : void*, size : int) : SDL_RWops*
+func extern SDL_RWFromConstMem(mem : void*, size : int) : SDL_RWops*
+func extern SDL_AllocRW() : SDL_RWops*
+func extern SDL_FreeRW(area : SDL_RWops*) : void
+func extern SDL_GetTicks() : unsigned int
+func extern SDL_Delay(ms : unsigned int) : void
+func extern SDL_SetTimer(interval : unsigned int, callback : /*TODO funcptr*/ void*) : int
+func extern SDL_AddTimer(interval : unsigned int, callback : /*TODO funcptr*/ void*, param : void*) : _SDL_TimerID*
+func extern SDL_RemoveTimer(t : _SDL_TimerID*) : int
+func extern SDL_AudioInit(driver_name : byte*) : int
+func extern SDL_AudioQuit() : void
+func extern SDL_AudioDriverName(namebuf : byte*, maxlen : int) : byte*
+func extern SDL_OpenAudio(desired : SDL_AudioSpec*, obtained : SDL_AudioSpec*) : int
+func extern SDL_GetAudioStatus() : int
+func extern SDL_PauseAudio(pause_on : int) : void
+func extern SDL_LoadWAV_RW(src : SDL_RWops*, freesrc : int, spec : SDL_AudioSpec*, audio_buf : unsigned byte**, audio_len : unsigned int*) : SDL_AudioSpec*
+func extern SDL_FreeWAV(audio_buf : unsigned byte*) : void
+func extern SDL_BuildAudioCVT(cvt : SDL_AudioCVT*, src_format : unsigned short, src_channels : unsigned byte, src_rate : int, dst_format : unsigned short, dst_channels : unsigned byte, dst_rate : int) : int
+func extern SDL_ConvertAudio(cvt : SDL_AudioCVT*) : int
+func extern SDL_MixAudio(dst : unsigned byte*, src : unsigned byte*, len : unsigned int, volume : int) : void
+func extern SDL_LockAudio() : void
+func extern SDL_UnlockAudio() : void
+func extern SDL_CloseAudio() : void
+func extern SDL_CDNumDrives() : int
+func extern SDL_CDName(drive : int) : byte*
+func extern SDL_CDOpen(drive : int) : SDL_CD*
+func extern SDL_CDStatus(cdrom : SDL_CD*) : int
+func extern SDL_CDPlayTracks(cdrom : SDL_CD*, start_track : int, start_frame : int, ntracks : int, nframes : int) : int
+func extern SDL_CDPlay(cdrom : SDL_CD*, start : int, length : int) : int
+func extern SDL_CDPause(cdrom : SDL_CD*) : int
+func extern SDL_CDResume(cdrom : SDL_CD*) : int
+func extern SDL_CDStop(cdrom : SDL_CD*) : int
+func extern SDL_CDEject(cdrom : SDL_CD*) : int
+func extern SDL_CDClose(cdrom : SDL_CD*) : void
+func extern SDL_NumJoysticks() : int
+func extern SDL_JoystickName(device_index : int) : byte*
+func extern SDL_JoystickOpen(device_index : int) : SDL_Joystick*
+func extern SDL_JoystickOpened(device_index : int) : int
+func extern SDL_JoystickIndex(joystick : SDL_Joystick*) : int
+func extern SDL_JoystickNumAxes(joystick : SDL_Joystick*) : int
+func extern SDL_JoystickNumBalls(joystick : SDL_Joystick*) : int
+func extern SDL_JoystickNumHats(joystick : SDL_Joystick*) : int
+func extern SDL_JoystickNumButtons(joystick : SDL_Joystick*) : int
+func extern SDL_JoystickUpdate() : void
+func extern SDL_JoystickEventState(state : int) : int
+func extern SDL_JoystickGetAxis(joystick : SDL_Joystick*, axis : int) : short
+func extern SDL_JoystickGetHat(joystick : SDL_Joystick*, hat : int) : unsigned byte
+func extern SDL_JoystickGetBall(joystick : SDL_Joystick*, ball : int, dx : int*, dy : int*) : int
+func extern SDL_JoystickGetButton(joystick : SDL_Joystick*, button : int) : unsigned byte
+func extern SDL_JoystickClose(joystick : SDL_Joystick*) : void
+func extern SDL_GetAppState() : unsigned byte
+func extern SDL_EnableUNICODE(enable : bool) : int
+func extern SDL_EnableKeyRepeat(delay : int, interval : int) : int
+func extern SDL_GetKeyState(numkeys : int*) : unsigned byte*
+func extern SDL_GetModState() : int
+func extern SDL_SetModState(modstate : int) : void
+func extern SDL_GetKeyName(key : int) : byte*
+func extern SDL_CreateMutex() : SDL_mutex*
+func extern SDL_mutexP(mutex : SDL_mutex*) : int
+func extern SDL_mutexV(mutex : SDL_mutex*) : int
+func extern SDL_DestroyMutex(mutex : SDL_mutex*) : void
+func extern SDL_CreateSemaphore(initial_value : unsigned int) : SDL_sem*
+func extern SDL_DestroySemaphore(sem : SDL_sem*) : void
+func extern SDL_SemWait(sem : SDL_sem*) : int
+func extern SDL_SemTryWait(sem : SDL_sem*) : int
+func extern SDL_SemWaitTimeout(sem : SDL_sem*, ms : unsigned int) : int
+func extern SDL_SemPost(sem : SDL_sem*) : int
+func extern SDL_SemValue(sem : SDL_sem*) : unsigned int
+func extern SDL_CreateCond() : SDL_cond*
+func extern SDL_DestroyCond(cond : SDL_cond*) : void
+func extern SDL_CondSignal(cond : SDL_cond*) : int
+func extern SDL_CondBroadcast(cond : SDL_cond*) : int
+func extern SDL_CondWait(cond : SDL_cond*, mut : SDL_mutex*) : int
+func extern SDL_CondWaitTimeout(cond : SDL_cond*, mutex : SDL_mutex*, ms : unsigned int) : int
+func extern SDL_VideoInit(driver_name : byte*, flags : unsigned int) : int
+func extern SDL_VideoQuit() : void
+func extern SDL_VideoDriverName(namebuf : byte*, maxlen : int) : byte*
+func extern SDL_GetVideoSurface() : SDL_Surface*
+func extern SDL_GetVideoInfo() : SDL_VideoInfo*
+func extern SDL_VideoModeOK(width : int, height : int, bpp : int, flags : unsigned int) : int
+func extern SDL_ListModes(format : SDL_PixelFormat*, flags : unsigned int) : SDL_Rect**
+func extern SDL_SetVideoMode(width : int, height : int, bpp : int, flags : unsigned int) : SDL_Surface*
+func extern SDL_UpdateRects(screen : SDL_Surface*, numrects : int, rects : SDL_Rect*) : void
+func extern SDL_UpdateRect(screen : SDL_Surface*, x : int, y : int, w : unsigned int, h : unsigned int) : void
+func extern SDL_Flip(screen : SDL_Surface*) : int
+func extern SDL_SetGamma(red : float, green : float, blue : float) : int
+func extern SDL_SetGammaRamp(red : unsigned short*, green : unsigned short*, blue : unsigned short*) : int
+func extern SDL_GetGammaRamp(red : unsigned short*, green : unsigned short*, blue : unsigned short*) : int
+func extern SDL_SetColors(surface : SDL_Surface*, colors : SDL_Color*, firstcolor : int, ncolors : int) : int
+func extern SDL_SetPalette(surface : SDL_Surface*, flags : int, colors : SDL_Color*, firstcolor : int, ncolors : int) : int
+func extern SDL_MapRGB(format : SDL_PixelFormat*, r : unsigned byte, g : unsigned byte, b : unsigned byte) : unsigned int
+func extern SDL_MapRGBA(format : SDL_PixelFormat*, r : unsigned byte, g : unsigned byte, b : unsigned byte, a : unsigned byte) : unsigned int
+func extern SDL_GetRGB(pixel : unsigned int, fmt : SDL_PixelFormat*, r : unsigned byte*, g : unsigned byte*, b : unsigned byte*) : void
+func extern SDL_GetRGBA(pixel : unsigned int, fmt : SDL_PixelFormat*, r : unsigned byte*, g : unsigned byte*, b : unsigned byte*, a : unsigned byte*) : void
+func extern SDL_CreateRGBSurface(flags : unsigned int, width : int, height : int, depth : int, Rmask : unsigned int, Gmask : unsigned int, Bmask : unsigned int, Amask : unsigned int) : SDL_Surface*
+func extern SDL_CreateRGBSurfaceFrom(pixels : void*, width : int, height : int, depth : int, pitch : int, Rmask : unsigned int, Gmask : unsigned int, Bmask : unsigned int, Amask : unsigned int) : SDL_Surface*
+func extern SDL_FreeSurface(surface : SDL_Surface*) : void
+func extern SDL_LockSurface(surface : SDL_Surface*) : int
+func extern SDL_UnlockSurface(surface : SDL_Surface*) : void
+func extern SDL_LoadBMP_RW(src : SDL_RWops*, freesrc : int) : SDL_Surface*
+func extern SDL_SaveBMP_RW(surface : SDL_Surface*, dst : SDL_RWops*, freedst : int) : int
+func extern SDL_SetColorKey(surface : SDL_Surface*, flag : unsigned int, key : unsigned int) : int
+func extern SDL_SetAlpha(surface : SDL_Surface*, flag : unsigned int, alpha : unsigned byte) : int
+func extern SDL_SetClipRect(surface : SDL_Surface*, rect : SDL_Rect*) : int
+func extern SDL_GetClipRect(surface : SDL_Surface*, rect : SDL_Rect*) : void
+func extern SDL_ConvertSurface(src : SDL_Surface*, fmt : SDL_PixelFormat*, flags : unsigned int) : SDL_Surface*
+func extern SDL_UpperBlit(src : SDL_Surface*, srcrect : SDL_Rect*, dst : SDL_Surface*, dstrect : SDL_Rect*) : int
+func extern SDL_LowerBlit(src : SDL_Surface*, srcrect : SDL_Rect*, dst : SDL_Surface*, dstrect : SDL_Rect*) : int
+func extern SDL_FillRect(dst : SDL_Surface*, dstrect : SDL_Rect*, color : unsigned int) : int
+func extern SDL_DisplayFormat(surface : SDL_Surface*) : SDL_Surface*
+func extern SDL_DisplayFormatAlpha(surface : SDL_Surface*) : SDL_Surface*
+func extern SDL_CreateYUVOverlay(width : int, height : int, format : unsigned int, display : SDL_Surface*) : SDL_Overlay*
+func extern SDL_LockYUVOverlay(overlay : SDL_Overlay*) : int
+func extern SDL_UnlockYUVOverlay(overlay : SDL_Overlay*) : void
+func extern SDL_DisplayYUVOverlay(overlay : SDL_Overlay*, dstrect : SDL_Rect*) : int
+func extern SDL_FreeYUVOverlay(overlay : SDL_Overlay*) : void
+func extern SDL_GL_LoadLibrary(path : byte*) : int
+func extern SDL_GL_GetProcAddress(proc : byte*) : void*
+func extern SDL_GL_SetAttribute(attr : int, value : int) : int
+func extern SDL_GL_GetAttribute(attr : int, value : int*) : int
+func extern SDL_GL_SwapBuffers() : void
+func extern SDL_GL_UpdateRects(numrects : int, rects : SDL_Rect*) : void
+func extern SDL_GL_Lock() : void
+func extern SDL_GL_Unlock() : void
+func extern SDL_WM_SetCaption(title : byte*, icon : byte*) : void
+func extern SDL_WM_GetCaption(title : byte**, icon : byte**) : void
+func extern SDL_WM_SetIcon(icon : SDL_Surface*, mask : unsigned byte*) : void
+func extern SDL_WM_IconifyWindow() : int
+func extern SDL_WM_ToggleFullScreen(surface : SDL_Surface*) : int
+func extern SDL_WM_GrabInput(mode : int) : int
+func extern SDL_SoftStretch(src : SDL_Surface*, srcrect : SDL_Rect*, dst : SDL_Surface*, dstrect : SDL_Rect*) : int
+func extern SDL_GetMouseState(x : int*, y : int*) : unsigned byte
+func extern SDL_GetRelativeMouseState(x : int*, y : int*) : unsigned byte
+func extern SDL_WarpMouse(x : unsigned short, y : unsigned short) : void
+func extern SDL_CreateCursor(data : unsigned byte*, mask : unsigned byte*, w : int, h : int, hot_x : int, hot_y : int) : SDL_Cursor*
+func extern SDL_SetCursor(cursor : SDL_Cursor*) : void
+func extern SDL_GetCursor() : SDL_Cursor*
+func extern SDL_FreeCursor(cursor : SDL_Cursor*) : void
+func extern SDL_ShowCursor(toggle : int) : int
+func extern SDL_PumpEvents() : void
+func extern SDL_PeepEvents(events : SDL_Event*, numevents : int, action : int, mask : unsigned int) : int
+func extern SDL_PollEvent(event : SDL_Event*) : bool
+func extern SDL_WaitEvent(event : SDL_Event*) : int
+func extern SDL_PushEvent(event : SDL_Event*) : int
+func extern SDL_SetEventFilter(filter : /*TODO funcptr*/ void*) : void
+func extern SDL_GetEventFilter() : /*TODO funcptr*/ void*
+func extern SDL_EventState(type : unsigned byte, state : int) : unsigned byte
+func extern SDL_Linked_Version() : SDL_version*
+func extern SDL_Init(flags : unsigned int) : int
+func extern SDL_InitSubSystem(flags : unsigned int) : int
+func extern SDL_QuitSubSystem(flags : unsigned int) : void
+func extern SDL_WasInit(flags : unsigned int) : unsigned int
+func extern SDL_Quit() : void
+

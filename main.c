@@ -92,15 +92,21 @@ void initialize_firm(void)
 }
 
 static
+void dump(const char *suffix)
+{
+	if(!dump_graphs)
+		return;
+	dump_ir_block_graph(current_ir_graph, suffix);
+}
+
+static
 void optimize()
 {
 	int i;
-	int n_irgs      = get_irp_n_irgs();
+	int n_irgs = get_irp_n_irgs();
 	for(i = 0; i < n_irgs; ++i) {
-		ir_graph *irg = get_irp_irg(i);
-
-		if(dump_graphs)
-			dump_ir_block_graph(irg, "-begin");
+		current_ir_graph = get_irp_irg(i);
+		dump("-begin");
 	}
 
 	set_irp_memory_disambiguator_options(aa_opt_type_based | aa_opt_byte_type_may_alias);
@@ -121,8 +127,7 @@ void optimize()
 
 		current_ir_graph = irg;
 
-		if(dump_graphs)
-			dump_ir_block_graph(irg, "-lower");
+		dump("-lower");
 
 		/* TODO: improve this and make it configurabble */
 		scalar_replacement_opt(irg);
@@ -138,14 +143,20 @@ void optimize()
 		place_code(irg);
 		set_opt_global_cse(0);
 
-		dump_ir_block_graph(irg, "-after_gcse");
+		dump("-after_gcse");
 
 		optimize_cf(irg);
 		remove_confirms(irg);
 		
 		optimize_load_store(irg);
 		conv_opt(irg);
+
+		dump("-before_condeval");
+
 		opt_cond_eval(irg);
+
+
+		dump("-after_condeval");
 
 		compute_doms(irg);
 		compute_postdoms(irg);
@@ -158,15 +169,17 @@ void optimize()
 		optimize_graph_df(irg);
 		dead_node_elimination(irg);
 
-		if(dump_graphs)
-			dump_ir_block_graph(irg, "-opt-run1");
+		dump("-opt-run1");
+
+		compute_doms(irg);
+		compute_postdoms(irg);
 
 		set_opt_global_cse(1);
 		optimize_graph_df(irg);
 		place_code(irg);
 		set_opt_global_cse(0);
 
-		dump_ir_block_graph(irg, "-after_gcse");
+		dump("-after_gcse2");
 
 		optimize_cf(irg);
 		remove_confirms(irg);
@@ -174,8 +187,7 @@ void optimize()
 		optimize_load_store(irg);
 		conv_opt(irg);
 	
-		if(dump_graphs)
-			dump_ir_block_graph(irg, "-opt-run2");
+		dump("-opt-run2");
 	}
 
 	cgana(&arr_len, &keep_methods);

@@ -89,6 +89,7 @@ unsigned hash_type(const type_t *type)
 				(const type_reference_t*) type);
 	case TYPE_ATOMIC:
 		return hash_atomic_type((const atomic_type_t*) type);
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return hash_compound_type((const compound_type_t*) type);
@@ -197,6 +198,7 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_ATOMIC:
 		return atomic_types_equal((const atomic_type_t*) type1,
 		                          (const atomic_type_t*) type2);
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return compound_types_equal((const compound_type_t*) type1,

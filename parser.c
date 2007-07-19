@@ -1062,7 +1062,8 @@ statement_t *parse_if_statement(void)
 	statement_t *false_statement = NULL;
 	if(token.type == T_else) {
 		next_token();
-		expect(':');
+		if(token.type == ':')
+			next_token();
 		false_statement = parse_sub_block();
 	}
 
@@ -1153,6 +1154,9 @@ statement_t *parse_variable_declaration(void)
 
 			last_statement->next = assign;
 			last_statement       = assign;
+		} else if(token.type == '=') {
+			next_token();
+			parse_error("found '=' after variable declaration, did you mean '<-'?");
 		}
 
 		/* check if we have more declared symbols separated by ',' */
@@ -1701,6 +1705,53 @@ compound_entry_t *parse_compound_entries(void)
 }
 
 static
+void parse_class(void)
+{
+	eat(T_class);
+
+	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
+	typealias->declaration.type = DECLARATION_TYPEALIAS;
+
+	if(token.type != T_IDENTIFIER) {
+		parse_error_expected("Problem while parsing class",
+		                     T_IDENTIFIER, 0);
+		eat_until_newline();
+		return;
+	}
+	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.symbol          = token.v.symbol;
+	next_token();
+
+	compound_type_t *compound_type 
+		= allocate_ast_zero(sizeof(compound_type[0]));
+	compound_type->type.type  = TYPE_COMPOUND_CLASS;
+	compound_type->symbol     = typealias->declaration.symbol;
+	compound_type->attributes = parse_attributes();
+
+	typealias->type = (type_t*) compound_type;
+
+	expect_void(':');
+	expect_void(T_NEWLINE);
+
+	if(token.type == T_INDENT) {
+		next_token();
+
+		context_t *last_context = current_context;
+		current_context         = &compound_type->context;
+
+		while(token.type != T_EOF && token.type != T_DEDENT) {
+			parse_declaration();		
+		}
+		next_token();
+
+		assert(current_context == &compound_type->context);
+		current_context = last_context;
+	}
+
+	add_declaration((declaration_t*) typealias);
+}
+
+static
 void parse_struct(void)
 {
 	eat(T_struct);
@@ -2007,7 +2058,7 @@ void parse_declaration(void)
 			return;
 
 		/* this shouldn't happen if the lexer is correct... */
-		parse_error_expected("problem while parsing namespace entry",
+		parse_error_expected("problem while parsing declaration",
 		                     T_DEDENT, 0);
 		return;
 	}
@@ -2017,7 +2068,7 @@ void parse_declaration(void)
 		parser = declaration_parsers[token.type];
 
 	if(parser == NULL) {
-		parse_error_expected("Couldn't parse compilation unit entry",
+		parse_error_expected("Couldn't parse declaration",
 		                     T_func, T_var, T_extern, T_struct, T_typeclass,
 		                     T_instance, 0);
 		eat_until_newline();
@@ -2095,6 +2146,7 @@ void register_declaration_parsers(void)
 	register_declaration_parser(parse_method_declaration, T_func);
 	register_declaration_parser(parse_global_variable,    T_var);
 	register_declaration_parser(parse_constant,           T_const);
+	register_declaration_parser(parse_class,              T_class);
 	register_declaration_parser(parse_struct,             T_struct);
 	register_declaration_parser(parse_union,              T_union);
 	register_declaration_parser(parse_typealias,          T_typealias);

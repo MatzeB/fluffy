@@ -19,3 +19,6 @@ func extern atoll(nptr : String) : long
 func extern rand() : int
 func extern srand(seed : unsigned int)
 
+func assert(condition : bool):
+	if !condition:
+		abort()

@@ -281,6 +281,7 @@ type_t *normalize_type(type_t *type)
 	case TYPE_METHOD:
 		return normalize_method_type((method_type_t*) type);
 
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		return normalize_compound_type((compound_type_t*) type);
@@ -298,6 +299,7 @@ void check_local_variable_type(variable_declaration_t *declaration,
 	if(type == NULL)
 		return;
 
+#if 0
 	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
 			&& type->type != TYPE_COMPOUND_STRUCT
 			&& type->type != TYPE_COMPOUND_UNION) {
@@ -315,25 +317,82 @@ void check_local_variable_type(variable_declaration_t *declaration,
 		        "variables (at variable '%s')\n",
 		        declaration->declaration.symbol->string);
 	}
+#else
+	(void) declaration;
+#endif
 }
 
 static
-void check_reference_expression(reference_expression_t *ref)
+type_t *check_reference(declaration_t *declaration,
+                        const source_position_t source_position)
 {
 	variable_declaration_t *variable;
 	method_declaration_t   *method;
 	method_parameter_t     *method_parameter;
 	constant_t             *constant;
 	typeclass_method_t     *typeclass_method;
-	symbol_t               *symbol      = ref->symbol;
-	declaration_t          *declaration = symbol->declaration;
+	type_t                 *type;
 
+	switch(declaration->type) {
+	case DECLARATION_VARIABLE:
+		variable = (variable_declaration_t*) declaration;
+		variable->refs++;
+		type = variable->type;
+		if(type == NULL)
+			return NULL;
+
+		if(type->type == TYPE_COMPOUND_STRUCT
+				|| type->type == TYPE_COMPOUND_UNION
+				|| type->type == TYPE_ARRAY) {
+			variable->needs_entity   = 1;
+		}
+		return type;
+	case DECLARATION_METHOD:
+		method = (method_declaration_t*) declaration;
+		return make_pointer_type((type_t*) method->method.type);
+	case DECLARATION_CONSTANT:
+		constant = (constant_t*) declaration;
+		/* do type inference for the constant if needed */
+		if(constant->type == NULL) {
+			constant->expression = check_expression(constant->expression);
+			constant->type       = constant->expression->datatype;
+		}
+		return constant->type;
+	case DECLARATION_METHOD_PARAMETER:
+		method_parameter = (method_parameter_t*) declaration;
+		assert(method_parameter->type != NULL);
+		return method_parameter->type;
+	case DECLARATION_TYPECLASS_METHOD:
+		typeclass_method = (typeclass_method_t*) declaration;
+		return make_pointer_type((type_t*) typeclass_method->method_type);
+	case DECLARATION_LABEL:
+	case DECLARATION_TYPEALIAS:
+	case DECLARATION_TYPECLASS:
+	case DECLARATION_TYPE_VARIABLE:
+		print_error_prefix(source_position);
+		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
+		        declaration->symbol->string,
+		        get_declaration_type_name(declaration->type));
+		return NULL;
+	case DECLARATION_LAST:
+	case DECLARATION_INVALID:
+		panic("reference to invalid declaration type encountered");
+		return NULL;
+	}
+	panic("reference to unknown declaration type encountered");
+	return NULL;
+}
+
+static
+void check_reference_expression(reference_expression_t *ref)
+{
+	symbol_t      *symbol      = ref->symbol;
+	declaration_t *declaration = symbol->declaration;
 	if(declaration == NULL) {
 		print_error_prefix(ref->expression.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
 		return;
 	}
-	ref->declaration = declaration;
 
 	/* normalize type arguments */
 	type_argument_t *type_argument = ref->type_arguments;
@@ -343,60 +402,12 @@ void check_reference_expression(reference_expression_t *ref)
 		type_argument = type_argument->next;
 	}
 
-	switch(declaration->type) {
-	case DECLARATION_VARIABLE:
-		variable = (variable_declaration_t*) declaration;
-		variable->refs++;
-		ref->expression.datatype = variable->type;
-		if(ref->expression.datatype == NULL)
-			return;
-
-		if(ref->expression.datatype->type == TYPE_COMPOUND_STRUCT
-				|| ref->expression.datatype->type == TYPE_COMPOUND_UNION
-				|| ref->expression.datatype->type == TYPE_ARRAY) {
-			variable->needs_entity   = 1;
-		}
-		return;
-	case DECLARATION_METHOD:
-		method                   = (method_declaration_t*) declaration;
-		ref->expression.datatype 
-			= make_pointer_type((type_t*) method->method.type);
-		return;
-	case DECLARATION_CONSTANT:
-		constant                 = (constant_t*) declaration;
-		/* do type inference for the constant if needed */
-		if(constant->type == NULL) {
-			constant->expression = check_expression(constant->expression);
-			constant->type       = constant->expression->datatype;
-		}
-		ref->expression.datatype = constant->type;
-		return;
-	case DECLARATION_METHOD_PARAMETER:
-		method_parameter         = (method_parameter_t*) declaration;
-		ref->expression.datatype = method_parameter->type;
-		assert(ref->expression.datatype != NULL);
-		return;
-	case DECLARATION_TYPECLASS_METHOD:
-		typeclass_method         = (typeclass_method_t*) declaration;
-		ref->expression.datatype 
-			= make_pointer_type((type_t*) typeclass_method->method_type);
-		return;
-	case DECLARATION_LABEL:
-	case DECLARATION_TYPEALIAS:
-	case DECLARATION_TYPECLASS:
-	case DECLARATION_TYPE_VARIABLE:
-		print_error_prefix(ref->expression.source_position);
-		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
-		        declaration->symbol->string,
-		        get_declaration_type_name(declaration->type));
-		return;
-	case DECLARATION_LAST:
-	case DECLARATION_INVALID:
-		panic("reference to invalid declaration type encountered");
-		return;
-	}
-	panic("reference to unknown declaration type encountered");
+	ref->declaration         = declaration;
+	type_t *type             = check_reference(declaration,
+	                                           ref->expression.source_position);
+	ref->expression.datatype = type;
 }
+
 
 static
 int is_lvalue(const expression_t *expression)
@@ -602,6 +613,8 @@ int is_arithmetic_op(binary_expression_type_t type)
 	case BINEXPR_MUL:
 	case BINEXPR_MOD:
 	case BINEXPR_DIV:
+	case BINEXPR_OR:
+	case BINEXPR_AND:
 	case BINEXPR_SHIFTLEFT:
 	case BINEXPR_SHIFTRIGHT:
 		return 1;
@@ -900,6 +913,10 @@ type_t *get_default_param_type(type_t *type, source_position_t source_position)
 {
 	atomic_type_t *atomic_type;
 
+	if(type == NULL) {
+		return type_int;
+	}
+
 	switch(type->type) {
 	case TYPE_ATOMIC:
 		atomic_type = (atomic_type_t*) type;
@@ -941,6 +958,7 @@ type_t *get_default_param_type(type_t *type, source_position_t source_position)
 		fprintf(stderr, ") not supported for function parameters.\n");
 		return type;
 
+	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		print_error_prefix(source_position);
@@ -1388,12 +1406,13 @@ void check_select_expression(select_expression_t *select)
 	compound_type_t *compound_type;
 
 	if(datatype->type == TYPE_COMPOUND_STRUCT
-			|| datatype->type == TYPE_COMPOUND_UNION) {
+			|| datatype->type == TYPE_COMPOUND_UNION
+			|| datatype->type == TYPE_COMPOUND_CLASS) {
 		compound_type = (compound_type_t*) datatype;
 	} else {
 		if(datatype->type != TYPE_POINTER) {
 			print_error_prefix(select->expression.source_position);
-			fprintf(stderr, "select needs a (pointer to a ) compound type but "
+			fprintf(stderr, "select needs a compound type (or pointer) but "
 					"found type ");
 			print_type(stderr, datatype);
 			fprintf(stderr, "\n");
@@ -1404,7 +1423,8 @@ void check_select_expression(select_expression_t *select)
 		
 		type_t *points_to = pointer_type->points_to;
 		if(points_to->type != TYPE_COMPOUND_STRUCT
-				&& points_to->type != TYPE_COMPOUND_UNION) {
+				&& points_to->type != TYPE_COMPOUND_UNION
+				&& points_to->type != TYPE_COMPOUND_CLASS) {
 			print_error_prefix(select->expression.source_position);
 			fprintf(stderr, "select needs a pointer to compound type but found "
 					"type");
@@ -1416,8 +1436,25 @@ void check_select_expression(select_expression_t *select)
 		compound_type =  (compound_type_t*) points_to;
 	}
 
-	compound_entry_t *entry         = compound_type->entries;
-	symbol_t         *symbol        = select->symbol;
+	symbol_t         *symbol = select->symbol;
+
+	/* try to find a matching declaration */
+	declaration_t *declaration = compound_type->context.declarations;
+	while(declaration != NULL) {
+		if(declaration->symbol == symbol)
+			break;
+
+		declaration = declaration->next;
+	}
+	if(declaration != NULL) {
+		type_t *type = check_reference(declaration,
+		                               select->expression.source_position);
+		select->expression.datatype = type;
+		select->declaration         = declaration;
+		return;
+	}
+
+	compound_entry_t *entry  = compound_type->entries;
 	while(entry != NULL) {
 		if(entry->symbol == symbol) {
 			break;
@@ -1432,7 +1469,6 @@ void check_select_expression(select_expression_t *select)
 		return;
 	}
 
-	/* we return a pointer to sub-compounds instead of the compound itself */
 	type_t *result_type = entry->type;
 	
 	select->compound_entry      = entry;

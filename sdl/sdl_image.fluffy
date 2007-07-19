@@ -1,0 +1,1 @@
+func extern IMG_Load(filename : byte*) : SDL_Surface*

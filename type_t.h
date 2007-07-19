@@ -5,6 +5,7 @@
 #include "symbol.h"
 #include "lexer_t.h"
 #include "ast.h"
+#include "ast_t.h"
 #include "adt/obst.h"
 #include <libfirm/typerep.h>
 
@@ -14,6 +15,7 @@ typedef enum {
 	TYPE_INVALID,
 	TYPE_VOID,
 	TYPE_ATOMIC,
+	TYPE_COMPOUND_CLASS,
 	TYPE_COMPOUND_STRUCT,
 	TYPE_COMPOUND_UNION,
 	TYPE_METHOD,
@@ -106,6 +108,7 @@ struct compound_type_t {
 	symbol_t          *symbol;
 	attribute_t       *attributes;
 	type_variable_t   *type_parameters;
+	context_t          context;
 	source_position_t  source_position;
 };
 
