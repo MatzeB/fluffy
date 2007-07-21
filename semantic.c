@@ -126,7 +126,7 @@ void environment_pop_to(size_t new_top)
 		if(declaration->type == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
-			if(variable->refs == 0) {
+			if(variable->refs == 0 && !variable->is_extern) {
 				print_warning_prefix(declaration->source_position);
 				fprintf(stderr, "variable '%s' was declared but never read\n",
 				        symbol->string);
