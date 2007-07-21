@@ -5,7 +5,7 @@
 #include "ast2firm.h"
 #include "symbol.h"
 #include "semantic.h"
-#include "lexer_t.h"
+#include "lexer.h"
 #include "type.h"
 #include "adt/obst.h"
 #include <libfirm/typerep.h>

@@ -14,7 +14,7 @@ instance AllocateOnAst WhileStatement:
 
 func parse_while_statement() : Statement*:
 	var statement                       <- allocate<$WhileStatement>()
-	statement.statement.source_position <- lexer.source_position
+	statement.statement.source_position <- source_position
 
 	assert(token.type = token_while)
 	next_token()

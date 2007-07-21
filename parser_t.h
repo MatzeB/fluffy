@@ -6,7 +6,7 @@
 #include <assert.h>
 
 #include "token_t.h"
-#include "lexer_t.h"
+#include "lexer.h"
 #include "type.h"
 
 typedef expression_t* (*parse_expression_function)       (unsigned precedence);
@@ -24,7 +24,6 @@ typedef struct expression_parse_function_t {
 } expression_parse_function_t;
 
 extern token_t token;
-extern lexer_t lexer;
 
 void register_expression_parser(parse_expression_function parser,
                                 int token_type, unsigned precedence);

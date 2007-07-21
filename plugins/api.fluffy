@@ -250,7 +250,7 @@ func extern register_expression_infix_parser( \
 func extern register_declaration_parser(parser : ParseDeclarationFunction*, \
                                         token_type : int)
 func extern print_token(out : FILE*, token : Token*)
-func extern lexer_next_token(lexer : Lexer*, token : Token*)
+func extern lexer_next_token(token : Token*)
 func extern allocate_ast(size : unsigned int) : void*
 func extern parser_print_error_prefix()
 func extern next_token()
@@ -274,10 +274,10 @@ func extern make_atomic_type(type : int) : Type*
 func extern make_pointer_type(type : Type*) : Type*
 
 
-var extern stdout : FILE*
-var extern stderr : FILE*
-var extern token  : Token
-var extern lexer  : Lexer
+var extern stdout          : FILE*
+var extern stderr          : FILE*
+var extern token           : Token
+var extern source_position : SourcePosition
 
 typeclass AllocateOnAst<T>:
 	func allocate() : T*

@@ -19,7 +19,7 @@ func parse_enum():
 
 		var constant                         <- allocate<$Constant>()
 		constant.declaration.symbol          <- token.v.symbol
-		constant.declaration.source_position <- lexer.source_position
+		constant.declaration.source_position <- source_position
 		constant.type                        <- type_int
 		next_token()
 

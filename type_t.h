@@ -3,7 +3,7 @@
 
 #include "type.h"
 #include "symbol.h"
-#include "lexer_t.h"
+#include "lexer.h"
 #include "ast.h"
 #include "ast_t.h"
 #include "adt/obst.h"

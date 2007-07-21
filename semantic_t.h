@@ -7,7 +7,7 @@
 #include "type.h"
 #include "adt/obst.h"
 #include "symbol.h"
-#include "lexer_t.h"
+#include "lexer.h"
 
 typedef statement_t* (*lower_statement_function) (statement_t *statement);
 typedef expression_t* (*lower_expression_function) (expression_t *expression);

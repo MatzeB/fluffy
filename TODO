@@ -15,11 +15,11 @@ Tasks suitable for contributors, because they don't affect the general design
 or need only design decision in a very specific part of the compiler and/or
 because they need no deep understanding of the design.
 
+- Add parsing of floating point numbers in lexer
 - Add option parsing to the compiler, pass options to backend as well
 - Use more firm optimisations
 - Create an eccp like wrapper script
 - Add an alloca operator
-- forward source references to firm nodes
 - create a ++ and -- operator
 - make lexer accept \r, \r\n and \n as newline
 - make lexer unicode aware (so we can read different encodings and utf8)

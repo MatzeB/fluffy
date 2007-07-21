@@ -7,7 +7,7 @@
 #include <stdarg.h>
 
 #include "symbol_table_t.h"
-#include "lexer_t.h"
+#include "lexer.h"
 #include "symbol.h"
 #include "type_hash.h"
 #include "ast_t.h"
@@ -29,7 +29,6 @@ static context_t *current_context = NULL;
 
 static int      error = 0;
        token_t  token;
-       lexer_t  lexer;
 
 static inline
 void *allocate_ast_zero(size_t size)
@@ -49,7 +48,7 @@ void *allocate_type_zero(size_t size)
 
 void next_token(void)
 {
-	lexer_next_token(&lexer, &token);
+	lexer_next_token(&token);
 
 #ifdef PRINT_TOKENS
 	print_token(stderr, &token);
@@ -75,9 +74,9 @@ void parser_found_error(void)
 
 void parser_print_error_prefix(void)
 {
-	fputs(lexer.source_position.input_name, stderr);
+	fputs(source_position.input_name, stderr);
 	fputc(':', stderr);
-	fprintf(stderr, "%d", lexer.source_position.linenr);
+	fprintf(stderr, "%d", source_position.linenr);
 	fputs(": error: ", stderr);
 	parser_found_error();
 }
@@ -293,7 +292,7 @@ type_t *parse_type_ref(void)
 
 	type_ref->type.type       = TYPE_REFERENCE;
 	type_ref->symbol          = token.v.symbol;
-	type_ref->source_position = lexer.source_position;
+	type_ref->source_position = source_position;
 	next_token();
 
 	return (type_t*) type_ref;
@@ -928,7 +927,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 
 	expression_parse_function_t *parser	
 		= & expression_parsers[token.type];
-	source_position_t  source_position = lexer.source_position;
+	source_position_t  start = source_position;
 	expression_t      *left;
 	
 	if(parser->parser != NULL) {
@@ -937,7 +936,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 		left = expected_expression_error();
 	}
 	assert(left != NULL);
-	left->source_position = source_position;
+	left->source_position = start;
 
 	while(1) {
 		if(token.type < 0) {
@@ -952,7 +951,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 
 		left = parser->infix_parser(parser->infix_precedence, left);
 		assert(left != NULL);
-		left->source_position = source_position;
+		left->source_position = start;
 	}
 
 	return left;
@@ -1021,7 +1020,7 @@ statement_t *parse_label_statement(void)
 		return NULL;
 	}
 	label->declaration.declaration.type            = DECLARATION_LABEL;
-	label->declaration.declaration.source_position = lexer.source_position;
+	label->declaration.declaration.source_position = source_position;
 	label->declaration.declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1088,7 +1087,7 @@ statement_t *parse_initial_assignment(symbol_t *symbol)
 	binary_expression_t *assign = allocate_ast_zero(sizeof(assign[0]));
 
 	assign->expression.type            = EXPR_BINARY;
-	assign->expression.source_position = lexer.source_position;
+	assign->expression.source_position = source_position;
 	assign->type                       = BINEXPR_ASSIGN;
 	assign->left                       = (expression_t*) ref;
 	assign->right                      = parse_expression();
@@ -1125,7 +1124,7 @@ statement_t *parse_variable_declaration(void)
 		declaration_t *declaration 
 			= &declaration_statement->declaration.declaration;
 		declaration->type            = DECLARATION_VARIABLE;
-		declaration->source_position = lexer.source_position;
+		declaration->source_position = source_position;
 		declaration->symbol          = token.v.symbol;
 		next_token();
 
@@ -1207,8 +1206,8 @@ void register_statement_parsers(void)
 
 statement_t *parse_statement(void)
 {
-	statement_t       *statement       = NULL;
-	source_position_t  source_position = lexer.source_position;
+	statement_t       *statement = NULL;
+	source_position_t  start     = source_position;
 
 	if(token.type < 0) {
 		/* this shouldn't happen if the lexer is correct... */
@@ -1238,10 +1237,10 @@ statement_t *parse_statement(void)
 	if(statement == NULL)
 		return NULL;
 
-	statement->source_position = source_position;
+	statement->source_position = start;
 	statement_t *next = statement->next;
 	while(next != NULL) {
-		next->source_position = source_position;
+		next->source_position = start;
 		next                  = next->next;
 	}
 
@@ -1280,7 +1279,7 @@ statement_t *parse_block(void)
 	assert(current_context == &block->context);
 	current_context = last_context;
 
-	block->end_position = lexer.source_position;
+	block->end_position = source_position;
 	expect(T_DEDENT);
 
 	return (statement_t*) block;
@@ -1342,7 +1341,7 @@ void parse_parameter_declaration(method_type_t *method_type,
 			method_param->declaration.type 
 				= DECLARATION_METHOD_PARAMETER;
 			method_param->declaration.symbol          = symbol;
-			method_param->declaration.source_position = lexer.source_position;
+			method_param->declaration.source_position = source_position;
 			method_param->type                        = param_type->type;
 
 			if(last_param != NULL) {
@@ -1396,7 +1395,7 @@ type_variable_t *parse_type_parameter(void)
 		eat_until_newline();
 		return NULL;
 	}
-	type_variable->declaration.source_position = lexer.source_position;
+	type_variable->declaration.source_position = source_position;
 	type_variable->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1521,7 +1520,7 @@ void parse_method_declaration(void)
 		eat_until_newline();
 		return;
 	}
-	method_declaration->declaration.source_position = lexer.source_position;
+	method_declaration->declaration.source_position = source_position;
 	method_declaration->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1551,7 +1550,7 @@ void parse_global_variable(void)
 		return;
 	}
 
-	variable->declaration.source_position = lexer.source_position;
+	variable->declaration.source_position = source_position;
 	variable->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1581,7 +1580,7 @@ void parse_constant(void)
 		eat_until_newline();
 		return;
 	}
-	constant->declaration.source_position = lexer.source_position; 
+	constant->declaration.source_position = source_position; 
 	constant->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1611,7 +1610,7 @@ void parse_typealias(void)
 		eat_until_newline();
 		return;
 	}
-	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.source_position = source_position;
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1718,7 +1717,7 @@ void parse_class(void)
 		eat_until_newline();
 		return;
 	}
-	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.source_position = source_position;
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1765,7 +1764,7 @@ void parse_struct(void)
 		eat_until_newline();
 		return;
 	}
-	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.source_position = source_position;
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1801,7 +1800,7 @@ void parse_union(void)
 		eat_until_newline();
 		return;
 	}
-	typealias->declaration.source_position = lexer.source_position;
+	typealias->declaration.source_position = source_position;
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1842,7 +1841,7 @@ typeclass_method_t *parse_typeclass_method(void)
 		return NULL;
 	}
 
-	method->declaration.source_position = lexer.source_position;
+	method->declaration.source_position = source_position;
 	method->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1880,7 +1879,7 @@ void parse_typeclass(void)
 		return;
 	}
 
-	typeclass->declaration.source_position = lexer.source_position;
+	typeclass->declaration.source_position = source_position;
 	typeclass->declaration.symbol          = token.v.symbol;
 	next_token();
 
@@ -1945,7 +1944,7 @@ typeclass_method_instance_t *parse_typeclass_method_instance(void)
 		eat_until_newline();
 		return NULL;
 	}
-	method_instance->source_position = lexer.source_position;
+	method_instance->source_position = source_position;
 	method_instance->symbol          = token.v.symbol;
 	next_token();
 
@@ -1960,7 +1959,7 @@ void parse_typeclass_instance(void)
 	eat(T_instance);
 
 	typeclass_instance_t *instance = allocate_ast_zero(sizeof(instance[0]));
-	instance->source_position      = lexer.source_position;
+	instance->source_position      = source_position;
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typeclass instance",
@@ -2036,7 +2035,7 @@ void parse_export(void)
 
 		export_t *export        = allocate_ast_zero(sizeof(export[0]));
 		export->symbol          = token.v.symbol;
-		export->source_position = lexer.source_position;
+		export->source_position = source_position;
 		next_token();
 
 		assert(current_context != NULL);
@@ -2158,14 +2157,14 @@ void register_declaration_parsers(void)
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
-	lexer_init(&lexer, in, input_name);
+	lexer_init(in, input_name);
 
 	next_token();
 
 	namespace_t *namespace = parse_namespace();
 	namespace->filename    = input_name;
 
-	lexer_destroy(&lexer);
+	lexer_destroy();
 
 	if(error) {
 		fprintf(stderr, "syntax errors found...\n");
