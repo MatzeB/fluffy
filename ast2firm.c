@@ -1255,11 +1255,19 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 	if(btype == BINEXPR_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
-		ir_node *node  = new_d_Div(dbgi, store, left, right, mode);
+		ir_node *node, *res;
+		if(mode_is_float(mode)) {
+			node  = new_d_Quot(dbgi, store, left, right, mode);
+			store = new_d_Proj(dbgi, node, mode_M, pn_Quot_M);
+			res   = new_d_Proj(dbgi, node, mode, pn_Quot_res);
+		} else {
+			node = new_d_Div(dbgi, store, left, right, mode);
+			store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
+			res   = new_d_Proj(dbgi, node, mode, pn_Div_res);
+		}
 		
-		store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
 		set_store(store);
-		return new_d_Proj(dbgi, node, mode, pn_Div_res);
+		return res;
 	}
 
 	if(btype == BINEXPR_MOD) {
