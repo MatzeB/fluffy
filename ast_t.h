@@ -21,8 +21,8 @@ typedef enum {
 	DECLARATION_CONSTANT,
 	DECLARATION_TYPE_VARIABLE,
 	DECLARATION_TYPEALIAS,
-	DECLARATION_TYPECLASS,
-	DECLARATION_TYPECLASS_METHOD,
+	DECLARATION_CONCEPT,
+	DECLARATION_CONCEPT_METHOD,
 	DECLARATION_LABEL,
 	DECLARATION_LAST
 } declaration_type_t;
@@ -49,9 +49,9 @@ struct export_t {
  *  not explicitely included)
  */
 struct context_t {
-	declaration_t        *declarations;
-	typeclass_instance_t *typeclass_instances;
-	export_t             *exports;
+	declaration_t      *declarations;
+	concept_instance_t *concept_instances;
+	export_t           *exports;
 };
 
 /**
@@ -333,42 +333,42 @@ struct typealias_t {
 	type_t        *type;
 };
 
-struct typeclass_method_instance_t {
-	method_t                     method;
-	symbol_t                    *symbol;
-	source_position_t            source_position;
-	typeclass_method_instance_t *next;
+struct concept_method_instance_t {
+	method_t                   method;
+	symbol_t                  *symbol;
+	source_position_t          source_position;
+	concept_method_instance_t *next;
 
-	typeclass_method_t          *typeclass_method;
-	typeclass_instance_t        *typeclass_instance;
+	concept_method_t          *concept_method;
+	concept_instance_t        *concept_instance;
 };
 
-struct typeclass_instance_t {
-	symbol_t                    *typeclass_symbol;
-	source_position_t            source_position;
-	typeclass_t                 *typeclass;
-	type_argument_t             *type_arguments;
-	typeclass_method_instance_t *method_instances;
-	typeclass_instance_t        *next;
-	typeclass_instance_t        *next_in_typeclass;
+struct concept_instance_t {
+	symbol_t                  *concept_symbol;
+	source_position_t          source_position;
+	concept_t                 *concept;
+	type_argument_t           *type_arguments;
+	concept_method_instance_t *method_instances;
+	concept_instance_t        *next;
+	concept_instance_t        *next_in_concept;
 };
 
-struct typeclass_method_t {
+struct concept_method_t {
 	declaration_t       declaration;
 	method_type_t      *method_type;
 	method_parameter_t *parameters;
-	typeclass_t        *typeclass;
+	concept_t          *concept;
 
-	typeclass_method_t *next;
+	concept_method_t   *next;
 };
 
-struct typeclass_t {
-	declaration_t         declaration;
+struct concept_t {
+	declaration_t       declaration;
 
-	type_variable_t      *type_parameters;
-	typeclass_method_t   *methods;
-	typeclass_instance_t *instances;
-	context_t             context;
+	type_variable_t    *type_parameters;
+	concept_method_t   *methods;
+	concept_instance_t *instances;
+	context_t           context;
 };
 
 struct namespace_t {

@@ -392,10 +392,10 @@ void print_statement(const statement_t *statement)
 static
 void print_type_constraint(const type_constraint_t *constraint)
 {
-	if(constraint->typeclass == NULL) {
-		fprintf(out, "?%s", constraint->typeclass_symbol->string);
+	if(constraint->concept == NULL) {
+		fprintf(out, "?%s", constraint->concept_symbol->string);
 	} else {
-		fprintf(out, "%s", constraint->typeclass->declaration.symbol->string);
+		fprintf(out, "%s", constraint->concept->declaration.symbol->string);
 	}
 }
 
@@ -491,7 +491,7 @@ void print_method(const method_declaration_t *method_declaration)
 }
 
 static
-void print_typeclass_method(const typeclass_method_t *method)
+void print_concept_method(const concept_method_t *method)
 {
 	fprintf(out, "\tfunc ");
 	fprintf(out, "%s", method->declaration.symbol->string);
@@ -502,29 +502,29 @@ void print_typeclass_method(const typeclass_method_t *method)
 }
 
 static
-void print_typeclass(const typeclass_t *typeclass)
+void print_concept(const concept_t *concept)
 {
-	fprintf(out, "typeclass %s", typeclass->declaration.symbol->string);
-	print_type_parameters(typeclass->type_parameters);
+	fprintf(out, "concept %s", concept->declaration.symbol->string);
+	print_type_parameters(concept->type_parameters);
 	fprintf(out, ":\n");
 
-	typeclass_method_t *method = typeclass->methods;
+	concept_method_t *method = concept->methods;
 	while(method != NULL) {
-		print_typeclass_method(method);
+		print_concept_method(method);
 
 		method = method->next;
 	}
 }
 
 static
-void print_typeclass_method_instance(
-                                   typeclass_method_instance_t *method_instance)
+void print_concept_method_instance(
+                                   concept_method_instance_t *method_instance)
 {
 	fprintf(out, "\tfunc ");
 
 	const method_t *method = &method_instance->method;
-	if(method_instance->typeclass_method != NULL) {
-		typeclass_method_t *method = method_instance->typeclass_method;
+	if(method_instance->concept_method != NULL) {
+		concept_method_t *method = method_instance->concept_method;
 		fprintf(out, "%s", method->declaration.symbol->string);
 	} else {
 		fprintf(out, "?%s", method_instance->symbol->string);
@@ -544,20 +544,20 @@ void print_typeclass_method_instance(
 }
 
 static
-void print_typeclass_instance(const typeclass_instance_t *instance)
+void print_concept_instance(const concept_instance_t *instance)
 {
 	fprintf(out, "instance ");
-	if(instance->typeclass != NULL) {
-		fprintf(out, "%s", instance->typeclass->declaration.symbol->string);
+	if(instance->concept != NULL) {
+		fprintf(out, "%s", instance->concept->declaration.symbol->string);
 	} else {
-		fprintf(out, "?%s", instance->typeclass_symbol->string);
+		fprintf(out, "?%s", instance->concept_symbol->string);
 	}
 	print_type_arguments(instance->type_arguments);
 	fprintf(out, ":\n");
 
-	typeclass_method_instance_t *method_instance = instance->method_instances;
+	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
-		print_typeclass_method_instance(method_instance);
+		print_concept_method_instance(method_instance);
 
 		method_instance = method_instance->next;
 	}
@@ -595,8 +595,8 @@ void print_declaration(const declaration_t *declaration)
 	case DECLARATION_METHOD:
 		print_method((const method_declaration_t*) declaration);
 		break;
-	case DECLARATION_TYPECLASS:
-		print_typeclass((const typeclass_t*) declaration);
+	case DECLARATION_CONCEPT:
+		print_concept((const concept_t*) declaration);
 		break;
 	case DECLARATION_VARIABLE:
 		print_variable_declaration((const variable_declaration_t*) declaration);
@@ -607,7 +607,7 @@ void print_declaration(const declaration_t *declaration)
 	case DECLARATION_CONSTANT:
 		print_constant((const constant_t*) declaration);
 		break;
-	case DECLARATION_TYPECLASS_METHOD:
+	case DECLARATION_CONCEPT_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
 		fprintf(out, "some declaration of type %d\n", declaration->type);
 		// TODO
@@ -633,9 +633,9 @@ void print_context(const context_t *context)
 		declaration = declaration->next;
 	}
 
-	typeclass_instance_t *instance = context->typeclass_instances;
+	concept_instance_t *instance = context->concept_instances;
 	while(instance != NULL) {
-		print_typeclass_instance(instance);
+		print_concept_instance(instance);
 		instance = instance->next;
 	}
 }
@@ -660,11 +660,11 @@ const char *get_declaration_type_name(declaration_type_t type)
 	case DECLARATION_CONSTANT:         return "constant";
 	case DECLARATION_METHOD_PARAMETER: return "method parameter";
 	case DECLARATION_METHOD:           return "method";
-	case DECLARATION_TYPECLASS:        return "typeclass";
+	case DECLARATION_CONCEPT:          return "concept";
 	case DECLARATION_TYPEALIAS:        return "type alias";
 	case DECLARATION_TYPE_VARIABLE:    return "type variable";
 	case DECLARATION_LABEL:            return "label";
-	case DECLARATION_TYPECLASS_METHOD: return "typeclass method";
+	case DECLARATION_CONCEPT_METHOD:   return "concept method";
 	}
 	panic("invalid environment entry found");
 }

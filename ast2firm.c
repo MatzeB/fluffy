@@ -710,8 +710,8 @@ void pop_type_variable_bindings(int new_top)
 }
 
 static
-ir_entity* get_typeclass_method_instance_entity(
-		typeclass_method_instance_t *method_instance)
+ir_entity* get_concept_method_instance_entity(
+		concept_method_instance_t *method_instance)
 {
 	method_t *method = & method_instance->method;
 	if(method->e.entity != NULL)
@@ -719,19 +719,19 @@ ir_entity* get_typeclass_method_instance_entity(
 
 	method_type_t *method_type = method->type;
 
-	typeclass_method_t *typeclass_method = method_instance->typeclass_method;
-	typeclass_t        *typeclass        = typeclass_method->typeclass;
+	concept_method_t *concept_method = method_instance->concept_method;
+	concept_t        *concept        = concept_method->concept;
 	const char         *string           
-		= typeclass->declaration.symbol->string;
+		= concept->declaration.symbol->string;
 	size_t              len              = strlen(string);
 	obstack_printf(&obst, "_tcv%zu%s", len, string);
 
-	string = typeclass_method->declaration.symbol->string;
+	string = concept_method->declaration.symbol->string;
 	len    = strlen(string);
 	obstack_printf(&obst, "%zu%s", len, string);
 
-	typeclass_instance_t *instance = method_instance->typeclass_instance;
-	type_argument_t      *argument = instance->type_arguments;
+	concept_instance_t *instance = method_instance->concept_instance;
+	type_argument_t    *argument = instance->type_arguments;
 	while(argument != NULL) {
 		mangle_type(&obst, argument->type);
 		argument = argument->next;
@@ -1043,8 +1043,8 @@ ir_node *declaration_addr(declaration_t *declaration)
 	case DECLARATION_CONSTANT:
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
-	case DECLARATION_TYPECLASS:
-	case DECLARATION_TYPECLASS_METHOD:
+	case DECLARATION_CONCEPT:
+	case DECLARATION_CONCEPT_METHOD:
 	case DECLARATION_TYPE_VARIABLE:
 	case DECLARATION_LAST:
 		panic("internal error: trying to create address nodes for non-lvalue");
@@ -1460,36 +1460,36 @@ ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
 }
 
 static
-ir_node *typeclass_method_reference_to_firm(typeclass_method_t *method,
+ir_node *concept_method_reference_to_firm(concept_method_t *method,
                                             type_argument_t *type_arguments)
 {
-	typeclass_t        *typeclass = method->typeclass;
+	concept_t *concept = method->concept;
 
 	int old_top = typevar_binding_stack_top();
-	push_type_variable_bindings(typeclass->type_parameters, type_arguments);
+	push_type_variable_bindings(concept->type_parameters, type_arguments);
 
-	typeclass_instance_t *instance = find_typeclass_instance(typeclass);
+	concept_instance_t *instance = find_concept_instance(concept);
 	if(instance == NULL) {
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
 		        method->declaration.symbol->string,
-		        typeclass->declaration.symbol->string);
-		print_type(stderr, typeclass->type_parameters->current_type);
-		panic("no typeclass instance found in ast2firm phase");
+		        concept->declaration.symbol->string);
+		print_type(stderr, concept->type_parameters->current_type);
+		panic("no concept instance found in ast2firm phase");
 		return NULL;
 	}
 
-	typeclass_method_instance_t *method_instance 
-		= get_method_from_typeclass_instance(instance, method);
+	concept_method_instance_t *method_instance 
+		= get_method_from_concept_instance(instance, method);
 	if(method_instance == NULL) {
-		fprintf(stderr, "panic: no method '%s' in instance of typeclass '%s'\n",
+		fprintf(stderr, "panic: no method '%s' in instance of concept '%s'\n",
 		        method->declaration.symbol->string,
-		        typeclass->declaration.symbol->string);
+		        concept->declaration.symbol->string);
 		panic("panic");
 		return NULL;
 	}
 
 	/* TODO: produce dbg_info */
-	ir_entity *entity   = get_typeclass_method_instance_entity(method_instance);
+	ir_entity *entity   = get_concept_method_instance_entity(method_instance);
 	ir_node   *symconst = new_SymConst((union symconst_symbol) entity,
 	                                   symconst_addr_ent);
 
@@ -1627,9 +1627,9 @@ ir_node *declaration_reference_to_firm(declaration_t *declaration,
 		method_declaration = (method_declaration_t*) declaration;
 		return method_reference_to_firm(&method_declaration->method,
 		                                declaration->symbol, type_arguments);
-	case DECLARATION_TYPECLASS_METHOD:
-		return typeclass_method_reference_to_firm(
-				(typeclass_method_t*) declaration, type_arguments);
+	case DECLARATION_CONCEPT_METHOD:
+		return concept_method_reference_to_firm(
+				(concept_method_t*) declaration, type_arguments);
 	case DECLARATION_METHOD_PARAMETER:
 		return method_parameter_reference_to_firm(
 				(method_parameter_t*) declaration);
@@ -1640,7 +1640,7 @@ ir_node *declaration_reference_to_firm(declaration_t *declaration,
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 	case DECLARATION_TYPEALIAS:
-	case DECLARATION_TYPECLASS:
+	case DECLARATION_CONCEPT:
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPE_VARIABLE:
 		panic("internal error: trying to construct node for non-data "
@@ -1955,14 +1955,13 @@ void create_method(method_t *method, ir_entity *entity,
 }
 
 static
-void create_typeclass_instance(typeclass_instance_t *instance)
+void create_concept_instance(concept_instance_t *instance)
 {
-	typeclass_method_instance_t *method_instance = instance->method_instances;
+	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
 		method_t *method = & method_instance->method;
 		/* make sure the method entity is set */
-		ir_entity *entity 
-			= get_typeclass_method_instance_entity(method_instance);
+		ir_entity *entity = get_concept_method_instance_entity(method_instance);
 		/* we can emit it like a normal method */
 		queue_method_instantiation(method, entity);
 
@@ -1993,11 +1992,11 @@ void context2firm(const context_t *context)
 			create_variable_entity((variable_declaration_t*) declaration);
 			break;
 		case DECLARATION_TYPEALIAS:
-		case DECLARATION_TYPECLASS:
+		case DECLARATION_CONCEPT:
 		case DECLARATION_CONSTANT:
 		case DECLARATION_LABEL:
 		case DECLARATION_METHOD_PARAMETER:
-		case DECLARATION_TYPECLASS_METHOD:
+		case DECLARATION_CONCEPT_METHOD:
 		case DECLARATION_TYPE_VARIABLE:
 			break;
 		case DECLARATION_LAST:
@@ -2008,9 +2007,9 @@ void context2firm(const context_t *context)
 		declaration = declaration->next;
 	}
 
-	typeclass_instance_t *instance = context->typeclass_instances;
+	concept_instance_t *instance = context->concept_instances;
 	while(instance != NULL) {
-		create_typeclass_instance(instance);
+		create_concept_instance(instance);
 		instance = instance->next;
 	}
 }

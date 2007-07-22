@@ -2,7 +2,7 @@ func extern printf(format : byte*, ...) : int
 func extern malloc(size : unsigned int) : void*
 func extern puts(string : byte*) : int
 
-typeclass Print<T>:
+concept Print<T>:
 	func print(object : T)
 
 instance Print int:

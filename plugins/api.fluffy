@@ -44,9 +44,9 @@ struct CompoundType:
 	source_position : SourcePosition
 
 struct TypeConstraint:
-	typeclass_symbol : Symbol*
-	type_class       : TypeClass*
-	next             : TypeConstraint*
+	concept_symbol : Symbol*
+	type_class     : TypeClass*
+	next           : TypeConstraint*
 
 struct Declaration:
 	type             : unsigned int
@@ -60,9 +60,9 @@ struct Export:
 	source_position  : SourcePosition
 
 struct Context:
-	declarations        : Declaration*
-	typeclass_instances : TypeClassInstance*
-	exports             : Export*
+	declarations      : Declaration*
+	concept_instances : TypeClassInstance*
+	exports           : Export*
 
 struct TypeVariable:
 	declaration      : Declaration
@@ -279,7 +279,7 @@ var extern stderr          : FILE*
 var extern token           : Token
 var extern source_position : SourcePosition
 
-typeclass AllocateOnAst<T>:
+concept AllocateOnAst<T>:
 	func allocate() : T*
 
 func allocate_zero<T>() : T*:

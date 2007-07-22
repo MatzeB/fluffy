@@ -80,8 +80,8 @@ struct method_parameter_type_t {
 };
 
 struct type_constraint_t {
-	symbol_t          *typeclass_symbol;
-	typeclass_t       *typeclass;
+	symbol_t          *concept_symbol;
+	concept_t         *concept;
 	type_constraint_t *next;
 };
 

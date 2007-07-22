@@ -5,7 +5,7 @@ func extern printf(format : String, ...) : int
 func extern puts(val : String)
 func extern strcmp(s1 : String, s2 : String) : int
 
-typeclass Ordered<T>:
+concept Ordered<T>:
 	func less(obj1 : T, obj2 : T) : bool
 
 instance Ordered int:
@@ -16,7 +16,7 @@ instance Ordered String:
 	func less(obj1 : String, obj2 : String) : bool:
 		return strcmp(obj1, obj2) < 0
 
-typeclass Printable<T>:
+concept Printable<T>:
 	func print(obj : T)
 
 instance Printable String:

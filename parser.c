@@ -56,6 +56,11 @@ void next_token(void)
 #endif
 }
 
+static void replace_token_type(token_type_t type)
+{
+	token.type = type;
+}
+
 static inline
 void eat(token_type_t type)
 {
@@ -317,6 +322,86 @@ type_t *parse_method_type(void)
 }
 
 static
+compound_entry_t *parse_compound_entries(void)
+{
+	compound_entry_t *result     = NULL;
+	compound_entry_t *last_entry = NULL;
+	while(token.type != T_DEDENT && token.type != T_EOF) {
+		compound_entry_t *entry = allocate_ast_zero(sizeof(entry[0]));
+
+		if(token.type != T_IDENTIFIER) {
+			parse_error_expected("Problem while parsing compound entry",
+								 T_IDENTIFIER, 0);
+			eat_until_newline();
+			continue;
+		}
+		entry->symbol = token.v.symbol;
+		next_token();
+
+		expect(':');
+		entry->type       = parse_type();
+		entry->attributes = parse_attributes();
+
+		if(last_entry == NULL) {
+			result = entry;
+		} else {
+			last_entry->next = entry;
+		}
+		last_entry = entry;
+
+		expect(T_NEWLINE);
+	}
+
+	return result;
+}
+
+static
+type_t *parse_union_type(void)
+{
+	eat(T_union);
+
+	compound_type_t *compound_type 
+		= allocate_ast_zero(sizeof(compound_type[0]));
+	compound_type->type.type  = TYPE_COMPOUND_UNION;
+	compound_type->attributes = parse_attributes();
+
+	expect(':');
+	expect(T_NEWLINE);
+	expect(T_INDENT);
+		
+	compound_type->entries = parse_compound_entries();
+
+	/* force end of statement */
+	assert(token.type == T_DEDENT);
+	replace_token_type(T_NEWLINE);
+
+	return (type_t*) compound_type;
+}
+
+static
+type_t *parse_struct_type(void)
+{
+	eat(T_struct);
+
+	compound_type_t *compound_type 
+		= allocate_ast_zero(sizeof(compound_type[0]));
+	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
+	compound_type->attributes = parse_attributes();
+
+	expect(':');
+	expect(T_NEWLINE);
+	expect(T_INDENT);
+		
+	compound_type->entries = parse_compound_entries();
+
+	/* force end of statement */
+	assert(token.type == T_DEDENT);
+	replace_token_type(T_NEWLINE);
+
+	return (type_t*) compound_type;
+}
+
+static
 type_t *make_pointer_type_no_hash(type_t *type)
 {
 	pointer_type_t *pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
@@ -349,6 +434,12 @@ type_t *parse_type(void)
 	case T_void:
 		type = type_void;
 		next_token();
+		break;
+	case T_union:
+		type = parse_union_type();
+		break;
+	case T_struct:
+		type = parse_struct_type();
 		break;
 	case T_func:
 		type = parse_method_type();
@@ -495,6 +586,10 @@ expression_t *parse_func_expression(unsigned precedence)
 	expression->expression.type   = EXPR_FUNC;
 
 	parse_method(&expression->method);
+
+	/* force end of statement */
+	assert(token.type == T_DEDENT);
+	replace_token_type(T_NEWLINE);
 
 	return (expression_t*) expression;
 }
@@ -906,7 +1001,7 @@ void register_expression_parsers(void)
 
 	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
 	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);
-	register_expression_parser(parse_cast_expression,         T_cast,  3);
+	register_expression_parser(parse_cast_expression,         T_cast, 19);
 
 	register_expression_parser(parse_brace_expression,     '(',              1);
 	register_expression_parser(parse_sizeof,               T_sizeof,         1);
@@ -1368,7 +1463,7 @@ type_constraint_t *parse_type_constraints(void)
 		type_constraint_t *constraint 
 			= allocate_ast_zero(sizeof(constraint[0]));
 
-		constraint->typeclass_symbol = token.v.symbol;
+		constraint->concept_symbol = token.v.symbol;
 		next_token();
 
 		if(last_constraint == NULL) {
@@ -1667,43 +1762,6 @@ attribute_t *parse_attributes(void)
 }
 
 static
-compound_entry_t *parse_compound_entries(void)
-{
-	eat(T_INDENT);
-
-	compound_entry_t *result     = NULL;
-	compound_entry_t *last_entry = NULL;
-	while(token.type != T_DEDENT && token.type != T_EOF) {
-		compound_entry_t *entry = allocate_ast_zero(sizeof(entry[0]));
-
-		if(token.type != T_IDENTIFIER) {
-			parse_error_expected("Problem while parsing compound entry",
-								 T_IDENTIFIER, 0);
-			eat_until_newline();
-			continue;
-		}
-		entry->symbol = token.v.symbol;
-		next_token();
-
-		expect(':');
-		entry->type       = parse_type();
-		entry->attributes = parse_attributes();
-
-		if(last_entry == NULL) {
-			result = entry;
-		} else {
-			last_entry->next = entry;
-		}
-		last_entry = entry;
-
-		expect(T_NEWLINE);
-	}
-	next_token();
-
-	return result;
-}
-
-static
 void parse_class(void)
 {
 	eat(T_class);
@@ -1780,7 +1838,9 @@ void parse_struct(void)
 	expect_void(T_NEWLINE);
 
 	if(token.type == T_INDENT) {
+		next_token();
 		compound_type->entries = parse_compound_entries();
+		eat(T_DEDENT);
 	}
 
 	add_declaration((declaration_t*) typealias);
@@ -1816,26 +1876,28 @@ void parse_union(void)
 	expect_void(T_NEWLINE);
 
 	if(token.type == T_INDENT) {
+		next_token();
 		compound_type->entries = parse_compound_entries();
+		eat(T_DEDENT);
 	}
 
 	add_declaration((declaration_t*) typealias);
 }
 
 static
-typeclass_method_t *parse_typeclass_method(void)
+concept_method_t *parse_concept_method(void)
 {
 	expect(T_func);
 
-	typeclass_method_t *method = allocate_ast_zero(sizeof(method[0]));
-	method->declaration.type   = DECLARATION_TYPECLASS_METHOD;
+	concept_method_t *method = allocate_ast_zero(sizeof(method[0]));
+	method->declaration.type = DECLARATION_CONCEPT_METHOD;
 
 	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 	
 	if(token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing typeclass method",
+		parse_error_expected("Problem while parsing concept method",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
 		return NULL;
@@ -1865,31 +1927,31 @@ typeclass_method_t *parse_typeclass_method(void)
 }
 
 static
-void parse_typeclass(void)
+void parse_concept(void)
 {
-	eat(T_typeclass);
+	eat(T_concept);
 
-	typeclass_t *typeclass      = allocate_ast_zero(sizeof(typeclass[0]));
-	typeclass->declaration.type = DECLARATION_TYPECLASS;
+	concept_t *concept        = allocate_ast_zero(sizeof(concept[0]));
+	concept->declaration.type = DECLARATION_CONCEPT;
 	
 	if(token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing typeclass",
+		parse_error_expected("Problem while parsing concept",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
 		return;
 	}
 
-	typeclass->declaration.source_position = source_position;
-	typeclass->declaration.symbol          = token.v.symbol;
+	concept->declaration.source_position = source_position;
+	concept->declaration.symbol          = token.v.symbol;
 	next_token();
 
 	if(token.type == '<') {
 		next_token();
-		typeclass->type_parameters = parse_type_parameters();
+		concept->type_parameters = parse_type_parameters();
 
 		/* add type parameters to context */
-		context_t       *context       = &typeclass->context;
-		type_variable_t *type_parameter = typeclass->type_parameters;
+		context_t       *context        = &concept->context;
+		type_variable_t *type_parameter = concept->type_parameters;
 		while(type_parameter != NULL) {
 			declaration_t *declaration = (declaration_t*) type_parameter;
 			declaration->next          = context->declarations;
@@ -1904,42 +1966,42 @@ void parse_typeclass(void)
 	expect_void(T_NEWLINE);
 
 	if(token.type != T_INDENT) {
-		goto end_of_parse_typeclass;
+		goto end_of_parse_concept;
 	}
 	next_token();
 
-	typeclass_method_t *last_method = NULL;
+	concept_method_t *last_method = NULL;
 	while(token.type != T_DEDENT) {
 		if(token.type == T_EOF) {
-			parse_error("EOF while parsing typeclass");
-			goto end_of_parse_typeclass;
+			parse_error("EOF while parsing concept");
+			goto end_of_parse_concept;
 		}
 
-		typeclass_method_t *method = parse_typeclass_method();
-		method->typeclass          = typeclass;
+		concept_method_t *method = parse_concept_method();
+		method->concept          = concept;
 
 		if(last_method != NULL) {
 			last_method->next = method;
 		} else {
-			typeclass->methods = method;
+			concept->methods = method;
 		}
 		last_method = method;
 	}
 	next_token();
 
-end_of_parse_typeclass:
-	add_declaration((declaration_t*) typeclass);
+end_of_parse_concept:
+	add_declaration((declaration_t*) concept);
 }
 
 static
-typeclass_method_instance_t *parse_typeclass_method_instance(void)
+concept_method_instance_t *parse_concept_method_instance(void)
 {
-	typeclass_method_instance_t *method_instance
+	concept_method_instance_t *method_instance
 		= allocate_ast_zero(sizeof(method_instance[0]));
 
 	expect(T_func);
 	if(token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing typeclass method "
+		parse_error_expected("Problem while parsing concept method "
 		                     "instance", T_IDENTIFIER, 0);
 		eat_until_newline();
 		return NULL;
@@ -1954,21 +2016,21 @@ typeclass_method_instance_t *parse_typeclass_method_instance(void)
 }
 
 static
-void parse_typeclass_instance(void)
+void parse_concept_instance(void)
 {
 	eat(T_instance);
 
-	typeclass_instance_t *instance = allocate_ast_zero(sizeof(instance[0]));
-	instance->source_position      = source_position;
+	concept_instance_t *instance = allocate_ast_zero(sizeof(instance[0]));
+	instance->source_position    = source_position;
 
 	if(token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing typeclass instance",
+		parse_error_expected("Problem while parsing concept instance",
 		                     T_IDENTIFIER, 0);
 		eat_until_newline();
 		return;
 	}
 
-	instance->typeclass_symbol = token.v.symbol;
+	instance->concept_symbol = token.v.symbol;
 	next_token();
 
 	instance->type_arguments = parse_type_arguments();
@@ -1981,10 +2043,10 @@ void parse_typeclass_instance(void)
 	}
 	eat(T_INDENT);
 
-	typeclass_method_instance_t *last_method = NULL;
+	concept_method_instance_t *last_method = NULL;
 	while(token.type != T_DEDENT) {
 		if(token.type == T_EOF) {
-			parse_error("EOF while parsing typeclass instance");
+			parse_error("EOF while parsing concept instance");
 			return;
 		}
 		if(token.type == T_NEWLINE) {
@@ -1992,7 +2054,7 @@ void parse_typeclass_instance(void)
 			continue;
 		}
 
-		typeclass_method_instance_t *method	= parse_typeclass_method_instance();
+		concept_method_instance_t *method = parse_concept_method_instance();
 		if(method == NULL)
 			continue;
 
@@ -2007,8 +2069,8 @@ void parse_typeclass_instance(void)
 
 add_instance:
 	assert(current_context != NULL);
-	instance->next                       = current_context->typeclass_instances;
-	current_context->typeclass_instances = instance;
+	instance->next                     = current_context->concept_instances;
+	current_context->concept_instances = instance;
 }
 
 static
@@ -2068,7 +2130,7 @@ void parse_declaration(void)
 
 	if(parser == NULL) {
 		parse_error_expected("Couldn't parse declaration",
-		                     T_func, T_var, T_extern, T_struct, T_typeclass,
+		                     T_func, T_var, T_extern, T_struct, T_concept,
 		                     T_instance, 0);
 		eat_until_newline();
 		return;
@@ -2149,8 +2211,8 @@ void register_declaration_parsers(void)
 	register_declaration_parser(parse_struct,             T_struct);
 	register_declaration_parser(parse_union,              T_union);
 	register_declaration_parser(parse_typealias,          T_typealias);
-	register_declaration_parser(parse_typeclass,          T_typeclass);
-	register_declaration_parser(parse_typeclass_instance, T_instance);
+	register_declaration_parser(parse_concept,            T_concept);
+	register_declaration_parser(parse_concept_instance,   T_instance);
 	register_declaration_parser(parse_export,             T_export);
 	register_declaration_parser(skip_declaration,         T_NEWLINE);
 }

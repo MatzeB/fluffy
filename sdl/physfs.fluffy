@@ -1,0 +1,91 @@
+/* WARNING: Automatically generated file */
+struct PHYSFS_File:
+	opaque : void*
+
+struct PHYSFS_ArchiveInfo:
+	extension : byte*
+	description : byte*
+	author : byte*
+	url : byte*
+
+struct PHYSFS_Version:
+	major : unsigned byte
+	minor : unsigned byte
+	patch : unsigned byte
+
+
+
+func extern PHYSFS_getLinkedVersion(ver : PHYSFS_Version*) : void
+func extern PHYSFS_init(argv0 : byte*) : int
+func extern PHYSFS_deinit() : int
+func extern PHYSFS_supportedArchiveTypes() : PHYSFS_ArchiveInfo**
+func extern PHYSFS_freeList(listVar : void*) : void
+func extern PHYSFS_getLastError() : byte*
+func extern PHYSFS_getDirSeparator() : byte*
+func extern PHYSFS_permitSymbolicLinks(allow : int) : void
+func extern PHYSFS_getCdRomDirs() : byte**
+func extern PHYSFS_getBaseDir() : byte*
+func extern PHYSFS_getUserDir() : byte*
+func extern PHYSFS_getWriteDir() : byte*
+func extern PHYSFS_setWriteDir(newDir : byte*) : int
+func extern PHYSFS_addToSearchPath(newDir : byte*, appendToPath : int) : int
+func extern PHYSFS_removeFromSearchPath(oldDir : byte*) : int
+func extern PHYSFS_getSearchPath() : byte**
+func extern PHYSFS_setSaneConfig(organization : byte*, appName : byte*, archiveExt : byte*, includeCdRoms : int, archivesFirst : int) : int
+func extern PHYSFS_mkdir(dirName : byte*) : int
+func extern PHYSFS_delete(filename : byte*) : int
+func extern PHYSFS_getRealDir(filename : byte*) : byte*
+func extern PHYSFS_enumerateFiles(dir : byte*) : byte**
+func extern PHYSFS_exists(fname : byte*) : int
+func extern PHYSFS_isDirectory(fname : byte*) : int
+func extern PHYSFS_isSymbolicLink(fname : byte*) : int
+func extern PHYSFS_getLastModTime(filename : byte*) : long
+func extern PHYSFS_openWrite(filename : byte*) : PHYSFS_File*
+func extern PHYSFS_openAppend(filename : byte*) : PHYSFS_File*
+func extern PHYSFS_openRead(filename : byte*) : PHYSFS_File*
+func extern PHYSFS_close(handle : PHYSFS_File*) : int
+func extern PHYSFS_read(handle : PHYSFS_File*, buffer : void*, objSize : unsigned int, objCount : unsigned int) : long
+func extern PHYSFS_write(handle : PHYSFS_File*, buffer : void*, objSize : unsigned int, objCount : unsigned int) : long
+func extern PHYSFS_eof(handle : PHYSFS_File*) : int
+func extern PHYSFS_tell(handle : PHYSFS_File*) : long
+func extern PHYSFS_seek(handle : PHYSFS_File*, pos : unsigned long) : int
+func extern PHYSFS_fileLength(handle : PHYSFS_File*) : long
+func extern PHYSFS_setBuffer(handle : PHYSFS_File*, bufsize : unsigned long) : int
+func extern PHYSFS_flush(handle : PHYSFS_File*) : int
+func extern PHYSFS_swapSLE16(val : short) : short
+func extern PHYSFS_swapULE16(val : unsigned short) : unsigned short
+func extern PHYSFS_swapSLE32(val : int) : int
+func extern PHYSFS_swapULE32(val : unsigned int) : unsigned int
+func extern PHYSFS_swapSLE64(val : long) : long
+func extern PHYSFS_swapULE64(val : unsigned long) : unsigned long
+func extern PHYSFS_swapSBE16(val : short) : short
+func extern PHYSFS_swapUBE16(val : unsigned short) : unsigned short
+func extern PHYSFS_swapSBE32(val : int) : int
+func extern PHYSFS_swapUBE32(val : unsigned int) : unsigned int
+func extern PHYSFS_swapSBE64(val : long) : long
+func extern PHYSFS_swapUBE64(val : unsigned long) : unsigned long
+func extern PHYSFS_readSLE16(file : PHYSFS_File*, val : short*) : int
+func extern PHYSFS_readULE16(file : PHYSFS_File*, val : unsigned short*) : int
+func extern PHYSFS_readSBE16(file : PHYSFS_File*, val : short*) : int
+func extern PHYSFS_readUBE16(file : PHYSFS_File*, val : unsigned short*) : int
+func extern PHYSFS_readSLE32(file : PHYSFS_File*, val : int*) : int
+func extern PHYSFS_readULE32(file : PHYSFS_File*, val : unsigned int*) : int
+func extern PHYSFS_readSBE32(file : PHYSFS_File*, val : int*) : int
+func extern PHYSFS_readUBE32(file : PHYSFS_File*, val : unsigned int*) : int
+func extern PHYSFS_readSLE64(file : PHYSFS_File*, val : long*) : int
+func extern PHYSFS_readULE64(file : PHYSFS_File*, val : unsigned long*) : int
+func extern PHYSFS_readSBE64(file : PHYSFS_File*, val : long*) : int
+func extern PHYSFS_readUBE64(file : PHYSFS_File*, val : unsigned long*) : int
+func extern PHYSFS_writeSLE16(file : PHYSFS_File*, val : short) : int
+func extern PHYSFS_writeULE16(file : PHYSFS_File*, val : unsigned short) : int
+func extern PHYSFS_writeSBE16(file : PHYSFS_File*, val : short) : int
+func extern PHYSFS_writeUBE16(file : PHYSFS_File*, val : unsigned short) : int
+func extern PHYSFS_writeSLE32(file : PHYSFS_File*, val : int) : int
+func extern PHYSFS_writeULE32(file : PHYSFS_File*, val : unsigned int) : int
+func extern PHYSFS_writeSBE32(file : PHYSFS_File*, val : int) : int
+func extern PHYSFS_writeUBE32(file : PHYSFS_File*, val : unsigned int) : int
+func extern PHYSFS_writeSLE64(file : PHYSFS_File*, val : long) : int
+func extern PHYSFS_writeULE64(file : PHYSFS_File*, val : unsigned long) : int
+func extern PHYSFS_writeSBE64(file : PHYSFS_File*, val : long) : int
+func extern PHYSFS_writeUBE64(file : PHYSFS_File*, val : unsigned long) : int
+

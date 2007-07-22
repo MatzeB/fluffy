@@ -330,7 +330,7 @@ type_t *check_reference(declaration_t *declaration,
 	method_declaration_t   *method;
 	method_parameter_t     *method_parameter;
 	constant_t             *constant;
-	typeclass_method_t     *typeclass_method;
+	concept_method_t       *concept_method;
 	type_t                 *type;
 
 	switch(declaration->type) {
@@ -362,12 +362,12 @@ type_t *check_reference(declaration_t *declaration,
 		method_parameter = (method_parameter_t*) declaration;
 		assert(method_parameter->type != NULL);
 		return method_parameter->type;
-	case DECLARATION_TYPECLASS_METHOD:
-		typeclass_method = (typeclass_method_t*) declaration;
-		return make_pointer_type((type_t*) typeclass_method->method_type);
+	case DECLARATION_CONCEPT_METHOD:
+		concept_method = (concept_method_t*) declaration;
+		return make_pointer_type((type_t*) concept_method->method_type);
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
-	case DECLARATION_TYPECLASS:
+	case DECLARATION_CONCEPT:
 	case DECLARATION_TYPE_VARIABLE:
 		print_error_prefix(source_position);
 		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
@@ -695,24 +695,24 @@ void check_binary_expression(binary_expression_t *binexpr)
 }
 
 /**
- * find a typeclass instance matching the current type_variable configuration
+ * find a concept instance matching the current type_variable configuration
  */
 static
-typeclass_instance_t *_find_typeclass_instance(typeclass_t *typeclass,
-                                               const source_position_t *pos)
+concept_instance_t *_find_concept_instance(concept_t *concept,
+                                           const source_position_t *pos)
 {
-	typeclass_instance_t *instance = typeclass->instances;
+	concept_instance_t *instance = concept->instances;
 	while(instance != NULL) {
-		assert(instance->typeclass = typeclass);
+		assert(instance->concept == concept);
 
 		type_argument_t *argument  = instance->type_arguments;
-		type_variable_t *parameter = typeclass->type_parameters;
+		type_variable_t *parameter = concept->type_parameters;
 		int              match     = 1;
 		while(argument != NULL && parameter != NULL) {
 			if(parameter->current_type == NULL) {
 				print_error_prefix(*pos);
 				panic("type variable has no type set while searching "
-				      "typeclass instance");
+				      "concept instance");
 			}
 			if(parameter->current_type != argument->type) {
 				match = 0;
@@ -724,31 +724,31 @@ typeclass_instance_t *_find_typeclass_instance(typeclass_t *typeclass,
 		}
 		if(match == 1 && (argument != NULL || parameter != NULL)) {
 			print_error_prefix(instance->source_position);
-			panic("type argument count of typeclass instance doesn't match "
-			      "type parameter count of typeclass");
+			panic("type argument count of concept instance doesn't match "
+			      "type parameter count of concept");
 		}
 		if(match == 1)
 			return instance;
 
-		instance = instance->next_in_typeclass;
+		instance = instance->next_in_concept;
 	}
 
 	return NULL;
 }
 
-typeclass_instance_t *find_typeclass_instance(typeclass_t *typeclass)
+concept_instance_t *find_concept_instance(concept_t *concept)
 {
-	return _find_typeclass_instance(typeclass, NULL);
+	return _find_concept_instance(concept, NULL);
 }
 
-/** tests whether a type variable has a typeclass as constraint */
+/** tests whether a type variable has a concept as constraint */
 static
 int type_variable_has_constraint(const type_variable_t *type_variable,
-                                 const typeclass_t *typeclass)
+                                 const concept_t *concept)
 {
 	type_constraint_t *constraint = type_variable->constraints;
 	while(constraint != NULL) {
-		if(constraint->typeclass == typeclass)
+		if(constraint->concept == concept)
 			return 1;
 
 		constraint = constraint->next;
@@ -757,12 +757,12 @@ int type_variable_has_constraint(const type_variable_t *type_variable,
 	return 0;
 }
 
-typeclass_method_instance_t *get_method_from_typeclass_instance(
-		typeclass_instance_t *instance, typeclass_method_t *method)
+concept_method_instance_t *get_method_from_concept_instance(
+		concept_instance_t *instance, concept_method_t *method)
 {
-	typeclass_method_instance_t *method_instance = instance->method_instances;
+	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
-		if(method_instance->typeclass_method == method) {
+		if(method_instance->concept_method == method) {
 			return method_instance;
 		}
 
@@ -773,20 +773,20 @@ typeclass_method_instance_t *get_method_from_typeclass_instance(
 }
 
 static
-void resolve_typeclass_method_instance(reference_expression_t *reference)
+void resolve_concept_method_instance(reference_expression_t *reference)
 {
 	declaration_t *declaration = reference->declaration;
-	assert(declaration->type == DECLARATION_TYPECLASS_METHOD);
+	assert(declaration->type == DECLARATION_CONCEPT_METHOD);
 
-	typeclass_method_t *typeclass_method = (typeclass_method_t*) declaration;
-	typeclass_t        *typeclass        = typeclass_method->typeclass;
+	concept_method_t *concept_method = (concept_method_t*) declaration;
+	concept_t        *concept        = concept_method->concept;
 
 	/* test whether 1 of the type variables points to another type variable.
-	 * this can happen when typeclass methods are invoked inside polymorphic
+	 * this can happen when concept methods are invoked inside polymorphic
 	 * methods. We can't resolve the method right now, but we have to check
 	 * the constraints of the type variable */
 	int cant_resolve = 0;
-	type_variable_t *type_var = typeclass->type_parameters;
+	type_variable_t *type_var = concept->type_parameters;
 	while(type_var != NULL) {
 		type_t *current_type = type_var->current_type;
 		if(current_type == NULL)
@@ -796,13 +796,13 @@ void resolve_typeclass_method_instance(reference_expression_t *reference)
 			type_reference_t *type_ref      = (type_reference_t*) current_type;
 			type_variable_t  *type_variable = type_ref->r.type_variable;
 
-			if(!type_variable_has_constraint(type_variable, typeclass)) {
+			if(!type_variable_has_constraint(type_variable, concept)) {
 				print_error_prefix(reference->expression.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
-				        "typeclass '%s' when using method '%s'.\n",
+				        "concept '%s' when using method '%s'.\n",
 				        type_variable->declaration.symbol->string,
-				        typeclass->declaration.symbol->string,
-				        typeclass_method->declaration.symbol->string);
+				        concept->declaration.symbol->string,
+				        concept_method->declaration.symbol->string);
 				return;
 			}
 			cant_resolve = 1;
@@ -816,13 +816,13 @@ void resolve_typeclass_method_instance(reference_expression_t *reference)
 	}
 
 	/* we assume that all typevars have current_type set */
-	const source_position_t *pos   = &reference->expression.source_position;
-	typeclass_instance_t *instance = _find_typeclass_instance(typeclass, pos);
+	const source_position_t *pos      = &reference->expression.source_position;
+	concept_instance_t      *instance = _find_concept_instance(concept, pos);
 	if(instance == NULL) {
 		print_error_prefix(reference->expression.source_position);
-		fprintf(stderr, "there's no instance of typeclass '%s' for type ",
-		        typeclass->declaration.symbol->string);
-		type_variable_t *typevar = typeclass->type_parameters;
+		fprintf(stderr, "there's no instance of concept '%s' for type ",
+		        concept->declaration.symbol->string);
+		type_variable_t *typevar = concept->type_parameters;
 		while(typevar != NULL) {
 			if(typevar->current_type != NULL) {
 				print_type(stderr, typevar->current_type);
@@ -834,12 +834,12 @@ void resolve_typeclass_method_instance(reference_expression_t *reference)
 		return;
 	}
 
-	typeclass_method_instance_t *method_instance 
-		= get_method_from_typeclass_instance(instance, typeclass_method);
+	concept_method_instance_t *method_instance 
+		= get_method_from_concept_instance(instance, concept_method);
 	if(method_instance == NULL) {
 		print_error_prefix(reference->expression.source_position);
-		fprintf(stderr, "no instance of method '%s' found in typeclass "
-		        "instance?\n", typeclass_method->declaration.symbol->string);
+		fprintf(stderr, "no instance of method '%s' found in concept "
+		        "instance?\n", concept_method->declaration.symbol->string);
 		panic("panic");
 	}
 
@@ -860,30 +860,30 @@ void check_type_constraints(type_variable_t *type_variables,
 		type_t            *current_type = type_var->current_type;
 
 		for( ;constraint != NULL; constraint = constraint->next) {
-			typeclass_t *typeclass = constraint->typeclass;
+			concept_t *concept = constraint->concept;
 
-			if(typeclass == NULL)
+			if(concept == NULL)
 				continue;
 
 			if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 				type_reference_t *ref      = (type_reference_t*) current_type;
 				type_variable_t  *type_var = ref->r.type_variable;
 
-				if(!type_variable_has_constraint(type_var, typeclass)) {
+				if(!type_variable_has_constraint(type_var, concept)) {
 					print_error_prefix(source_position);
 					fprintf(stderr, "type variable '%s' needs constraint "
 					        "'%s'\n", type_var->declaration.symbol->string,
-					        typeclass->declaration.symbol->string);
+					        concept->declaration.symbol->string);
 				}
 				continue;
 			}
 
-			/* set typevariable values for the typeclass
-			 * This currently only works for typeclasses with 1 parameter */
-			typeclass->type_parameters->current_type = type_var->current_type;
+			/* set typevariable values for the concept
+			 * This currently only works for conceptes with 1 parameter */
+			concept->type_parameters->current_type = type_var->current_type;
 		
-			typeclass_instance_t *instance 
-				= _find_typeclass_instance(typeclass, & source_position);
+			concept_instance_t *instance 
+				= _find_concept_instance(concept, & source_position);
 			if(instance == NULL) {
 				print_error_prefix(source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of "
@@ -892,12 +892,12 @@ void check_type_constraints(type_variable_t *type_variables,
 				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
 				print_type(stderr, type_var->current_type);
-				fprintf(stderr, " is no instance of typeclass '%s'\n",
-				        typeclass->declaration.symbol->string);
+				fprintf(stderr, " is no instance of concept '%s'\n",
+				        concept->declaration.symbol->string);
 			}
 
 			/* reset typevar binding */
-			typeclass->type_parameters->current_type = NULL;
+			concept->type_parameters->current_type = NULL;
 		}
 
 		type_var = type_var->next;
@@ -1012,7 +1012,7 @@ void check_call_expression(call_expression_t *call)
 	method_type_t *method_type = (method_type_t*) type;
 
 	/* we have to match the parameter types against the type variables in case
-	 * of typeclass methods or polymorphic methods
+	 * of concept methods or polymorphic methods
 	 */
 	type_variable_t *type_variables = NULL;
 	if(method->type == EXPR_REFERENCE) {
@@ -1020,12 +1020,11 @@ void check_call_expression(call_expression_t *call)
 			= (reference_expression_t*) method;
 		declaration_t *declaration = reference->declaration;
 
-		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
-			typeclass_method_t *typeclass_method 
-				= (typeclass_method_t*) declaration;
-			typeclass_t        *typeclass        = typeclass_method->typeclass;
+		if(declaration->type == DECLARATION_CONCEPT_METHOD) {
+			concept_method_t *concept_method = (concept_method_t*) declaration;
+			concept_t        *concept        = concept_method->concept;
 		
-			type_variables = typeclass->type_parameters;
+			type_variables = concept->type_parameters;
 			type_arguments = reference->type_arguments;
 		} else if(declaration->type == DECLARATION_METHOD) {
 			method_declaration_t *method_declaration
@@ -1148,18 +1147,17 @@ void check_call_expression(call_expression_t *call)
 		type_variable_t        *type_parameters;
 		result_type                 = create_concrete_type(result_type);
 
-		if(declaration->type == DECLARATION_TYPECLASS_METHOD) {
-			/* we might be able to resolve the typeclass_method_instance now */
-			resolve_typeclass_method_instance(ref);
+		if(declaration->type == DECLARATION_CONCEPT_METHOD) {
+			/* we might be able to resolve the concept_method_instance now */
+			resolve_concept_method_instance(ref);
 #if 0
 			if(ref->declaration->type == DECLARATION_METHOD)
 				set_type_arguments = 0;
 #endif
 
-			typeclass_method_t *typeclass_method
-				= (typeclass_method_t*) declaration;
-			typeclass_t *typeclass = typeclass_method->typeclass;
-			type_parameters        = typeclass->type_parameters;
+			concept_method_t *concept_method = (concept_method_t*) declaration;
+			concept_t        *concept        = concept_method->concept;
+			type_parameters                  = concept->type_parameters;
 		} else {
 			/* check type constraints */
 			assert(declaration->type == DECLARATION_METHOD);
@@ -1918,7 +1916,7 @@ static
 void resolve_type_constraint(type_constraint_t *constraint,
                              const source_position_t source_position)
 {
-	symbol_t      *symbol      = constraint->typeclass_symbol;
+	symbol_t      *symbol      = constraint->concept_symbol;
 	declaration_t *declaration = symbol->declaration;
 
 	if(declaration == NULL) {
@@ -1926,14 +1924,14 @@ void resolve_type_constraint(type_constraint_t *constraint,
 		fprintf(stderr, "nothing known about symbol '%s'\n", symbol->string);
 		return;
 	}
-	if(declaration->type != DECLARATION_TYPECLASS) {
+	if(declaration->type != DECLARATION_CONCEPT) {
 		print_error_prefix(source_position);
-		fprintf(stderr, "expected a typeclass but symbol '%s' is a '%s'\n",
+		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
 		        symbol->string, get_declaration_type_name(declaration->type));
 		return;
 	}
 
-	constraint->typeclass = (typeclass_t*) declaration;
+	constraint->concept = (concept_t*) declaration;
 }
 
 static
@@ -1977,9 +1975,9 @@ void resolve_method_types(method_t *method,
 }
 
 static
-void check_typeclass_instance(typeclass_instance_t *instance)
+void check_concept_instance(concept_instance_t *instance)
 {
-	typeclass_method_instance_t *method_instance = instance->method_instances;
+	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
 		method_t *method = &method_instance->method;
 		resolve_method_types(method, method_instance->source_position);
@@ -1991,30 +1989,30 @@ void check_typeclass_instance(typeclass_instance_t *instance)
 }
 
 static
-void resolve_typeclass_types(typeclass_t *typeclass)
+void resolve_concept_types(concept_t *concept)
 {
 	int old_top            = environment_top();
 
 	/* push type variables */
-	type_variable_t *type_parameter = typeclass->type_parameters;
+	type_variable_t *type_parameter = concept->type_parameters;
 	while(type_parameter != NULL) {
 		declaration_t *declaration = (declaration_t*) type_parameter;
-		environment_push(declaration, typeclass);
+		environment_push(declaration, concept);
 
 		type_parameter = type_parameter->next;
 	}
-	resolve_type_variable_constraints(typeclass->type_parameters,
-	                                  typeclass->declaration.source_position);
+	resolve_type_variable_constraints(concept->type_parameters,
+	                                  concept->declaration.source_position);
 
 	/* normalize method types */
-	typeclass_method_t *typeclass_method = typeclass->methods;
-	while(typeclass_method != NULL) {
+	concept_method_t *concept_method = concept->methods;
+	while(concept_method != NULL) {
 		type_t *normalized_type 
-			= normalize_type((type_t*) typeclass_method->method_type);
+			= normalize_type((type_t*) concept_method->method_type);
 		assert(normalized_type->type == TYPE_METHOD);
-		typeclass_method->method_type = (method_type_t*) normalized_type;
+		concept_method->method_type = (method_type_t*) normalized_type;
 
-		typeclass_method = typeclass_method->next;
+		concept_method = concept_method->next;
 	}
 
 	environment_pop_to(old_top);
@@ -2022,9 +2020,9 @@ void resolve_typeclass_types(typeclass_t *typeclass)
 
 
 static
-void resolve_typeclass_instance(typeclass_instance_t *instance)
+void resolve_concept_instance(concept_instance_t *instance)
 {
-	symbol_t      *symbol      = instance->typeclass_symbol;
+	symbol_t      *symbol      = instance->concept_symbol;
 	declaration_t *declaration = symbol->declaration;
 
 	if(declaration == NULL) {
@@ -2032,17 +2030,17 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
-	if(declaration->type != DECLARATION_TYPECLASS) {
+	if(declaration->type != DECLARATION_CONCEPT) {
 		print_error_prefix(declaration->source_position);
-		fprintf(stderr, "expected a typeclass but symbol '%s' is a '%s'\n",
+		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
 		        symbol->string, get_declaration_type_name(declaration->type));
 		return;
 	}
 
-	typeclass_t *typeclass      = (typeclass_t*) declaration;
-	instance->typeclass         = typeclass;
-	instance->next_in_typeclass = typeclass->instances;
-	typeclass->instances        = instance;
+	concept_t *concept        = (concept_t*) declaration;
+	instance->concept         = concept;
+	instance->next_in_concept = concept->instances;
+	concept->instances        = instance;
 
 	/* normalize argument types */
 	type_argument_t *type_argument = instance->type_arguments;
@@ -2053,10 +2051,10 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 	}
 
 	/* link methods and normalize their types */
-	typeclass_method_t *method = typeclass->methods;
+	concept_method_t *method = concept->methods;
 	while(method != NULL) {
 		int                          found_instance = 0;
-		typeclass_method_instance_t *method_instance 
+		concept_method_instance_t *method_instance 
 			= instance->method_instances;
 
 		while(method_instance != NULL) {
@@ -2070,13 +2068,13 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 			if(found_instance) {
 				print_error_prefix(method_instance->source_position);
 				fprintf(stderr, "multiple implementations of method '%s' found "
-				        "in instance of typeclass '%s'\n",
+				        "in instance of concept '%s'\n",
 				        method->declaration.symbol->string,
-				        typeclass->declaration.symbol->string);
+				        concept->declaration.symbol->string);
 			} else {
-				found_instance                      = 1;
-				method_instance->typeclass_method   = method;
-				method_instance->typeclass_instance = instance;
+				found_instance                    = 1;
+				method_instance->concept_method   = method;
+				method_instance->concept_instance = instance;
 			}
 
 			imethod->type 
@@ -2085,8 +2083,8 @@ void resolve_typeclass_instance(typeclass_instance_t *instance)
 		}
 		if(found_instance == 0) {
 			print_error_prefix(instance->source_position);
-			fprintf(stderr, "instance of typeclass '%s' does not implement "
-					"method '%s'\n", typeclass->declaration.symbol->string,
+			fprintf(stderr, "instance of concept '%s' does not implement "
+					"method '%s'\n", concept->declaration.symbol->string,
 			        method->declaration.symbol->string);
 		}
 
@@ -2136,11 +2134,11 @@ void check_and_push_context(context_t *context)
 	method_declaration_t   *method;
 	typealias_t            *typealias;
 	type_t                 *type;
-	typeclass_t            *typeclass;
+	concept_t              *concept;
 
 	push_context(context);
 
-	/* normalize types, resolve typeclass instance references */
+	/* normalize types, resolve concept instance references */
 	declaration_t *declaration = context->declarations;
 	while(declaration != NULL) {
 		switch(declaration->type) {
@@ -2161,9 +2159,9 @@ void check_and_push_context(context_t *context)
 			}
 			typealias->type = type;
 			break;
-		case DECLARATION_TYPECLASS:
-			typeclass = (typeclass_t*) declaration;
-			resolve_typeclass_types(typeclass);
+		case DECLARATION_CONCEPT:
+			concept = (concept_t*) declaration;
+			resolve_concept_types(concept);
 			break;
 		default:
 			break;
@@ -2171,9 +2169,9 @@ void check_and_push_context(context_t *context)
 
 		declaration = declaration->next;
 	}
-	typeclass_instance_t *instance = context->typeclass_instances;
+	concept_instance_t *instance = context->concept_instances;
 	while(instance != NULL) {
-		resolve_typeclass_instance(instance);
+		resolve_concept_instance(instance);
 
 		instance = instance->next;
 	}
@@ -2197,10 +2195,10 @@ void check_and_push_context(context_t *context)
 
 		declaration = declaration->next;
 	}
-	/* check semantics in typeclasses */
-	instance = context->typeclass_instances;
+	/* check semantics in conceptes */
+	instance = context->concept_instances;
 	while(instance != NULL) {
-		check_typeclass_instance(instance);
+		check_concept_instance(instance);
 		instance = instance->next;
 	}
 	/* handle export declarations */

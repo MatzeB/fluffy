@@ -1,10 +1,11 @@
 /* WARNING: Automatically generated file */
 struct SDL_RWops:
-	seek : /*TODO funcptr*/ void*
-	read : /*TODO funcptr*/ void*
-	write : /*TODO funcptr*/ void*
-	close : /*TODO funcptr*/ void*
+	seek : (func(context : SDL_RWops*, offset : int, whence : int) : int)*
+	read : (func(context : SDL_RWops*, ptr : void*, size : int, maxnum : int) : int)*
+	write : (func(context : SDL_RWops*, ptr : void*, size : int, num : int) : int)*
+	close : (func(context : SDL_RWops*) : int)*
 	type : unsigned int
+	hidden : void*
 
 
 
@@ -20,7 +21,7 @@ struct SDL_AudioSpec:
 	samples : unsigned short
 	padding : unsigned short
 	size : unsigned int
-	callback : /*TODO funcptr*/ void*
+	callback : (func(userdata : void*, stream : unsigned byte*, len : int) : void)*
 	userdata : void*
 
 struct SDL_AudioCVT:
@@ -33,7 +34,7 @@ struct SDL_AudioCVT:
 	len_cvt : int
 	len_mult : int
 	len_ratio : double
-	filters : /*TODO funcptr*/ void*
+	filters : (func(cvt : SDL_AudioCVT*, format : unsigned short) : void)*
 	filter_index : int
 
 struct SDL_CDtrack:
@@ -703,8 +704,8 @@ func extern SDL_AllocRW() : SDL_RWops*
 func extern SDL_FreeRW(area : SDL_RWops*) : void
 func extern SDL_GetTicks() : unsigned int
 func extern SDL_Delay(ms : unsigned int) : void
-func extern SDL_SetTimer(interval : unsigned int, callback : /*TODO funcptr*/ void*) : int
-func extern SDL_AddTimer(interval : unsigned int, callback : /*TODO funcptr*/ void*, param : void*) : _SDL_TimerID*
+func extern SDL_SetTimer(interval : unsigned int, callback : (func(interval : unsigned int) : unsigned int)*) : int
+func extern SDL_AddTimer(interval : unsigned int, callback : (func(interval : unsigned int, param : void*) : unsigned int)*, param : void*) : _SDL_TimerID*
 func extern SDL_RemoveTimer(t : _SDL_TimerID*) : int
 func extern SDL_AudioInit(driver_name : byte*) : int
 func extern SDL_AudioQuit() : void
@@ -818,16 +819,12 @@ func extern SDL_GL_GetProcAddress(proc : byte*) : void*
 func extern SDL_GL_SetAttribute(attr : int, value : int) : int
 func extern SDL_GL_GetAttribute(attr : int, value : int*) : int
 func extern SDL_GL_SwapBuffers() : void
-func extern SDL_GL_UpdateRects(numrects : int, rects : SDL_Rect*) : void
-func extern SDL_GL_Lock() : void
-func extern SDL_GL_Unlock() : void
 func extern SDL_WM_SetCaption(title : byte*, icon : byte*) : void
 func extern SDL_WM_GetCaption(title : byte**, icon : byte**) : void
 func extern SDL_WM_SetIcon(icon : SDL_Surface*, mask : unsigned byte*) : void
 func extern SDL_WM_IconifyWindow() : int
 func extern SDL_WM_ToggleFullScreen(surface : SDL_Surface*) : int
 func extern SDL_WM_GrabInput(mode : int) : int
-func extern SDL_SoftStretch(src : SDL_Surface*, srcrect : SDL_Rect*, dst : SDL_Surface*, dstrect : SDL_Rect*) : int
 func extern SDL_GetMouseState(x : int*, y : int*) : unsigned byte
 func extern SDL_GetRelativeMouseState(x : int*, y : int*) : unsigned byte
 func extern SDL_WarpMouse(x : unsigned short, y : unsigned short) : void
@@ -841,8 +838,8 @@ func extern SDL_PeepEvents(events : SDL_Event*, numevents : int, action : int, m
 func extern SDL_PollEvent(event : SDL_Event*) : bool
 func extern SDL_WaitEvent(event : SDL_Event*) : int
 func extern SDL_PushEvent(event : SDL_Event*) : int
-func extern SDL_SetEventFilter(filter : /*TODO funcptr*/ void*) : void
-func extern SDL_GetEventFilter() : /*TODO funcptr*/ void*
+func extern SDL_SetEventFilter(filter : (func(event : SDL_Event*) : int)*) : void
+func extern SDL_GetEventFilter() : (func(event : SDL_Event*) : int)*
 func extern SDL_EventState(type : unsigned byte, state : int) : unsigned byte
 func extern SDL_Linked_Version() : SDL_version*
 func extern SDL_Init(flags : unsigned int) : int

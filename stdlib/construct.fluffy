@@ -1,4 +1,4 @@
-typeclass Construct<T>:
+concept Construct<T>:
 	func construct(object : T*)
 	func destruct(object : T*)
 
@@ -10,3 +10,6 @@ func new<T : Construct>() : T*:
 func delete<T : Construct>(obj : T*):
 	destruct(obj)
 	free(obj)
+
+func allocate<T>() : T*:
+	return cast<T*> malloc(sizeof<T>)

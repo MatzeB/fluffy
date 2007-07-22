@@ -27,7 +27,7 @@ syn keyword fluffyStatement   union nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   func nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   var nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   const nextgroup=fluffyIdentifier
-syn keyword fluffyStatement   typeclass nextgroup=fluffyIdentifier
+syn keyword fluffyStatement   concept nextgroup=fluffyIdentifier
 syn keyword fluffyStatement   typealias nextgroup=fluffyIdentifier
 syn match   fluffyIdentifier	 "[a-zA-Z_][a-zA-Z0-9_]*" contained
 

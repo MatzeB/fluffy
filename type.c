@@ -105,7 +105,7 @@ void print_type_reference_variable(FILE *out, const type_reference_t *type)
 		} else {
 			fprintf(out, ", ");
 		}
-		fprintf(out, "%s", constraint->typeclass_symbol->string);
+		fprintf(out, "%s", constraint->concept_symbol->string);
 		
 		constraint = constraint->next;
 	}

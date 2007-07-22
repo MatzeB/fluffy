@@ -45,11 +45,11 @@ typedef struct method_declaration_t     method_declaration_t;
 typedef struct constant_t               constant_t;
 typedef struct global_variable_t        global_variable_t;
 typedef struct typealias_t              typealias_t;
-typedef struct typeclass_instance_t     typeclass_instance_t;
-typedef struct typeclass_method_instance_t
-                                        typeclass_method_instance_t;
-typedef struct typeclass_t              typeclass_t;
-typedef struct typeclass_method_t       typeclass_method_t;
+typedef struct concept_instance_t       concept_instance_t;
+typedef struct concept_method_instance_t
+                                        concept_method_instance_t;
+typedef struct concept_t                concept_t;
+typedef struct concept_method_t         concept_method_t;
 
 void  init_ast_module(void);
 void  exit_ast_module(void);
