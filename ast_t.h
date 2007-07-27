@@ -174,7 +174,9 @@ typedef enum {
 	UNEXPR_BITWISE_NOT,
 	UNEXPR_DEREFERENCE,
 	UNEXPR_TAKE_ADDRESS,
-	UNEXPR_CAST
+	UNEXPR_CAST,
+	UNEXPR_INCREMENT,
+	UNEXPR_DECREMENT
 } unary_expression_type_t;
 
 struct unary_expression_t {

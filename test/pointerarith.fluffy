@@ -1,0 +1,6 @@
+
+func main(argc : int, argv : byte**) : int:
+	var last <- argv + (argc - 1)
+	printf("Last: %s\n", *last)
+	return 0
+export main

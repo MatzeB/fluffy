@@ -117,6 +117,7 @@ void optimize()
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
 
+	current_ir_graph = NULL;
 	opt_tail_recursion();
 
 	optimize_funccalls(0);

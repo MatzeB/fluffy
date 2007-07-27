@@ -11,6 +11,7 @@
 #include "adt/error.h"
 
 //#define DEBUG_TYPEVAR_BINDINGS
+//#define ABORT_ON_ERRORS
 
 typedef struct environment_entry_t environment_entry_t;
 struct environment_entry_t {
@@ -53,6 +54,9 @@ void print_error_prefix(const source_position_t position)
 {
 	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
 	found_errors = 1;
+#ifdef ABORT_ON_ERRORS
+	abort();
+#endif
 }
 
 void print_warning_prefix(const source_position_t position)
@@ -535,10 +539,12 @@ expression_t *make_cast(expression_t *from,
 			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
 
 			switch(from_atype) {
+#if 0
 			case ATOMIC_TYPE_BOOL:
 				implicit_cast_allowed |=
 					(dest_atype == ATOMIC_TYPE_BYTE) ||
 					(dest_atype == ATOMIC_TYPE_UBYTE);
+#endif
 			case ATOMIC_TYPE_UBYTE:
 				implicit_cast_allowed |=
 					(dest_atype == ATOMIC_TYPE_USHORT) ||
@@ -574,6 +580,7 @@ expression_t *make_cast(expression_t *from,
 				implicit_cast_allowed = (dest_atype == ATOMIC_TYPE_DOUBLE);
 				break;
 
+			case ATOMIC_TYPE_BOOL:
 			case ATOMIC_TYPE_DOUBLE:
 			case ATOMIC_TYPE_LONGLONG:
 			case ATOMIC_TYPE_ULONGLONG:
@@ -596,47 +603,13 @@ expression_t *make_cast(expression_t *from,
 
 	unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
-	cast->expression.type     = EXPR_UNARY;
-	cast->type                = UNEXPR_CAST;
-	cast->expression.datatype = dest_type;
-	cast->value               = from;
+	cast->expression.type            = EXPR_UNARY;
+	cast->expression.source_position = source_position;
+	cast->type                       = UNEXPR_CAST;
+	cast->expression.datatype        = dest_type;
+	cast->value                      = from;
 
 	return (expression_t*) cast;
-}
-
-static
-int is_arithmetic_op(binary_expression_type_t type)
-{
-	switch(type) {
-	case BINEXPR_ADD:
-	case BINEXPR_SUB:
-	case BINEXPR_MUL:
-	case BINEXPR_MOD:
-	case BINEXPR_DIV:
-	case BINEXPR_OR:
-	case BINEXPR_AND:
-	case BINEXPR_SHIFTLEFT:
-	case BINEXPR_SHIFTRIGHT:
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-static
-int is_comparison_op(binary_expression_type_t type)
-{
-	switch(type) {
-	case BINEXPR_EQUAL:
-	case BINEXPR_NOTEQUAL:
-	case BINEXPR_LESS:
-	case BINEXPR_LESSEQUAL:
-	case BINEXPR_GREATER:
-	case BINEXPR_GREATEREQUAL:
-		return 1;
-	default:
-		return 0;
-	}
 }
 
 static
@@ -651,32 +624,116 @@ void check_binary_expression(binary_expression_t *binexpr)
 	type_t *lefttype, *righttype;
 	binary_expression_type_t binexpr_type = binexpr->type;
 
-	if(binexpr_type == BINEXPR_ASSIGN) {
+	switch(binexpr_type) {
+	case BINEXPR_ASSIGN:
 		check_assign_expression(binexpr);
 		exprtype  = left->datatype;
 		lefttype  = exprtype;
 		righttype = exprtype;
-	} else if(is_arithmetic_op(binexpr_type)) {
+		break;
+	case BINEXPR_ADD:
+	case BINEXPR_SUB:
 		exprtype  = left->datatype;
-		/* TODO find out greatest common type... */
 		lefttype  = exprtype;
-		if(binexpr_type == BINEXPR_SHIFTLEFT
-				|| binexpr_type == BINEXPR_SHIFTRIGHT) {
-			righttype = type_uint;
-		} else {
-			righttype = exprtype;
+		righttype = right->datatype;
+		/* implement address arithmetic */
+		if(lefttype->type == TYPE_POINTER && is_type_int(righttype)) {
+			fprintf(stderr, "address arith\n");
+
+			sizeof_expression_t *sizeof_expr 
+				= allocate_ast(sizeof(sizeof_expr[0]));
+			memset(sizeof_expr, 0, sizeof(sizeof_expr[0]));
+			sizeof_expr->expression.type     = EXPR_SIZEOF;
+			sizeof_expr->expression.datatype = type_uint;
+			sizeof_expr->type                = exprtype;
+
+			binary_expression_t *mulexpr = allocate_ast(sizeof(mulexpr[0]));
+			memset(mulexpr, 0, sizeof(mulexpr[0]));
+			mulexpr->expression.type     = EXPR_BINARY;
+			mulexpr->expression.datatype = type_uint;
+			mulexpr->type                = BINEXPR_MUL;
+			mulexpr->left = make_cast(right, type_uint,
+			                          binexpr->expression.source_position);
+			mulexpr->right               = (expression_t*) sizeof_expr;
+
+			unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
+			memset(cast, 0, sizeof(cast[0]));
+			cast->expression.type            = EXPR_UNARY;
+			cast->expression.source_position 
+				= binexpr->expression.source_position;
+			cast->type                       = UNEXPR_CAST;
+			cast->expression.datatype        = lefttype;
+			cast->value                      = (expression_t*) mulexpr;
+
+			right          = (expression_t*) cast;
+			binexpr->right = right;
 		}
-	} else if(is_comparison_op(binexpr_type)) {
+		righttype = lefttype;
+		break;
+	case BINEXPR_MUL:
+	case BINEXPR_MOD:
+	case BINEXPR_DIV:
+		if(!is_type_numeric(left->datatype)) {
+			print_error_prefix(binexpr->expression.source_position);
+			fprintf(stderr, "Mul/Mod/Div expressions need a numeric type but "
+			        "type ");
+			print_type(stderr, left->datatype);
+			fprintf(stderr, "is given\n");
+		}
+		exprtype  = left->datatype;
+		lefttype  = exprtype;
+		righttype = lefttype;
+		break;
+
+	case BINEXPR_AND:
+	case BINEXPR_OR:
+	case BINEXPR_XOR:
+		if(!is_type_int(left->datatype)) {
+			print_error_prefix(binexpr->expression.source_position);
+			fprintf(stderr, "And/Or/Xor expressions need an integer type "
+			        "but type ");
+			print_type(stderr, left->datatype);
+			fprintf(stderr, "is given\n");
+		}
+		exprtype  = left->datatype;
+		lefttype  = exprtype;
+		righttype = left->datatype;
+		break;
+
+	case BINEXPR_SHIFTLEFT:
+	case BINEXPR_SHIFTRIGHT:
+		if(!is_type_int(left->datatype)) {
+			print_error_prefix(binexpr->expression.source_position);
+			fprintf(stderr, "ShiftLeft/ShiftRight expressions need an integer "
+			        "type, but type ");
+			print_type(stderr, left->datatype);
+			fprintf(stderr, "is given\n");
+		}
+		exprtype  = left->datatype;
+		lefttype  = exprtype;
+		righttype = type_uint;
+		break;
+
+	/* comparison operation */
+	case BINEXPR_EQUAL:
+	case BINEXPR_NOTEQUAL:
+	case BINEXPR_LESS:
+	case BINEXPR_LESSEQUAL:
+	case BINEXPR_GREATER:
+	case BINEXPR_GREATEREQUAL:
 		exprtype  = type_bool;
 		/* TODO find out greatest common type... */
 		lefttype  = left->datatype;
 		righttype = left->datatype;
-	} else if(binexpr_type == BINEXPR_LAZY_AND ||
-			binexpr_type == BINEXPR_LAZY_OR) {
+		break;
+	case BINEXPR_LAZY_AND:
+	case BINEXPR_LAZY_OR:
 		exprtype  = type_bool;
 		lefttype  = type_bool;
 		righttype = type_bool;
-	} else {
+		break;
+
+	case BINEXPR_INVALID:
 		abort();
 	}
 
@@ -1314,6 +1371,8 @@ void check_negate_expression(unary_expression_t *expression)
 	expression->value = check_expression(expression->value);
 
 	type_t *type = expression->value->datatype;
+	if(type == NULL)
+		return;
 
 	if(!is_arithmetic_type(type)) {
 		print_error_prefix(expression->expression.source_position);
@@ -1332,11 +1391,35 @@ void check_bitwise_not_expression(unary_expression_t *expression)
 	expression->value = check_expression(expression->value);
 
 	type_t *type = expression->value->datatype;
+	if(type == NULL)
+		return;
 
 	if(!is_type_int(type)) {
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "not expression only valid for integer types, "
 		        "but argument has type ");
+		print_type(stderr, type);
+		fprintf(stderr, "\n");
+	}
+
+	expression->expression.datatype = type;
+}
+
+static
+void check_incdec_expression(unary_expression_t *expression)
+{
+	expression->value = check_expression(expression->value);
+
+	type_t *type = expression->value->datatype;
+	if(type == NULL)
+		return;
+
+	if(!is_type_numeric(type)) {
+		print_error_prefix(expression->expression.source_position);
+		fprintf(stderr, "%s expression only valid for numeric types, "
+		        "but argument has type ",
+		        expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
+		        );
 		print_type(stderr, type);
 		fprintf(stderr, "\n");
 	}
@@ -1383,6 +1466,10 @@ void check_unary_expression(unary_expression_t *unary_expression)
 		return;
 	case UNEXPR_NEGATE:
 		check_negate_expression(unary_expression);
+		return;
+	case UNEXPR_INCREMENT:
+	case UNEXPR_DECREMENT:
+		check_incdec_expression(unary_expression);
 		return;
 
 	case UNEXPR_INVALID:
@@ -1736,6 +1823,10 @@ void check_expression_statement(expression_statement_t *statement)
 	int may_be_unused = 0;
 	if(expression->type == EXPR_BINARY &&
 			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN) {
+		may_be_unused = 1;
+	} else if(expression->type == EXPR_UNARY &&
+			(((unary_expression_t*) expression)->type == UNEXPR_INCREMENT ||
+			 ((unary_expression_t*) expression)->type == UNEXPR_DECREMENT)) {
 		may_be_unused = 1;
 	} else if(expression->type == EXPR_CALL) {
 		may_be_unused = 1;

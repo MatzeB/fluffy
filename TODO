@@ -10,6 +10,7 @@ about the right way to do it yet.
   <void*> again...)
 - add possibility to specify default implementations for typeclass functions
 - add static ifs that can examine const expressions and types at compiletime
+- fix ++ and -- expressions
 
 Tasks suitable for contributors, because they don't affect the general design
 or need only design decision in a very specific part of the compiler and/or

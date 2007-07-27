@@ -919,11 +919,13 @@ expression_t *parse_##unexpression_type(unsigned precedence)              \
 	return (expression_t*) unary_expression;                              \
 }
 
-CREATE_UNARY_EXPRESSION_PARSER('-', UNEXPR_NEGATE);
-CREATE_UNARY_EXPRESSION_PARSER('!', UNEXPR_NOT);
-CREATE_UNARY_EXPRESSION_PARSER('~', UNEXPR_BITWISE_NOT);
-CREATE_UNARY_EXPRESSION_PARSER('*', UNEXPR_DEREFERENCE);
-CREATE_UNARY_EXPRESSION_PARSER('&', UNEXPR_TAKE_ADDRESS);
+CREATE_UNARY_EXPRESSION_PARSER('-',          UNEXPR_NEGATE)
+CREATE_UNARY_EXPRESSION_PARSER('!',          UNEXPR_NOT)
+CREATE_UNARY_EXPRESSION_PARSER('~',          UNEXPR_BITWISE_NOT)
+CREATE_UNARY_EXPRESSION_PARSER('*',          UNEXPR_DEREFERENCE)
+CREATE_UNARY_EXPRESSION_PARSER('&',          UNEXPR_TAKE_ADDRESS)
+CREATE_UNARY_EXPRESSION_PARSER(T_PLUSPLUS,   UNEXPR_INCREMENT)
+CREATE_UNARY_EXPRESSION_PARSER(T_MINUSMINUS, UNEXPR_DECREMENT)
 
 #define CREATE_BINEXPR_PARSER(token_type, binexpression_type)    \
 static                                                           \
@@ -995,9 +997,11 @@ void register_expression_parsers(void)
 	register_expression_infix_parser(parse_call_expression,   '(', 30);
 	register_expression_infix_parser(parse_select_expression, '.', 30);
 
-	register_expression_parser(parse_UNEXPR_NEGATE,           '-',    25);
-	register_expression_parser(parse_UNEXPR_NOT,              '!',    25);
-	register_expression_parser(parse_UNEXPR_BITWISE_NOT,      '~',    25);
+	register_expression_parser(parse_UNEXPR_NEGATE,           '-',          25);
+	register_expression_parser(parse_UNEXPR_NOT,              '!',          25);
+	register_expression_parser(parse_UNEXPR_BITWISE_NOT,      '~',          25);
+	register_expression_parser(parse_UNEXPR_INCREMENT,        T_PLUSPLUS,   25);
+	register_expression_parser(parse_UNEXPR_DECREMENT,        T_MINUSMINUS, 25);
 
 	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
 	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);

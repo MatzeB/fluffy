@@ -1257,11 +1257,13 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 		ir_node *store = get_store();
 		ir_node *node, *res;
 		if(mode_is_float(mode)) {
-			node  = new_d_Quot(dbgi, store, left, right, mode);
+			node  = new_d_Quot(dbgi, store, left, right, mode,
+			                   op_pin_state_floats);
 			store = new_d_Proj(dbgi, node, mode_M, pn_Quot_M);
 			res   = new_d_Proj(dbgi, node, mode, pn_Quot_res);
 		} else {
-			node = new_d_Div(dbgi, store, left, right, mode);
+			node = new_d_Div(dbgi, store, left, right, mode,
+			                 op_pin_state_floats);
 			store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
 			res   = new_d_Proj(dbgi, node, mode, pn_Div_res);
 		}
@@ -1273,7 +1275,8 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 	if(btype == BINEXPR_MOD) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
-		ir_node *node  = new_d_Mod(dbgi, store, left, right, mode);
+		ir_node *node  = new_d_Mod(dbgi, store, left, right, mode,
+		                           op_pin_state_floats);
 		
 		store = new_d_Proj(dbgi, node, mode_M, pn_Mod_M);
 		set_store(store);
@@ -1331,34 +1334,40 @@ ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 	return val;
 }
 
-static
-ir_node *not_expression_to_firm(const unary_expression_t *expression)
-{
-	ir_node  *value = expression_to_firm(expression->value);
-	dbg_info *dbgi  = get_dbg_info(&expression->expression.source_position);
-	
-	return new_d_Not(dbgi, value, mode_b);
-}
+typedef ir_node* (*create_unop_node_func) (dbg_info *dbgi, ir_node *value,
+                                           ir_mode *mode);
 
 static
-ir_node *bitwise_not_expression_to_firm(const unary_expression_t *expression)
+ir_node *create_unary_expression_node(const unary_expression_t *expression,
+                                      create_unop_node_func create_func)
 {
 	dbg_info *dbgi  = get_dbg_info(&expression->expression.source_position);
 	type_t   *type  = expression->expression.datatype;
 	ir_mode  *mode  = get_ir_mode(type);
 	ir_node  *value = expression_to_firm(expression->value);
+	ir_node  *res   = create_func(dbgi, value, mode);
 
-	return new_d_Not(dbgi, value, mode);
+	return res;
 }
 
 static
-ir_node *negate_expression_to_firm(const unary_expression_t *expression)
+ir_node *create_inc_node(dbg_info *dbgi, ir_node *value, ir_mode *mode)
 {
-	dbg_info *dbgi  = get_dbg_info(&expression->expression.source_position);
-	ir_mode  *mode  = get_ir_mode(expression->expression.datatype);
-	ir_node  *value = expression_to_firm(expression->value);
+	tarval  *tv_one    = get_tarval_one(mode);
+	ir_node *const_one = new_Const(mode, tv_one);
+	ir_node *res       = new_d_Add(dbgi, value, const_one, mode);
 
-	return new_d_Minus(dbgi, value, mode);
+	return res;
+}
+
+static
+ir_node *create_dec_node(dbg_info *dbgi, ir_node *value, ir_mode *mode)
+{
+	tarval  *tv_one    = get_tarval_one(mode);
+	ir_node *const_one = new_Const(mode, tv_one);
+	ir_node *res       = new_d_Sub(dbgi, value, const_one, mode);
+
+	return res;
 }
 
 static
@@ -1376,12 +1385,15 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 	                             &unary_expression->expression.source_position);
 	case UNEXPR_TAKE_ADDRESS:
 		return expression_addr(unary_expression->value);
-	case UNEXPR_NOT:
-		return not_expression_to_firm(unary_expression);
 	case UNEXPR_BITWISE_NOT:
-		return bitwise_not_expression_to_firm(unary_expression);
+	case UNEXPR_NOT:
+		return create_unary_expression_node(unary_expression, new_d_Not);
 	case UNEXPR_NEGATE:
-		return negate_expression_to_firm(unary_expression);
+		return create_unary_expression_node(unary_expression, new_d_Minus);
+	case UNEXPR_INCREMENT:
+		return create_unary_expression_node(unary_expression, create_inc_node);
+	case UNEXPR_DECREMENT:
+		return create_unary_expression_node(unary_expression, create_dec_node);
 	case UNEXPR_INVALID:
 		abort();
 	}

@@ -32,6 +32,11 @@ void print_type(FILE* out, const type_t *type);
 int is_type_int(const type_t *type);
 
 /**
+ * returns 1 if type contains numbers (float or int)
+ */
+int is_type_numeric(const type_t *type);
+
+/**
  * returns 1 if the type is valid. A type is valid if it contains no unresolved
  * references anymore and is not of TYPE_INVALID.
  */
