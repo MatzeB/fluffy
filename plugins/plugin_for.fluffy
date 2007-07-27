@@ -39,38 +39,36 @@ func lower_for_statement(statement : Statement*) : Statement*:
 	var for_statement <- cast<ForStatement* > statement
 	var loop_body     <- for_statement.loop_body
 
-	/* lower&check semantics of inner expressions and statements */
-	loop_body <- check_statement(loop_body)
-	for_statement.pre_expression \
-		<- check_expression(for_statement.pre_expression)
-	for_statement.loop_control \
-		<- check_expression(for_statement.loop_control)
-	for_statement.step_expression \
-		<- check_expression(for_statement.step_expression)
-
 	var expression        <- allocate<$ExpressionStatement>()
 	expression.expression <- for_statement.pre_expression
 
 	var label             <- allocate<$LabelStatement>()
+	label.declaration.declaration.symbol <- symbol_table_insert("__loop_begin")
 
 	var if_statement            <- allocate<$IfStatement>()
 	if_statement.condition      <- for_statement.loop_control
 	if_statement.true_statement <- loop_body
 
-	var loop_body_block        <- cast<BlockStatement* > loop_body
+	var loop_body_block        <- cast<BlockStatement*> loop_body
 
 	var step_expression        <- allocate<$ExpressionStatement>()
 	step_expression.expression <- for_statement.step_expression
-	block_append(loop_body_block, cast<Statement* > step_expression) 
+	block_append(loop_body_block, cast<Statement*> step_expression) 
 
 	var goto_statement   <- allocate<$GotoStatement>()
 	goto_statement.label <- & label.declaration
-	block_append(loop_body_block, cast<Statement* > goto_statement)
+	block_append(loop_body_block, cast<Statement*> goto_statement)
 
-	var block                 <- allocate<$BlockStatement>()
-	block.statements          <- cast<Statement* > expression
-	expression.statement.next <- cast<Statement* > label
-	label.statement.next      <- cast<Statement* > if_statement
+	var endlabel <- allocate<$LabelStatement>()
+	endlabel.declaration.declaration.symbol <- symbol_table_insert("__loop_end")
+
+	var block <- allocate<$BlockStatement>()
+	block_append(block, cast<Statement*> expression)
+	block_append(block, cast<Statement*> label)
+	block_append(block, cast<Statement*> if_statement)
+	block_append(block, cast<Statement*> endlabel)
+	context_append(&block.context, &label.declaration.declaration)
+	context_append(&block.context, &endlabel.declaration.declaration)
 
 	return cast<Statement* > block
 

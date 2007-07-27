@@ -12,6 +12,7 @@
 
 //#define DEBUG_TYPEVAR_BINDINGS
 //#define ABORT_ON_ERRORS
+//#define DEBUG_ENVIRONMENT
 
 typedef struct environment_entry_t environment_entry_t;
 struct environment_entry_t {
@@ -99,6 +100,10 @@ void environment_push(declaration_t *declaration, const void *context)
 		fprintf(stderr, "this is the location of the previous declaration.\n");
 	}
 
+#ifdef DEBUG_ENVIRONMENT
+	fprintf(stderr, "Push symbol '%s'\n", symbol->string);
+#endif
+
 	entry->up           = symbol->declaration;
 	entry->up_context   = symbol->context;
 	entry->symbol       = symbol;
@@ -136,6 +141,10 @@ void environment_pop_to(size_t new_top)
 				        symbol->string);
 			}
 		}
+
+#ifdef DEBUG_ENVIRONMENT
+		fprintf(stderr, "Pop symbol '%s'\n", symbol->string);
+#endif
 
 		symbol->declaration = entry->up;
 		symbol->context     = entry->up_context;
@@ -494,8 +503,7 @@ expression_t *make_cast(expression_t *from,
                         type_t *dest_type,
                         const source_position_t source_position)
 {
-	assert(from->datatype != dest_type);
-	if(dest_type == NULL)
+	if(dest_type == NULL || from->datatype == dest_type)
 		return from;
 
 	/* TODO: - test which types can be implicitely casted... 
@@ -522,6 +530,18 @@ expression_t *make_cast(expression_t *from,
 			if(p1->points_to != p2->points_to
 					&& dest_type != type_void_ptr
 					&& from->type != EXPR_NULL_POINTER) {
+				implicit_cast_allowed = 0;
+			}
+		} else {
+			implicit_cast_allowed = 0;
+		}
+	} else if(from_type->type == TYPE_ARRAY) {
+		array_type_t *array_type = (array_type_t*) from_type;
+		if(dest_type->type == TYPE_POINTER) {
+			pointer_type_t *pointer_type = (pointer_type_t*) dest_type;
+			/* we can cast to pointer of same type and void* */
+			if(pointer_type->points_to != array_type->element_type &&
+					dest_type != type_void_ptr) {
 				implicit_cast_allowed = 0;
 			}
 		} else {
@@ -638,7 +658,6 @@ void check_binary_expression(binary_expression_t *binexpr)
 		righttype = right->datatype;
 		/* implement address arithmetic */
 		if(lefttype->type == TYPE_POINTER && is_type_int(righttype)) {
-			fprintf(stderr, "address arith\n");
 
 			sizeof_expression_t *sizeof_expr 
 				= allocate_ast(sizeof(sizeof_expr[0]));

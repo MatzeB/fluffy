@@ -116,7 +116,7 @@ struct LabelStatement:
 
 struct GotoStatement:
 	statement       : Statement
-	symbol_t        : Symbol*
+	symbol          : Symbol*
 	label           : LabelDeclaration*
 
 struct IfStatement:
@@ -273,6 +273,8 @@ func extern register_expression_lowerer(function : LowerExpressionFunction*, \
 func extern make_atomic_type(type : int) : Type*
 func extern make_pointer_type(type : Type*) : Type*
 
+func extern symbol_table_insert(string : String) : Symbol*
+
 
 var extern stdout          : FILE*
 var extern stderr          : FILE*
@@ -314,7 +316,8 @@ instance AllocateOnAst GotoStatement:
 instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
 		var res <- allocate_zero<$LabelStatement>()
-		res.statement.type <- STATEMENT_LABEL
+		res.statement.type               <- STATEMENT_LABEL
+		res.declaration.declaration.type <- DECLARATION_LABEL
 		return res
 
 instance AllocateOnAst Constant:
@@ -346,6 +349,10 @@ func assert(expr : bool):
 	if !expr:
 		fputs("Assert failed\n", stderr)
 		abort()
+
+func context_append(context : Context*, declaration : Declaration*):
+	declaration.next     <- context.declarations
+	context.declarations <- declaration
 
 func block_append(block : BlockStatement*, append : Statement*):
 	var statement <- block.statements

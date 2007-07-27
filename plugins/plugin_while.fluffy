@@ -4,6 +4,8 @@ struct WhileStatement:
 	loop_body    : Statement*
 
 var token_while          : int
+var token_continue       : int
+var token_break          : int
 var while_statement_type : unsigned int
 
 instance AllocateOnAst WhileStatement:
@@ -24,18 +26,34 @@ func parse_while_statement() : Statement*:
 
 	statement.loop_body <- parse_statement()
 
-	return cast<Statement* > statement
+	return cast<Statement*> statement
+
+func parse_continue_statement() : Statement*:
+	var statement                       <- allocate<$GotoStatement>()
+	statement.statement.source_position <- source_position
+	statement.symbol                    <- symbol_table_insert("__loop_begin")
+	
+	assert(token.type = token_continue)
+	next_token()
+
+	return cast<Statement*> statement
+
+func parse_break_statement() : Statement*:
+	var statement                       <- allocate<$GotoStatement>()
+	statement.statement.source_position <- source_position
+	statement.symbol                    <- symbol_table_insert("__loop_end")
+	
+	assert(token.type = token_break)
+	next_token()
+
+	return cast<Statement*> statement
 
 func lower_while_statement(statement : Statement*) : Statement*:
-	var while_statement <- cast<WhileStatement* > statement
+	var while_statement <- cast<WhileStatement*> statement
 	var loop_body       <- while_statement.loop_body
 
-	/* lower&check semantics of inner expressions and statements */
-	loop_body <- check_statement(loop_body)
-	while_statement.loop_control \
-		<- check_expression(while_statement.loop_control)
-
 	var label <- allocate<$LabelStatement>()
+	label.declaration.declaration.symbol <- symbol_table_insert("__loop_begin")
 
 	var if_statement            <- allocate<$IfStatement>()
 	if_statement.statement.source_position \
@@ -43,23 +61,33 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	if_statement.condition      <- while_statement.loop_control
 	if_statement.true_statement <- loop_body
 
-	var loop_body_block         <- cast<BlockStatement* > loop_body
+	var loop_body_block         <- cast<BlockStatement*> loop_body
 
 	var goto_statement   <- allocate<$GotoStatement>()
 	goto_statement.statement.source_position \
 		<- loop_body.source_position
 	goto_statement.label <- & label.declaration
-	block_append(loop_body_block, cast<Statement* > goto_statement)
+	block_append(loop_body_block, cast<Statement*> goto_statement)
 
-	var block                 <- allocate<$BlockStatement>()
-	block.statements          <- cast<Statement* > label
-	label.statement.next      <- cast<Statement* > if_statement
+	var endlabel <- allocate<$LabelStatement>()
+	endlabel.declaration.declaration.symbol <- symbol_table_insert("__loop_end")
 
-	return cast<Statement* > block
+	var block <- allocate<$BlockStatement>()
+	block_append(block, cast<Statement*> label)
+	block_append(block, cast<Statement*> if_statement)
+	block_append(block, cast<Statement*> endlabel)
+	context_append(&block.context, &label.declaration.declaration)
+	context_append(&block.context, &endlabel.declaration.declaration)
+
+	return cast<Statement*> block
 
 export init_plugin
 func init_plugin():
 	token_while          <- register_new_token("while")
+	token_continue       <- register_new_token("continue")
+	token_break          <- register_new_token("break")
 	while_statement_type <- register_statement()
 	register_statement_parser(parse_while_statement, token_while)
+	register_statement_parser(parse_continue_statement, token_continue)
+	register_statement_parser(parse_break_statement, token_break)
 	register_statement_lowerer(lower_while_statement, while_statement_type)
