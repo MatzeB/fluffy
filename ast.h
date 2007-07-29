@@ -10,6 +10,7 @@ typedef struct export_t                 export_t;
 
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;
+typedef struct float_const_t            float_const_t;
 typedef struct string_const_t           string_const_t;
 typedef struct bool_const_t             bool_const_t;
 typedef struct null_pointer_t           null_pointer_t;

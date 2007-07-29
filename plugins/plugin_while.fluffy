@@ -6,6 +6,7 @@ struct WhileStatement:
 var token_while          : int
 var token_continue       : int
 var token_break          : int
+var token_loop           : int
 var while_statement_type : unsigned int
 
 instance AllocateOnAst WhileStatement:
@@ -22,6 +23,20 @@ func parse_while_statement() : Statement*:
 	next_token()
 
 	statement.loop_control <- parse_expression()
+	expect(':')
+
+	statement.loop_body <- parse_statement()
+
+	return cast<Statement*> statement
+
+func parse_loop_statement() : Statement*:
+	var statement                       <- allocate<$WhileStatement>()
+	statement.statement.source_position <- source_position
+
+	assert(token.type = token_loop)
+	next_token()
+
+	statement.loop_control <- null
 	expect(':')
 
 	statement.loop_body <- parse_statement()
@@ -55,11 +70,16 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	var label <- allocate<$LabelStatement>()
 	label.declaration.declaration.symbol <- symbol_table_insert("__loop_begin")
 
-	var if_statement            <- allocate<$IfStatement>()
-	if_statement.statement.source_position \
-		<- while_statement.statement.source_position
-	if_statement.condition      <- while_statement.loop_control
-	if_statement.true_statement <- loop_body
+	var body
+	if while_statement.loop_control /= null:
+		var if_statement            <- allocate<$IfStatement>()
+		if_statement.statement.source_position \
+			<- while_statement.statement.source_position
+		if_statement.condition      <- while_statement.loop_control
+		if_statement.true_statement <- loop_body
+		body                        <- cast<Statement*> if_statement
+	else:
+		body <- loop_body 
 
 	var loop_body_block         <- cast<BlockStatement*> loop_body
 
@@ -74,7 +94,7 @@ func lower_while_statement(statement : Statement*) : Statement*:
 
 	var block <- allocate<$BlockStatement>()
 	block_append(block, cast<Statement*> label)
-	block_append(block, cast<Statement*> if_statement)
+	block_append(block, body)
 	block_append(block, cast<Statement*> endlabel)
 	context_append(&block.context, &label.declaration.declaration)
 	context_append(&block.context, &endlabel.declaration.declaration)
@@ -86,8 +106,10 @@ func init_plugin():
 	token_while          <- register_new_token("while")
 	token_continue       <- register_new_token("continue")
 	token_break          <- register_new_token("break")
+	token_loop           <- register_new_token("loop")
 	while_statement_type <- register_statement()
 	register_statement_parser(parse_while_statement, token_while)
+	register_statement_parser(parse_loop_statement, token_loop)
 	register_statement_parser(parse_continue_statement, token_continue)
 	register_statement_parser(parse_break_statement, token_break)
 	register_statement_lowerer(lower_while_statement, while_statement_type)

@@ -21,3 +21,4 @@ func extern fprintf(stream : FILE*, format : String, ...) : int
 func extern sprintf(str : String, format : String, ...) : int
 func extern snprintf(std : String, size : size_t, format : String, ...) : int
 
+const EOF <- -1

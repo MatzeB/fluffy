@@ -11,7 +11,7 @@ all: $(PLUGINS)
 	gcc -shared $*.s $(LFLAGS) -o $*.so
 
 %.s: %.fluffy api.fluffy
-	../fluffy $(FLUFFY_FLAGS) -S api.fluffy $*.fluffy -o $*.s
+	../fluffy --time $(FLUFFY_FLAGS) -S api.fluffy $*.fluffy -o $*.s
 
 plugin_sql.s: plugin_while.so
 

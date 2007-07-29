@@ -20,7 +20,7 @@ void load_plugin(const char *filename)
 #ifdef _WIN32
 	// TODO...
 #else
-	printf("Opening plugin '%s'...\n", filename);
+	//printf("Opening plugin '%s'...\n", filename);
 
 	void *handle = dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
 	if(handle == NULL) {

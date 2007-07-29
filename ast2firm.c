@@ -9,7 +9,7 @@
 
 #include "ast_t.h"
 #include "type_t.h"
-#include "semantic.h"
+#include "semantic_t.h"
 #include "mangle_type.h"
 #include "adt/array.h"
 #include "adt/obst.h"
@@ -64,8 +64,11 @@ void context2firm(const context_t *context);
 
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
-	fprintf(stderr, "Warning: variable '%s' might be used uninitialized\n",
-			value_numbers[pos]->declaration.symbol->string);
+	const declaration_t *declaration = & value_numbers[pos]->declaration;
+
+	print_warning_prefix(declaration->source_position);
+	fprintf(stderr, "variable '%s' might be used uninitialized\n",
+			declaration->symbol->string);
 	return new_r_Unknown(irg, mode);
 }
 
@@ -851,6 +854,16 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 }
 
 static
+ir_node *float_const_to_firm(const float_const_t *cnst)
+{
+	ir_mode  *mode = get_ir_mode(cnst->expression.datatype);
+	tarval   *tv   = new_tarval_from_double(cnst->value, mode);
+	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
+
+	return new_d_Const(dbgi, mode, tv);
+}
+
+static
 ir_node *bool_const_to_firm(const bool_const_t *cnst)
 {
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
@@ -1000,7 +1013,8 @@ ir_node *variable_addr(variable_declaration_t *variable)
 }
 
 static
-ir_node *variable_to_firm(variable_declaration_t *variable)
+ir_node *variable_to_firm(variable_declaration_t *variable,
+                          const source_position_t *source_position)
 {
 	if(variable->is_global || variable->needs_entity) {
 		ir_node *addr = variable_addr(variable);
@@ -1012,15 +1026,15 @@ ir_node *variable_to_firm(variable_declaration_t *variable)
 			return addr;
 		}
 
-		return load_from_expression_addr(type, addr,
-		                                &variable->declaration.source_position);
+		return load_from_expression_addr(type, addr, source_position);
 	} else {
 		ir_mode *mode = get_ir_mode(variable->type);
 
 		assert(variable->value_number < get_irg_n_locs(current_ir_graph));
 		value_numbers[variable->value_number] = variable;
 
-		return get_value(variable->value_number, mode);
+		dbg_info *dbgi = get_dbg_info(source_position);
+		return get_d_value(dbgi, variable->value_number, mode);
 	}
 }
 
@@ -1088,15 +1102,12 @@ ir_node *expression_addr(const expression_t *expression)
 }
 
 static
-ir_node *assign_expression_to_firm(const binary_expression_t *assign)
+void firm_assign(expression_t *dest_expr, ir_node *value,
+                 const source_position_t *source_position)
 {
-	expression_t *left  = assign->left;
-	expression_t *right = assign->right;
-	ir_node      *value = expression_to_firm(right);
-
-	if(left->type == EXPR_REFERENCE) {
+	if(dest_expr->type == EXPR_REFERENCE) {
 		const reference_expression_t *ref 
-			= (const reference_expression_t*) left;
+			= (const reference_expression_t*) dest_expr;
 		declaration_t *declaration = ref->declaration;
 
 		if(declaration->type == DECLARATION_VARIABLE) {
@@ -1106,15 +1117,15 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 			if(!variable->is_global && !variable->needs_entity) {
 				value_numbers[variable->value_number] = variable;
 				set_value(variable->value_number, value);
-				return value;
+				return;
 			}
 		}
 	}
 
-	ir_node  *addr  = expression_addr(left);
+	ir_node  *addr  = expression_addr(dest_expr);
 	ir_node  *store = get_store();
-	dbg_info *dbgi  = get_dbg_info(&assign->expression.source_position);
-	type_t   *type  = left->datatype;
+	dbg_info *dbgi  = get_dbg_info(source_position);
+	type_t   *type  = dest_expr->datatype;
 	ir_node  *result;
 
 	if(type->type == TYPE_COMPOUND_STRUCT 
@@ -1129,7 +1140,17 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 		ir_node  *mem = new_d_Proj(dbgi, result, mode_M, pn_Store_M);
 		set_store(mem);
 	}
-	
+}
+
+static
+ir_node *assign_expression_to_firm(const binary_expression_t *assign)
+{
+	expression_t *left  = assign->left;
+	expression_t *right = assign->right;
+	ir_node      *value = expression_to_firm(right);
+
+	firm_assign(left, value, & assign->expression.source_position);
+
 	return value;
 }
 
@@ -1351,26 +1372,6 @@ ir_node *create_unary_expression_node(const unary_expression_t *expression,
 }
 
 static
-ir_node *create_inc_node(dbg_info *dbgi, ir_node *value, ir_mode *mode)
-{
-	tarval  *tv_one    = get_tarval_one(mode);
-	ir_node *const_one = new_Const(mode, tv_one);
-	ir_node *res       = new_d_Add(dbgi, value, const_one, mode);
-
-	return res;
-}
-
-static
-ir_node *create_dec_node(dbg_info *dbgi, ir_node *value, ir_mode *mode)
-{
-	tarval  *tv_one    = get_tarval_one(mode);
-	ir_node *const_one = new_Const(mode, tv_one);
-	ir_node *res       = new_d_Sub(dbgi, value, const_one, mode);
-
-	return res;
-}
-
-static
 ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 {
 	ir_node *addr;
@@ -1391,9 +1392,8 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 	case UNEXPR_NEGATE:
 		return create_unary_expression_node(unary_expression, new_d_Minus);
 	case UNEXPR_INCREMENT:
-		return create_unary_expression_node(unary_expression, create_inc_node);
 	case UNEXPR_DECREMENT:
-		return create_unary_expression_node(unary_expression, create_dec_node);
+		panic("inc/dec expression not lowered");
 	case UNEXPR_INVALID:
 		abort();
 	}
@@ -1460,20 +1460,22 @@ ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 
 static
 ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
-                                  type_argument_t *type_arguments)
+                                  type_argument_t *type_arguments,
+								  const source_position_t *source_position)
 {
-	/* TODO produce dbg_info */
+	dbg_info  *dbgi   = get_dbg_info(source_position);
 	ir_entity *entity = assure_instance(method, symbol, type_arguments);
 
-	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
-	                                 symconst_addr_ent);
+	ir_node *symconst = new_d_SymConst(dbgi, (union symconst_symbol) entity,
+	                                   symconst_addr_ent);
 
 	return symconst;
 }
 
 static
 ir_node *concept_method_reference_to_firm(concept_method_t *method,
-                                            type_argument_t *type_arguments)
+                                          type_argument_t *type_arguments,
+                                       const source_position_t *source_position)
 {
 	concept_t *concept = method->concept;
 
@@ -1500,10 +1502,10 @@ ir_node *concept_method_reference_to_firm(concept_method_t *method,
 		return NULL;
 	}
 
-	/* TODO: produce dbg_info */
+	dbg_info  *dbgi     = get_dbg_info(source_position);
 	ir_entity *entity   = get_concept_method_instance_entity(method_instance);
-	ir_node   *symconst = new_SymConst((union symconst_symbol) entity,
-	                                   symconst_addr_ent);
+	ir_node   *symconst = new_d_SymConst(dbgi, (union symconst_symbol) entity,
+	                                     symconst_addr_ent);
 
 	pop_type_variable_bindings(old_top);
 	return symconst;
@@ -1630,7 +1632,8 @@ ir_node *func_expression_to_firm(func_expression_t *expression)
 
 static
 ir_node *declaration_reference_to_firm(declaration_t *declaration,
-                                       type_argument_t *type_arguments)
+                                       type_argument_t *type_arguments,
+									   const source_position_t *source_position)
 {
 	method_declaration_t *method_declaration;
 
@@ -1638,17 +1641,20 @@ ir_node *declaration_reference_to_firm(declaration_t *declaration,
 	case DECLARATION_METHOD:
 		method_declaration = (method_declaration_t*) declaration;
 		return method_reference_to_firm(&method_declaration->method,
-		                                declaration->symbol, type_arguments);
+		                                declaration->symbol, type_arguments,
+										source_position);
 	case DECLARATION_CONCEPT_METHOD:
 		return concept_method_reference_to_firm(
-				(concept_method_t*) declaration, type_arguments);
+				(concept_method_t*) declaration, type_arguments,
+		        source_position);
 	case DECLARATION_METHOD_PARAMETER:
 		return method_parameter_reference_to_firm(
 				(method_parameter_t*) declaration);
 	case DECLARATION_CONSTANT:
 		return constant_reference_to_firm((constant_t*) declaration);
 	case DECLARATION_VARIABLE:
-		return variable_to_firm((variable_declaration_t*) declaration);
+		return variable_to_firm((variable_declaration_t*) declaration,
+		                        source_position);
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 	case DECLARATION_TYPEALIAS:
@@ -1666,7 +1672,8 @@ ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 {
 	declaration_t   *declaration    = reference->declaration;
 	type_argument_t *type_arguments = reference->type_arguments;
-	return declaration_reference_to_firm(declaration, type_arguments);
+	return declaration_reference_to_firm(declaration, type_arguments,
+	                                    &reference->expression.source_position);
 }
 
 static
@@ -1677,6 +1684,8 @@ ir_node *expression_to_firm(expression_t *expression)
 	switch(expression->type) {
 	case EXPR_INT_CONST:
 		return int_const_to_firm((const int_const_t*) expression);
+	case EXPR_FLOAT_CONST:
+		return float_const_to_firm((const float_const_t*) expression);
 	case EXPR_STRING_CONST:
 		return string_const_to_firm((const string_const_t*) expression);
 	case EXPR_BOOL_CONST:

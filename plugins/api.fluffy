@@ -189,13 +189,14 @@ const ATOMIC_TYPE_ULONG            <- 9
 
 const EXPR_INVALID                 <- 0
 const EXPR_INT_CONST               <- 1
-const EXPR_BOOL_CONST              <- 2
-const EXPR_STRING_CONST            <- 3
-const EXPR_NULL_POINTER            <- 4
-const EXPR_REFERENCE               <- 5
-const EXPR_CALL                    <- 6
-const EXPR_UNARY                   <- 7
-const EXPR_BINARY                  <- 8
+const EXPR_FLOAT_CONST             <- 2
+const EXPR_BOOL_CONST              <- 3
+const EXPR_STRING_CONST            <- 4
+const EXPR_NULL_POINTER            <- 5
+const EXPR_REFERENCE               <- 6
+const EXPR_CALL                    <- 7
+const EXPR_UNARY                   <- 8
+const EXPR_BINARY                  <- 9
 
 const BINEXPR_INVALID              <- 0
 const BINEXPR_ASSIGN               <- 1

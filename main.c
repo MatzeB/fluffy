@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
 
-#define WITH_LIBCORE
 #include <libfirm/firm.h>
 #include <libfirm/be.h>
 
@@ -29,6 +29,7 @@
 static int dump_graphs = 0;
 static int dump_asts   = 0;
 static int verbose     = 0;
+static int show_timers = 0;
 
 typedef enum compile_mode_t {
 	Compile,
@@ -97,6 +98,29 @@ void dump(const char *suffix)
 	if(!dump_graphs)
 		return;
 	dump_ir_block_graph(current_ir_graph, suffix);
+}
+
+static struct timeval tv;
+
+static
+void start_timer()
+{
+	gettimeofday(&tv, NULL);
+}
+
+static
+void stop_report_timer(const char *prefix)
+{
+	struct timeval tv2;
+	gettimeofday(&tv2, NULL);
+
+	if(!show_timers)
+		return;
+
+	long long diff = (tv2.tv_sec - tv.tv_sec) * 1000000;
+	diff += tv2.tv_usec - tv.tv_usec;
+
+	fprintf(stderr, "%s: %ld ms\n", prefix, (long) (diff / 1000));
 }
 
 static
@@ -297,14 +321,18 @@ void check_semantic(void)
 }
 
 static
-void emit(const char *outname)
+void create_firmgraph()
 {
-	char outfname[4096];
-
 	ast2firm();
     lower_highlevel();
 
 	optimize();
+}
+
+static
+void emit(const char *outname)
+{
+	char outfname[4096];
 
 	const char *fname = namespaces->filename;
 	if(outname == NULL) {
@@ -359,6 +387,7 @@ int main(int argc, const char **argv)
 	compile_mode_t mode = CompileAndLink;
 	int parsed = 0;
 
+	start_timer();
 	for(int i = 1; i < argc; ++i) {
 		const char *arg = argv[i];
 		if(strcmp(arg, "-o") == 0) {
@@ -378,6 +407,8 @@ int main(int argc, const char **argv)
 		} else if(strcmp(arg, "--help") == 0) {
 			usage(argv[0]);
 			return 0;
+		} else if(strcmp(arg, "--time") == 0) {
+			show_timers = 1;
 		} else if(strcmp(arg, "-S") == 0) {
 			mode = Compile;
 		} else if(strcmp(arg, "-v") == 0) {
@@ -409,8 +440,17 @@ int main(int argc, const char **argv)
 		fprintf(stderr, "Error: no input files specified\n");
 		return 0;
 	}
+	stop_report_timer("parsing");
 
+	start_timer();
 	check_semantic();
+	stop_report_timer("semantic");
+
+	start_timer();
+	create_firmgraph();
+	stop_report_timer("create&optimize firmgraph");
+
+	start_timer();
 	const char *asmname;
 	if(mode == Compile) {
 		asmname = outname;
@@ -418,8 +458,12 @@ int main(int argc, const char **argv)
 		asmname = TMPDIR "fluffy.s";
 	}
 	emit(asmname);
+	stop_report_timer("codegeneration");
+
 	if(mode == CompileAndLink) {
+		start_timer();
 		link(asmname, outname);
+		stop_report_timer("linking");
 	}
 
 	exit_ast2firm();

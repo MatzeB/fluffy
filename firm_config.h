@@ -1,0 +1,1 @@
+#define WITH_LIBCORE

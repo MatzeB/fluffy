@@ -621,6 +621,7 @@ void lexer_next_token(token_t *token)
 		if(c == '\\') {
 			token->type       = T_INTEGER;
 			token->v.intvalue = parse_escape_sequence();
+			next_char();
 		} else {
 			if(c == '\n') {
 				parse_error("newline while parsing character constant");

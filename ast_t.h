@@ -97,6 +97,7 @@ struct method_declaration_t {
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,
+	EXPR_FLOAT_CONST,
 	EXPR_BOOL_CONST,
 	EXPR_STRING_CONST,
 	EXPR_NULL_POINTER,
@@ -128,6 +129,11 @@ struct bool_const_t {
 struct int_const_t {
 	expression_t  expression;
 	int           value;
+};
+
+struct float_const_t {
+	expression_t  expression;
+	double        value;
 };
 
 struct string_const_t {

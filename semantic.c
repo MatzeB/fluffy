@@ -11,7 +11,7 @@
 #include "adt/error.h"
 
 //#define DEBUG_TYPEVAR_BINDINGS
-//#define ABORT_ON_ERRORS
+#define ABORT_ON_ERRORS
 //#define DEBUG_ENVIRONMENT
 
 typedef struct environment_entry_t environment_entry_t;
@@ -658,13 +658,14 @@ void check_binary_expression(binary_expression_t *binexpr)
 		righttype = right->datatype;
 		/* implement address arithmetic */
 		if(lefttype->type == TYPE_POINTER && is_type_int(righttype)) {
+			pointer_type_t *pointer_type = (pointer_type_t*) lefttype;
 
 			sizeof_expression_t *sizeof_expr 
 				= allocate_ast(sizeof(sizeof_expr[0]));
 			memset(sizeof_expr, 0, sizeof(sizeof_expr[0]));
 			sizeof_expr->expression.type     = EXPR_SIZEOF;
 			sizeof_expr->expression.datatype = type_uint;
-			sizeof_expr->type                = exprtype;
+			sizeof_expr->type                = pointer_type->points_to;
 
 			binary_expression_t *mulexpr = allocate_ast(sizeof(mulexpr[0]));
 			memset(mulexpr, 0, sizeof(mulexpr[0]));
@@ -1425,25 +1426,90 @@ void check_bitwise_not_expression(unary_expression_t *expression)
 }
 
 static
-void check_incdec_expression(unary_expression_t *expression)
+expression_t *lower_incdec_expression(unary_expression_t *expression)
 {
-	expression->value = check_expression(expression->value);
+	expression_t *value = check_expression(expression->value);
+	type_t       *type  = value->datatype;
 
-	type_t *type = expression->value->datatype;
-	if(type == NULL)
-		return;
-
-	if(!is_type_numeric(type)) {
+	if(!is_type_numeric(type) && type->type != TYPE_POINTER) {
 		print_error_prefix(expression->expression.source_position);
-		fprintf(stderr, "%s expression only valid for numeric types, "
-		        "but argument has type ",
+		fprintf(stderr, "%s expression only valid for numeric or pointer types "
+				"but argument has type ",
 		        expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
 		        );
 		print_type(stderr, type);
 		fprintf(stderr, "\n");
 	}
+	if(!is_lvalue(value)) {
+		print_error_prefix(expression->expression.source_position);
+		fprintf(stderr, "%s expression needs an lvalue\n",
+	            expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
+		       );
+	}
 
-	expression->expression.datatype = type;
+	int need_int_const = 1;
+	if(type->type == TYPE_ATOMIC) {
+		atomic_type_t *atomic_type = (atomic_type_t*) type;
+		if(atomic_type->atype == ATOMIC_TYPE_FLOAT ||
+				atomic_type->atype == ATOMIC_TYPE_DOUBLE) {
+			need_int_const = 0;
+		}
+	}
+
+	expression_t *constant;
+	if(need_int_const) {
+		int_const_t *iconst = allocate_ast(sizeof(iconst[0]));
+		memset(iconst, 0, sizeof(iconst[0]));
+		iconst->expression.type     = EXPR_INT_CONST;
+		iconst->expression.datatype = type;
+		iconst->value               = 1;
+		constant                    = (expression_t*) iconst;
+	} else {
+		float_const_t *fconst = allocate_ast(sizeof(fconst[0]));
+		memset(fconst, 0, sizeof(fconst[0]));
+		fconst->expression.type     = EXPR_FLOAT_CONST;
+		fconst->expression.datatype = type;
+		fconst->value               = 1.0;
+		constant                    = (expression_t*) fconst;
+	}
+
+	binary_expression_t *add = allocate_ast(sizeof(add[0]));
+	memset(add, 0, sizeof(add[0]));
+	add->expression.type     = EXPR_BINARY;
+	add->expression.datatype = type;
+	if(expression->type == UNEXPR_INCREMENT) {
+		add->type = BINEXPR_ADD;
+	} else {
+		add->type = BINEXPR_SUB;
+	}
+	add->left  = value;
+	add->right = constant;
+
+	binary_expression_t *assign = allocate_ast(sizeof(assign[0]));
+	memset(assign, 0, sizeof(assign[0]));
+	assign->expression.type     = EXPR_BINARY;
+	assign->expression.datatype = type;
+	assign->type                = BINEXPR_ASSIGN;
+	assign->left                = value;
+	assign->right               = (expression_t*) add;
+
+	return (expression_t*) assign;
+}
+
+static
+expression_t *lower_unary_expression(expression_t *expression)
+{
+	assert(expression->type == EXPR_UNARY);
+	unary_expression_t *unary_expression = (unary_expression_t*) expression;
+	switch(unary_expression->type) {
+	case UNEXPR_INCREMENT:
+	case UNEXPR_DECREMENT:
+		return lower_incdec_expression(unary_expression);
+	default:
+		break;
+	}
+
+	return expression;
 }
 
 static
@@ -1488,8 +1554,7 @@ void check_unary_expression(unary_expression_t *unary_expression)
 		return;
 	case UNEXPR_INCREMENT:
 	case UNEXPR_DECREMENT:
-		check_incdec_expression(unary_expression);
-		return;
+		panic("increment/decrement not lowered");
 
 	case UNEXPR_INVALID:
 		abort();
@@ -1665,6 +1730,9 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_INT_CONST:
 		expression->datatype = type_int;
 		break;
+	case EXPR_FLOAT_CONST:
+		expression->datatype = type_double;
+		break;
 	case EXPR_BOOL_CONST:
 		expression->datatype = type_bool;
 		break;
@@ -1752,9 +1820,12 @@ void check_if_statement(if_statement_t *statement)
 	statement->condition    = check_expression(statement->condition);
 	expression_t *condition = statement->condition;
 
+	assert(condition != NULL);
 	if(condition->datatype != type_bool) {
 		error_at(statement->statement.source_position,
-		         "if condition needs to be of boolean type\n");
+		         "if condition needs to be boolean but has type ");
+		print_type(stderr, condition->datatype);
+		fprintf(stderr, "\n");
 		return;
 	}
 
@@ -2399,6 +2470,8 @@ void init_semantic_module(void)
 {
 	statement_lowerers  = NEW_ARR_F(lower_statement_function, 0);
 	expression_lowerers = NEW_ARR_F(lower_expression_function, 0);
+
+	register_expression_lowerer(lower_unary_expression, EXPR_UNARY);
 }
 
 void exit_semantic_module(void)
