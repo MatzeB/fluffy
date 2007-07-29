@@ -11,7 +11,7 @@
 #include "adt/error.h"
 
 //#define DEBUG_TYPEVAR_BINDINGS
-#define ABORT_ON_ERRORS
+//#define ABORT_ON_ERRORS
 //#define DEBUG_ENVIRONMENT
 
 typedef struct environment_entry_t environment_entry_t;
@@ -254,7 +254,14 @@ void normalize_compound_entries(compound_type_t *type)
 {
 	compound_entry_t *entry = type->entries;
 	while(entry != NULL) {
-		entry->type = normalize_type(entry->type);
+		type_t *type = entry->type;
+		if(type->type == TYPE_COMPOUND_STRUCT
+				|| type->type == TYPE_COMPOUND_UNION
+				|| type->type == TYPE_COMPOUND_CLASS) {
+			compound_type_t *compound_type = (compound_type_t*) type;
+			normalize_compound_entries(compound_type);
+		}
+		entry->type = normalize_type(type);
 
 		entry = entry->next;
 	}
@@ -263,7 +270,9 @@ void normalize_compound_entries(compound_type_t *type)
 static
 type_t *normalize_compound_type(compound_type_t *type)
 {
-	return typehash_insert((type_t*) type);
+	type_t *result = typehash_insert((type_t*) type);
+
+	return result;
 }
 
 static
@@ -305,35 +314,6 @@ type_t *normalize_type(type_t *type)
 
 
 
-static
-void check_local_variable_type(variable_declaration_t *declaration,
-                               type_t *type)
-{
-	if(type == NULL)
-		return;
-
-#if 0
-	if(type->type != TYPE_ATOMIC && type->type != TYPE_POINTER
-			&& type->type != TYPE_COMPOUND_STRUCT
-			&& type->type != TYPE_COMPOUND_UNION) {
-		if(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
-			/* TODO: we need to be able to handle all types in local vars... */
-			type_reference_t *ref           = (type_reference_t*) type;
-			type_variable_t  *type_variable = ref->r.type_variable;
-			print_warning_prefix(declaration->declaration.source_position);
-			fprintf(stderr, "can't decide whether type variable '%s' is atomic "
-			        "or pointer.\n", type_variable->declaration.symbol->string);
-			return;
-		}
-		print_error_prefix(declaration->declaration.source_position);
-		fprintf(stderr, "only atomic or pointer types allowed for local "
-		        "variables (at variable '%s')\n",
-		        declaration->declaration.symbol->string);
-	}
-#else
-	(void) declaration;
-#endif
-}
 
 static
 type_t *check_reference(declaration_t *declaration,
@@ -485,8 +465,6 @@ void check_assign_expression(binary_expression_t *assign)
 				variable->type = right->datatype;
 				left->datatype = right->datatype;
 			}
-
-			check_local_variable_type(variable, right->datatype);
 
 			/* the reference expression increased the ref pointer, but
 			 * making an assignment is not reading the value */
@@ -1895,8 +1873,6 @@ void check_variable_declaration(variable_declaration_statement_t *statement)
 	if(statement->declaration.type != NULL) {
 		statement->declaration.type 
 			= normalize_type(statement->declaration.type);
-		check_local_variable_type(&statement->declaration,
-		                          statement->declaration.type);
 	}
 }
 

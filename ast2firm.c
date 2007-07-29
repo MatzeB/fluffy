@@ -370,7 +370,15 @@ ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 static
 ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
-	ir_type *ir_type = new_type_struct(unique_ident(type->symbol->string));
+	symbol_t *symbol = type->symbol;
+	ident    *id;
+	if(symbol != NULL) {
+		id = unique_ident(symbol->string);
+	} else {
+		id = unique_ident("__anonymous_struct");
+	}
+	ir_type *ir_type = new_type_struct(id);
+
 	type->type.firm_type = ir_type;
 
 	int align_all = 1;
@@ -412,8 +420,13 @@ ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 static
 ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 {
-	symbol_t *symbol  = type->symbol;
-	ident    *id      = unique_ident(symbol->string);
+	symbol_t *symbol = type->symbol;
+	ident    *id;
+	if(symbol != NULL) {
+		id = unique_ident(symbol->string);
+	} else {
+		id = unique_ident("__anonymous_union");
+	}
 	ir_type  *ir_type = new_type_union(id);
 
 	type->type.firm_type = ir_type;
