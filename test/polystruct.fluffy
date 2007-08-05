@@ -1,0 +1,49 @@
+typealias String <- byte*
+
+func extern malloc(size : unsigned int) : void*
+func extern printf(format : String, ...) : int
+func extern puts(val : String)
+func extern strcmp(s1 : String, s2 : String) : int
+
+concept Printable<T>:
+	func print(obj : T)
+
+instance Printable String:
+	func print(obj : String):
+		puts(obj)
+
+instance Printable int:
+	func print(obj : int):
+		printf("%d\n", obj)
+
+
+struct ListElement<T>:
+	val  : T
+	next : ListElement<T>*
+
+struct List<T>:
+	first : ListElement<T>*
+
+func AddToList<T>(list : List<T>*, element : ListElement<T>*):
+	element.next <- list.first
+	list.first   <- element
+
+func PrintList<T : Printable>(list : List<T>*):
+	var elem <- list.first
+	while elem /= null:
+		print(elem.val)
+		elem <- elem.next
+
+func main() : int:
+	var l : List<String>
+	l.first <- null
+	var e1 : ListElement<String>
+	e1.val <- "Hallo"
+	var e2 : ListElement<String>
+	e2.val <- "Welt"
+	AddToList(&l, &e1)
+	AddToList(&l, &e2)
+	PrintList(&l)
+	return 0
+export main
+

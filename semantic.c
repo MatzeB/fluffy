@@ -169,10 +169,24 @@ static
 type_t *normalize_type(type_t *type);
 
 static
+void normalize_type_arguments(type_argument_t *type_arguments)
+{
+	/* normalize type arguments */
+	type_argument_t *type_argument = type_arguments;
+	while(type_argument != NULL) {
+		type_argument->type = normalize_type(type_argument->type);
+
+		type_argument = type_argument->next;
+	}
+}
+
+static
 type_t *resolve_type_reference(type_reference_t *type_ref)
 {
-	symbol_t            *symbol      = type_ref->symbol;
-	declaration_t       *declaration = symbol->declaration;
+	normalize_type_arguments(type_ref->type_arguments);
+
+	symbol_t      *symbol      = type_ref->symbol;
+	declaration_t *declaration = symbol->declaration;
 	if(declaration == NULL) {
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "can't resolve type: symbol '%s' is unknown\n",
@@ -189,8 +203,8 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 			        "a concrete type...\n");
 			return type_variable->current_type;
 		}
-		type_ref->type.type       = TYPE_REFERENCE_TYPE_VARIABLE;
-		type_ref->r.type_variable = type_variable;
+		type_ref->type.type     = TYPE_REFERENCE_TYPE_VARIABLE;
+		type_ref->type_variable = type_variable;
 		return typehash_insert((type_t*) type_ref);
 	}
 
@@ -204,13 +218,63 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 	typealias_t *typealias = (typealias_t*) declaration;
 	typealias->type        = normalize_type(typealias->type);
 
-	return typealias->type;
+	type_t          *type = typealias->type;
+	type_variable_t *type_parameters = NULL;
+	compound_type_t *compound_type   = NULL;
+	if(type->type == TYPE_COMPOUND_STRUCT || type->type == TYPE_COMPOUND_UNION
+			|| type->type == TYPE_COMPOUND_CLASS) {
+		compound_type   = (compound_type_t*) type;
+		type_parameters = compound_type->type_parameters;
+	}
+
+	/* check that type arguments match type parameters */
+	type_argument_t *type_arguments = type_ref->type_arguments;
+	type_variable_t *type_parameter = type_parameters;
+	type_argument_t *type_argument  = type_arguments;
+	while(type_parameter != NULL) {
+		if(type_argument == NULL) {
+			print_error_prefix(type_ref->source_position);
+			fprintf(stderr, "too few type parameters specified for type ");
+			print_type(stderr, type);
+			fprintf(stderr, "\n");
+			break;
+		}
+		type_parameter = type_parameter->next;
+		type_argument  = type_argument->next;
+	}
+	if(type_argument != NULL) {
+		print_error_prefix(type_ref->source_position);
+		if(type_parameters == NULL) {
+			fprintf(stderr, "type ");
+		} else {
+			fprintf(stderr, "too many type parameters specified for ");
+		}
+		print_type(stderr, type);
+		fprintf(stderr, " takes no type parameters\n");
+	}
+
+	if(type_parameters != NULL && type_argument == NULL
+			&& type_argument == NULL) {
+		printf("constructing bind\n");
+		bind_typevariables_type_t *bind_typevariables
+			= obstack_alloc(type_obst, sizeof(bind_typevariables[0]));
+		memset(bind_typevariables, 0, sizeof(bind_typevariables[0]));
+
+		bind_typevariables->type.type        = TYPE_BIND_TYPEVARIABLES;
+		bind_typevariables->type_arguments   = type_arguments;
+		assert(compound_type != NULL);
+		bind_typevariables->polymorphic_type = compound_type;
+
+		type = (type_t*) bind_typevariables;
+	}
+
+	return type;
 }
 
 static
 type_t *resolve_type_reference_type_var(type_reference_t *type_ref)
 {
-	type_variable_t *type_variable = type_ref->r.type_variable;
+	type_variable_t *type_variable = type_ref->type_variable;
 	if(type_variable->current_type != NULL) {
 		return normalize_type(type_variable->current_type);
 	}
@@ -250,8 +314,12 @@ type_t *normalize_method_type(method_type_t *method_type)
 }
 
 static
-void normalize_compound_entries(compound_type_t *type)
+void check_compound_type(compound_type_t *type)
 {
+	int old_top = environment_top();
+
+	check_and_push_context(&type->context);
+
 	compound_entry_t *entry = type->entries;
 	while(entry != NULL) {
 		type_t *type = entry->type;
@@ -259,12 +327,14 @@ void normalize_compound_entries(compound_type_t *type)
 				|| type->type == TYPE_COMPOUND_UNION
 				|| type->type == TYPE_COMPOUND_CLASS) {
 			compound_type_t *compound_type = (compound_type_t*) type;
-			normalize_compound_entries(compound_type);
+			check_compound_type(compound_type);
 		}
 		entry->type = normalize_type(type);
 
 		entry = entry->next;
 	}
+
+	environment_pop_to(old_top);
 }
 
 static
@@ -272,6 +342,20 @@ type_t *normalize_compound_type(compound_type_t *type)
 {
 	type_t *result = typehash_insert((type_t*) type);
 
+	return result;
+}
+
+static
+type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
+{
+	type_t *polymorphic_type = (type_t*) type->polymorphic_type;
+	polymorphic_type = normalize_type(polymorphic_type);
+	assert(polymorphic_type->type == TYPE_COMPOUND_STRUCT ||
+			polymorphic_type->type == TYPE_COMPOUND_UNION ||
+			polymorphic_type->type == TYPE_COMPOUND_CLASS);
+	type->polymorphic_type = (compound_type_t*) polymorphic_type;
+
+	type_t *result = typehash_insert((type_t*) type);
 	return result;
 }
 
@@ -307,6 +391,9 @@ type_t *normalize_type(type_t *type)
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		return normalize_compound_type((compound_type_t*) type);
+
+	case TYPE_BIND_TYPEVARIABLES:
+		return normalize_bind_typevariables((bind_typevariables_type_t*) type);
 	}
 
 	panic("Unknown type found");
@@ -387,13 +474,7 @@ void check_reference_expression(reference_expression_t *ref)
 		return;
 	}
 
-	/* normalize type arguments */
-	type_argument_t *type_argument = ref->type_arguments;
-	while(type_argument != NULL) {
-		type_argument->type = normalize_type(type_argument->type);
-
-		type_argument = type_argument->next;
-	}
+	normalize_type_arguments(ref->type_arguments);
 
 	ref->declaration         = declaration;
 	type_t *type             = check_reference(declaration,
@@ -849,7 +930,7 @@ void resolve_concept_method_instance(reference_expression_t *reference)
 
 		if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *type_ref      = (type_reference_t*) current_type;
-			type_variable_t  *type_variable = type_ref->r.type_variable;
+			type_variable_t  *type_variable = type_ref->type_variable;
 
 			if(!type_variable_has_constraint(type_variable, concept)) {
 				print_error_prefix(reference->expression.source_position);
@@ -922,7 +1003,7 @@ void check_type_constraints(type_variable_t *type_variables,
 
 			if(current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 				type_reference_t *ref      = (type_reference_t*) current_type;
-				type_variable_t  *type_var = ref->r.type_variable;
+				type_variable_t  *type_var = ref->type_variable;
 
 				if(!type_variable_has_constraint(type_var, concept)) {
 					print_error_prefix(source_position);
@@ -1013,6 +1094,7 @@ type_t *get_default_param_type(type_t *type, source_position_t source_position)
 		fprintf(stderr, ") not supported for function parameters.\n");
 		return type;
 
+	case TYPE_BIND_TYPEVARIABLES:
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
@@ -1200,7 +1282,8 @@ void check_call_expression(call_expression_t *call)
 		reference_expression_t *ref = (reference_expression_t*) method;
 		declaration_t          *declaration = ref->declaration;
 		type_variable_t        *type_parameters;
-		result_type                 = create_concrete_type(result_type);
+
+		result_type = create_concrete_type(result_type);
 
 		if(declaration->type == DECLARATION_CONCEPT_METHOD) {
 			/* we might be able to resolve the concept_method_instance now */
@@ -1550,9 +1633,14 @@ void check_select_expression(select_expression_t *select)
 	if(datatype == NULL)
 		return;
 
-	compound_type_t *compound_type;
+	bind_typevariables_type_t *bind_typevariables = NULL;
+	compound_type_t           *compound_type;
 
-	if(datatype->type == TYPE_COMPOUND_STRUCT
+	if(datatype->type == TYPE_BIND_TYPEVARIABLES) {
+		bind_typevariables = (bind_typevariables_type_t*) datatype;
+		compound_type
+			= (compound_type_t*) bind_typevariables->polymorphic_type;
+	} else if(datatype->type == TYPE_COMPOUND_STRUCT
 			|| datatype->type == TYPE_COMPOUND_UNION
 			|| datatype->type == TYPE_COMPOUND_CLASS) {
 		compound_type = (compound_type_t*) datatype;
@@ -1569,9 +1657,15 @@ void check_select_expression(select_expression_t *select)
 		pointer_type_t *pointer_type = (pointer_type_t*) datatype;
 		
 		type_t *points_to = pointer_type->points_to;
-		if(points_to->type != TYPE_COMPOUND_STRUCT
-				&& points_to->type != TYPE_COMPOUND_UNION
-				&& points_to->type != TYPE_COMPOUND_CLASS) {
+		if(points_to->type == TYPE_BIND_TYPEVARIABLES) {
+			bind_typevariables = (bind_typevariables_type_t*) points_to;
+			compound_type
+				= (compound_type_t*) bind_typevariables->polymorphic_type;
+		} else if(points_to->type == TYPE_COMPOUND_STRUCT
+				|| points_to->type == TYPE_COMPOUND_UNION
+				|| points_to->type == TYPE_COMPOUND_CLASS) {
+			compound_type = (compound_type_t*) points_to;
+		} else {
 			print_error_prefix(select->expression.source_position);
 			fprintf(stderr, "select needs a pointer to compound type but found "
 					"type");
@@ -1579,11 +1673,9 @@ void check_select_expression(select_expression_t *select)
 			fprintf(stderr, "\n");
 			return;
 		}
-
-		compound_type =  (compound_type_t*) points_to;
 	}
 
-	symbol_t         *symbol = select->symbol;
+	symbol_t *symbol = select->symbol;
 
 	/* try to find a matching declaration */
 	declaration_t *declaration = compound_type->context.declarations;
@@ -1617,7 +1709,16 @@ void check_select_expression(select_expression_t *select)
 	}
 
 	type_t *result_type = entry->type;
-	
+
+	/* resolve type varible bindings if needed */
+	if(bind_typevariables != NULL) {
+		int old_top = typevar_binding_stack_top();
+		push_type_variable_bindings(compound_type->type_parameters,
+		                            bind_typevariables->type_arguments);
+		result_type = create_concrete_type(entry->type);
+		pop_type_variable_bindings(old_top);
+	}
+
 	select->compound_entry      = entry;
 	select->expression.datatype = result_type;
 }
@@ -2312,7 +2413,7 @@ void check_and_push_context(context_t *context)
 			type      = normalize_type(typealias->type);
 			if(type->type == TYPE_COMPOUND_UNION
 				|| type->type == TYPE_COMPOUND_STRUCT) {
-				normalize_compound_entries((compound_type_t*) type);
+				check_compound_type((compound_type_t*) type);
 			}
 			typealias->type = type;
 			break;

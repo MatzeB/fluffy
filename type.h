@@ -3,17 +3,19 @@
 
 #include <stdio.h>
 
-typedef struct type_t                   type_t;
-typedef struct atomic_type_t            atomic_type_t;
-typedef struct type_reference_t         type_reference_t;
-typedef struct compound_entry_t         compound_entry_t;
-typedef struct compound_type_t          compound_type_t;
-typedef struct type_constraint_t        type_constraint_t;
-typedef struct type_variable_t          type_variable_t;
-typedef struct method_parameter_type_t  method_parameter_type_t;
-typedef struct method_type_t            method_type_t;
-typedef struct pointer_type_t           pointer_type_t;
-typedef struct array_type_t             array_type_t;
+typedef struct type_t                     type_t;
+typedef struct atomic_type_t              atomic_type_t;
+typedef struct type_reference_t           type_reference_t;
+typedef struct compound_entry_t           compound_entry_t;
+typedef struct compound_type_t            compound_type_t;
+typedef struct type_constraint_t          type_constraint_t;
+typedef struct type_variable_t            type_variable_t;
+typedef struct type_argument_t            type_argument_t;
+typedef struct bind_typevariables_type_t  bind_typevariables_type_t;
+typedef struct method_parameter_type_t    method_parameter_type_t;
+typedef struct method_type_t              method_type_t;
+typedef struct pointer_type_t             pointer_type_t;
+typedef struct array_type_t               array_type_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;
@@ -47,6 +49,13 @@ int type_valid(const type_t *type);
  * current type. The given type (and all its hierarchy) is not modified.
  */
 type_t *create_concrete_type(type_t *type);
+
+int typevar_binding_stack_top();
+
+void push_type_variable_bindings(type_variable_t *type_parameters,
+                                 type_argument_t *type_arguments);
+
+void pop_type_variable_bindings(int new_top);
 
 #endif
 

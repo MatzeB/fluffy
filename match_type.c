@@ -38,7 +38,7 @@ void match_variant_to_concrete_type(type_t *variant_type,
 	switch(variant_type->type) {
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		type_ref     = (type_reference_t*) variant_type;
-		type_var     = type_ref->r.type_variable;
+		type_var     = type_ref->type_variable;
 		current_type = type_var->current_type;
 		if(current_type == NULL) {
 			type_var->current_type = concrete_type;

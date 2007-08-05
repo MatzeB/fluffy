@@ -18,8 +18,6 @@
 #include "adt/xmalloc.h"
 #include <libfirm/adt/pdeq.h>
 
-//#define DEBUG_TYPEVAR_BINDING
-
 static const variable_declaration_t **value_numbers    = NULL;
 static label_declaration_t           *labels           = NULL;
 /** context for the variables, this is usually the stack frame but might
@@ -44,16 +42,9 @@ struct type2firm_env_t {
 	                        no typevariables are in the hierarchy */
 };
 
-typedef struct typevar_binding_t typevar_binding_t;
-struct typevar_binding_t {
-	type_variable_t *type_variable;
-	type_t          *old_current_type;
-};
-
-static struct obstack obst;
+static struct obstack     obst;
 static strset_t           instantiated_methods;
 static pdeq              *instantiate_methods   = NULL;
-static typevar_binding_t *typevar_binding_stack = NULL;
 
 static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
@@ -217,8 +208,7 @@ unsigned get_compound_type_size(compound_type_t *type)
 static
 unsigned get_type_reference_type_var_size(const type_reference_t *type)
 {
-	type_variable_t *type_variable = type->r.type_variable;
-
+	type_variable_t *type_variable = type->type_variable;
 
 	if(type_variable->current_type == NULL) {
 		panic("taking size of unbound type variable");
@@ -260,6 +250,8 @@ unsigned get_type_size(type_t *type)
 		return get_type_reference_type_var_size((type_reference_t*) type);
 	case TYPE_INVALID:
 		break;
+	case TYPE_BIND_TYPEVARIABLES:
+		abort();
 	}
 	panic("Trying to determine size of invalid type");
 }
@@ -529,7 +521,7 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
                                     type_reference_t *ref)
 {
 	assert(ref->type.type == TYPE_REFERENCE_TYPE_VARIABLE);
-	type_variable_t *type_variable = ref->r.type_variable;
+	type_variable_t *type_variable = ref->type_variable;
 	type_t          *current_type  = type_variable->current_type;
 
 	if(current_type == NULL) {
@@ -586,6 +578,8 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	case TYPE_REFERENCE:
 		panic("unresolved reference type found");
 		break;
+	case TYPE_BIND_TYPEVARIABLES:
+		abort();
 	case TYPE_INVALID:
 		break;
 	}
@@ -636,93 +630,6 @@ static
 int is_polymorphic_method(const method_t *method)
 {
 	return method->type_parameters != NULL;
-}
-
-static
-int typevar_binding_stack_top()
-{
-	return ARR_LEN(typevar_binding_stack);
-}
-
-static
-void push_type_variable_bindings(type_variable_t *type_parameters,
-                                 type_argument_t *type_arguments)
-{
-	type_variable_t *type_var;
-	type_argument_t *argument;
-
-	if(type_parameters == NULL || type_arguments == NULL)
-		return;
-
-	/* we have to take care that all rebinding happens atomically, so we first
-	 * create the structures on the binding stack and misuse the
-	 * old_current_type value to temporarily save the new! current_type.
-	 * We can then walk the list and set the new types */
-	type_var = type_parameters;
-	argument = type_arguments;
-	int old_top = typevar_binding_stack_top();
-	int top = ARR_LEN(typevar_binding_stack) + 1;
-	while(type_var != NULL) {
-		type_t *type = argument->type;
-		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
-			type_reference_t *ref = (type_reference_t*) type;
-			type_variable_t  *var = ref->r.type_variable;
-
-			if(var->current_type == NULL) {
-				fprintf(stderr, "Type variable '%s' not bound\n",
-				        var->declaration.symbol->string);
-				abort();
-			}
-			type = var->current_type;
-		}
-
-		top = ARR_LEN(typevar_binding_stack) + 1;
-		ARR_RESIZE(typevar_binding_stack, top);
-
-		typevar_binding_t *binding = & typevar_binding_stack[top-1];
-		binding->type_variable     = type_var;
-		binding->old_current_type  = type;
-
-		type_var = type_var->next;
-		argument = argument->next;
-	}
-	assert(type_var == NULL && argument == NULL);
-
-	for(int i = old_top+1; i <= top; ++i) {
-		typevar_binding_t *binding       = & typevar_binding_stack[i-1];
-		type_variable_t   *type_variable = binding->type_variable;
-		type_t            *new_type      = binding->old_current_type;
-
-		binding->old_current_type   = type_variable->current_type;
-		type_variable->current_type = new_type;
-
-#ifdef DEBUG_TYPEVAR_BINDING
-		fprintf(stderr, "binding '%s'(%p) to ", type_variable->symbol->string,
-		        type_variable);
-		print_type(stderr, type_variable->current_type);
-		fprintf(stderr, "\n");
-#endif
-	}
-}
-
-static
-void pop_type_variable_bindings(int new_top)
-{
-	int top = ARR_LEN(typevar_binding_stack) - 1;
-	for(int i = top; i >= new_top; --i) {
-		typevar_binding_t *binding       = & typevar_binding_stack[i];
-		type_variable_t   *type_variable = binding->type_variable;
-		type_variable->current_type      = binding->old_current_type;
-
-#ifdef DEBUG_TYPEVAR_BINDING
-		fprintf(stderr, "reset binding of '%s'(%p) to ",
-		        type_variable->symbol->string, type_variable);
-		print_type(stderr, binding->old_current_type);
-		fprintf(stderr, "\n");
-#endif
-	}
-
-	ARR_SHRINKLEN(typevar_binding_stack, new_top);
 }
 
 static
@@ -2061,8 +1968,9 @@ void ast2firm(void)
 {
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
-	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
-	instantiate_methods   = new_pdeq();
+	instantiate_methods = new_pdeq();
+
+	assert(typevar_binding_stack_top() == 0);
 
 	namespace_t *namespace = namespaces;
 	while(namespace != NULL) {
@@ -2074,13 +1982,16 @@ void ast2firm(void)
 		instantiate_method_t *instantiate_method 
 			= pdeq_getl(instantiate_methods);
 
+		assert(typevar_binding_stack_top() == 0);
+
 		create_method(instantiate_method->method,
 		              instantiate_method->entity,
 		              instantiate_method->type_arguments);
 	}
 
+	assert(typevar_binding_stack_top() == 0);
+
 	del_pdeq(instantiate_methods);
-	DEL_ARR_F(typevar_binding_stack);
 	obstack_free(&obst, NULL);
 	strset_destroy(&instantiated_methods);
 }

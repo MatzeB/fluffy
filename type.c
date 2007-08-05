@@ -4,22 +4,35 @@
 #include "ast_t.h"
 #include "type_hash.h"
 #include "adt/error.h"
+#include "adt/array.h"
+
+//#define DEBUG_TYPEVAR_BINDING
+
+typedef struct typevar_binding_t typevar_binding_t;
+struct typevar_binding_t {
+	type_variable_t *type_variable;
+	type_t          *old_current_type;
+};
+
+static typevar_binding_t *typevar_binding_stack = NULL;
 
 static struct obstack  _type_obst;
 struct obstack        *type_obst = &_type_obst;
 
-static type_t type_void_    = { TYPE_VOID, NULL };
-static type_t type_invalid_ = { TYPE_INVALID, NULL };
-type_t *type_void    = &type_void_;
-type_t *type_invalid = &type_invalid_;
+static type_t  type_void_    = { TYPE_VOID, NULL };
+static type_t  type_invalid_ = { TYPE_INVALID, NULL };
+type_t        *type_void     = &type_void_;
+type_t        *type_invalid  = &type_invalid_;
 
 void init_type_module()
 {
 	obstack_init(type_obst);
+	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
 }
 
 void exit_type_module()
 {
+	DEL_ARR_F(typevar_binding_stack);
 	obstack_free(type_obst, NULL);
 }
 
@@ -91,9 +104,12 @@ void print_type_reference(FILE *out, const type_reference_t *type)
 }
 
 static
-void print_type_reference_variable(FILE *out, const type_reference_t *type)
+void print_type_variable(FILE *out, const type_variable_t *type_variable)
 {
-	type_variable_t *type_variable = type->r.type_variable;
+	if(type_variable->current_type != NULL) {
+		print_type(out, type_variable->current_type);
+		return;
+	}
 
 	fprintf(out, "%s:", type_variable->declaration.symbol->string);
 
@@ -109,6 +125,46 @@ void print_type_reference_variable(FILE *out, const type_reference_t *type)
 		
 		constraint = constraint->next;
 	}
+}
+
+static
+void print_type_reference_variable(FILE *out, const type_reference_t *type)
+{
+	type_variable_t *type_variable = type->type_variable;
+	print_type_variable(out, type_variable);
+}
+
+static
+void print_compound_type(FILE *out, const compound_type_t *type)
+{
+	fprintf(out, "%s", type->symbol->string);
+
+	type_variable_t *type_parameter = type->type_parameters;
+	if(type_parameter != NULL) {
+		fprintf(out, "<");
+		while(type_parameter != NULL) {
+			if(type_parameter != type->type_parameters) {
+				fprintf(out, ", ");
+			}
+			print_type_variable(out, type_parameter);
+			type_parameter = type_parameter->next;
+		}
+		fprintf(out, ">");
+	}
+}
+
+static
+void print_bind_type_variables(FILE *out, const bind_typevariables_type_t *type)
+{
+	compound_type_t *polymorphic_type = type->polymorphic_type;
+
+	int old_top = typevar_binding_stack_top();
+	push_type_variable_bindings(polymorphic_type->type_parameters,
+	                            type->type_arguments);
+
+	print_type(out, (type_t*) polymorphic_type);
+
+	pop_type_variable_bindings(old_top);
 }
 
 void print_type(FILE *out, const type_t *type)
@@ -131,7 +187,7 @@ void print_type(FILE *out, const type_t *type)
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
-		fprintf(out, "%s", ((const compound_type_t*) type)->symbol->string);
+		print_compound_type(out, (const compound_type_t*) type);
 		return;
 	case TYPE_METHOD:
 		print_method_type(out, (const method_type_t*) type);
@@ -147,6 +203,9 @@ void print_type(FILE *out, const type_t *type)
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		print_type_reference_variable(out, (const type_reference_t*) type);
+		return;
+	case TYPE_BIND_TYPEVARIABLES:
+		print_bind_type_variables(out, (const bind_typevariables_type_t*) type);
 		return;
 	}
 	fputs("unknown", out);
@@ -327,7 +386,7 @@ type_t *create_concrete_pointer_type(pointer_type_t *type)
 static
 type_t *create_concrete_type_variable_reference_type(type_reference_t *type)
 {
-	type_variable_t *type_variable = type->r.type_variable;
+	type_variable_t *type_variable = type->type_variable;
 	type_t          *current_type  = type_variable->current_type;
 
 	if(current_type != NULL)
@@ -349,6 +408,57 @@ type_t *create_concrete_array_type(array_type_t *type)
 	new_type->type.type    = TYPE_ARRAY;
 	new_type->element_type = element_type;
 	new_type->size         = type->size;
+
+	type_t *normalized_type = typehash_insert((type_t*) new_type);
+	if(normalized_type != (type_t*) new_type) {
+		obstack_free(type_obst, new_type);
+	}
+
+	return normalized_type;
+}
+
+static
+type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *type)
+{
+	int changed = 0;
+
+	type_argument_t *new_arguments;
+	type_argument_t *last_argument = NULL;
+	type_argument_t *type_argument = type->type_arguments;
+	while(type_argument != NULL) {
+		type_t *type     = type_argument->type;
+		type_t *new_type = create_concrete_type(type);
+
+		if(new_type != type) {
+			changed = 1;
+		}
+
+		type_argument_t *new_argument 
+			= obstack_alloc(type_obst, sizeof(new_argument[0]));
+		memset(new_argument, 0, sizeof(new_argument[0]));
+		new_argument->type = new_type;
+		if(last_argument != NULL) {
+			last_argument->next = new_argument;
+		} else {
+			new_arguments = new_argument;
+		}
+		last_argument = new_argument;
+
+		type_argument = type_argument->next;
+	}
+
+	if(!changed) {
+		assert(new_arguments != NULL);
+		obstack_free(type_obst, new_arguments);
+		return (type_t*) type;
+	}
+
+	bind_typevariables_type_t *new_type 
+		= obstack_alloc(type_obst, sizeof(new_type[0]));
+	memset(new_type, 0, sizeof(new_type[0]));
+	new_type->type.type        = TYPE_BIND_TYPEVARIABLES;
+	new_type->polymorphic_type = type->polymorphic_type;
+	new_type->type_arguments   = new_arguments;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
 	if(normalized_type != (type_t*) new_type) {
@@ -380,11 +490,99 @@ type_t *create_concrete_type(type_t *type)
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return create_concrete_type_variable_reference_type(
 				(type_reference_t*) type);
+	case TYPE_BIND_TYPEVARIABLES:
+		return create_concrete_typevar_binding_type(
+		        (bind_typevariables_type_t*) type);
 	case TYPE_REFERENCE:
 		panic("trying to normalize unresolved type reference");
 		break;
 	}
 
 	return type;
+}
+
+int typevar_binding_stack_top()
+{
+	return ARR_LEN(typevar_binding_stack);
+}
+
+void push_type_variable_bindings(type_variable_t *type_parameters,
+                                 type_argument_t *type_arguments)
+{
+	type_variable_t *type_var;
+	type_argument_t *argument;
+
+	if(type_parameters == NULL || type_arguments == NULL)
+		return;
+
+	/* we have to take care that all rebinding happens atomically, so we first
+	 * create the structures on the binding stack and misuse the
+	 * old_current_type value to temporarily save the new! current_type.
+	 * We can then walk the list and set the new types */
+	type_var = type_parameters;
+	argument = type_arguments;
+
+	int old_top = typevar_binding_stack_top();
+	int top     = ARR_LEN(typevar_binding_stack) + 1;
+	while(type_var != NULL) {
+		type_t *type = argument->type;
+		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			type_reference_t *ref = (type_reference_t*) type;
+			type_variable_t  *var = ref->type_variable;
+
+			if(var->current_type == NULL) {
+				fprintf(stderr, "Type variable '%s' not bound\n",
+				        var->declaration.symbol->string);
+				abort();
+			}
+			type = var->current_type;
+		}
+
+		top = ARR_LEN(typevar_binding_stack) + 1;
+		ARR_RESIZE(typevar_binding_stack, top);
+
+		typevar_binding_t *binding = & typevar_binding_stack[top-1];
+		binding->type_variable     = type_var;
+		binding->old_current_type  = type;
+
+		type_var = type_var->next;
+		argument = argument->next;
+	}
+	assert(type_var == NULL && argument == NULL);
+
+	for(int i = old_top+1; i <= top; ++i) {
+		typevar_binding_t *binding       = & typevar_binding_stack[i-1];
+		type_variable_t   *type_variable = binding->type_variable;
+		type_t            *new_type      = binding->old_current_type;
+
+		binding->old_current_type   = type_variable->current_type;
+		type_variable->current_type = new_type;
+
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "binding '%s'(%p) to ", type_variable->symbol->string,
+		        type_variable);
+		print_type(stderr, type_variable->current_type);
+		fprintf(stderr, "\n");
+#endif
+	}
+}
+
+void pop_type_variable_bindings(int new_top)
+{
+	int top = ARR_LEN(typevar_binding_stack) - 1;
+	for(int i = top; i >= new_top; --i) {
+		typevar_binding_t *binding       = & typevar_binding_stack[i];
+		type_variable_t   *type_variable = binding->type_variable;
+		type_variable->current_type      = binding->old_current_type;
+
+#ifdef DEBUG_TYPEVAR_BINDING
+		fprintf(stderr, "reset binding of '%s'(%p) to ",
+		        type_variable->symbol->string, type_variable);
+		print_type(stderr, binding->old_current_type);
+		fprintf(stderr, "\n");
+#endif
+	}
+
+	ARR_SHRINKLEN(typevar_binding_stack, new_top);
 }
 

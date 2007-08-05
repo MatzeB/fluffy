@@ -22,7 +22,8 @@ typedef enum {
 	TYPE_POINTER,
 	TYPE_ARRAY,
 	TYPE_REFERENCE,
-	TYPE_REFERENCE_TYPE_VARIABLE
+	TYPE_REFERENCE_TYPE_VARIABLE,
+	TYPE_BIND_TYPEVARIABLES
 } type_type_t;
 
 typedef enum {
@@ -64,14 +65,24 @@ struct array_type_t {
 	unsigned long  size;
 };
 
+struct type_argument_t {
+	type_t          *type;
+	type_argument_t *next;
+};
+
 struct type_reference_t {
 	type_t             type;
 	symbol_t          *symbol;
 	source_position_t  source_position;
+	type_argument_t   *type_arguments;
 
-	union {
-		type_variable_t *type_variable;
-	} r;
+	type_variable_t   *type_variable;
+};
+
+struct bind_typevariables_type_t {
+	type_t           type;
+	type_argument_t *type_arguments;
+	compound_type_t *polymorphic_type;
 };
 
 struct method_parameter_type_t {

@@ -13,14 +13,17 @@ instance Print byte*:
 	func print(object : byte*):
 		puts(object)
 
-func swap<ST : Print, ST2 : Print>(obj1 : ST, obj2 : ST2) : void:
+func swap<ST : Print, ST2 : Print>(obj1 : ST, obj2 : ST2, marker : int) : void:
+	if marker <= 0:
+		return
 	print(obj1)
 	print(obj2)
-	swap(obj2, obj1)
+	swap(obj2, obj1, marker-1)
 
 func callit():
-	swap("blup", 1)
+	swap("blup", 1, 4)
 
 func main() : int:
+	callit()
 	return 0
 export main

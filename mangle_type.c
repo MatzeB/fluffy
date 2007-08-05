@@ -101,7 +101,7 @@ static
 void mangle_reference_type_variable(struct obstack *obst, 
                                     const type_reference_t* ref)
 {
-	type_variable_t *type_var     = ref->r.type_variable;
+	type_variable_t *type_var     = ref->type_variable;
 	type_t          *current_type = type_var->current_type;
 
 	if(current_type == NULL) {
@@ -137,6 +137,9 @@ void mangle_type(struct obstack *obst, const type_t *type)
 		return;
 	case TYPE_REFERENCE:
 		panic("can't mangle unresolved type reference");
+		return;
+	case TYPE_BIND_TYPEVARIABLES:
+		panic("can't mangle type variable bindings");
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		mangle_reference_type_variable(obst, (const type_reference_t*) type);

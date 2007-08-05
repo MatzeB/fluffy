@@ -150,11 +150,6 @@ struct func_expression_t {
 	method_t      method;
 };
 
-struct type_argument_t {
-	type_t          *type;
-	type_argument_t *next;
-};
-
 struct reference_expression_t {
 	expression_t     expression;
 	symbol_t        *symbol;

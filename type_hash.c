@@ -73,7 +73,20 @@ unsigned hash_method_type(const method_type_t *type)
 static
 unsigned hash_type_reference_type_variable(const type_reference_t *type)
 {
-	return hash_ptr(type->r.type_variable);
+	return hash_ptr(type->type_variable);
+}
+
+static
+unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *type)
+{
+	unsigned hash = hash_compound_type(type->polymorphic_type);
+	type_argument_t *argument = type->type_arguments;
+	while(argument != NULL) {
+		hash ^= hash_type(argument->type);
+		argument = argument->next;
+	}
+
+	return hash;
 }
 
 static
@@ -99,6 +112,9 @@ unsigned hash_type(const type_t *type)
 		return hash_pointer_type((const pointer_type_t*) type);
 	case TYPE_ARRAY:
 		return hash_array_type((const array_type_t*) type);
+	case TYPE_BIND_TYPEVARIABLES:
+		return hash_bind_typevariables_type_t(
+				(const bind_typevariables_type_t*) type);
 	}
 	abort();
 }
@@ -175,7 +191,30 @@ static
 int type_references_type_variable_equal(const type_reference_t *type1,
                                         const type_reference_t *type2)
 {
-	return type1->r.type_variable == type2->r.type_variable;
+	return type1->type_variable == type2->type_variable;
+}
+
+static
+int bind_typevariables_type_equal(const bind_typevariables_type_t *type1,
+                                  const bind_typevariables_type_t *type2)
+{
+	if(type1->polymorphic_type != type2->polymorphic_type)
+		return 0;
+
+	type_argument_t *argument1 = type1->type_arguments;
+	type_argument_t *argument2 = type2->type_arguments;
+	while(argument1 != NULL) {
+		if(argument2 == NULL)
+			return 0;
+		if(argument1->type != argument2->type)
+			return 0;
+		argument1 = argument1->next;
+		argument2 = argument2->next;
+	}
+	if(argument2 != NULL)
+		return 0;
+
+	return 1;
 }
 
 static
@@ -212,6 +251,10 @@ int types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_ARRAY:
 		return array_types_equal((const array_type_t*) type1,
 		                         (const array_type_t*) type2);
+	case TYPE_BIND_TYPEVARIABLES:
+		return bind_typevariables_type_equal(
+				(const bind_typevariables_type_t*) type1,
+				(const bind_typevariables_type_t*) type2);
 	}
 
 	abort();

@@ -289,6 +289,32 @@ type_t *parse_atomic_type(void)
 }
 
 static
+type_argument_t *parse_type_argument(void)
+{
+	type_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
+
+	argument->type = parse_type();
+	return argument;
+}
+
+static
+type_argument_t *parse_type_arguments(void)
+{
+	type_argument_t *first_argument = parse_type_argument();
+	type_argument_t *last_argument  = first_argument;
+
+	while(token.type == ',') {
+		next_token();
+		type_argument_t *type_argument = parse_type_argument();
+
+		last_argument->next = type_argument;
+		last_argument       = type_argument;
+	}
+
+	return first_argument;
+}
+
+static
 type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
@@ -299,6 +325,12 @@ type_t *parse_type_ref(void)
 	type_ref->symbol          = token.v.symbol;
 	type_ref->source_position = source_position;
 	next_token();
+
+	if(token.type == '<') {
+		next_token();
+		type_ref->type_arguments = parse_type_arguments();
+		expect('>');
+	}
 
 	return (type_t*) type_ref;
 }
@@ -595,40 +627,14 @@ expression_t *parse_func_expression(unsigned precedence)
 }
 
 static
-type_argument_t *parse_type_argument(void)
-{
-	type_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
-
-	argument->type = parse_type();
-	return argument;
-}
-
-static
-type_argument_t *parse_type_arguments(void)
-{
-	type_argument_t *first_argument = parse_type_argument();
-	type_argument_t *last_argument  = first_argument;
-
-	while(token.type == ',') {
-		next_token();
-		type_argument_t *type_argument = parse_type_argument();
-
-		last_argument->next = type_argument;
-		last_argument       = type_argument;
-	}
-
-	return first_argument;
-}
-
-static
 expression_t *parse_reference(unsigned precedence)
 {
 	(void) precedence;
 
 	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 
-	ref->expression.type            = EXPR_REFERENCE;
-	ref->symbol                     = token.v.symbol;
+	ref->expression.type = EXPR_REFERENCE;
+	ref->symbol          = token.v.symbol;
 
 	next_token();
 
@@ -1507,17 +1513,29 @@ type_variable_t *parse_type_parameter(void)
 }
 
 static
-type_variable_t *parse_type_parameters(void)
+type_variable_t *parse_type_parameters(context_t *context)
 {
-	type_variable_t *first_variable = parse_type_parameter();
-	type_variable_t *last_variable  = first_variable;
-
-	while(token.type == ',') {
-		next_token();
+	type_variable_t *first_variable = NULL;
+	type_variable_t *last_variable  = NULL;
+	while(1) {
 		type_variable_t *type_variable = parse_type_parameter();
 
-		last_variable->next = type_variable;
-		last_variable       = type_variable;
+		if(last_variable != NULL) {
+			last_variable->next = type_variable;
+		} else {
+			first_variable = type_variable;
+		}
+		last_variable = type_variable;
+
+		if(context != NULL) {
+			declaration_t *declaration = & type_variable->declaration;
+			declaration->next          = context->declarations;
+			context->declarations      = declaration;
+		}
+
+		if(token.type != ',')
+			break;
+		next_token();
 	}
 
 	return first_variable;
@@ -1544,18 +1562,7 @@ void parse_method(method_t *method)
 
 	if(token.type == '<') {
 		next_token();
-		method->type_parameters = parse_type_parameters();
-
-		/* add type parameters to context */
-		type_variable_t *type_parameter = method->type_parameters;
-		while(type_parameter != NULL) {
-			declaration_t *declaration    = (declaration_t*) type_parameter;
-			declaration->next             = current_context->declarations;
-			current_context->declarations = declaration;
-
-			type_parameter = type_parameter->next;
-		}
-
+		method->type_parameters = parse_type_parameters(current_context);
 		expect_void('>');
 	}
 
@@ -1834,6 +1841,14 @@ void parse_struct(void)
 		= allocate_ast_zero(sizeof(compound_type[0]));
 	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
 	compound_type->symbol     = typealias->declaration.symbol;
+
+	if(token.type == '<') {
+		next_token();
+		compound_type->type_parameters 
+			= parse_type_parameters(&compound_type->context);
+		expect_void('>');
+	}
+
 	compound_type->attributes = parse_attributes();
 
 	typealias->type = (type_t*) compound_type;
@@ -1951,19 +1966,8 @@ void parse_concept(void)
 
 	if(token.type == '<') {
 		next_token();
-		concept->type_parameters = parse_type_parameters();
-
-		/* add type parameters to context */
-		context_t       *context        = &concept->context;
-		type_variable_t *type_parameter = concept->type_parameters;
-		while(type_parameter != NULL) {
-			declaration_t *declaration = (declaration_t*) type_parameter;
-			declaration->next          = context->declarations;
-			context->declarations      = declaration;
-
-			type_parameter = type_parameter->next;
-		}
-
+		context_t       *context = &concept->context;
+		concept->type_parameters = parse_type_parameters(context);
 		expect_void('>');
 	}
 	expect_void(':');
