@@ -509,8 +509,8 @@ int typevar_binding_stack_top()
 void push_type_variable_bindings(type_variable_t *type_parameters,
                                  type_argument_t *type_arguments)
 {
-	type_variable_t *type_var;
-	type_argument_t *argument;
+	type_variable_t *type_parameter;
+	type_argument_t *type_argument;
 
 	if(type_parameters == NULL || type_arguments == NULL)
 		return;
@@ -519,21 +519,19 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	 * create the structures on the binding stack and misuse the
 	 * old_current_type value to temporarily save the new! current_type.
 	 * We can then walk the list and set the new types */
-	type_var = type_parameters;
-	argument = type_arguments;
+	type_parameter = type_parameters;
+	type_argument  = type_arguments;
 
 	int old_top = typevar_binding_stack_top();
 	int top     = ARR_LEN(typevar_binding_stack) + 1;
-	while(type_var != NULL) {
-		type_t *type = argument->type;
+	while(type_parameter != NULL) {
+		type_t *type = type_argument->type;
 		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *ref = (type_reference_t*) type;
 			type_variable_t  *var = ref->type_variable;
 
 			if(var->current_type == NULL) {
-				fprintf(stderr, "Type variable '%s' not bound\n",
-				        var->declaration.symbol->string);
-				abort();
+				break;
 			}
 			type = var->current_type;
 		}
@@ -542,13 +540,13 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 		ARR_RESIZE(typevar_binding_stack, top);
 
 		typevar_binding_t *binding = & typevar_binding_stack[top-1];
-		binding->type_variable     = type_var;
+		binding->type_variable     = type_parameter;
 		binding->old_current_type  = type;
 
-		type_var = type_var->next;
-		argument = argument->next;
+		type_parameter = type_parameter->next;
+		type_argument  = type_argument->next;
 	}
-	assert(type_var == NULL && argument == NULL);
+	assert(type_parameter == NULL && type_argument == NULL);
 
 	for(int i = old_top+1; i <= top; ++i) {
 		typevar_binding_t *binding       = & typevar_binding_stack[i-1];

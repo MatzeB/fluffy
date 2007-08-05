@@ -536,6 +536,23 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
 }
 
 static
+ir_type *get_type_for_bind_typevariables(type2firm_env_t *env,
+                                         bind_typevariables_type_t *type)
+{
+	compound_type_t *polymorphic_type = type->polymorphic_type;
+
+	int old_top = typevar_binding_stack_top();
+	push_type_variable_bindings(polymorphic_type->type_parameters,
+	                            type->type_arguments);
+
+	ir_type *result = _get_ir_type(env, (type_t*) polymorphic_type);
+
+	pop_type_variable_bindings(old_top);
+
+	return result;
+}
+
+static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
@@ -575,11 +592,13 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
 		break;
+	case TYPE_BIND_TYPEVARIABLES:
+		firm_type = get_type_for_bind_typevariables(env,
+				(bind_typevariables_type_t*) type);
+		break;
 	case TYPE_REFERENCE:
 		panic("unresolved reference type found");
 		break;
-	case TYPE_BIND_TYPEVARIABLES:
-		abort();
 	case TYPE_INVALID:
 		break;
 	}
@@ -942,6 +961,8 @@ ir_node *variable_to_firm(variable_declaration_t *variable,
 
 		if(type->type == TYPE_COMPOUND_STRUCT 
 				|| type->type == TYPE_COMPOUND_UNION
+				|| type->type == TYPE_COMPOUND_CLASS
+				|| type->type == TYPE_BIND_TYPEVARIABLES
 				|| type->type == TYPE_ARRAY) {
 			return addr;
 		}

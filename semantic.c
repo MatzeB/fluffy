@@ -227,7 +227,8 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 		type_parameters = compound_type->type_parameters;
 	}
 
-	/* check that type arguments match type parameters */
+	/* check that type arguments match type parameters 
+	 * and normalize the type arguments */
 	type_argument_t *type_arguments = type_ref->type_arguments;
 	type_variable_t *type_parameter = type_parameters;
 	type_argument_t *type_argument  = type_arguments;
@@ -239,6 +240,7 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 			fprintf(stderr, "\n");
 			break;
 		}
+		
 		type_parameter = type_parameter->next;
 		type_argument  = type_argument->next;
 	}
@@ -255,7 +257,6 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 
 	if(type_parameters != NULL && type_argument == NULL
 			&& type_argument == NULL) {
-		printf("constructing bind\n");
 		bind_typevariables_type_t *bind_typevariables
 			= obstack_alloc(type_obst, sizeof(bind_typevariables[0]));
 		memset(bind_typevariables, 0, sizeof(bind_typevariables[0]));
@@ -423,6 +424,8 @@ type_t *check_reference(declaration_t *declaration,
 
 		if(type->type == TYPE_COMPOUND_STRUCT
 				|| type->type == TYPE_COMPOUND_UNION
+				|| type->type == TYPE_COMPOUND_CLASS
+				|| type->type == TYPE_BIND_TYPEVARIABLES
 				|| type->type == TYPE_ARRAY) {
 			variable->needs_entity   = 1;
 		}
