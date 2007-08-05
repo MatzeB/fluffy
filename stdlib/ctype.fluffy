@@ -1,0 +1,16 @@
+
+func extern isalpha(c : int) : int
+func extern isalnum(c : int) : int
+func extern isblank(c : int) : int
+func extern iscntrl(c : int) : int
+func extern isdigit(c : int) : int
+func extern isgraph(c : int) : int
+func extern islower(c : int) : int
+func extern isprint(c : int) : int
+func extern ispunct(c : int) : int
+func extern isspace(c : int) : int
+func extern isupper(c : int) : int
+func extern isxdigit(c : int) : int
+
+func extern tolower(c : int) : int
+func extern toupper(c : int) : int
