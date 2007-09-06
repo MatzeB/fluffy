@@ -1671,7 +1671,7 @@ void check_select_expression(select_expression_t *select)
 		} else {
 			print_error_prefix(select->expression.source_position);
 			fprintf(stderr, "select needs a pointer to compound type but found "
-					"type");
+					"type ");
 			print_type(stderr, datatype);
 			fprintf(stderr, "\n");
 			return;
