@@ -30,6 +30,8 @@ static int dump_graphs = 0;
 static int dump_asts   = 0;
 static int verbose     = 0;
 static int show_timers = 0;
+static int noopt       = 0;
+static int do_inline   = 1;
 
 typedef enum compile_mode_t {
 	Compile,
@@ -141,11 +143,21 @@ void optimize()
 	gc_irgs(arr_len, keep_methods);
 	free(keep_methods);
 
+	if(noopt) {
+		/* we have to do controlflow opt once to avoid bad blocks */ 
+		for(i = 0; i < get_irp_n_irgs(); ++i) {
+			ir_graph *irg = get_irp_irg(i);
+			optimize_cf(irg);
+		}
+		return;
+	}
+
 	current_ir_graph = NULL;
 	opt_tail_recursion();
 
 	optimize_funccalls(0);
-	inline_leave_functions(500, 80, 30, 0);
+	if(do_inline)
+		inline_leave_functions(500, 80, 30, 0);
 
 	for(i = 0; i < get_irp_n_irgs(); ++i) {
 		ir_graph *irg = get_irp_irg(i);
@@ -409,6 +421,16 @@ int main(int argc, const char **argv)
 			return 0;
 		} else if(strcmp(arg, "--time") == 0) {
 			show_timers = 1;
+		} else if(arg[0] == '-' && arg[1] == 'O') {
+			int optlevel = atoi(&arg[2]);
+			if(optlevel <= 0) {
+				noopt = 1;
+			} else if(optlevel > 1) {
+				do_inline = 1;
+			} else {
+				noopt     = 0;
+				do_inline = 0;
+			}
 		} else if(strcmp(arg, "-S") == 0) {
 			mode = Compile;
 		} else if(strcmp(arg, "-v") == 0) {
