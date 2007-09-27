@@ -10,7 +10,7 @@ fluffy is an experimental language designed around the following features:
 The implementation utilizes the libfirm backend for producing highly optimized
 machine assembly.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 2. Building and Installation
 
