@@ -16,7 +16,7 @@ instance AllocateOnAst ForStatement:
 
 func parse_for_statement() : Statement*:
 	var statement                       <- allocate<$ForStatement>()
-	statement.statement.source_position <- lexer.source_position
+	statement.statement.source_position <- source_position
 
 	assert(token.type = token_for)
 	next_token()

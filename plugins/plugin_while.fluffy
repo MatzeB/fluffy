@@ -2,7 +2,7 @@ struct WhileStatement:
 	statement    : Statement
 	loop_control : Expression*
 	loop_body    : Statement*
-	step         : Statement*
+	loop_step    : Statement*
 
 var token_while          : int
 var token_continue       : int
@@ -32,7 +32,7 @@ func parse_while_statement() : Statement*:
 		var step_statement <- allocate<$ExpressionStatement>()
 		step_statement.statement.source_position <- source_position
 		step_statement.expression <- parse_expression()
-		statement.step <- cast<Statement*> step_statement
+		statement.loop_step <- cast<Statement*> step_statement
 
 	expect(':')
 
@@ -105,8 +105,8 @@ func lower_while_statement(statement : Statement*) : Statement*:
 		<- symbol_table_insert("__loop_next")
 	block_append(loop_body_block, cast<Statement*> next_label)
 
-	if while_statement.step /= null:
-		block_append(loop_body_block, while_statement.step)
+	if while_statement.loop_step /= null:
+		block_append(loop_body_block, while_statement.loop_step)
 
 	var goto_statement   <- allocate<$GotoStatement>()
 	goto_statement.statement.source_position \
