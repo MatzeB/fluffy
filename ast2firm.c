@@ -68,7 +68,8 @@ unsigned dbg_snprint(char *buf, unsigned len, const dbg_info *dbg)
 	const source_position_t *pos = (const source_position_t*) dbg;
 	if(pos == NULL)
 		return 0;
-	return snprintf(buf, len, "%s:%u", pos->input_name, pos->linenr);
+	return (unsigned) snprintf(buf, len, "%s:%u", pos->input_name,
+	                           pos->linenr);
 }
 
 const char *retrieve_dbg(const dbg_info *dbg, unsigned *line)
