@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">
+<html>
+<head>
+	<title>Matze's Home</title>
+	<link rel="stylesheet" type="text/css" href="simple.css" title="default" media="screen"> 
+</head>
+<body>
+
+<div id="content">
+	<h1>Fluffy Language</h1>
+
+		<p>The fluffy language is a toy language designed around the libfirm
+		intermediate representation library. The language supports the typical
+		low-level constructions known from C and combines them with modern generic
+		programming techniques. It also features a plugin system which allows to
+		extend the parser and lexer.</p>
+
+	<h2>Download</h2>
+
+		<p>
+			<ul>
+				<li><a href="http://www.info.uni-karlsruhe.de/~matze/fluffy/fluffy-0.1.tar.bz2">http://www.info.uni-karlsruhe.de/~matze/fluffy/fluffy-0.1.tar.bz2</a></li>
+			</ul>
+		</p>
+
+	<h2>Features</h2>
+
+		<p>
+			<ul>
+				<li>Python/Haskell style indentation</li>
+				<li>Parser and Lexer extensible through plugins</li>
+				<li>Type inference</li>
+				<li>Generic programming techniques (similar to haskell typeclasses and concepts)</li>
+				<li>Easy to declare and use external C functions (libc and libSDL bindings are included)</li>
+				<li>High Performance Backend generating native x86 code (libfirm)</li>
+			</ul>
+		</p>
+
+	<h2>Code sample</h2>
+	
+		<p>Fluffy syntax is based on python/haskell style indentation rules (but
+		with a saner handling when tabs and spaces are mixed). Along with some
+		elements known from pascal, sather and theortical informatics (&lt;- is the
+		assignment operator). Below is a solver for the n-queens problem written
+		in fluffy:</p>
+
+		<!-- generated with "run! syntax/2html.vim" in vim -->
+		<p style="background-color: black; color: white;">
+			<font face="monospace">
+			<font color="#ffff00">var</font>&nbsp;row : <font color="#00ff00">int</font>*<br>
+			<br>
+			<font color="#ffff00">func</font>&nbsp;myabs(i : <font color="#00ff00">int</font>) : <font color="#00ff00">int</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">if</font>&nbsp;i &lt; <font color="#ff6060">0</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;-i<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;i<br>
+			<br>
+			<font color="#ffff00">func</font>&nbsp;place_ok(i : <font color="#00ff00">int</font>) : <font color="#00ff00">bool</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">var</font>&nbsp;j &lt;- <font color="#ff6060">0</font><br>
+			<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">while</font>&nbsp;j &lt; i:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">if</font>&nbsp;row[j] = row[i] || myabs(row[i]-row[j]) = (i-j):<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;<font color="#ff6060">false</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;j &lt;- j + <font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;<font color="#ff6060">true</font><br>
+			<br>
+			<font color="#ffff00">func</font>&nbsp;solve(n : <font color="#00ff00">int</font>) : <font color="#00ff00">int</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">var</font>&nbsp;c&nbsp;&nbsp; &lt;- <font color="#ff6060">0</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">var</font>&nbsp;res &lt;- <font color="#ff6060">0</font><br>
+			<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;row&nbsp;&nbsp;&nbsp;&nbsp;&lt;- <font color="#ffff00">cast</font>&lt;<font color="#00ff00">int</font>*&gt; malloc(<font color="#ffff00">sizeof</font>&lt;<font color="#00ff00">int</font>&gt; * n)<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;row[<font color="#ff6060">0</font>] &lt;- -<font color="#ff6060">1</font><br>
+			<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">while</font>&nbsp;c &gt;= <font color="#ff6060">0</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row[c] &lt;- row[c] + <font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">while</font>&nbsp;(row[c] &lt; n) &amp;&amp; (!place_ok(c)):<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row[c] &lt;- row[c] + <font color="#ff6060">1</font><br>
+			<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">if</font>&nbsp;row[c] &lt; n:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">if</font>&nbsp;c = n-<font color="#ff6060">1</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;res &lt;- res + <font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">else</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;- c + <font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;row[c] &lt;- -<font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">else</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c &lt;- c - <font color="#ff6060">1</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;free(row)<br>
+			<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;res<br>
+			<br>
+			<font color="#ffff00">export</font>&nbsp;main<br>
+			<font color="#ffff00">func</font>&nbsp;main(argc : <font color="#00ff00">int</font>, argv : <font color="#00ff00">byte</font>**) : <font color="#00ff00">int</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">var</font>&nbsp;n &lt;- <font color="#ff6060">8</font><br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">if</font>&nbsp;argc &gt; <font color="#ff6060">1</font>:<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n &lt;- atoi(argv[<font color="#ff6060">1</font>])<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;printf(<font color="#ff6060">&quot;The %d-queens problem has %d solutions.</font><font color="#ff40ff">\n</font><font color="#ff6060">&quot;</font>, n, solve(n))<br>
+			&nbsp;&nbsp;&nbsp;&nbsp;<font color="#ffff00">return</font>&nbsp;<font color="#ff6060">0</font><br>
+			<br>
+			</font>
+		</p>
+	
+	<h2>Author and Contact</h2>
+
+	<p>fluffy was designed and implemented by Matthias Braun (matze -AT- braunis
+	DOT de).</p>
+
+</div>
+
+</body>
+</html>
+
