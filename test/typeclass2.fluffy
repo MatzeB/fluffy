@@ -31,7 +31,7 @@ func bubblesort<T : Ordered> (array : T*, len : int):
 	var sorted <- 1
 
 	var i <- 0
-	:loop
+	:loop_begin
 	if i >= len - 1:
 		if sorted /= 1:
 			bubblesort(array, len)
@@ -44,11 +44,11 @@ func bubblesort<T : Ordered> (array : T*, len : int):
 		sorted     <- 0
 	
 	i <- i + 1
-	goto loop
+	goto loop_begin
 
 func print_array<T : Printable>(array : T*, len : int):
 	var i <- 0
-	:loop
+	:loop_begin
 	if i >= len:
 		return
 
@@ -56,7 +56,7 @@ func print_array<T : Printable>(array : T*, len : int):
 	print(array[i])
 	
 	i <- i + 1
-	goto loop
+	goto loop_begin
 
 func main() : int:
 	typealias arr_type <- int*
