@@ -50,7 +50,7 @@ int type_valid(const type_t *type);
  */
 type_t *create_concrete_type(type_t *type);
 
-int typevar_binding_stack_top();
+int typevar_binding_stack_top(void);
 
 void push_type_variable_bindings(type_variable_t *type_parameters,
                                  type_argument_t *type_arguments);

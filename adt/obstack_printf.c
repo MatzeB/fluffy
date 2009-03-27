@@ -17,38 +17,22 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
  * 02111-1307, USA.
  */
-#ifndef _FIRM_HASH_STRING_H_
-#define _FIRM_HASH_STRING_H_
+#include <config.h>
 
-#define _FIRM_FNV_OFFSET_BASIS 2166136261U
-#define _FIRM_FNV_FNV_PRIME 16777619U
+#include <stdarg.h>
+#include <stdio.h>
+#include "obstack.h"
 
-static inline __attribute__((pure))
-unsigned hash_string(const char* str)
+int obstack_printf(struct obstack *obst, const char *fmt, ...)
 {
-	const unsigned char *p;
-	unsigned hash = _FIRM_FNV_OFFSET_BASIS;
+  char buf[1024];
+  va_list ap;
+  int len;
 
-	for(p = (const unsigned char*) str; *p != 0; ++p) {
-		hash *= _FIRM_FNV_FNV_PRIME;
-		hash ^= *p;
-	}
+  va_start(ap, fmt);
+  len = vsnprintf(buf, sizeof(buf), fmt, ap);
+  obstack_grow(obst, buf, len);
+  va_end(ap);
 
-	return hash;
+  return len;
 }
-
-static inline __attribute__((pure))
-unsigned hash_string_size(const char* str, size_t size)
-{
-	size_t i;
-	unsigned hash = _FIRM_FNV_OFFSET_BASIS;
-
-	for(i = 0; i < size; ++i) {
-		hash *= _FIRM_FNV_FNV_PRIME;
-		hash ^= str[i];
-	}
-
-	return hash;
-}
-
-#endif

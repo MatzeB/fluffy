@@ -537,7 +537,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 		}
 
 		top = ARR_LEN(typevar_binding_stack) + 1;
-		ARR_RESIZE(typevar_binding_stack, top);
+		ARR_RESIZE(typevar_binding_t, typevar_binding_stack, top);
 
 		typevar_binding_t *binding = & typevar_binding_stack[top-1];
 		binding->type_variable     = type_parameter;

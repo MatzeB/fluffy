@@ -1,13 +1,32 @@
+/*
+ * Copyright (C) 1995-2008 University of Karlsruhe.  All right reserved.
+ *
+ * This file is part of libFirm.
+ *
+ * This file may be distributed and/or modified under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation and appearing in the file LICENSE.GPL included in the
+ * packaging of this file.
+ *
+ * Licensees holding valid libFirm Professional Edition licenses may use
+ * this file in accordance with the libFirm Commercial License.
+ * Agreement provided with the Software.
+ *
+ * This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
+ * WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE.
+ */
+
 /**
  * @file
  * @date    16.03.2007
  * @brief   Generic hashset functions
  * @author  Matthias Braun
- * @version $Id$
+ * @version $Id: hashset.h 19969 2008-06-04 12:34:29Z matze $
+ *
+ * You have to specialize this header by defining HashSet, HashSetIterator and
+ * ValueType
  */
-
-/* You have to specialize this header by defining HashSet, HashSetIterator and
- * ValueType */
 #ifdef HashSet
 
 #include <stdlib.h>
@@ -19,11 +38,6 @@ typedef struct HashSetEntry {
 	ValueType data;
 	unsigned hash;
 } HashSetEntry;
-#endif
-
-#ifndef NO_TYPEDEFS
-typedef struct HashSet         HashSet;
-typedef struct HashSetIterator HashSetIterator;
 #endif
 
 struct HashSet {
@@ -38,7 +52,7 @@ struct HashSet {
 	unsigned entries_version;
 #endif
 #ifdef ADDITIONAL_DATA
-	ADDITIONAL_DATA;
+	ADDITIONAL_DATA
 #endif
 };
 
@@ -46,7 +60,7 @@ struct HashSetIterator {
 	HashSetEntry *current_bucket;
 	HashSetEntry *end;
 #ifndef NDEBUG
-	const HashSet *set;
+	const struct HashSet *set;
 	unsigned entries_version;
 #endif
 };
@@ -56,4 +70,3 @@ struct HashSetIterator {
 #endif
 
 #endif
-

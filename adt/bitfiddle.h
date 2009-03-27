@@ -1,9 +1,29 @@
+/*
+ * This file is part of cparser.
+ * Copyright (C) 2007-2008 Matthias Braun <matze@braunis.de>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ */
+
 /**
  * @file
  * @date    28.9.2004
  * @brief   Functions from hackers delight.
  * @author  Sebastian Hack, Matthias Braun
- * @version $Id: bitfiddle.h,v 1.4 2006/05/05 15:23:44 beck Exp $
+ * @version $Id: bitfiddle.h 22078 2008-09-18 12:16:23Z mallon $
  */
 #ifndef _FIRM_BITFIDDLE_H_
 #define _FIRM_BITFIDDLE_H_
@@ -21,22 +41,22 @@ COMPILETIME_ASSERT(UINT_MAX == 4294967295U, uintmax)
  * @param x Summand 1.
  * @param y Summand 2.
  * @return x + y or INT_MAX/INT_MIN if an overflow occurred and x,y was positive/negative.
- * 
+ *
  * @note See hacker's delight, page 27.
  */
 static inline __attribute__((const))
 int add_saturated(int x, int y)
 {
 	int sum      = x + y;
-	/* 
-		An overflow occurs, if the sign of the both summands is equal 
+	/*
+		An overflow occurs, if the sign of the both summands is equal
 		and the one of the sum is different from the summand's one.
 		The sign bit is 1, if an overflow occurred, 0 otherwise.
 		int overflow = ~(x ^ y) & (sum ^ x);
 	*/
 	int overflow = (x ^ sum) & (y ^ sum);
 
-	/* 
+	/*
 		The infinity to use.
 		Make a mask of the sign bit of x and y (they are the same if an
 		overflow occurred).
@@ -44,7 +64,7 @@ int add_saturated(int x, int y)
 		INT_MIN.
 	*/
 	int inf = (x >> (sizeof(x) * 8 - 1)) ^ INT_MAX;
-	
+
 	return overflow < 0 ? inf : sum;
 }
 
@@ -76,7 +96,7 @@ unsigned nlz(unsigned x) {
 		return 32;
 
 	__asm__("bsrl %1,%0"
-			: "=r" (res) 
+			: "=r" (res)
 			: "r" (x));
 	return 31 - res;
 #else
@@ -102,7 +122,7 @@ unsigned ntz(unsigned x) {
 		return 32;
 
 	__asm__("bsfl %1,%0"
-			: "=r" (res) 
+			: "=r" (res)
 			: "r" (x));
 	return  res;
 #else

@@ -84,7 +84,7 @@ void environment_push(declaration_t *declaration, const void *context)
 	memset(entry, 0, sizeof(entry[0]));
 
 	int top = ARR_LEN(symbol_stack);
-	ARR_RESIZE(symbol_stack, top + 1);
+	ARR_RESIZE(environment_entry_t*, symbol_stack, top + 1);
 	symbol_stack[top] = entry;
 
 	symbol_t *symbol = declaration->symbol;
@@ -2485,7 +2485,7 @@ void register_statement_lowerer(lower_statement_function function,
 {
 	unsigned int len = ARR_LEN(statement_lowerers);
 	if(statement_type >= len) {
-		ARR_RESIZE(statement_lowerers, statement_type + 1);
+		ARR_RESIZE(lower_statement_function, statement_lowerers, statement_type + 1);
 		memset(&statement_lowerers[len], 0,
 		       (statement_type - len + 1) * sizeof(statement_lowerers[0]));
 	}
@@ -2501,7 +2501,7 @@ void register_expression_lowerer(lower_expression_function function,
 {
 	unsigned int len = ARR_LEN(expression_lowerers);
 	if(expression_type >= len) {
-		ARR_RESIZE(expression_lowerers, expression_type + 1);
+		ARR_RESIZE(lower_expression_function, expression_lowerers, expression_type + 1);
 		memset(&expression_lowerers[len], 0,
 		       (expression_type - len + 1) * sizeof(expression_lowerers[0]));
 	}

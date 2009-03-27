@@ -15,6 +15,9 @@
 #undef HashSetIterator
 #undef HashSet
 
+typedef struct type_hash_iterator_t  type_hash_iterator_t;
+typedef struct type_hash_t           type_hash_t;
+
 static
 unsigned hash_ptr(const void *ptr)
 {
@@ -279,6 +282,7 @@ int types_equal(const type_t *type1, const type_t *type2)
 #define hashset_iterator_init    typehash_iterator_init
 #define hashset_iterator_next    typehash_iterator_next
 #define hashset_remove_iterator  typehash_remove_iterator
+#define SCALAR_RETURN
 
 #include "adt/hashset.c"
 
