@@ -256,7 +256,7 @@ void print_expression(const expression_t *expression)
 }
 
 static
-void print_indent()
+void print_indent(void)
 {
 	for(int i = 0; i < indent; ++i)
 		fprintf(out, "\t");

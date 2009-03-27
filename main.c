@@ -44,12 +44,9 @@ static
 void initialize_firm(void)
 {
 	be_opt_register();
-	firm_init_options(NULL, 0, NULL);
 
-	const backend_params *be_params;
 	firm_parameter_t params;
 	memset(&params, 0, sizeof(params));
-
 	params.size = sizeof(params);
 	params.enable_statistics = 0;
 	params.initialize_local_func = uninitialized_local_var;
@@ -57,13 +54,8 @@ void initialize_firm(void)
 	params.builtin_dbg = NULL;
 
 	/* initialize backend */
-	be_params = be_init();
-	be_set_debug_retrieve(retrieve_dbg);
-	params.arch_op_settings = be_params->arch_op_settings;
-	if_conv_info            = be_params->if_conv_info;
+	ir_init(&params);
 
-	/* intialize firm itself */
-	init_firm(&params);
 	dbg_init(NULL, NULL, dbg_snprint);
 
 	set_opt_constant_folding(1);
@@ -71,19 +63,11 @@ void initialize_firm(void)
 	set_opt_control_flow_straightening(1);
 	set_opt_control_flow_weak_simplification(1);
 	set_opt_control_flow_strong_simplification(1);
-	set_opt_dead_node_elimination(1);
-	set_opt_reassociation(1);
-	set_opt_inline(1);
 	set_opt_dyn_meth_dispatch(1);
 	set_opt_normalize(1);
-	set_opt_tail_recursion(1);
-	set_opt_dead_method_elimination(1);
 	set_opt_precise_exc_context(0);
-	set_opt_loop_unrolling(0);
 	set_opt_strength_red(0);
-	set_opt_redundant_loadstore(1);
 	set_opt_fragile_ops(0);
-	set_opt_function_call(1);
 	set_opt_optimize_class_casts(0);
 	set_opt_suppress_downcast_optimization(0);
 	set_opt_remove_confirm(1);
@@ -105,7 +89,7 @@ void dump(const char *suffix)
 static struct timeval tv;
 
 static
-void start_timer()
+void start_timer(void)
 {
 	gettimeofday(&tv, NULL);
 }
@@ -126,7 +110,7 @@ void stop_report_timer(const char *prefix)
 }
 
 static
-void optimize()
+void optimize(void)
 {
 	int i;
 	int n_irgs = get_irp_n_irgs();
@@ -155,7 +139,7 @@ void optimize()
 	current_ir_graph = NULL;
 	opt_tail_recursion();
 
-	optimize_funccalls(0);
+	optimize_funccalls(1, NULL);
 	if(do_inline)
 		inline_leave_functions(500, 80, 30, 0);
 
@@ -333,10 +317,10 @@ void check_semantic(void)
 }
 
 static
-void create_firmgraph()
+void create_firmgraph(void)
 {
 	ast2firm();
-    lower_highlevel();
+    lower_highlevel(1);
 
 	optimize();
 }

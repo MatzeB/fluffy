@@ -395,9 +395,9 @@ const char *get_declaration_type_name(declaration_type_t type);
 
 /* ----- helpers for plugins ------ */
 
-unsigned register_expression();
-unsigned register_statement();
-unsigned register_declaration();
-unsigned register_attribute();
+unsigned register_expression(void);
+unsigned register_statement(void);
+unsigned register_declaration(void);
+unsigned register_attribute(void);
 
 #endif

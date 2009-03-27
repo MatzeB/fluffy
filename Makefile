@@ -1,23 +1,23 @@
+-include config.mak
+
 GOAL = fluffy
-#CC   = apgcc
 
-FIRM_CFLAGS = `pkg-config --cflags libfirm`
-FIRM_LIBS = `pkg-config --libs libfirm`
-#FIRM_HOME = $(HOME)/projects/firm/
-#FIRM_BUILD = $(FIRM_HOME)/build/i686-pc-linux-gnu/debug/
-#FIRM_CFLAGS = -I$(FIRM_HOME)/libfirm/include -I$(HOME)/projects/firm/obstack -I$(HOME)/projects/firm/libcore
-#FIRM_LIBS = -L$(FIRM_BUILD) -lfirm -llpp -lcore -lm -ldl
+FIRM_CFLAGS ?= `pkg-config --cflags libfirm`
+FIRM_LIBS ?= `pkg-config --libs libfirm`
 
-CFLAGS += -Wall -W -Werror -O0 -g3 -std=c99
-CFLAGS += -DHAVE_CONFIG_H
-CFLAGS += -I .
-CFLAGS += $(FIRM_CFLAGS) $(ADDCFLAGS)
+CPPFLAGS = -I.
+CPPFLAGS += $(FIRM_CFLAGS)
 
-LFLAGS = $(FIRM_LIBS) -ldl
+CFLAGS += -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Werror -std=c99
+CFLAGS += -O0 -g3
+
+LFLAGS += $(FIRM_LIBS) -ldl
 
 SOURCES := \
-	adt/pset.c \
 	adt/strset.c \
+	adt/obstack.c \
+	adt/obstack_printf.c \
+	adt/xmalloc.c \
 	ast.c \
 	ast2firm.c \
 	lexer.c \
@@ -46,7 +46,7 @@ endif
 
 .depend: $(SOURCES)
 	@echo "===> DEPEND"
-	@rm -f $@ && touch $@ && makedepend -p "$@ build/" -Y -f $@ -- $(CFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
+	@rm -f $@ && touch $@ && makedepend -p "$@ build/" -Y -f $@ -- $(CPPFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
 
 $(GOAL): build/adt $(OBJECTS)
 	@echo "===> LD $@"
@@ -58,7 +58,7 @@ build/adt:
 
 build/%.o: %.c
 	@echo '===> CC $<'
-	$(Q)$(CC) $(CFLAGS) -c $< -o $@
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
 	@echo '===> CLEAN'

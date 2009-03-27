@@ -671,7 +671,7 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 
 	int len = ARR_LEN(statement_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(statement_parsers, token_type + 1);
+		ARR_RESIZE(parse_statement_function, statement_parsers, token_type + 1);
 		memset(& statement_parsers[len], 0,
 				(token_type - len + 1) * sizeof(statement_parsers[0]));
 	}
@@ -693,7 +693,7 @@ void register_declaration_parser(parse_declaration_function parser,
 
 	int len = ARR_LEN(declaration_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(declaration_parsers, token_type + 1);
+		ARR_RESIZE(parse_declaration_function, declaration_parsers, token_type + 1);
 		memset(& declaration_parsers[len], 0,
 				(token_type - len + 1) * sizeof(declaration_parsers[0]));
 	}
@@ -714,7 +714,7 @@ void register_attribute_parser(parse_attribute_function parser, int token_type)
 
 	int len = ARR_LEN(attribute_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(attribute_parsers, token_type + 1);
+		ARR_RESIZE(parse_attribute_function, attribute_parsers, token_type + 1);
 		memset(& attribute_parsers[len], 0,
 				(token_type - len + 1) * sizeof(attribute_parsers[0]));
 	}
@@ -736,7 +736,7 @@ expression_parse_function_t *get_expression_parser_entry(int token_type)
 
 	int len = ARR_LEN(expression_parsers);
 	if(token_type >= len) {
-		ARR_RESIZE(expression_parsers, token_type + 1);
+		ARR_RESIZE(expression_parse_function_t, expression_parsers, token_type + 1);
 		memset(& expression_parsers[len], 0,
 				(token_type - len + 1) * sizeof(expression_parsers[0]));
 	}

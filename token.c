@@ -46,7 +46,7 @@ int register_new_token(const char *token)
 	
 	symbol_t *symbol = symbol_table_insert(token);
 	symbol->ID       = token_id;
-	ARR_APP1(token_symbols, symbol);
+	ARR_APP1(symbol_t*, token_symbols, symbol);
 
 	return token_id;
 }

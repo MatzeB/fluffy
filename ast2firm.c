@@ -1,7 +1,5 @@
 #include <config.h>
 
-#define _GNU_SOURCE
-
 #include <assert.h>
 #include <string.h>
 
@@ -765,7 +763,7 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	} else {
 		if(method->e.entities == NULL)
 			method->e.entities = NEW_ARR_F(ir_entity*, 0);
-		ARR_APP1(method->e.entities, entity);
+		ARR_APP1(ir_entity*, method->e.entities, entity);
 	}
 	return entity;
 }
@@ -790,7 +788,7 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 	tarval   *tv   = new_tarval_from_long(cnst->value, mode);
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
-	return new_d_Const(dbgi, mode, tv);
+	return new_d_Const(dbgi, tv);
 }
 
 static
@@ -800,7 +798,7 @@ ir_node *float_const_to_firm(const float_const_t *cnst)
 	tarval   *tv   = new_tarval_from_double(cnst->value, mode);
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
-	return new_d_Const(dbgi, mode, tv);
+	return new_d_Const(dbgi, tv);
 }
 
 static
@@ -809,9 +807,9 @@ ir_node *bool_const_to_firm(const bool_const_t *cnst)
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
 	if(cnst->value == 0) {
-		return new_d_Const(dbgi, mode_b, get_tarval_b_false());
+		return new_d_Const(dbgi, get_tarval_b_false());
 	} else {
-		return new_d_Const(dbgi, mode_b, get_tarval_b_true());
+		return new_d_Const(dbgi, get_tarval_b_true());
 	}
 }
 
@@ -846,7 +844,7 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
-	return new_d_SymConst(dbgi, (union symconst_symbol) ent, symconst_addr_ent);
+	return new_d_SymConst(dbgi, mode_P, (union symconst_symbol) ent, symconst_addr_ent);
 }
 
 static
@@ -855,7 +853,7 @@ ir_node *null_pointer_to_firm(void)
 	ir_mode *mode = get_type_mode(void_ptr_type);
 	tarval  *tv   = get_tarval_null(mode);
 
-	return new_Const(mode, tv);
+	return new_Const(tv);
 }
 
 static
@@ -890,7 +888,7 @@ ir_node *array_access_expression_addr(const array_access_expression_t* access)
 
 	int           elem_size       = get_type_size(access->expression.datatype);
 	tarval       *elem_size_tv    = new_tarval_from_long(elem_size, mode_Is);
-	ir_node      *elem_size_const = new_Const(mode_Is, elem_size_tv);
+	ir_node      *elem_size_const = new_Const(elem_size_tv);
 	dbg_info     *dbgi 
 		= get_dbg_info(&access->expression.source_position);
 
@@ -939,7 +937,7 @@ ir_node *variable_addr(variable_declaration_t *variable)
 	ir_node *result;
 
 	if(variable->is_global) {
-		result = new_d_SymConst(dbgi, (union symconst_symbol) entity,
+		result = new_d_SymConst(dbgi, mode_P, (union symconst_symbol) entity,
 		                        symconst_addr_ent);
 	} else {
 		assert(variable->needs_entity);
@@ -1078,7 +1076,7 @@ void firm_assign(expression_t *dest_expr, ir_node *value,
 		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M_regular);
 		set_store(mem);
 	} else {
-		result        = new_d_Store(dbgi, store, addr, value);
+		result        = new_d_Store(dbgi, store, addr, value, cons_none);
 		ir_node  *mem = new_d_Proj(dbgi, result, mode_M, pn_Store_M);
 		set_store(mem);
 	}
@@ -1178,10 +1176,10 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	/* fallthrough */
 	ir_node *constb;
 	if(is_or) {
-		constb = new_d_Const(dbgi, mode_b, get_tarval_b_true());
+		constb = new_d_Const(dbgi, get_tarval_b_true());
 		add_immBlock_pred(fallthrough_block, true_proj);
 	} else {
-		constb = new_d_Const(dbgi, mode_b, get_tarval_b_false());
+		constb = new_d_Const(dbgi, get_tarval_b_false());
 		add_immBlock_pred(fallthrough_block, false_proj);
 	}
 	mature_immBlock(fallthrough_block);
@@ -1289,7 +1287,7 @@ ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 	dbg_info *dbgi  = get_dbg_info(pos);
 	ir_mode  *mode  = get_ir_mode(type);
 	ir_node  *store = get_store();
-	ir_node  *load  = new_d_Load(dbgi, store, addr, mode);
+	ir_node  *load  = new_d_Load(dbgi, store, addr, mode, cons_none);
 	ir_node  *mem   = new_d_Proj(dbgi, load, mode_M, pn_Load_M);
 	ir_node  *val   = new_d_Proj(dbgi, load, mode, pn_Load_res);
 	set_store(mem);
@@ -1408,7 +1406,8 @@ ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
 	dbg_info  *dbgi   = get_dbg_info(source_position);
 	ir_entity *entity = assure_instance(method, symbol, type_arguments);
 
-	ir_node *symconst = new_d_SymConst(dbgi, (union symconst_symbol) entity,
+	ir_node *symconst = new_d_SymConst(dbgi, mode_P,
+	                                   (union symconst_symbol) entity,
 	                                   symconst_addr_ent);
 
 	return symconst;
@@ -1446,7 +1445,8 @@ ir_node *concept_method_reference_to_firm(concept_method_t *method,
 
 	dbg_info  *dbgi     = get_dbg_info(source_position);
 	ir_entity *entity   = get_concept_method_instance_entity(method_instance);
-	ir_node   *symconst = new_d_SymConst(dbgi, (union symconst_symbol) entity,
+	ir_node   *symconst = new_d_SymConst(dbgi, mode_P,
+	                                     (union symconst_symbol) entity,
 	                                     symconst_addr_ent);
 
 	pop_type_variable_bindings(old_top);
@@ -1471,7 +1471,7 @@ ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 	ir_mode  *mode = get_ir_mode(expression->expression.datatype);
 	unsigned  size = get_type_size(expression->type);
 	tarval   *tv   = new_tarval_from_long(size, mode);
-	ir_node  *res  = new_Const(mode, tv);
+	ir_node  *res  = new_Const(tv);
 
 	return res;
 }
@@ -1566,7 +1566,7 @@ ir_node *func_expression_to_firm(func_expression_t *expression)
 	}
 	queue_method_instantiation(method, entity);
 
-	ir_node *symconst = new_SymConst((union symconst_symbol) entity,
+	ir_node *symconst = new_SymConst(mode_P, (union symconst_symbol) entity,
 	                                 symconst_addr_ent);
 
 	return symconst;

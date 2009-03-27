@@ -49,5 +49,7 @@ type_t            *parse_type(void);
 void               parse_declaration(void);
 attribute_t       *parse_attributes(void);
 
+void next_token(void);
+
 #endif
 

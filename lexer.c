@@ -47,7 +47,7 @@ static unsigned    last_line_indent_len;
 
 
 static
-void init_tables()
+void init_tables(void)
 {
 	memset(char_type, 0, sizeof(char_type));
 	memset(ident_char, 0, sizeof(ident_char));
