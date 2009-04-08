@@ -5,8 +5,7 @@
 #include "ast_t.h"
 #include "adt/error.h"
 
-static
-void mangle_atomic_type(struct obstack *obst, const atomic_type_t *type)
+static void mangle_atomic_type(struct obstack *obst, const atomic_type_t *type)
 {
 	char c;
 
@@ -61,31 +60,27 @@ void mangle_atomic_type(struct obstack *obst, const atomic_type_t *type)
 	obstack_1grow(obst, c);
 }
 
-static
-void mangle_compound_type(struct obstack *obst, const compound_type_t *type)
+static void mangle_compound_type(struct obstack *obst, const compound_type_t *type)
 {
 	const char *string     = type->symbol->string;
 	size_t      string_len = strlen(string);
 	obstack_printf(obst, "%zu%s", string_len, string);
 }
 
-static
-void mangle_pointer_type(struct obstack *obst, const pointer_type_t *type)
+static void mangle_pointer_type(struct obstack *obst, const pointer_type_t *type)
 {
 	obstack_1grow(obst, 'P');
 	mangle_type(obst, type->points_to);
 }
 
-static
-void mangle_array_type(struct obstack *obst, const array_type_t *type)
+static void mangle_array_type(struct obstack *obst, const array_type_t *type)
 {
 	obstack_1grow(obst, 'A');
 	mangle_type(obst, type->element_type);
 	obstack_printf(obst, "%lu", type->size);
 }
 
-static
-void mangle_method_type(struct obstack *obst, const method_type_t *type)
+static void mangle_method_type(struct obstack *obst, const method_type_t *type)
 {
 	obstack_1grow(obst, 'F');
 	mangle_type(obst, type->result_type);
@@ -97,9 +92,8 @@ void mangle_method_type(struct obstack *obst, const method_type_t *type)
 	obstack_1grow(obst, 'E');
 }
 
-static
-void mangle_reference_type_variable(struct obstack *obst, 
-                                    const type_reference_t* ref)
+static void mangle_reference_type_variable(struct obstack *obst, 
+                                           const type_reference_t* ref)
 {
 	type_variable_t *type_var     = ref->type_variable;
 	type_t          *current_type = type_var->current_type;

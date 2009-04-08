@@ -14,8 +14,7 @@
 
 plugin_t *plugins = NULL;
 
-static
-void load_plugin(const char *filename)
+static void load_plugin(const char *filename)
 {
 #ifdef _WIN32
 	// TODO...

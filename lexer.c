@@ -46,8 +46,7 @@ static char        last_line_indent[MAX_INDENT];
 static unsigned    last_line_indent_len;
 
 
-static
-void init_tables(void)
+static void init_tables(void)
 {
 	memset(char_type, 0, sizeof(char_type));
 	memset(ident_char, 0, sizeof(ident_char));
@@ -97,20 +96,17 @@ int is_ident_char(int c)
 	return ident_char[c];
 }
 
-static
-void error_prefix_at(const char *input_name, unsigned linenr)
+static void error_prefix_at(const char *input_name, unsigned linenr)
 {
 	fprintf(stderr, "%s:%d: Error: ", input_name, linenr);
 }
 
-static
-void error_prefix(void)
+static void error_prefix(void)
 {
 	error_prefix_at(source_position.input_name, source_position.linenr);
 }
 
-static
-void parse_error(const char *msg)
+static void parse_error(const char *msg)
 {
 	error_prefix();
 	fprintf(stderr, "%s\n", msg);
@@ -142,8 +138,7 @@ void put_back(int c)
 	*p = c;
 }
 
-static
-void parse_symbol(token_t *token)
+static void parse_symbol(token_t *token)
 {
 	symbol_t *symbol;
 	char     *string;
@@ -169,8 +164,7 @@ void parse_symbol(token_t *token)
 	}
 }
 
-static
-void parse_number_bin(token_t *token)
+static void parse_number_bin(token_t *token)
 {
 	assert(c == 'b' || c == 'B');
 	next_char();
@@ -196,8 +190,7 @@ void parse_number_bin(token_t *token)
 	}
 }
 
-static
-void parse_number_hex(token_t *token)
+static void parse_number_hex(token_t *token)
 {
 	assert(c == 'x' || c == 'X');
 	next_char();
@@ -227,8 +220,7 @@ void parse_number_hex(token_t *token)
 	}
 }
 
-static
-void parse_number_oct(token_t *token)
+static void parse_number_oct(token_t *token)
 {
 	assert(c == 'o' || c == 'O');
 	next_char();
@@ -246,8 +238,7 @@ void parse_number_oct(token_t *token)
 	}
 }
 
-static
-void parse_number_dec(token_t *token, int first_char)
+static void parse_number_dec(token_t *token, int first_char)
 {
 	int value = 0;
 	if(first_char > 0) {
@@ -267,8 +258,7 @@ void parse_number_dec(token_t *token, int first_char)
 	}
 }
 
-static
-void parse_number(token_t *token)
+static void parse_number(token_t *token)
 {
 	// TODO check for overflow
 	// TODO check for various invalid inputs sequences
@@ -289,8 +279,7 @@ void parse_number(token_t *token)
 	}
 }
 
-static
-int parse_escape_sequence(void)
+static int parse_escape_sequence(void)
 {
 	assert(c == '\\');
 	next_char();
@@ -322,8 +311,7 @@ int parse_escape_sequence(void)
 	}
 }
 
-static
-void parse_string_literal(token_t *token)
+static void parse_string_literal(token_t *token)
 {
 	unsigned    start_linenr = source_position.linenr;
 	char       *string;
@@ -365,8 +353,7 @@ void parse_string_literal(token_t *token)
 	token->v.string = result;
 }
 
-static
-void skip_multiline_comment(void)
+static void skip_multiline_comment(void)
 {
 	unsigned start_linenr = source_position.linenr;
 	unsigned level = 1;
@@ -412,8 +399,7 @@ void skip_line_comment(void)
 	}
 }
 
-static
-void parse_operator(token_t *token, int firstchar)
+static void parse_operator(token_t *token, int firstchar)
 {
 	if(firstchar == '/') {
 		if(c == '*') {
@@ -451,8 +437,7 @@ void parse_operator(token_t *token, int firstchar)
 	}
 }
 
-static
-void parse_indent(token_t *token)
+static void parse_indent(token_t *token)
 {
 	if(not_returned_dedents > 0) {
 		token->type = T_DEDENT;

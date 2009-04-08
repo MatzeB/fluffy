@@ -86,15 +86,13 @@ void parser_print_error_prefix(void)
 	parser_found_error();
 }
 
-static
-void parse_error(const char *message)
+static void parse_error(const char *message)
 {
 	parser_print_error_prefix();
 	fprintf(stderr, "parse error: %s\n", message);
 }
 
-static
-void parse_error_expected(const char *message, ...)
+static void parse_error_expected(const char *message, ...)
 {
 	va_list args;
 	int first = 1;
@@ -126,8 +124,7 @@ void parse_error_expected(const char *message, ...)
 /**
  * error recovery: skip a block and all contained sub-blocks
  */
-static
-void maybe_eat_block(void)
+static void maybe_eat_block(void)
 {
 	if(token.type != T_INDENT)
 		return;
@@ -150,8 +147,7 @@ void maybe_eat_block(void)
  * error recovery: try to got to the next line. If the current line ends in ':'
  * then we skip blocks that might follow
  */
-static
-void eat_until_newline(void)
+static void eat_until_newline(void)
 {
 	int prev = -1;
 
@@ -185,18 +181,14 @@ void eat_until_newline(void)
 	next_token();
 
 
-static
-void parse_method(method_t *method);
+static void parse_method(method_t *method);
 
-static
-statement_t *parse_block(void);
+static statement_t *parse_block(void);
 
-static
-void parse_parameter_declaration(method_type_t *method_type,
+static void parse_parameter_declaration(method_type_t *method_type,
                                  method_parameter_t **parameters);
 
-static
-atomic_type_type_t parse_unsigned_atomic_type(void)
+static atomic_type_type_t parse_unsigned_atomic_type(void)
 {
 	switch(token.type) {
 	case T_byte:
@@ -222,8 +214,7 @@ atomic_type_type_t parse_unsigned_atomic_type(void)
 	}
 }
 
-static
-atomic_type_type_t parse_signed_atomic_type(void)
+static atomic_type_type_t parse_signed_atomic_type(void)
 {
 	switch(token.type) {
 	case T_bool:
@@ -258,8 +249,7 @@ atomic_type_type_t parse_signed_atomic_type(void)
 	}
 }
 
-static
-type_t *parse_atomic_type(void)
+static type_t *parse_atomic_type(void)
 {
 	atomic_type_type_t atype;
 
@@ -288,8 +278,7 @@ type_t *parse_atomic_type(void)
 	return result;
 }
 
-static
-type_argument_t *parse_type_argument(void)
+static type_argument_t *parse_type_argument(void)
 {
 	type_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
 
@@ -297,8 +286,7 @@ type_argument_t *parse_type_argument(void)
 	return argument;
 }
 
-static
-type_argument_t *parse_type_arguments(void)
+static type_argument_t *parse_type_arguments(void)
 {
 	type_argument_t *first_argument = parse_type_argument();
 	type_argument_t *last_argument  = first_argument;
@@ -314,8 +302,7 @@ type_argument_t *parse_type_arguments(void)
 	return first_argument;
 }
 
-static
-type_t *parse_type_ref(void)
+static type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
 
@@ -335,8 +322,7 @@ type_t *parse_type_ref(void)
 	return (type_t*) type_ref;
 }
 
-static
-type_t *parse_method_type(void)
+static type_t *parse_method_type(void)
 {
 	eat(T_func);
 
@@ -353,8 +339,7 @@ type_t *parse_method_type(void)
 	return (type_t*) method_type;
 }
 
-static
-compound_entry_t *parse_compound_entries(void)
+static compound_entry_t *parse_compound_entries(void)
 {
 	compound_entry_t *result     = NULL;
 	compound_entry_t *last_entry = NULL;
@@ -387,8 +372,7 @@ compound_entry_t *parse_compound_entries(void)
 	return result;
 }
 
-static
-type_t *parse_union_type(void)
+static type_t *parse_union_type(void)
 {
 	eat(T_union);
 
@@ -410,8 +394,7 @@ type_t *parse_union_type(void)
 	return (type_t*) compound_type;
 }
 
-static
-type_t *parse_struct_type(void)
+static type_t *parse_struct_type(void)
 {
 	eat(T_struct);
 
@@ -433,8 +416,7 @@ type_t *parse_struct_type(void)
 	return (type_t*) compound_type;
 }
 
-static
-type_t *make_pointer_type_no_hash(type_t *type)
+static type_t *make_pointer_type_no_hash(type_t *type)
 {
 	pointer_type_t *pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
 
@@ -535,8 +517,7 @@ type_t *parse_type(void)
 
 
 
-static
-expression_t *parse_string_const(unsigned precedence)
+static expression_t *parse_string_const(unsigned precedence)
 {
 	(void) precedence;
 
@@ -550,8 +531,7 @@ expression_t *parse_string_const(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static
-expression_t *parse_int_const(unsigned precedence)
+static expression_t *parse_int_const(unsigned precedence)
 {
 	(void) precedence;
 
@@ -565,8 +545,7 @@ expression_t *parse_int_const(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static
-expression_t *parse_true(unsigned precedence)
+static expression_t *parse_true(unsigned precedence)
 {
 	(void) precedence;
 	eat(T_true);
@@ -579,8 +558,7 @@ expression_t *parse_true(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static
-expression_t *parse_false(unsigned precedence)
+static expression_t *parse_false(unsigned precedence)
 {
 	(void) precedence;
 	eat(T_false);
@@ -593,8 +571,7 @@ expression_t *parse_false(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static
-expression_t *parse_null(unsigned precedence)
+static expression_t *parse_null(unsigned precedence)
 {
 	(void) precedence;
 
@@ -607,8 +584,7 @@ expression_t *parse_null(unsigned precedence)
 	return (expression_t*) expression;
 }
 
-static
-expression_t *parse_func_expression(unsigned precedence)
+static expression_t *parse_func_expression(unsigned precedence)
 {
 	(void) precedence;
 
@@ -626,8 +602,7 @@ expression_t *parse_func_expression(unsigned precedence)
 	return (expression_t*) expression;
 }
 
-static
-expression_t *parse_reference(unsigned precedence)
+static expression_t *parse_reference(unsigned precedence)
 {
 	(void) precedence;
 
@@ -647,8 +622,7 @@ expression_t *parse_reference(unsigned precedence)
 	return (expression_t*) ref;
 }
 
-static
-expression_t *parse_sizeof(unsigned precedence)
+static expression_t *parse_sizeof(unsigned precedence)
 {
 	(void) precedence;
 
@@ -728,8 +702,7 @@ void register_attribute_parser(parse_attribute_function parser, int token_type)
 	attribute_parsers[token_type] = parser;
 }
 
-static
-expression_parse_function_t *get_expression_parser_entry(int token_type)
+static expression_parse_function_t *get_expression_parser_entry(int token_type)
 {
 	if(token_type < 0)
 		panic("can't register parser for negative token");
@@ -777,8 +750,7 @@ void register_expression_infix_parser(parse_expression_infix_function parser,
 	entry->infix_precedence = precedence;
 }
 
-static
-expression_t *expected_expression_error(void)
+static expression_t *expected_expression_error(void)
 {
 	parser_print_error_prefix();
 	fprintf(stderr, "expected expression, got token ");
@@ -792,8 +764,7 @@ expression_t *expected_expression_error(void)
 	return expression;
 }
 
-static
-expression_t *parse_brace_expression(unsigned precedence)
+static expression_t *parse_brace_expression(unsigned precedence)
 {
 	(void) precedence;
 
@@ -806,8 +777,7 @@ expression_t *parse_brace_expression(unsigned precedence)
 	return result;
 }
 
-static
-expression_t *parse_cast_expression(unsigned precedence)
+static expression_t *parse_cast_expression(unsigned precedence)
 {
 	eat(T_cast);
 
@@ -825,8 +795,7 @@ expression_t *parse_cast_expression(unsigned precedence)
 	return (expression_t*) unary_expression;
 }
 
-static
-expression_t *parse_call_expression(unsigned precedence,
+static expression_t *parse_call_expression(unsigned precedence,
                                     expression_t *expression)
 {
 	(void) precedence;
@@ -862,9 +831,8 @@ expression_t *parse_call_expression(unsigned precedence,
 	return (expression_t*) call;
 }
 
-static
-expression_t *parse_select_expression(unsigned precedence,
-                                      expression_t *compound)
+static expression_t *parse_select_expression(unsigned precedence,
+                                             expression_t *compound)
 {
 	(void) precedence;
 
@@ -886,9 +854,8 @@ expression_t *parse_select_expression(unsigned precedence,
 	return (expression_t*) select;
 }
 
-static
-expression_t *parse_array_expression(unsigned precedence,
-                                     expression_t *array_ref)
+static expression_t *parse_array_expression(unsigned precedence,
+                                            expression_t *array_ref)
 {
 	(void) precedence;
 
@@ -972,8 +939,7 @@ CREATE_BINEXPR_PARSER(T_PIPEPIPE, BINEXPR_LAZY_OR);
 CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
 CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
 
-static
-void register_expression_parsers(void)
+static void register_expression_parsers(void)
 {
 	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', 16);
 	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', 16);
@@ -1071,8 +1037,7 @@ expression_t *parse_expression(void)
 
 
 
-static
-statement_t *parse_return_statement(void)
+static statement_t *parse_return_statement(void)
 {
 	return_statement_t *return_statement =
 		allocate_ast_zero(sizeof(return_statement[0]));
@@ -1088,8 +1053,7 @@ statement_t *parse_return_statement(void)
 	return (statement_t*) return_statement;
 }
 
-static
-statement_t *parse_goto_statement(void)
+static statement_t *parse_goto_statement(void)
 {
 	eat(T_goto);
 
@@ -1111,8 +1075,7 @@ statement_t *parse_goto_statement(void)
 	return (statement_t*) goto_statement;
 }
 
-static
-statement_t *parse_label_statement(void)
+static statement_t *parse_label_statement(void)
 {
 	eat(':');
 
@@ -1136,8 +1099,7 @@ statement_t *parse_label_statement(void)
 	return (statement_t*) label;
 }
 
-static
-statement_t *parse_sub_block(void)
+static statement_t *parse_sub_block(void)
 {
 	if(token.type != T_NEWLINE) {
 		return parse_statement();
@@ -1154,8 +1116,7 @@ statement_t *parse_sub_block(void)
 	return parse_block();
 }
 
-static
-statement_t *parse_if_statement(void)
+static statement_t *parse_if_statement(void)
 {
 	eat(T_if);
 
@@ -1182,8 +1143,7 @@ statement_t *parse_if_statement(void)
 	return (statement_t*) if_statement;
 }
 
-static
-statement_t *parse_initial_assignment(symbol_t *symbol)
+static statement_t *parse_initial_assignment(symbol_t *symbol)
 {
 	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 	ref->expression.type = EXPR_REFERENCE;
@@ -1206,8 +1166,7 @@ statement_t *parse_initial_assignment(symbol_t *symbol)
 	return (statement_t*) expr_statement;
 }
 
-static
-statement_t *parse_variable_declaration(void)
+static statement_t *parse_variable_declaration(void)
 {
 	statement_t *first_statement = NULL;
 	statement_t *last_statement  = NULL;
@@ -1273,8 +1232,7 @@ statement_t *parse_variable_declaration(void)
 	return first_statement;
 }
 
-static
-statement_t *parse_expression_statement(void)
+static statement_t *parse_expression_statement(void)
 {
 	expression_statement_t *expression_statement
 		= allocate_ast_zero(sizeof(expression_statement[0]));
@@ -1286,8 +1244,7 @@ statement_t *parse_expression_statement(void)
 	return (statement_t*) expression_statement;
 }
 
-static
-statement_t *parse_newline(void)
+static statement_t *parse_newline(void)
 {
 	eat(T_NEWLINE);
 
@@ -1297,8 +1254,7 @@ statement_t *parse_newline(void)
 	return NULL;
 }
 
-static
-void register_statement_parsers(void)
+static void register_statement_parsers(void)
 {
 	register_statement_parser(parse_return_statement,     T_return);
 	register_statement_parser(parse_if_statement,         T_if);
@@ -1352,8 +1308,7 @@ statement_t *parse_statement(void)
 	return statement;
 }
 
-static
-statement_t *parse_block(void)
+static statement_t *parse_block(void)
 {
 	eat(T_INDENT);
 
@@ -1390,9 +1345,8 @@ statement_t *parse_block(void)
 	return (statement_t*) block;
 }
 
-static
-void parse_parameter_declaration(method_type_t *method_type,
-                                 method_parameter_t **parameters)
+static void parse_parameter_declaration(method_type_t *method_type,
+                                        method_parameter_t **parameters)
 {
 	assert(method_type != NULL);
 
@@ -1463,8 +1417,7 @@ void parse_parameter_declaration(method_type_t *method_type,
 	}
 }
 
-static
-type_constraint_t *parse_type_constraints(void)
+static type_constraint_t *parse_type_constraints(void)
 {
 	type_constraint_t *first_constraint = NULL;
 	type_constraint_t *last_constraint  = NULL;
@@ -1487,8 +1440,7 @@ type_constraint_t *parse_type_constraints(void)
 	return first_constraint;
 }
 
-static
-type_variable_t *parse_type_parameter(void)
+static type_variable_t *parse_type_parameter(void)
 {
 	type_variable_t *type_variable
 		= allocate_ast_zero(sizeof(type_variable[0]));
@@ -1512,8 +1464,7 @@ type_variable_t *parse_type_parameter(void)
 	return type_variable;
 }
 
-static
-type_variable_t *parse_type_parameters(context_t *context)
+static type_variable_t *parse_type_parameters(context_t *context)
 {
 	type_variable_t *first_variable = NULL;
 	type_variable_t *last_variable  = NULL;
@@ -1551,8 +1502,7 @@ void add_declaration(declaration_t *declaration)
 	current_context->declarations = declaration;
 }
 
-static
-void parse_method(method_t *method)
+static void parse_method(method_t *method)
 {
 	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	method_type->type.type     = TYPE_METHOD;
@@ -1606,8 +1556,7 @@ method_parser_end:
 	current_context = last_context;
 }
 
-static
-void parse_method_declaration(void)
+static void parse_method_declaration(void)
 {
 	eat(T_func);
 
@@ -1635,8 +1584,7 @@ void parse_method_declaration(void)
 	add_declaration((declaration_t*) method_declaration);
 }
 
-static
-void parse_global_variable(void)
+static void parse_global_variable(void)
 {
 	eat(T_var);
 
@@ -1673,8 +1621,7 @@ void parse_global_variable(void)
 	add_declaration((declaration_t*) variable);
 }
 
-static
-void parse_constant(void)
+static void parse_constant(void)
 {
 	eat(T_const);
 
@@ -1702,8 +1649,7 @@ void parse_constant(void)
 	add_declaration((declaration_t*) constant);
 }
 
-static
-void parse_typealias(void)
+static void parse_typealias(void)
 {
 	eat(T_typealias);
 
@@ -1727,8 +1673,7 @@ void parse_typealias(void)
 	add_declaration((declaration_t*) typealias);
 }
 
-static
-attribute_t *parse_attribute(void)
+static attribute_t *parse_attribute(void)
 {
 	eat('$');
 
@@ -1772,8 +1717,7 @@ attribute_t *parse_attributes(void)
 	return last;
 }
 
-static
-void parse_class(void)
+static void parse_class(void)
 {
 	eat(T_class);
 
@@ -1819,8 +1763,7 @@ void parse_class(void)
 	add_declaration((declaration_t*) typealias);
 }
 
-static
-void parse_struct(void)
+static void parse_struct(void)
 {
 	eat(T_struct);
 
@@ -1865,8 +1808,7 @@ void parse_struct(void)
 	add_declaration((declaration_t*) typealias);
 }
 
-static
-void parse_union(void)
+static void parse_union(void)
 {
 	eat(T_union);
 
@@ -1903,8 +1845,7 @@ void parse_union(void)
 	add_declaration((declaration_t*) typealias);
 }
 
-static
-concept_method_t *parse_concept_method(void)
+static concept_method_t *parse_concept_method(void)
 {
 	expect(T_func);
 
@@ -1945,8 +1886,7 @@ concept_method_t *parse_concept_method(void)
 	return method;
 }
 
-static
-void parse_concept(void)
+static void parse_concept(void)
 {
 	eat(T_concept);
 
@@ -2001,8 +1941,7 @@ end_of_parse_concept:
 	add_declaration((declaration_t*) concept);
 }
 
-static
-concept_method_instance_t *parse_concept_method_instance(void)
+static concept_method_instance_t *parse_concept_method_instance(void)
 {
 	concept_method_instance_t *method_instance
 		= allocate_ast_zero(sizeof(method_instance[0]));
@@ -2023,8 +1962,7 @@ concept_method_instance_t *parse_concept_method_instance(void)
 	return method_instance;
 }
 
-static
-void parse_concept_instance(void)
+static void parse_concept_instance(void)
 {
 	eat(T_instance);
 
@@ -2081,14 +2019,12 @@ add_instance:
 	current_context->concept_instances = instance;
 }
 
-static
-void skip_declaration(void)
+static void skip_declaration(void)
 {
 	next_token();
 }
 
-static
-void parse_export(void)
+static void parse_export(void)
 {
 	eat(T_export);
 
@@ -2149,8 +2085,7 @@ void parse_declaration(void)
 	}
 }
 
-static
-namespace_t *get_namespace(symbol_t *symbol)
+static namespace_t *get_namespace(symbol_t *symbol)
 {
 	/* search for an existing namespace */
 	namespace_t *namespace = namespaces;
@@ -2170,8 +2105,7 @@ namespace_t *get_namespace(symbol_t *symbol)
 	return namespace;
 }
 
-static
-namespace_t *parse_namespace(void)
+static namespace_t *parse_namespace(void)
 {
 	symbol_t *namespace_symbol = NULL;
 
@@ -2209,8 +2143,7 @@ namespace_t *parse_namespace(void)
 	return namespace;
 }
 
-static
-void register_declaration_parsers(void)
+static void register_declaration_parsers(void)
 {
 	register_declaration_parser(parse_method_declaration, T_func);
 	register_declaration_parser(parse_global_variable,    T_var);

@@ -42,16 +42,13 @@ static type_t *type_void_ptr = NULL;
 static method_t *current_method            = NULL;
 bool             last_statement_was_return = false;
 
-static
-void check_and_push_context(context_t *context);
+static void check_and_push_context(context_t *context);
 
-static
-void check_method(method_t *method, symbol_t *symbol,
-                  const source_position_t source_position);
+static void check_method(method_t *method, symbol_t *symbol,
+                         const source_position_t source_position);
 
-static
-void resolve_method_types(method_t *method,
-                          const source_position_t source_position);
+static void resolve_method_types(method_t *method,
+                                 const source_position_t source_position);
 
 void print_error_prefix(const source_position_t position)
 {
@@ -167,11 +164,9 @@ size_t environment_top(void)
 	return ARR_LEN(symbol_stack);
 }
 
-static
-type_t *normalize_type(type_t *type);
+static type_t *normalize_type(type_t *type);
 
-static
-void normalize_type_arguments(type_argument_t *type_arguments)
+static void normalize_type_arguments(type_argument_t *type_arguments)
 {
 	/* normalize type arguments */
 	type_argument_t *type_argument = type_arguments;
@@ -182,8 +177,7 @@ void normalize_type_arguments(type_argument_t *type_arguments)
 	}
 }
 
-static
-type_t *resolve_type_reference(type_reference_t *type_ref)
+static type_t *resolve_type_reference(type_reference_t *type_ref)
 {
 	normalize_type_arguments(type_ref->type_arguments);
 
@@ -274,8 +268,7 @@ type_t *resolve_type_reference(type_reference_t *type_ref)
 	return type;
 }
 
-static
-type_t *resolve_type_reference_type_var(type_reference_t *type_ref)
+static type_t *resolve_type_reference_type_var(type_reference_t *type_ref)
 {
 	type_variable_t *type_variable = type_ref->type_variable;
 	if(type_variable->current_type != NULL) {
@@ -285,24 +278,21 @@ type_t *resolve_type_reference_type_var(type_reference_t *type_ref)
 	return typehash_insert((type_t*) type_ref);
 }
 
-static
-type_t *normalize_pointer_type(pointer_type_t *type)
+static type_t *normalize_pointer_type(pointer_type_t *type)
 {
 	type->points_to = normalize_type(type->points_to);
 
 	return typehash_insert((type_t*) type);
 }
 
-static
-type_t *normalize_array_type(array_type_t *type)
+static type_t *normalize_array_type(array_type_t *type)
 {
 	type->element_type = normalize_type(type->element_type);
 
 	return typehash_insert((type_t*) type);
 }
 
-static
-type_t *normalize_method_type(method_type_t *method_type)
+static type_t *normalize_method_type(method_type_t *method_type)
 {
 	method_type->result_type = normalize_type(method_type->result_type);
 
@@ -316,8 +306,7 @@ type_t *normalize_method_type(method_type_t *method_type)
 	return typehash_insert((type_t*) method_type);
 }
 
-static
-void check_compound_type(compound_type_t *type)
+static void check_compound_type(compound_type_t *type)
 {
 	int old_top = environment_top();
 
@@ -340,16 +329,14 @@ void check_compound_type(compound_type_t *type)
 	environment_pop_to(old_top);
 }
 
-static
-type_t *normalize_compound_type(compound_type_t *type)
+static type_t *normalize_compound_type(compound_type_t *type)
 {
 	type_t *result = typehash_insert((type_t*) type);
 
 	return result;
 }
 
-static
-type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
+static type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
 {
 	type_t *polymorphic_type = (type_t*) type->polymorphic_type;
 	polymorphic_type = normalize_type(polymorphic_type);
@@ -362,8 +349,7 @@ type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
 	return result;
 }
 
-static
-type_t *normalize_type(type_t *type)
+static type_t *normalize_type(type_t *type)
 {
 	/* happens sometimes on semantic errors */
 	if(type == NULL)
@@ -405,9 +391,8 @@ type_t *normalize_type(type_t *type)
 
 
 
-static
-type_t *check_reference(declaration_t *declaration,
-                        const source_position_t source_position)
+static type_t *check_reference(declaration_t *declaration,
+                               const source_position_t source_position)
 {
 	variable_declaration_t *variable;
 	method_declaration_t   *method;
@@ -468,8 +453,7 @@ type_t *check_reference(declaration_t *declaration,
 	return NULL;
 }
 
-static
-void check_reference_expression(reference_expression_t *ref)
+static void check_reference_expression(reference_expression_t *ref)
 {
 	symbol_t      *symbol      = ref->symbol;
 	declaration_t *declaration = symbol->declaration;
@@ -488,8 +472,7 @@ void check_reference_expression(reference_expression_t *ref)
 }
 
 
-static
-bool is_lvalue(const expression_t *expression)
+static bool is_lvalue(const expression_t *expression)
 {
 	unary_expression_t     *unexpr;
 	reference_expression_t *reference;
@@ -519,8 +502,7 @@ bool is_lvalue(const expression_t *expression)
 	return false;
 }
 
-static
-void check_assign_expression(binary_expression_t *assign)
+static void check_assign_expression(binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
 	expression_t *right = assign->right;
@@ -562,10 +544,9 @@ void check_assign_expression(binary_expression_t *assign)
 /**
  * creates an implicit cast if possible or reports an error
  */
-static
-expression_t *make_cast(expression_t *from,
-                        type_t *dest_type,
-                        const source_position_t source_position)
+static expression_t *make_cast(expression_t *from,
+                               type_t *dest_type,
+                               const source_position_t source_position)
 {
 	if(dest_type == NULL || from->datatype == dest_type)
 		return from;
@@ -696,8 +677,7 @@ expression_t *make_cast(expression_t *from,
 	return (expression_t*) cast;
 }
 
-static
-void check_binary_expression(binary_expression_t *binexpr)
+static void check_binary_expression(binary_expression_t *binexpr)
 {
 	binexpr->left       = check_expression(binexpr->left);
 	binexpr->right      = check_expression(binexpr->right);
@@ -838,8 +818,7 @@ void check_binary_expression(binary_expression_t *binexpr)
 /**
  * find a concept instance matching the current type_variable configuration
  */
-static
-concept_instance_t *_find_concept_instance(concept_t *concept,
+static concept_instance_t *_find_concept_instance(concept_t *concept,
                                            const source_position_t *pos)
 {
 	concept_instance_t *instance = concept->instances;
@@ -883,9 +862,8 @@ concept_instance_t *find_concept_instance(concept_t *concept)
 }
 
 /** tests whether a type variable has a concept as constraint */
-static
-bool type_variable_has_constraint(const type_variable_t *type_variable,
-                                 const concept_t *concept)
+static bool type_variable_has_constraint(const type_variable_t *type_variable,
+                                         const concept_t *concept)
 {
 	type_constraint_t *constraint = type_variable->constraints;
 	while(constraint != NULL) {
@@ -913,8 +891,7 @@ concept_method_instance_t *get_method_from_concept_instance(
 	return NULL;
 }
 
-static
-void resolve_concept_method_instance(reference_expression_t *reference)
+static void resolve_concept_method_instance(reference_expression_t *reference)
 {
 	declaration_t *declaration = reference->declaration;
 	assert(declaration->type == DECLARATION_CONCEPT_METHOD);
@@ -991,9 +968,8 @@ void resolve_concept_method_instance(reference_expression_t *reference)
 	reference->declaration         = (declaration_t*) &method_instance->method;
 }
 
-static
-void check_type_constraints(type_variable_t *type_variables,
-                            const source_position_t source_position)
+static void check_type_constraints(type_variable_t *type_variables,
+                                   const source_position_t source_position)
 {
 	type_variable_t *type_var     = type_variables;
 	while(type_var != NULL) {
@@ -1049,8 +1025,8 @@ void check_type_constraints(type_variable_t *type_variables,
  * For variable argument functions, the last arguments are promoted as in the
  * C language: all integer types get INT, all pointers to void*, float becomes
  * double */
-static
-type_t *get_default_param_type(type_t *type, source_position_t source_position)
+static type_t *get_default_param_type(type_t *type,
+                                      source_position_t source_position)
 {
 	atomic_type_t *atomic_type;
 
@@ -1123,8 +1099,7 @@ type_t *get_default_param_type(type_t *type, source_position_t source_position)
 	panic("invalid type for function argument");
 }
 
-static
-void check_call_expression(call_expression_t *call)
+static void check_call_expression(call_expression_t *call)
 {
 	call->method                    = check_expression(call->method);
 	expression_t    *method         = call->method;
@@ -1355,8 +1330,7 @@ void check_call_expression(call_expression_t *call)
 	call->expression.datatype = result_type;
 }
 
-static
-void check_cast_expression(unary_expression_t *cast)
+static void check_cast_expression(unary_expression_t *cast)
 {
 	if(cast->expression.datatype == NULL) {
 		panic("Cast expression needs a datatype!");
@@ -1370,8 +1344,7 @@ void check_cast_expression(unary_expression_t *cast)
 	}
 }
 
-static
-void check_dereference_expression(unary_expression_t *dereference)
+static void check_dereference_expression(unary_expression_t *dereference)
 {
 	dereference->value  = check_expression(dereference->value);
 	expression_t *value = dereference->value;
@@ -1391,8 +1364,7 @@ void check_dereference_expression(unary_expression_t *dereference)
 	dereference->expression.datatype  = dereferenced_type;
 }
 
-static
-void check_take_address_expression(unary_expression_t *expression)
+static void check_take_address_expression(unary_expression_t *expression)
 {
 	expression->value   = check_expression(expression->value);
 	type_t *type        = expression->value->datatype;
@@ -1450,8 +1422,7 @@ static bool is_arithmetic_type(type_t *type)
 	return false;
 }
 
-static
-void check_negate_expression(unary_expression_t *expression)
+static void check_negate_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
@@ -1470,8 +1441,7 @@ void check_negate_expression(unary_expression_t *expression)
 	expression->expression.datatype = type;
 }
 
-static
-void check_bitwise_not_expression(unary_expression_t *expression)
+static void check_bitwise_not_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
@@ -1490,8 +1460,7 @@ void check_bitwise_not_expression(unary_expression_t *expression)
 	expression->expression.datatype = type;
 }
 
-static
-expression_t *lower_incdec_expression(unary_expression_t *expression)
+static expression_t *lower_incdec_expression(unary_expression_t *expression)
 {
 	expression_t *value = check_expression(expression->value);
 	type_t       *type  = value->datatype;
@@ -1561,8 +1530,7 @@ expression_t *lower_incdec_expression(unary_expression_t *expression)
 	return (expression_t*) assign;
 }
 
-static
-expression_t *lower_unary_expression(expression_t *expression)
+static expression_t *lower_unary_expression(expression_t *expression)
 {
 	assert(expression->type == EXPR_UNARY);
 	unary_expression_t *unary_expression = (unary_expression_t*) expression;
@@ -1577,8 +1545,7 @@ expression_t *lower_unary_expression(expression_t *expression)
 	return expression;
 }
 
-static
-void check_not_expression(unary_expression_t *expression)
+static void check_not_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
@@ -1595,8 +1562,7 @@ void check_not_expression(unary_expression_t *expression)
 	expression->expression.datatype = type;
 }
 
-static
-void check_unary_expression(unary_expression_t *unary_expression)
+static void check_unary_expression(unary_expression_t *unary_expression)
 {
 	switch(unary_expression->type) {
 	case UNEXPR_CAST:
@@ -1627,8 +1593,7 @@ void check_unary_expression(unary_expression_t *unary_expression)
 	panic("Unknown unary expression found");
 }
 
-static
-void check_select_expression(select_expression_t *select)
+static void check_select_expression(select_expression_t *select)
 {
 	select->compound       = check_expression(select->compound);
 	expression_t *compound = select->compound;
@@ -1727,8 +1692,7 @@ void check_select_expression(select_expression_t *select)
 	select->expression.datatype = result_type;
 }
 
-static
-void check_array_access_expression(array_access_expression_t *access)
+static void check_array_access_expression(array_access_expression_t *access)
 {
 	access->array_ref       = check_expression(access->array_ref);
 	access->index           = check_expression(access->index);
@@ -1775,15 +1739,13 @@ void check_array_access_expression(array_access_expression_t *access)
 	}
 }
 
-static
-void check_sizeof_expression(sizeof_expression_t *expression)
+static void check_sizeof_expression(sizeof_expression_t *expression)
 {
 	expression->type = normalize_type(expression->type);
 	expression->expression.datatype = type_uint;
 }
 
-static
-void check_func_expression(func_expression_t *expression)
+static void check_func_expression(func_expression_t *expression)
 {
 	method_t *method = & expression->method;
 
@@ -1861,8 +1823,7 @@ expression_t *check_expression(expression_t *expression)
 
 
 
-static
-void check_return_statement(return_statement_t *statement)
+static void check_return_statement(return_statement_t *statement)
 {
 	method_t     *method             = current_method;
 	type_t       *method_result_type = method->type->result_type;
@@ -1897,8 +1858,7 @@ void check_return_statement(return_statement_t *statement)
 	}
 }
 
-static
-void check_if_statement(if_statement_t *statement)
+static void check_if_statement(if_statement_t *statement)
 {
 	statement->condition    = check_expression(statement->condition);
 	expression_t *condition = statement->condition;
@@ -1919,8 +1879,7 @@ void check_if_statement(if_statement_t *statement)
 	}
 }
 
-static
-void push_context(const context_t *context)
+static void push_context(const context_t *context)
 {
 	declaration_t *declaration = context->declarations;
 	while(declaration != NULL) {
@@ -1930,8 +1889,7 @@ void push_context(const context_t *context)
 	}
 }
 
-static
-void check_block_statement(block_statement_t *block)
+static void check_block_statement(block_statement_t *block)
 {
 	int old_top = environment_top();
 
@@ -1959,8 +1917,7 @@ void check_block_statement(block_statement_t *block)
 	environment_pop_to(old_top);
 }
 
-static
-void check_variable_declaration(variable_declaration_statement_t *statement)
+static void check_variable_declaration(variable_declaration_statement_t *statement)
 {
 	method_t *method = current_method;
 	assert(method != NULL);
@@ -1981,8 +1938,7 @@ void check_variable_declaration(variable_declaration_statement_t *statement)
 	}
 }
 
-static
-void check_expression_statement(expression_statement_t *statement)
+static void check_expression_statement(expression_statement_t *statement)
 {
 	statement->expression    = check_expression(statement->expression);
 	expression_t *expression = statement->expression;
@@ -2019,15 +1975,13 @@ void check_expression_statement(expression_statement_t *statement)
 	}
 }
 
-static
-void check_label_statement(label_statement_t *label)
+static void check_label_statement(label_statement_t *label)
 {
 	(void) label;
 	/* nothing to do */
 }
 
-static
-void check_goto_statement(goto_statement_t *goto_statement)
+static void check_goto_statement(goto_statement_t *goto_statement)
 {
 	/* already resolved? */
 	if(goto_statement->label != NULL)
@@ -2111,9 +2065,8 @@ statement_t *check_statement(statement_t *statement)
 	return statement;
 }
 
-static
-void check_method(method_t *method, symbol_t *symbol,
-                  const source_position_t source_position)
+static void check_method(method_t *method, symbol_t *symbol,
+                         const source_position_t source_position)
 {
 	if(method->is_extern)
 		return;
@@ -2161,8 +2114,7 @@ void check_method(method_t *method, symbol_t *symbol,
 	environment_pop_to(old_top);
 }
 
-static
-void check_constant(constant_t *constant)
+static void check_constant(constant_t *constant)
 {
 	expression_t *expression = constant->expression;
 
@@ -2174,9 +2126,8 @@ void check_constant(constant_t *constant)
 	constant->expression = expression;
 }
 
-static
-void resolve_type_constraint(type_constraint_t *constraint,
-                             const source_position_t source_position)
+static void resolve_type_constraint(type_constraint_t *constraint,
+                                    const source_position_t source_position)
 {
 	symbol_t      *symbol      = constraint->concept_symbol;
 	declaration_t *declaration = symbol->declaration;
@@ -2196,9 +2147,8 @@ void resolve_type_constraint(type_constraint_t *constraint,
 	constraint->concept = (concept_t*) declaration;
 }
 
-static
-void resolve_type_variable_constraints(type_variable_t *type_variables,
-                                       const source_position_t source_position)
+static void resolve_type_variable_constraints(type_variable_t *type_variables,
+                                              const source_position_t source_position)
 {
 	type_variable_t *type_var = type_variables;
 	while(type_var != NULL) {
@@ -2213,9 +2163,8 @@ void resolve_type_variable_constraints(type_variable_t *type_variables,
 	}
 }
 
-static
-void resolve_method_types(method_t *method,
-                          const source_position_t source_position)
+static void resolve_method_types(method_t *method,
+                                 const source_position_t source_position)
 {
 	int old_top = environment_top();
 
@@ -2236,8 +2185,7 @@ void resolve_method_types(method_t *method,
 	environment_pop_to(old_top);
 }
 
-static
-void check_concept_instance(concept_instance_t *instance)
+static void check_concept_instance(concept_instance_t *instance)
 {
 	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
@@ -2250,8 +2198,7 @@ void check_concept_instance(concept_instance_t *instance)
 	}
 }
 
-static
-void resolve_concept_types(concept_t *concept)
+static void resolve_concept_types(concept_t *concept)
 {
 	int old_top            = environment_top();
 
@@ -2281,8 +2228,7 @@ void resolve_concept_types(concept_t *concept)
 }
 
 
-static
-void resolve_concept_instance(concept_instance_t *instance)
+static void resolve_concept_instance(concept_instance_t *instance)
 {
 	symbol_t      *symbol      = instance->concept_symbol;
 	declaration_t *declaration = symbol->declaration;
@@ -2354,8 +2300,7 @@ void resolve_concept_instance(concept_instance_t *instance)
 	}
 }
 
-static
-void check_export(const export_t *export)
+static void check_export(const export_t *export)
 {
 	method_declaration_t   *method;
 	variable_declaration_t *variable;
@@ -2389,8 +2334,7 @@ void check_export(const export_t *export)
 	found_export = true;
 }
 
-static
-void check_and_push_context(context_t *context)
+static void check_and_push_context(context_t *context)
 {
 	variable_declaration_t *variable;
 	method_declaration_t   *method;
@@ -2471,8 +2415,7 @@ void check_and_push_context(context_t *context)
 	}
 }
 
-static
-void check_namespace(namespace_t *namespace)
+static void check_namespace(namespace_t *namespace)
 {
 	int old_top = environment_top();
 

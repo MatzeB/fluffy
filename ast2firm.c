@@ -47,12 +47,9 @@ static pdeq              *instantiate_methods   = NULL;
 
 //static ident* (*create_ld_ident)(declaration_t*) = create_name_linux_elf;
 
-static
-ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
-static
-ir_type *get_ir_type(type_t *type);
-static
-void context2firm(const context_t *context);
+static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
+static ir_type *get_ir_type(type_t *type);
+static void context2firm(const context_t *context);
 
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
@@ -105,8 +102,7 @@ void exit_ast2firm(void)
 
 static unsigned unique_id = 0;
 
-static
-ident *unique_ident(const char *tag)
+static ident *unique_ident(const char *tag)
 {
 	char buf[256];
 
@@ -115,8 +111,7 @@ ident *unique_ident(const char *tag)
 	return new_id_from_str(buf);
 }
 
-static
-symbol_t *unique_symbol(const char *tag)
+static symbol_t *unique_symbol(const char *tag)
 {
 	obstack_printf(&symbol_obstack, "%s.%d", tag, unique_id);
 	unique_id++;
@@ -129,8 +124,7 @@ symbol_t *unique_symbol(const char *tag)
 	return symbol;
 }
 
-static
-ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
+static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
 	switch(atomic_type->atype) {
 	case ATOMIC_TYPE_BYTE:
@@ -166,11 +160,9 @@ ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 }
 
 
-static
-unsigned get_type_size(type_t *type);
+static unsigned get_type_size(type_t *type);
 
-static
-unsigned get_atomic_type_size(const atomic_type_t *type)
+static unsigned get_atomic_type_size(const atomic_type_t *type)
 {
 	switch(type->atype) {
 	case ATOMIC_TYPE_UBYTE:
@@ -200,15 +192,13 @@ unsigned get_atomic_type_size(const atomic_type_t *type)
 	panic("Trying to determine size of invalid atomic type");
 }
 
-static
-unsigned get_compound_type_size(compound_type_t *type)
+static unsigned get_compound_type_size(compound_type_t *type)
 {
 	ir_type *irtype = get_ir_type(&type->type);
 	return get_type_size_bytes(irtype);
 }
 
-static
-unsigned get_type_reference_type_var_size(const type_reference_t *type)
+static unsigned get_type_reference_type_var_size(const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->type_variable;
 
@@ -219,15 +209,13 @@ unsigned get_type_reference_type_var_size(const type_reference_t *type)
 	return get_type_size(type_variable->current_type);
 }
 
-static
-unsigned get_array_type_size(array_type_t *type)
+static unsigned get_array_type_size(array_type_t *type)
 {
 	ir_type *irtype = get_ir_type(&type->type);
 	return get_type_size_bytes(irtype);
 }
 
-static
-unsigned get_type_size(type_t *type)
+static unsigned get_type_size(type_t *type)
 {
 	switch(type->type) {
 	case TYPE_VOID:
@@ -258,8 +246,7 @@ unsigned get_type_size(type_t *type)
 	panic("Trying to determine size of invalid type");
 }
 
-static
-int count_parameters(const method_type_t *method_type)
+static int count_parameters(const method_type_t *method_type)
 {
 	int count = 0;
 
@@ -275,8 +262,7 @@ int count_parameters(const method_type_t *method_type)
 
 
 
-static
-ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
+static ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 {
 	(void) env;
 	ir_mode *mode   = get_atomic_mode(type);
@@ -286,8 +272,7 @@ ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 	return irtype;
 }
 
-static
-ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
+static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 {
 	type_t  *result_type  = method_type->result_type;
 
@@ -318,8 +303,7 @@ ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
 	return irtype;
 }
 
-static
-ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
+static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 {
 	type_t  *points_to = type->points_to;
 	ir_type *ir_points_to;
@@ -338,8 +322,7 @@ ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	return ir_type;
 }
 
-static
-ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
+static ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 {
 	type_t  *element_type    = type->element_type;
 	ir_type *ir_element_type = _get_ir_type(env, element_type);
@@ -361,8 +344,7 @@ ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 
 #define INVALID_TYPE ((ir_type_ptr)-1)
 
-static
-ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
+static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol = type->symbol;
 	ident    *id;
@@ -411,8 +393,7 @@ ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 	return ir_type;
 }
 
-static
-ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
+static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol = type->symbol;
 	ident    *id;
@@ -460,8 +441,7 @@ ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	return ir_type;
 }
 
-static
-ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
+static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol        = type->symbol;
 	ident    *id            = unique_ident(symbol->string);
@@ -518,9 +498,8 @@ ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 
 
 
-static
-ir_type *get_type_for_type_variable(type2firm_env_t *env,
-                                    type_reference_t *ref)
+static ir_type *get_type_for_type_variable(type2firm_env_t *env,
+                                           type_reference_t *ref)
 {
 	assert(ref->type.type == TYPE_REFERENCE_TYPE_VARIABLE);
 	type_variable_t *type_variable = ref->type_variable;
@@ -537,9 +516,8 @@ ir_type *get_type_for_type_variable(type2firm_env_t *env,
 	return ir_type;
 }
 
-static
-ir_type *get_type_for_bind_typevariables(type2firm_env_t *env,
-                                         bind_typevariables_type_t *type)
+static ir_type *get_type_for_bind_typevariables(type2firm_env_t *env,
+                                                bind_typevariables_type_t *type)
 {
 	compound_type_t *polymorphic_type = type->polymorphic_type;
 
@@ -554,8 +532,7 @@ ir_type *get_type_for_bind_typevariables(type2firm_env_t *env,
 	return result;
 }
 
-static
-ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
+static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
 
@@ -614,8 +591,7 @@ ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 
 }
 
-static
-ir_type *get_ir_type(type_t *type)
+static ir_type *get_ir_type(type_t *type)
 {
 	type2firm_env_t env;
 	env.can_cache = 1;
@@ -632,8 +608,7 @@ ir_mode *get_ir_mode(type_t *type)
 	return mode;
 }
 
-static
-instantiate_method_t *queue_method_instantiation(method_t  *method,
+static instantiate_method_t *queue_method_instantiation(method_t  *method,
                                                  ir_entity *entity)
 {
 	instantiate_method_t *instantiate
@@ -647,14 +622,12 @@ instantiate_method_t *queue_method_instantiation(method_t  *method,
 	return instantiate;
 }
 
-static
-int is_polymorphic_method(const method_t *method)
+static int is_polymorphic_method(const method_t *method)
 {
 	return method->type_parameters != NULL;
 }
 
-static
-ir_entity* get_concept_method_instance_entity(
+static ir_entity* get_concept_method_instance_entity(
 		concept_method_instance_t *method_instance)
 {
 	method_t *method = & method_instance->method;
@@ -700,8 +673,7 @@ ir_entity* get_concept_method_instance_entity(
 	return entity;
 }
 
-static
-ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
+static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 {
 	method_type_t *method_type    = method->type;
 	int            is_polymorphic = is_polymorphic_method(method);
@@ -778,21 +750,17 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	return entity;
 }
 
-static
-dbg_info* get_dbg_info(const source_position_t *pos)
+static dbg_info* get_dbg_info(const source_position_t *pos)
 {
 	return (dbg_info*) pos;
 }
 
-static
-ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
-                                   const source_position_t *pos);
+static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
+                                          const source_position_t *pos);
 
-static
-ir_node *expression_to_firm(expression_t *expression);
+static ir_node *expression_to_firm(expression_t *expression);
 
-static
-ir_node *int_const_to_firm(const int_const_t *cnst)
+static ir_node *int_const_to_firm(const int_const_t *cnst)
 {
 	ir_mode  *mode = get_ir_mode(cnst->expression.datatype);
 	tarval   *tv   = new_tarval_from_long(cnst->value, mode);
@@ -801,8 +769,7 @@ ir_node *int_const_to_firm(const int_const_t *cnst)
 	return new_d_Const(dbgi, tv);
 }
 
-static
-ir_node *float_const_to_firm(const float_const_t *cnst)
+static ir_node *float_const_to_firm(const float_const_t *cnst)
 {
 	ir_mode  *mode = get_ir_mode(cnst->expression.datatype);
 	tarval   *tv   = new_tarval_from_double(cnst->value, mode);
@@ -811,8 +778,7 @@ ir_node *float_const_to_firm(const float_const_t *cnst)
 	return new_d_Const(dbgi, tv);
 }
 
-static
-ir_node *bool_const_to_firm(const bool_const_t *cnst)
+static ir_node *bool_const_to_firm(const bool_const_t *cnst)
 {
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
@@ -823,8 +789,7 @@ ir_node *bool_const_to_firm(const bool_const_t *cnst)
 	}
 }
 
-static
-ir_node *string_const_to_firm(const string_const_t* cnst)
+static ir_node *string_const_to_firm(const string_const_t* cnst)
 {
 	ir_type   *global_type = get_glob_type();
 	ir_type   *type        = new_type_array(unique_ident("bytearray"), 1,
@@ -859,8 +824,7 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 	return new_d_SymConst(dbgi, mode_P, (union symconst_symbol) ent, symconst_addr_ent);
 }
 
-static
-ir_node *null_pointer_to_firm(void)
+static ir_node *null_pointer_to_firm(void)
 {
 	ir_mode *mode = get_type_mode(void_ptr_type);
 	tarval  *tv   = get_tarval_null(mode);
@@ -868,8 +832,7 @@ ir_node *null_pointer_to_firm(void)
 	return new_Const(tv);
 }
 
-static
-ir_node *select_expression_addr(const select_expression_t *select)
+static ir_node *select_expression_addr(const select_expression_t *select)
 {
 	expression_t *compound_ptr = select->compound;
 	/* make sure the firm type for the struct is constructed */
@@ -890,8 +853,7 @@ ir_node *select_expression_addr(const select_expression_t *select)
 	return addr;
 }
 
-static
-ir_node *array_access_expression_addr(const array_access_expression_t* access)
+static ir_node *array_access_expression_addr(const array_access_expression_t* access)
 {
 	expression_t *array_ref  = access->array_ref;
 	expression_t *index      = access->index;
@@ -909,8 +871,7 @@ ir_node *array_access_expression_addr(const array_access_expression_t* access)
 	return add;
 }
 
-static
-ir_entity *create_variable_entity(variable_declaration_t *variable)
+static ir_entity *create_variable_entity(variable_declaration_t *variable)
 {
 	if(variable->entity != NULL)
 		return variable->entity;
@@ -948,8 +909,7 @@ ir_entity *create_variable_entity(variable_declaration_t *variable)
 	return entity;
 }
 
-static
-ir_node *variable_addr(variable_declaration_t *variable)
+static ir_node *variable_addr(variable_declaration_t *variable)
 {
 	ir_entity *entity = create_variable_entity(variable);
 	dbg_info  *dbgi   = get_dbg_info(&variable->declaration.source_position);
@@ -970,8 +930,7 @@ ir_node *variable_addr(variable_declaration_t *variable)
 	return result;
 }
 
-static
-ir_node *variable_to_firm(variable_declaration_t *variable,
+static ir_node *variable_to_firm(variable_declaration_t *variable,
                           const source_position_t *source_position)
 {
 	if(variable->is_global || variable->needs_entity) {
@@ -998,14 +957,12 @@ ir_node *variable_to_firm(variable_declaration_t *variable,
 	}
 }
 
-static
-ir_node *constant_reference_to_firm(const constant_t *constant)
+static ir_node *constant_reference_to_firm(const constant_t *constant)
 {
 	return expression_to_firm(constant->expression);
 }
 
-static
-ir_node *declaration_addr(declaration_t *declaration)
+static ir_node *declaration_addr(declaration_t *declaration)
 {
 	switch(declaration->type) {
 	case DECLARATION_VARIABLE:
@@ -1026,15 +983,13 @@ ir_node *declaration_addr(declaration_t *declaration)
 	panic("Unknown declaration found in reference expression");
 }
 
-static
-ir_node *reference_expression_addr(const reference_expression_t *reference)
+static ir_node *reference_expression_addr(const reference_expression_t *reference)
 {
 	declaration_t *declaration = reference->declaration;
 	return declaration_addr(declaration);
 }
 
-static
-ir_node *expression_addr(const expression_t *expression)
+static ir_node *expression_addr(const expression_t *expression)
 {
 	const unary_expression_t  *unexpr;
 	const select_expression_t *select;
@@ -1061,9 +1016,8 @@ ir_node *expression_addr(const expression_t *expression)
 	panic("trying to get address from non lvalue construct");
 }
 
-static
-void firm_assign(expression_t *dest_expr, ir_node *value,
-                 const source_position_t *source_position)
+static void firm_assign(expression_t *dest_expr, ir_node *value,
+                        const source_position_t *source_position)
 {
 	if(dest_expr->type == EXPR_REFERENCE) {
 		const reference_expression_t *ref 
@@ -1102,8 +1056,7 @@ void firm_assign(expression_t *dest_expr, ir_node *value,
 	}
 }
 
-static
-ir_node *assign_expression_to_firm(const binary_expression_t *assign)
+static ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 {
 	expression_t *left  = assign->left;
 	expression_t *right = assign->right;
@@ -1114,8 +1067,7 @@ ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	return value;
 }
 
-static
-ir_op *binexpr_type_to_op(binary_expression_type_t type)
+static ir_op *binexpr_type_to_op(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_ADD:
@@ -1139,8 +1091,7 @@ ir_op *binexpr_type_to_op(binary_expression_type_t type)
 	}
 }
 
-static
-long binexpr_type_to_cmp_pn(binary_expression_type_t type)
+static long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 {
 	switch(type) {
 	case BINEXPR_EQUAL:
@@ -1160,8 +1111,7 @@ long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 	}
 }
 
-static
-ir_node *create_lazy_op(const binary_expression_t *binary_expression)
+static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 {
 	int is_or = binary_expression->type == BINEXPR_LAZY_OR;
 	assert(is_or || binary_expression->type == BINEXPR_LAZY_AND);
@@ -1213,8 +1163,7 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	return val;
 }
 
-static
-ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
+static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 {
 	binary_expression_type_t btype = binary_expression->type;
 
@@ -1288,8 +1237,7 @@ ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
 	panic("found unknown binexpr type");
 }
 
-static
-ir_node *cast_expression_to_firm(const unary_expression_t *cast)
+static ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
 	type_t   *to_type = cast->expression.datatype;
 	ir_node  *node    = expression_to_firm(cast->value);
@@ -1301,9 +1249,8 @@ ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 	return new_d_Conv(dbgi, node, mode);
 }
 
-static
-ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
-                                   const source_position_t *pos)
+static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
+                                          const source_position_t *pos)
 {
 	dbg_info *dbgi  = get_dbg_info(pos);
 	ir_mode  *mode  = get_ir_mode(type);
@@ -1319,9 +1266,8 @@ ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 typedef ir_node* (*create_unop_node_func) (dbg_info *dbgi, ir_node *value,
                                            ir_mode *mode);
 
-static
-ir_node *create_unary_expression_node(const unary_expression_t *expression,
-                                      create_unop_node_func create_func)
+static ir_node *create_unary_expression_node(const unary_expression_t *expression,
+                                             create_unop_node_func create_func)
 {
 	dbg_info *dbgi  = get_dbg_info(&expression->expression.source_position);
 	type_t   *type  = expression->expression.datatype;
@@ -1332,8 +1278,7 @@ ir_node *create_unary_expression_node(const unary_expression_t *expression,
 	return res;
 }
 
-static
-ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
+static ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 {
 	ir_node *addr;
 
@@ -1361,8 +1306,7 @@ ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
 	panic("found unknown unary expression");
 }
 
-static
-ir_node *select_expression_to_firm(const select_expression_t *select)
+static ir_node *select_expression_to_firm(const select_expression_t *select)
 {
 	ir_node *addr       = select_expression_addr(select);
 	type_t  *entry_type = select->compound_entry->type;
@@ -1375,8 +1319,7 @@ ir_node *select_expression_to_firm(const select_expression_t *select)
 	                                 &select->expression.source_position);
 }
 
-static
-ir_entity *assure_instance(method_t *method, symbol_t *symbol,
+static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
                            type_argument_t *type_arguments)
 {
 	int old_top        = typevar_binding_stack_top();
@@ -1419,8 +1362,7 @@ ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 	return entity;
 }
 
-static
-ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
+static ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
                                   type_argument_t *type_arguments,
 								  const source_position_t *source_position)
 {
@@ -1434,8 +1376,7 @@ ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
 	return symconst;
 }
 
-static
-ir_node *concept_method_reference_to_firm(concept_method_t *method,
+static ir_node *concept_method_reference_to_firm(concept_method_t *method,
                                           type_argument_t *type_arguments,
                                        const source_position_t *source_position)
 {
@@ -1474,8 +1415,7 @@ ir_node *concept_method_reference_to_firm(concept_method_t *method,
 	return symconst;
 }
 
-static
-ir_node *method_parameter_reference_to_firm(method_parameter_t *parameter)
+static ir_node *method_parameter_reference_to_firm(method_parameter_t *parameter)
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
 	ir_mode *mode  = get_ir_mode(parameter->type);
@@ -1486,8 +1426,7 @@ ir_node *method_parameter_reference_to_firm(method_parameter_t *parameter)
 	return proj;
 }
 
-static
-ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
+static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 {
 	ir_mode  *mode = get_ir_mode(expression->expression.datatype);
 	unsigned  size = get_type_size(expression->type);
@@ -1497,8 +1436,7 @@ ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 	return res;
 }
 
-static
-ir_node *call_expression_to_firm(const call_expression_t *call)
+static ir_node *call_expression_to_firm(const call_expression_t *call)
 {
 	expression_t  *method = call->method;
 	ir_node       *callee = expression_to_firm(method);
@@ -1575,8 +1513,7 @@ ir_node *call_expression_to_firm(const call_expression_t *call)
 	return result;
 }
 
-static
-ir_node *func_expression_to_firm(func_expression_t *expression)
+static ir_node *func_expression_to_firm(func_expression_t *expression)
 {
 	method_t  *method = & expression->method;
 	ir_entity *entity = method->e.entity;
@@ -1593,8 +1530,7 @@ ir_node *func_expression_to_firm(func_expression_t *expression)
 	return symconst;
 }
 
-static
-ir_node *declaration_reference_to_firm(declaration_t *declaration,
+static ir_node *declaration_reference_to_firm(declaration_t *declaration,
                                        type_argument_t *type_arguments,
 									   const source_position_t *source_position)
 {
@@ -1630,8 +1566,7 @@ ir_node *declaration_reference_to_firm(declaration_t *declaration,
 	panic("unknown declaration type found");
 }
 
-static
-ir_node *reference_expression_to_firm(const reference_expression_t *reference)
+static ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 {
 	declaration_t   *declaration    = reference->declaration;
 	type_argument_t *type_arguments = reference->type_arguments;
@@ -1639,8 +1574,7 @@ ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 	                                    &reference->expression.source_position);
 }
 
-static
-ir_node *expression_to_firm(expression_t *expression)
+static ir_node *expression_to_firm(expression_t *expression)
 {
 	ir_node *addr;
 
@@ -1690,11 +1624,9 @@ ir_node *expression_to_firm(expression_t *expression)
 
 
 
-static
-void statement_to_firm(statement_t *statement);
+static void statement_to_firm(statement_t *statement);
 
-static
-void return_statement_to_firm(const return_statement_t *statement)
+static void return_statement_to_firm(const return_statement_t *statement)
 {
 	dbg_info *dbgi = get_dbg_info(&statement->statement.source_position);
 	ir_node *ret;
@@ -1713,8 +1645,7 @@ void return_statement_to_firm(const return_statement_t *statement)
 	set_cur_block(NULL);
 }
 
-static
-void if_statement_to_firm(const if_statement_t *statement)
+static void if_statement_to_firm(const if_statement_t *statement)
 {
 	dbg_info *dbgi      = get_dbg_info(&statement->statement.source_position);
 	ir_node  *condition = expression_to_firm(statement->condition);
@@ -1758,14 +1689,12 @@ void if_statement_to_firm(const if_statement_t *statement)
 	set_cur_block(fallthrough_block);
 }
 
-static
-void expression_statement_to_firm(const expression_statement_t *statement)
+static void expression_statement_to_firm(const expression_statement_t *statement)
 {
 	expression_to_firm(statement->expression);
 }
 
-static
-void block_statement_to_firm(const block_statement_t *block)
+static void block_statement_to_firm(const block_statement_t *block)
 {
 	context2firm(&block->context);
 
@@ -1776,8 +1705,7 @@ void block_statement_to_firm(const block_statement_t *block)
 	}
 }
 
-static
-void goto_statement_to_firm(goto_statement_t *goto_statement)
+static void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
 	dbg_info            *dbgi  
 		= get_dbg_info(&goto_statement->statement.source_position);
@@ -1796,8 +1724,7 @@ void goto_statement_to_firm(goto_statement_t *goto_statement)
 	set_cur_block(NULL);
 }
 
-static
-void label_statement_to_firm(label_statement_t *label_statement)
+static void label_statement_to_firm(label_statement_t *label_statement)
 {
 	label_declaration_t *label = &label_statement->declaration;
 	ir_node *block = label->block;
@@ -1817,8 +1744,7 @@ void label_statement_to_firm(label_statement_t *label_statement)
 	set_cur_block(block);
 }
 
-static
-void statement_to_firm(statement_t *statement)
+static void statement_to_firm(statement_t *statement)
 {
 	if(statement->type != STATEMENT_LABEL && get_cur_block() == NULL) {
 		fprintf(stderr, "Warning: unreachable code detected\n");
@@ -1852,9 +1778,8 @@ void statement_to_firm(statement_t *statement)
 	}
 }
 
-static
-void create_method(method_t *method, ir_entity *entity,
-                   type_argument_t *type_arguments)
+static void create_method(method_t *method, ir_entity *entity,
+                          type_argument_t *type_arguments)
 {
 	if(method->is_extern)
 		return;
@@ -1935,8 +1860,7 @@ void create_method(method_t *method, ir_entity *entity,
 	pop_type_variable_bindings(old_top);
 }
 
-static
-void create_concept_instance(concept_instance_t *instance)
+static void create_concept_instance(concept_instance_t *instance)
 {
 	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
@@ -1950,8 +1874,7 @@ void create_concept_instance(concept_instance_t *instance)
 	}
 }
 
-static
-void context2firm(const context_t *context)
+static void context2firm(const context_t *context)
 {
 	method_declaration_t *method_declaration;
 	method_t             *method;
@@ -1995,8 +1918,7 @@ void context2firm(const context_t *context)
 	}
 }
 
-static
-void namespace2firm(namespace_t *namespace)
+static void namespace2firm(namespace_t *namespace)
 {
 	context2firm(& namespace->context);
 }

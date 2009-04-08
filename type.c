@@ -36,8 +36,7 @@ void exit_type_module()
 	obstack_free(type_obst, NULL);
 }
 
-static
-void print_atomic_type(FILE *out, const atomic_type_t *type)
+static void print_atomic_type(FILE *out, const atomic_type_t *type)
 {
 	switch(type->atype) {
 	case ATOMIC_TYPE_INVALID:   fputs("INVALIDATOMIC", out); break;
@@ -58,8 +57,7 @@ void print_atomic_type(FILE *out, const atomic_type_t *type)
 	}
 }
 
-static
-void print_method_type(FILE *out, const method_type_t *type)
+static void print_method_type(FILE *out, const method_type_t *type)
 {
 	fputs("<", out);
 	fputs("func(", out);
@@ -83,28 +81,24 @@ void print_method_type(FILE *out, const method_type_t *type)
 	fputs(">", out);
 }
 
-static
-void print_pointer_type(FILE *out, const pointer_type_t *type)
+static void print_pointer_type(FILE *out, const pointer_type_t *type)
 {
 	print_type(out, type->points_to);
 	fputs("*", out);
 }
 
-static
-void print_array_type(FILE *out, const array_type_t *type)
+static void print_array_type(FILE *out, const array_type_t *type)
 {
 	print_type(out, type->element_type);
 	fprintf(out, "[%lu]", type->size);
 }
 
-static
-void print_type_reference(FILE *out, const type_reference_t *type)
+static void print_type_reference(FILE *out, const type_reference_t *type)
 {
 	fprintf(out, "<?%s>", type->symbol->string);
 }
 
-static
-void print_type_variable(FILE *out, const type_variable_t *type_variable)
+static void print_type_variable(FILE *out, const type_variable_t *type_variable)
 {
 	if(type_variable->current_type != NULL) {
 		print_type(out, type_variable->current_type);
@@ -127,15 +121,13 @@ void print_type_variable(FILE *out, const type_variable_t *type_variable)
 	}
 }
 
-static
-void print_type_reference_variable(FILE *out, const type_reference_t *type)
+static void print_type_reference_variable(FILE *out, const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->type_variable;
 	print_type_variable(out, type_variable);
 }
 
-static
-void print_compound_type(FILE *out, const compound_type_t *type)
+static void print_compound_type(FILE *out, const compound_type_t *type)
 {
 	fprintf(out, "%s", type->symbol->string);
 
@@ -153,8 +145,7 @@ void print_compound_type(FILE *out, const compound_type_t *type)
 	}
 }
 
-static
-void print_bind_type_variables(FILE *out, const bind_typevariables_type_t *type)
+static void print_bind_type_variables(FILE *out, const bind_typevariables_type_t *type)
 {
 	compound_type_t *polymorphic_type = type->polymorphic_type;
 
@@ -309,15 +300,13 @@ void dbg_type(const type_t *type)
 	fflush(stdout);
 }
 
-static
-type_t *create_concrete_compound_type(compound_type_t *type)
+static type_t *create_concrete_compound_type(compound_type_t *type)
 {
 	/* TODO: handle structs with typevars */
 	return (type_t*) type;
 }
 
-static
-type_t *create_concrete_method_type(method_type_t *type)
+static type_t *create_concrete_method_type(method_type_t *type)
 {
 	int need_new_type = 0;
 
@@ -362,8 +351,7 @@ type_t *create_concrete_method_type(method_type_t *type)
 	return (type_t*) new_type;
 }
 
-static
-type_t *create_concrete_pointer_type(pointer_type_t *type)
+static type_t *create_concrete_pointer_type(pointer_type_t *type)
 {
 	type_t *points_to = create_concrete_type(type->points_to);
 
@@ -383,8 +371,7 @@ type_t *create_concrete_pointer_type(pointer_type_t *type)
 	return normalized_type;
 }
 
-static
-type_t *create_concrete_type_variable_reference_type(type_reference_t *type)
+static type_t *create_concrete_type_variable_reference_type(type_reference_t *type)
 {
 	type_variable_t *type_variable = type->type_variable;
 	type_t          *current_type  = type_variable->current_type;
@@ -395,8 +382,7 @@ type_t *create_concrete_type_variable_reference_type(type_reference_t *type)
 	return (type_t*) type;
 }
 
-static
-type_t *create_concrete_array_type(array_type_t *type)
+static type_t *create_concrete_array_type(array_type_t *type)
 {
 	type_t *element_type = create_concrete_type(type->element_type);
 	if(element_type == type->element_type)
@@ -417,8 +403,7 @@ type_t *create_concrete_array_type(array_type_t *type)
 	return normalized_type;
 }
 
-static
-type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *type)
+static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *type)
 {
 	int changed = 0;
 

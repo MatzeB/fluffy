@@ -10,9 +10,8 @@
 #include "type_hash.h"
 #include "adt/error.h"
 
-static inline
-void match_error(type_t *variant, type_t *concrete,
-                 const source_position_t source_position)
+static inline void match_error(type_t *variant, type_t *concrete,
+                               const source_position_t source_position)
 {
 	print_error_prefix(source_position);
 	fprintf(stderr, "can't match variant type ");
@@ -22,9 +21,8 @@ void match_error(type_t *variant, type_t *concrete,
 	fprintf(stderr, "\n");
 }
 
-static
-void matched_type_variable(type_variable_t *type_variable, type_t *type,
-                           const source_position_t source_position)
+static void matched_type_variable(type_variable_t *type_variable, type_t *type,
+                                  const source_position_t source_position)
 {
 	type_t *current_type = type_variable->current_type;
 	if(current_type != NULL && current_type != type) {
@@ -43,9 +41,9 @@ void matched_type_variable(type_variable_t *type_variable, type_t *type,
 	type_variable->current_type = type;
 }
 
-static
-void match_compound_type(compound_type_t *variant_type, type_t *concrete_type,
-                         const source_position_t source_position)
+static void match_compound_type(compound_type_t *variant_type,
+                                type_t *concrete_type,
+                                const source_position_t source_position)
 {
 	type_variable_t *type_parameters = variant_type->type_parameters;
 	if(type_parameters == NULL) {
@@ -81,10 +79,9 @@ void match_compound_type(compound_type_t *variant_type, type_t *concrete_type,
 	}
 }
 
-static
-void match_bind_typevariables(bind_typevariables_type_t *variant_type,
-                              type_t *concrete_type,
-                              const source_position_t source_position)
+static void match_bind_typevariables(bind_typevariables_type_t *variant_type,
+                                     type_t *concrete_type,
+                                     const source_position_t source_position)
 {
 	if(concrete_type->type != TYPE_BIND_TYPEVARIABLES) {
 		match_error((type_t*) variant_type, concrete_type, source_position);

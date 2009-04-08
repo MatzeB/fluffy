@@ -6,8 +6,7 @@
 
 struct obstack symbol_obstack;
 
-static inline
-void init_symbol_table_entry(symbol_t *entry, const char *string)
+static inline void init_symbol_table_entry(symbol_t *entry, const char *string)
 {
 	entry->ID          = 0;
 	entry->string      = string;

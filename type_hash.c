@@ -18,47 +18,40 @@
 typedef struct type_hash_iterator_t  type_hash_iterator_t;
 typedef struct type_hash_t           type_hash_t;
 
-static
-unsigned hash_ptr(const void *ptr)
+static unsigned hash_ptr(const void *ptr)
 {
 	unsigned ptr_int = ((const char*) ptr - (const char*) NULL);
 	return ptr_int >> 3;
 }
 
-static
-unsigned hash_atomic_type(const atomic_type_t *type)
+static unsigned hash_atomic_type(const atomic_type_t *type)
 {
 	unsigned some_prime = 27644437;
 
 	return type->atype * some_prime;
 }
 
-static
-unsigned hash_pointer_type(const pointer_type_t *type)
+static unsigned hash_pointer_type(const pointer_type_t *type)
 {
 	return hash_ptr(type->points_to);
 }
 
-static
-unsigned hash_array_type(const array_type_t *type)
+static unsigned hash_array_type(const array_type_t *type)
 {
 	unsigned some_prime = 27644437;
 	return hash_ptr(type->element_type) ^ (type->size * some_prime);
 }
 
-static
-unsigned hash_compound_type(const compound_type_t *type)
+static unsigned hash_compound_type(const compound_type_t *type)
 {
 	unsigned result = hash_ptr(type->symbol);
 
 	return result;
 }
 
-static
-unsigned hash_type(const type_t *type);
+static unsigned hash_type(const type_t *type);
 
-static
-unsigned hash_method_type(const method_type_t *type)
+static unsigned hash_method_type(const method_type_t *type)
 {
 	unsigned result = hash_ptr(type->result_type);
 
@@ -73,14 +66,12 @@ unsigned hash_method_type(const method_type_t *type)
 	return result;
 }
 
-static
-unsigned hash_type_reference_type_variable(const type_reference_t *type)
+static unsigned hash_type_reference_type_variable(const type_reference_t *type)
 {
 	return hash_ptr(type->type_variable);
 }
 
-static
-unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *type)
+static unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *type)
 {
 	unsigned hash = hash_compound_type(type->polymorphic_type);
 	type_argument_t *argument = type->type_arguments;
@@ -92,8 +83,7 @@ unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *type)
 	return hash;
 }
 
-static
-unsigned hash_type(const type_t *type)
+static unsigned hash_type(const type_t *type)
 {
 	switch(type->type) {
 	case TYPE_INVALID:
@@ -122,14 +112,12 @@ unsigned hash_type(const type_t *type)
 	abort();
 }
 
-static
-int atomic_types_equal(const atomic_type_t *type1, const atomic_type_t *type2)
+static int atomic_types_equal(const atomic_type_t *type1, const atomic_type_t *type2)
 {
 	return type1->atype == type2->atype;
 }
 
-static
-int compound_types_equal(const compound_type_t *type1,
+static int compound_types_equal(const compound_type_t *type1,
                          const compound_type_t *type2)
 {
 	if(type1->symbol != type2->symbol)
@@ -152,8 +140,7 @@ int compound_types_equal(const compound_type_t *type1,
 	return 1;
 }
 
-static
-int method_types_equal(const method_type_t *type1, const method_type_t *type2)
+static int method_types_equal(const method_type_t *type1, const method_type_t *type2)
 {
 	if(type1->result_type != type2->result_type)
 		return 0;
@@ -175,31 +162,27 @@ int method_types_equal(const method_type_t *type1, const method_type_t *type2)
 	return 1;
 }
 
-static
-int pointer_types_equal(const pointer_type_t *type1,
-                        const pointer_type_t *type2)
+static int pointer_types_equal(const pointer_type_t *type1,
+                               const pointer_type_t *type2)
 {
 	return type1->points_to == type2->points_to;
 }
 
-static
-int array_types_equal(const array_type_t *type1,
-                      const array_type_t *type2)
+static int array_types_equal(const array_type_t *type1,
+                             const array_type_t *type2)
 {
 	return type1->element_type == type2->element_type &&
 	       type1->size == type2->size;
 }
 
-static
-int type_references_type_variable_equal(const type_reference_t *type1,
-                                        const type_reference_t *type2)
+static int type_references_type_variable_equal(const type_reference_t *type1,
+                                               const type_reference_t *type2)
 {
 	return type1->type_variable == type2->type_variable;
 }
 
-static
-int bind_typevariables_type_equal(const bind_typevariables_type_t *type1,
-                                  const bind_typevariables_type_t *type2)
+static int bind_typevariables_type_equal(const bind_typevariables_type_t *type1,
+                                         const bind_typevariables_type_t *type2)
 {
 	if(type1->polymorphic_type != type2->polymorphic_type)
 		return 0;
@@ -220,8 +203,7 @@ int bind_typevariables_type_equal(const bind_typevariables_type_t *type1,
 	return 1;
 }
 
-static
-int types_equal(const type_t *type1, const type_t *type2)
+static int types_equal(const type_t *type1, const type_t *type2)
 {
 	if(type1 == type2)
 		return 1;
