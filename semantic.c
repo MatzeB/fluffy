@@ -1,5 +1,7 @@
 #include <config.h>
 
+#include <stdbool.h>
+
 #include "semantic_t.h"
 
 #include "ast_t.h"
@@ -26,8 +28,8 @@ static lower_expression_function *expression_lowerers = NULL;
 
 static struct obstack        symbol_environment_obstack;
 static environment_entry_t **symbol_stack;
-static int                   found_export;
-static int                   found_errors;
+static bool                  found_export;
+static bool                  found_errors;
 
 static type_t *type_bool     = NULL;
 static type_t *type_byte     = NULL;
@@ -38,7 +40,7 @@ static type_t *type_byte_ptr = NULL;
 static type_t *type_void_ptr = NULL;
 
 static method_t *current_method            = NULL;
-int              last_statement_was_return = 0;
+bool             last_statement_was_return = false;
 
 static
 void check_and_push_context(context_t *context);
@@ -54,7 +56,7 @@ void resolve_method_types(method_t *method,
 void print_error_prefix(const source_position_t position)
 {
 	fprintf(stderr, "%s:%d: error: ", position.input_name, position.linenr);
-	found_errors = 1;
+	found_errors = true;
 #ifdef ABORT_ON_ERRORS
 	abort();
 #endif
@@ -487,7 +489,7 @@ void check_reference_expression(reference_expression_t *ref)
 
 
 static
-int is_lvalue(const expression_t *expression)
+bool is_lvalue(const expression_t *expression)
 {
 	unary_expression_t     *unexpr;
 	reference_expression_t *reference;
@@ -498,23 +500,23 @@ int is_lvalue(const expression_t *expression)
 		reference   = (reference_expression_t*) expression;
 		declaration = reference->declaration;
 		if(declaration->type == DECLARATION_VARIABLE) {
-			return 1;
+			return true;
 		}
 		break;
 	case EXPR_ARRAY_ACCESS:
-		return 1;
+		return true;
 	case EXPR_SELECT:
-		return 1;
+		return true;
 	case EXPR_UNARY:
 		unexpr = (unary_expression_t*) expression;
 		if(unexpr->type == UNEXPR_DEREFERENCE)
-			return 1;
+			return true;
 		break;
 	default:
 		break;
 	}
 
-	return 0;
+	return false;
 }
 
 static
@@ -582,7 +584,7 @@ expression_t *make_cast(expression_t *from,
 		return NULL;
 	}
 
-	int implicit_cast_allowed = 1;
+	bool implicit_cast_allowed = true;
 	if(from_type->type == TYPE_POINTER) {
 		if(dest_type->type == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) from_type;
@@ -592,10 +594,10 @@ expression_t *make_cast(expression_t *from,
 			if(p1->points_to != p2->points_to
 					&& dest_type != type_void_ptr
 					&& from->type != EXPR_NULL_POINTER) {
-				implicit_cast_allowed = 0;
+				implicit_cast_allowed = false;
 			}
 		} else {
-			implicit_cast_allowed = 0;
+			implicit_cast_allowed = false;
 		}
 	} else if(from_type->type == TYPE_ARRAY) {
 		array_type_t *array_type = (array_type_t*) from_type;
@@ -604,16 +606,16 @@ expression_t *make_cast(expression_t *from,
 			/* we can cast to pointer of same type and void* */
 			if(pointer_type->points_to != array_type->element_type &&
 					dest_type != type_void_ptr) {
-				implicit_cast_allowed = 0;
+				implicit_cast_allowed = false;
 			}
 		} else {
-			implicit_cast_allowed = 0;
+			implicit_cast_allowed = false;
 		}
 	} else if(dest_type->type == TYPE_POINTER) {
-		implicit_cast_allowed = 0;
+		implicit_cast_allowed = false;
 	} else if(from_type->type == TYPE_ATOMIC) {
 		if(dest_type->type != TYPE_ATOMIC) {
-			implicit_cast_allowed = 0;
+			implicit_cast_allowed = false;
 		} else {
 			atomic_type_t      *from_type_atomic = (atomic_type_t*) from_type;
 			atomic_type_type_t  from_atype       = from_type_atomic->atype;
@@ -667,7 +669,7 @@ expression_t *make_cast(expression_t *from,
 			case ATOMIC_TYPE_LONGLONG:
 			case ATOMIC_TYPE_ULONGLONG:
 			case ATOMIC_TYPE_INVALID:
-				implicit_cast_allowed = 0;
+				implicit_cast_allowed = false;
 				break;
 			}
 		}
@@ -846,7 +848,7 @@ concept_instance_t *_find_concept_instance(concept_t *concept,
 
 		type_argument_t *argument  = instance->type_arguments;
 		type_variable_t *parameter = concept->type_parameters;
-		int              match     = 1;
+		bool             match     = true;
 		while(argument != NULL && parameter != NULL) {
 			if(parameter->current_type == NULL) {
 				print_error_prefix(*pos);
@@ -854,19 +856,19 @@ concept_instance_t *_find_concept_instance(concept_t *concept,
 				      "concept instance");
 			}
 			if(parameter->current_type != argument->type) {
-				match = 0;
+				match = false;
 				break;
 			}
 			
 			argument  = argument->next;
 			parameter = parameter->next;
 		}
-		if(match == 1 && (argument != NULL || parameter != NULL)) {
+		if(match && (argument != NULL || parameter != NULL)) {
 			print_error_prefix(instance->source_position);
 			panic("type argument count of concept instance doesn't match "
 			      "type parameter count of concept");
 		}
-		if(match == 1)
+		if(match)
 			return instance;
 
 		instance = instance->next_in_concept;
@@ -882,18 +884,18 @@ concept_instance_t *find_concept_instance(concept_t *concept)
 
 /** tests whether a type variable has a concept as constraint */
 static
-int type_variable_has_constraint(const type_variable_t *type_variable,
+bool type_variable_has_constraint(const type_variable_t *type_variable,
                                  const concept_t *concept)
 {
 	type_constraint_t *constraint = type_variable->constraints;
 	while(constraint != NULL) {
 		if(constraint->concept == concept)
-			return 1;
+			return true;
 
 		constraint = constraint->next;
 	}
 
-	return 0;
+	return false;
 }
 
 concept_method_instance_t *get_method_from_concept_instance(
@@ -924,7 +926,7 @@ void resolve_concept_method_instance(reference_expression_t *reference)
 	 * this can happen when concept methods are invoked inside polymorphic
 	 * methods. We can't resolve the method right now, but we have to check
 	 * the constraints of the type variable */
-	int cant_resolve = 0;
+	bool cant_resolve = false;
 	type_variable_t *type_var = concept->type_parameters;
 	while(type_var != NULL) {
 		type_t *current_type = type_var->current_type;
@@ -944,13 +946,13 @@ void resolve_concept_method_instance(reference_expression_t *reference)
 				        concept_method->declaration.symbol->string);
 				return;
 			}
-			cant_resolve = 1;
+			cant_resolve = true;
 		}
 
 		type_var = type_var->next;
 	}
 	/* we have to defer the resolving for the ast2firm phase */
-	if(1 || cant_resolve) {
+	if(true || cant_resolve) {
 		return;
 	}
 
@@ -1281,7 +1283,7 @@ void check_call_expression(call_expression_t *call)
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = method_type->result_type;
 	if(type_variables != NULL) {
-		int set_type_arguments = 1;
+		bool set_type_arguments = true;
 		reference_expression_t *ref = (reference_expression_t*) method;
 		declaration_t          *declaration = ref->declaration;
 		type_variable_t        *type_parameters;
@@ -1293,7 +1295,7 @@ void check_call_expression(call_expression_t *call)
 			resolve_concept_method_instance(ref);
 #if 0
 			if(ref->declaration->type == DECLARATION_METHOD)
-				set_type_arguments = 0;
+				set_type_arguments = false;
 #endif
 
 			concept_method_t *concept_method = (concept_method_t*) declaration;
@@ -1418,11 +1420,10 @@ void check_take_address_expression(unary_expression_t *expression)
 	expression->expression.datatype = result_type;
 }
 
-static
-int is_arithmetic_type(type_t *type)
+static bool is_arithmetic_type(type_t *type)
 {
 	if(type->type != TYPE_ATOMIC)
-		return 0;
+		return false;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
 
@@ -1439,14 +1440,14 @@ int is_arithmetic_type(type_t *type)
 	case ATOMIC_TYPE_ULONGLONG:
 	case ATOMIC_TYPE_FLOAT:
 	case ATOMIC_TYPE_DOUBLE:
-		return 1;
+		return true;
 
 	case ATOMIC_TYPE_INVALID:
 	case ATOMIC_TYPE_BOOL:
-		return 0;
+		return false;
 	}
 
-	return 0;
+	return false;
 }
 
 static
@@ -1511,12 +1512,12 @@ expression_t *lower_incdec_expression(unary_expression_t *expression)
 		       );
 	}
 
-	int need_int_const = 1;
+	bool need_int_const = true;
 	if(type->type == TYPE_ATOMIC) {
 		atomic_type_t *atomic_type = (atomic_type_t*) type;
 		if(atomic_type->atype == ATOMIC_TYPE_FLOAT ||
 				atomic_type->atype == ATOMIC_TYPE_DOUBLE) {
-			need_int_const = 0;
+			need_int_const = false;
 		}
 	}
 
@@ -1869,7 +1870,7 @@ void check_return_statement(return_statement_t *statement)
 		= check_expression(statement->return_value);
 	expression_t *return_value       = statement->return_value;
 
-	last_statement_was_return = 1;
+	last_statement_was_return = true;
 
 	if(return_value != NULL) {
 		if(method_result_type == type_void
@@ -1990,16 +1991,16 @@ void check_expression_statement(expression_statement_t *statement)
 	if(expression->datatype == NULL)
 		return;
 
-	int may_be_unused = 0;
+	bool may_be_unused = false;
 	if(expression->type == EXPR_BINARY &&
 			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN) {
-		may_be_unused = 1;
+		may_be_unused = true;
 	} else if(expression->type == EXPR_UNARY &&
 			(((unary_expression_t*) expression)->type == UNEXPR_INCREMENT ||
 			 ((unary_expression_t*) expression)->type == UNEXPR_DECREMENT)) {
-		may_be_unused = 1;
+		may_be_unused = true;
 	} else if(expression->type == EXPR_CALL) {
-		may_be_unused = 1;
+		may_be_unused = true;
 	}
 
 	if(expression->datatype != type_void && !may_be_unused) {
@@ -2075,7 +2076,7 @@ statement_t *check_statement(statement_t *statement)
 	if(statement == NULL)
 		return NULL;
 
-	last_statement_was_return = 0;
+	last_statement_was_return = false;
 	switch(statement->type) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
@@ -2132,8 +2133,8 @@ void check_method(method_t *method, symbol_t *symbol,
 		parameter = parameter->next;
 	}
 
-	int last_last_statement_was_return = last_statement_was_return;
-	last_statement_was_return = 0;
+	bool last_last_statement_was_return = last_statement_was_return;
+	last_statement_was_return = false;
 	if(method->statement != NULL) {
 		method->statement = check_statement(method->statement);
 	}
@@ -2314,7 +2315,7 @@ void resolve_concept_instance(concept_instance_t *instance)
 	/* link methods and normalize their types */
 	concept_method_t *method = concept->methods;
 	while(method != NULL) {
-		int                          found_instance = 0;
+		bool                       found_instance = false;
 		concept_method_instance_t *method_instance 
 			= instance->method_instances;
 
@@ -2333,7 +2334,7 @@ void resolve_concept_instance(concept_instance_t *instance)
 				        method->declaration.symbol->string,
 				        concept->declaration.symbol->string);
 			} else {
-				found_instance                    = 1;
+				found_instance                    = true;
 				method_instance->concept_method   = method;
 				method_instance->concept_instance = instance;
 			}
@@ -2342,7 +2343,7 @@ void resolve_concept_instance(concept_instance_t *instance)
 				= (method_type_t*) normalize_type((type_t*) imethod->type);
 			method_instance = method_instance->next;
 		}
-		if(found_instance == 0) {
+		if(!found_instance) {
 			print_error_prefix(instance->source_position);
 			fprintf(stderr, "instance of concept '%s' does not implement "
 					"method '%s'\n", concept->declaration.symbol->string,
@@ -2385,7 +2386,7 @@ void check_export(const export_t *export)
 		return;
 	}
 
-	found_export = 1;
+	found_export = true;
 }
 
 static
@@ -2517,8 +2518,8 @@ int check_static_semantic(void)
 	obstack_init(&symbol_environment_obstack);
 
 	symbol_stack  = NEW_ARR_F(environment_entry_t*, 0);
-	found_errors  = 0;
-	found_export  = 0;
+	found_errors  = false;
+	found_export  = false;
 
 	type_bool     = make_atomic_type(ATOMIC_TYPE_BOOL);
 	type_byte     = make_atomic_type(ATOMIC_TYPE_BYTE);
@@ -2536,7 +2537,7 @@ int check_static_semantic(void)
 
 	if(!found_export) {
 		fprintf(stderr, "error: no symbol exported\n");
-		found_errors = 1;
+		found_errors = true;
 	}
 
 	DEL_ARR_F(symbol_stack);
