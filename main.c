@@ -1,13 +1,18 @@
 #include <config.h>
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/time.h>
 
 #include <libfirm/firm.h>
 #include <libfirm/be.h>
+
+#include "driver/firm_opt.h"
+#include "driver/firm_cmdline.h"
 
 #include "type.h"
 #include "parser.h"
@@ -19,12 +24,24 @@
 #include "adt/error.h"
 
 #ifdef _WIN32
-#define LINKER "gcc.exe"
-#define TMPDIR ""
+	#define LINKER "gcc.exe"
+	#define TMPDIR ""
+	#define DEFAULT_OS  TARGET_OS_MINGW
 #else
-#define LINKER "gcc"
-#define TMPDIR "/tmp/"
+	#if defined(__APPLE__)
+		#define DEFAULT_OS  TARGET_OS_MACHO
+	#else
+		#define DEFAULT_OS  TARGET_OS_ELF
+	#endif
+	#define LINKER "gcc"
+	#define TMPDIR "/tmp/"
 #endif
+
+typedef enum {
+	TARGET_OS_MINGW,
+	TARGET_OS_ELF,
+	TARGET_OS_MACHO
+} target_os_t;
 
 static int dump_graphs = 0;
 static int dump_asts   = 0;
@@ -32,6 +49,7 @@ static int verbose     = 0;
 static int show_timers = 0;
 static int noopt       = 0;
 static int do_inline   = 1;
+static target_os_t target_os = DEFAULT_OS;
 
 typedef enum compile_mode_t {
 	Compile,
@@ -40,184 +58,35 @@ typedef enum compile_mode_t {
 
 const ir_settings_if_conv_t *if_conv_info = NULL;
 
-static
-void initialize_firm(void)
+static void set_be_option(const char *arg)
+{
+	int res = be_parse_arg(arg);
+	(void) res;
+	assert(res);
+}
+
+static void initialize_firm(void)
 {
 	be_opt_register();
 
-	firm_parameter_t params;
-	memset(&params, 0, sizeof(params));
-	params.size = sizeof(params);
-	params.enable_statistics = 0;
-	params.initialize_local_func = uninitialized_local_var;
-	params.cc_mask = 0;
-	params.builtin_dbg = NULL;
-
-	/* initialize backend */
-	ir_init(&params);
-
 	dbg_init(NULL, NULL, dbg_snprint);
 
-	set_opt_constant_folding(1);
-	set_opt_unreachable_code(1);
-	set_opt_control_flow_straightening(1);
-	set_opt_control_flow_weak_simplification(1);
-	set_opt_control_flow_strong_simplification(1);
-	set_opt_dyn_meth_dispatch(1);
-	set_opt_normalize(1);
-	set_opt_precise_exc_context(0);
-	set_opt_strength_red(0);
-	set_opt_fragile_ops(0);
-	set_opt_optimize_class_casts(0);
-	set_opt_suppress_downcast_optimization(0);
-	set_opt_remove_confirm(1);
-	set_opt_scalar_replacement(1);
-	set_opt_ldst_only_null_ptr_exceptions(1);
-	set_opt_alias_analysis(1);
-
-	dump_consts_local(1);
-}
-
-static
-void dump(const char *suffix)
-{
-	if(!dump_graphs)
-		return;
-	dump_ir_block_graph(current_ir_graph, suffix);
-}
-
-static struct timeval tv;
-
-static
-void start_timer(void)
-{
-	gettimeofday(&tv, NULL);
-}
-
-static
-void stop_report_timer(const char *prefix)
-{
-	struct timeval tv2;
-	gettimeofday(&tv2, NULL);
-
-	if(!show_timers)
-		return;
-
-	long long diff = (tv2.tv_sec - tv.tv_sec) * 1000000;
-	diff += tv2.tv_usec - tv.tv_usec;
-
-	fprintf(stderr, "%s: %ld ms\n", prefix, (long) (diff / 1000));
-}
-
-static
-void optimize(void)
-{
-	int i;
-	int n_irgs = get_irp_n_irgs();
-	for(i = 0; i < n_irgs; ++i) {
-		current_ir_graph = get_irp_irg(i);
-		dump("-begin");
+	switch (target_os) {
+	case TARGET_OS_MINGW:
+		set_be_option("ia32-gasmode=mingw");
+		break;
+	case TARGET_OS_ELF:
+		set_be_option("ia32-gasmode=elf");
+		break;
+	case TARGET_OS_MACHO:
+		set_be_option("ia32-gasmode=macho");
+		set_be_option("ia32-stackalign=4");
+		set_be_option("pic");
+		break;
 	}
-
-	set_irp_memory_disambiguator_options(aa_opt_type_based | aa_opt_byte_type_may_alias);
-
-	int arr_len;
-	ir_entity **keep_methods;
-	cgana(&arr_len, &keep_methods);
-	gc_irgs(arr_len, keep_methods);
-	free(keep_methods);
-
-	if(noopt) {
-		/* we have to do controlflow opt once to avoid bad blocks */ 
-		for(i = 0; i < get_irp_n_irgs(); ++i) {
-			ir_graph *irg = get_irp_irg(i);
-			optimize_cf(irg);
-		}
-		return;
-	}
-
-	current_ir_graph = NULL;
-	opt_tail_recursion();
-
-	optimize_funccalls(1, NULL);
-	if(do_inline)
-		inline_leave_functions(500, 80, 30, 0);
-
-	for(i = 0; i < get_irp_n_irgs(); ++i) {
-		ir_graph *irg = get_irp_irg(i);
-
-		current_ir_graph = irg;
-
-		dump("-lower");
-
-		/* TODO: improve this and make it configurabble */
-		scalar_replacement_opt(irg);
-		optimize_graph_df(irg);
-		optimize_reassociation(irg);
-		optimize_cf(irg);
-		construct_confirms(irg);
-		optimize_graph_df(irg);
-		compute_doms(irg);
-
-		set_opt_global_cse(1);
-		optimize_graph_df(irg);
-		place_code(irg);
-		set_opt_global_cse(0);
-
-		dump("-after_gcse");
-
-		optimize_cf(irg);
-		remove_confirms(irg);
-		
-		optimize_load_store(irg);
-		conv_opt(irg);
-
-		dump("-before_condeval");
-
-		opt_cond_eval(irg);
-
-
-		dump("-after_condeval");
-
-		compute_doms(irg);
-		compute_postdoms(irg);
-		construct_backedges(irg);
-
-		optimize_cf(irg);
-		opt_if_conv(irg, if_conv_info);
-		optimize_graph_df(irg);
-		optimize_cf(irg);
-		optimize_graph_df(irg);
-		dead_node_elimination(irg);
-
-		dump("-opt-run1");
-
-		compute_doms(irg);
-		compute_postdoms(irg);
-
-		set_opt_global_cse(1);
-		optimize_graph_df(irg);
-		place_code(irg);
-		set_opt_global_cse(0);
-
-		dump("-after_gcse2");
-
-		optimize_cf(irg);
-		remove_confirms(irg);
-		
-		optimize_load_store(irg);
-		conv_opt(irg);
-	
-		dump("-opt-run2");
-	}
-
-	cgana(&arr_len, &keep_methods);
-	gc_irgs(arr_len, keep_methods);
-	free(keep_methods);
 }
 
-static
-void get_output_name(char *buf, size_t buflen, const char *inputname,
+static void get_output_name(char *buf, size_t buflen, const char *inputname,
                      const char *newext)
 {
 	size_t last_dot = 0xffffffff;
@@ -240,23 +109,7 @@ void get_output_name(char *buf, size_t buflen, const char *inputname,
 	memcpy(buf+last_dot, newext, extlen);
 }
 
-static
-void backend(const char *inputname, const char *outname)
-{
-	FILE *out = fopen(outname, "w");
-	if(out == NULL) {
-		fprintf(stderr, "couldn't open '%s' for writing: %s\n", outname,
-				strerror(errno));
-		exit(1);
-	}
-
-	be_main(out, inputname);
-
-	fclose(out);
-}
-
-static
-void dump_ast(const namespace_t *namespace, const char *name)
+static void dump_ast(const namespace_t *namespace, const char *name)
 {
 	if(!dump_asts)
 		return;
@@ -275,8 +128,7 @@ void dump_ast(const namespace_t *namespace, const char *name)
 	fclose(out);
 }
 
-static
-void parse_file(const char *fname)
+static void parse_file(const char *fname)
 {
 	FILE *in = fopen(fname, "r");
 	if(in == NULL) {
@@ -294,8 +146,7 @@ void parse_file(const char *fname)
 	dump_ast(namespace, "-parse.txt");
 }
 
-static
-void check_semantic(void)
+static void check_semantic(void)
 {
 	if(!check_static_semantic()) {
 		fprintf(stderr, "Semantic errors found\n");
@@ -316,31 +167,7 @@ void check_semantic(void)
 	}
 }
 
-static
-void create_firmgraph(void)
-{
-	ast2firm();
-    lower_highlevel(1);
-
-	optimize();
-}
-
-static
-void emit(const char *outname)
-{
-	char outfname[4096];
-
-	const char *fname = namespaces->filename;
-	if(outname == NULL) {
-		get_output_name(outfname, sizeof(outfname), fname, ".s");
-		outname = outfname;
-	}
-
-	backend(fname, outname);
-}
-
-static
-void link(const char *in, const char *out)
+static void link(const char *in, const char *out)
 {
 	char buf[4096];
 
@@ -359,14 +186,18 @@ void link(const char *in, const char *out)
 	}
 }
 
-static
-void usage(const char *argv0)
+static void usage(const char *argv0)
 {
 	fprintf(stderr, "Usage: %s input1 input2 [-o output]\n", argv0);
 }
 
+void lower_compound_params(void)
+{
+}
+
 int main(int argc, const char **argv)
 {
+	gen_firm_init();
 	init_symbol_table();
 	init_tokens();
 	init_type_module();
@@ -379,11 +210,12 @@ int main(int argc, const char **argv)
 	initialize_firm();
 	init_ast2firm();
 
+	firm_opt.lower_ll = false;
+
 	const char *outname = NULL;
 	compile_mode_t mode = CompileAndLink;
 	int parsed = 0;
 
-	start_timer();
 	for(int i = 1; i < argc; ++i) {
 		const char *arg = argv[i];
 		if(strcmp(arg, "-o") == 0) {
@@ -446,30 +278,27 @@ int main(int argc, const char **argv)
 		fprintf(stderr, "Error: no input files specified\n");
 		return 0;
 	}
-	stop_report_timer("parsing");
 
-	start_timer();
 	check_semantic();
-	stop_report_timer("semantic");
 
-	start_timer();
-	create_firmgraph();
-	stop_report_timer("create&optimize firmgraph");
+	ast2firm();
 
-	start_timer();
 	const char *asmname;
 	if(mode == Compile) {
 		asmname = outname;
 	} else {
 		asmname = TMPDIR "fluffy.s";
 	}
-	emit(asmname);
-	stop_report_timer("codegeneration");
+	FILE* asm_out = fopen(asmname, "w");
+	if (asm_out == NULL) {
+		fprintf(stderr, "Couldn't open output '%s'\n", asmname);
+		return 1;
+	}
+	gen_firm_finish(asm_out, asmname, 1, true);
+	fclose(asm_out);
 
 	if(mode == CompileAndLink) {
-		start_timer();
 		link(asmname, outname);
-		stop_report_timer("linking");
 	}
 
 	exit_ast2firm();

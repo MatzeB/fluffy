@@ -8,6 +8,7 @@
 #include "ast_t.h"
 #include "type_t.h"
 #include "semantic_t.h"
+#include "mangle.h"
 #include "mangle_type.h"
 #include "adt/array.h"
 #include "adt/obst.h"
@@ -44,6 +45,8 @@ static struct obstack     obst;
 static strset_t           instantiated_methods;
 static pdeq              *instantiate_methods   = NULL;
 
+//static ident* (*create_ld_ident)(declaration_t*) = create_name_linux_elf;
+
 static
 ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
 static
@@ -70,7 +73,7 @@ unsigned dbg_snprint(char *buf, unsigned len, const dbg_info *dbg)
 	                           pos->linenr);
 }
 
-const char *retrieve_dbg(const dbg_info *dbg, unsigned *line)
+const char *dbg_retrieve(const dbg_info *dbg, unsigned *line)
 {
 	const source_position_t *pos = (const source_position_t*) dbg;
 	if(pos == NULL)
@@ -709,7 +712,14 @@ ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 
 	ident *id;
 	if(!is_polymorphic) {
-		id = new_id_from_str(symbol->string);
+		//id = new_id_from_str(symbol->string);
+		obstack_printf(&obst, "_%s", symbol->string);
+		obstack_1grow(&obst, 0);
+
+		char *str = obstack_finish(&obst);
+
+		id = new_id_from_str(str);
+		obstack_free(&obst, str);
 	} else {
 		const char *string = symbol->string;
 		size_t      len    = strlen(string);
@@ -822,6 +832,8 @@ ir_node *string_const_to_firm(const string_const_t* cnst)
 
 	ir_entity *ent = new_entity(global_type, unique_ident("str"), type);
 	set_entity_variability(ent, variability_constant);
+	set_entity_allocation(ent, allocation_static);
+	set_entity_visibility(ent, visibility_local);
 
 	ir_type    *elem_type = byte_ir_type;
 	ir_mode    *mode      = get_type_mode(elem_type);
@@ -903,7 +915,7 @@ ir_entity *create_variable_entity(variable_declaration_t *variable)
 	if(variable->entity != NULL)
 		return variable->entity;
 
-	ir_type *parent_type;
+	ir_type       *parent_type;
 	if(variable->is_global) {
 		parent_type = get_glob_type();
 	} else if(variable->needs_entity) {
@@ -911,17 +923,25 @@ ir_entity *create_variable_entity(variable_declaration_t *variable)
 	} else {
 		return NULL;
 	}
-	ident   *ident    = new_id_from_str(variable->declaration.symbol->string);
+
+	obstack_printf(&obst, "_%s", variable->declaration.symbol->string);
+	obstack_1grow(&obst, 0);
+
+	char *str = obstack_finish(&obst);
+	ident   *ident    = new_id_from_str(str);
+	obstack_free(&obst, str);
+
 	type_t  *type     = variable->type;
 	ir_type *irtype   = get_ir_type(type);
 
 	ir_entity *entity = new_entity(parent_type, ident, irtype);
 	set_entity_ld_ident(entity, ident);
 	set_entity_variability(entity, variability_uninitialized);
+	set_entity_allocation(entity, allocation_static);
 	if(variable->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
 	} else {
-		set_entity_visibility(entity, visibility_external_visible);
+		set_entity_visibility(entity, visibility_local);
 	}
 
 	variable->entity = entity;
@@ -1167,6 +1187,7 @@ ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 
 	mature_immBlock(calc_val2_block);
 
+	set_cur_block(calc_val2_block);
 	ir_node *val2 = expression_to_firm(binary_expression->right);
 	if(get_cur_block() != NULL) {
 		ir_node *jmp = new_d_Jmp(dbgi);
@@ -1361,8 +1382,8 @@ ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(method->type_parameters, type_arguments);
 
-	ir_entity  *entity        = get_method_entity(method, symbol);
-	const char *name          = get_entity_name(entity);
+	ir_entity  *entity = get_method_entity(method, symbol);
+	const char *name   = get_entity_name(entity);
 
 	pop_type_variable_bindings(old_top);
 
@@ -1710,6 +1731,7 @@ void if_statement_to_firm(const if_statement_t *statement)
 	add_immBlock_pred(true_block, true_proj);
 	mature_immBlock(true_block);
 
+	set_cur_block(true_block);
 	statement_to_firm(statement->true_statement);
 	if(get_cur_block() != NULL) {
 		ir_node *jmp = new_Jmp();
@@ -1722,6 +1744,7 @@ void if_statement_to_firm(const if_statement_t *statement)
 		add_immBlock_pred(false_block, false_proj);
 		mature_immBlock(false_block);
 
+		set_cur_block(false_block);
 		statement_to_firm(statement->false_statement);
 		if(get_cur_block() != NULL) {
 			ir_node *jmp = new_Jmp();
@@ -1761,10 +1784,8 @@ void goto_statement_to_firm(goto_statement_t *goto_statement)
 	label_declaration_t *label = goto_statement->label;
 	ir_node             *block = label->block;
 
-	if(block == NULL) {
-		ir_node *temp = get_cur_block();
+	if (block == NULL) {
 		block        = new_immBlock();
-		set_cur_block(temp);
 		label->block = block;
 		label->next  = labels;
 		labels       = label;
@@ -1782,13 +1803,10 @@ void label_statement_to_firm(label_statement_t *label_statement)
 	ir_node *block = label->block;
 
 	if(block == NULL) {
-		ir_node *temp = get_cur_block();
 		block         = new_immBlock();
 		label->block  = block;
 		label->next   = labels;
 		labels        = label;
-
-		set_cur_block(temp);
 	}
 
 	if(get_cur_block() != NULL) {
