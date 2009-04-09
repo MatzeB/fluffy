@@ -1975,9 +1975,15 @@ static void parse_concept_instance(void)
 		eat_until_newline();
 		return;
 	}
-
 	instance->concept_symbol = token.v.symbol;
 	next_token();
+
+	if(token.type == '<') {
+		next_token();
+		instance->type_parameters
+			= parse_type_parameters(&instance->context);
+		expect_void('>');
+	}
 
 	instance->type_arguments = parse_type_arguments();
 	

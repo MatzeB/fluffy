@@ -354,6 +354,9 @@ struct concept_instance_t {
 	concept_method_instance_t *method_instances;
 	concept_instance_t        *next;
 	concept_instance_t        *next_in_concept;
+
+	context_t                  context;
+	type_variable_t           *type_parameters;
 };
 
 struct concept_method_t {

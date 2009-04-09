@@ -1862,15 +1862,18 @@ static void create_method(method_t *method, ir_entity *entity,
 
 static void create_concept_instance(concept_instance_t *instance)
 {
+	if (instance->type_parameters != NULL)
+		return;
+
 	concept_method_instance_t *method_instance = instance->method_instances;
-	while(method_instance != NULL) {
+	for ( ; method_instance != NULL; method_instance = method_instance->next) {
+		/* we have to construct this instance lazily
+		   TODO: construct all instances lazily might be a good idea */
 		method_t *method = & method_instance->method;
 		/* make sure the method entity is set */
 		ir_entity *entity = get_concept_method_instance_entity(method_instance);
 		/* we can emit it like a normal method */
 		queue_method_instantiation(method, entity);
-
-		method_instance  = method_instance->next;
 	}
 }
 
@@ -1911,6 +1914,7 @@ static void context2firm(const context_t *context)
 		declaration = declaration->next;
 	}
 
+	/* TODO: create these lazily? */
 	concept_instance_t *instance = context->concept_instances;
 	while(instance != NULL) {
 		create_concept_instance(instance);

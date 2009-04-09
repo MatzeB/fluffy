@@ -129,6 +129,8 @@ func lower_while_statement(statement : Statement*) : Statement*:
 
 export init_plugin
 func init_plugin():
+	//stderr <- _stderrp
+
 	token_while          <- register_new_token("while")
 	token_continue       <- register_new_token("continue")
 	token_break          <- register_new_token("break")

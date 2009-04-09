@@ -278,7 +278,8 @@ func extern symbol_table_insert(string : String) : Symbol*
 
 
 var extern stdout          : FILE*
-var extern stderr          : FILE*
+var stderr                 : FILE*
+var extern __stderrp       : FILE*
 var extern token           : Token
 var extern source_position : SourcePosition
 
@@ -338,6 +339,9 @@ instance AllocateOnAst IntConst:
 		var res <- allocate_zero<$IntConst>()
 		res.expression.type <- EXPR_INT_CONST
 		return res
+
+func api_init():
+	stderr <- __stderrp
 
 func expect(token_type : int):
 	if token.type /= token_type:

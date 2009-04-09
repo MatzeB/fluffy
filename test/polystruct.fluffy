@@ -34,6 +34,10 @@ func PrintList<T : Printable>(list : List<T>*):
 		print(elem.val)
 		elem <- elem.next
 
+instance Printable<Foo : Printable> List<Foo>*:
+	func print(obj : List<Foo>*):
+		PrintList(obj)
+
 func main() : int:
 	var l : List<String>
 	l.first <- null

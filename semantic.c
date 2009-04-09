@@ -47,8 +47,7 @@ static void check_and_push_context(context_t *context);
 static void check_method(method_t *method, symbol_t *symbol,
                          const source_position_t source_position);
 
-static void resolve_method_types(method_t *method,
-                                 const source_position_t source_position);
+static void resolve_method_types(method_t *method);
 
 void print_error_prefix(const source_position_t position)
 {
@@ -1749,7 +1748,7 @@ static void check_func_expression(func_expression_t *expression)
 {
 	method_t *method = & expression->method;
 
-	resolve_method_types(method, expression->expression.source_position);
+	resolve_method_types(method);
 	check_method(method, NULL, expression->expression.source_position);
 
 	expression->expression.datatype = make_pointer_type((type_t*) method->type);
@@ -2147,15 +2146,14 @@ static void resolve_type_constraint(type_constraint_t *constraint,
 	constraint->concept = (concept_t*) declaration;
 }
 
-static void resolve_type_variable_constraints(type_variable_t *type_variables,
-                                              const source_position_t source_position)
+static void resolve_type_variable_constraints(type_variable_t *type_variables)
 {
 	type_variable_t *type_var = type_variables;
 	while(type_var != NULL) {
 		type_constraint_t *constraint = type_var->constraints;
 
 		while(constraint != NULL) {
-			resolve_type_constraint(constraint, source_position);
+			resolve_type_constraint(constraint, type_var->declaration.source_position);
 
 			constraint = constraint->next;
 		}
@@ -2163,15 +2161,13 @@ static void resolve_type_variable_constraints(type_variable_t *type_variables,
 	}
 }
 
-static void resolve_method_types(method_t *method,
-                                 const source_position_t source_position)
+static void resolve_method_types(method_t *method)
 {
 	int old_top = environment_top();
 
 	/* push type variables */
 	push_context(&method->context);
-	resolve_type_variable_constraints(method->type_parameters,
-                                      source_position);
+	resolve_type_variable_constraints(method->type_parameters);
 
 	/* normalize parameter types */
 	method_parameter_t *parameter = method->parameters;
@@ -2190,7 +2186,7 @@ static void check_concept_instance(concept_instance_t *instance)
 	concept_method_instance_t *method_instance = instance->method_instances;
 	while(method_instance != NULL) {
 		method_t *method = &method_instance->method;
-		resolve_method_types(method, method_instance->source_position);
+		resolve_method_types(method);
 		check_method(method, method_instance->symbol,
 		             method_instance->source_position);
 
@@ -2210,8 +2206,7 @@ static void resolve_concept_types(concept_t *concept)
 
 		type_parameter = type_parameter->next;
 	}
-	resolve_type_variable_constraints(concept->type_parameters,
-	                                  concept->declaration.source_position);
+	resolve_type_variable_constraints(concept->type_parameters);
 
 	/* normalize method types */
 	concept_method_t *concept_method = concept->methods;
@@ -2249,6 +2244,17 @@ static void resolve_concept_instance(concept_instance_t *instance)
 	instance->concept         = concept;
 	instance->next_in_concept = concept->instances;
 	concept->instances        = instance;
+
+	int old_top = environment_top();
+
+	/* push type variables */
+	resolve_type_variable_constraints(instance->type_parameters);
+
+	type_variable_t *type_parameter = instance->type_parameters;
+	for ( ; type_parameter != NULL; type_parameter = type_parameter->next) {
+		declaration_t *declaration = (declaration_t*) type_parameter;
+		environment_push(declaration, instance);
+	}
 
 	/* normalize argument types */
 	type_argument_t *type_argument = instance->type_arguments;
@@ -2298,6 +2304,8 @@ static void resolve_concept_instance(concept_instance_t *instance)
 
 		method = method->next;
 	}
+
+	environment_pop_to(old_top);
 }
 
 static void check_export(const export_t *export)
@@ -2354,7 +2362,7 @@ static void check_and_push_context(context_t *context)
 			break;
 		case DECLARATION_METHOD:
 			method = (method_declaration_t*) declaration;
-			resolve_method_types(&method->method, declaration->source_position);
+			resolve_method_types(&method->method);
 			break;
 		case DECLARATION_TYPEALIAS:
 			typealias = (typealias_t*) declaration;

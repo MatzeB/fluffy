@@ -249,6 +249,8 @@ int main(int argc, const char **argv)
 			}
 		} else if(strcmp(arg, "-S") == 0) {
 			mode = Compile;
+		} else if(strcmp(arg, "-c") == 0) {
+			mode = CompileAndLink;
 		} else if(strcmp(arg, "-v") == 0) {
 			verbose = 1;
 		} else if(strncmp(arg, "-b", 2) == 0) {
