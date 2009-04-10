@@ -818,10 +818,11 @@ static void check_binary_expression(binary_expression_t *binexpr)
  * find a concept instance matching the current type_variable configuration
  */
 static concept_instance_t *_find_concept_instance(concept_t *concept,
-                                           const source_position_t *pos)
+                                                  const source_position_t *pos)
 {
-	concept_instance_t *instance = concept->instances;
-	while(instance != NULL) {
+	concept_instance_t *instance;
+	for ( instance = concept->instances; instance != NULL;
+			instance = instance->next_in_concept) {
 		assert(instance->concept == concept);
 
 		type_argument_t *argument  = instance->type_arguments;
@@ -847,12 +848,10 @@ static concept_instance_t *_find_concept_instance(concept_t *concept,
 			      "type parameter count of concept");
 		}
 		if(match)
-			return instance;
-
-		instance = instance->next_in_concept;
+			break;
 	}
 
-	return NULL;
+	return instance;
 }
 
 concept_instance_t *find_concept_instance(concept_t *concept)
@@ -928,7 +927,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 		type_var = type_var->next;
 	}
 	/* we have to defer the resolving for the ast2firm phase */
-	if(true || cant_resolve) {
+	if(cant_resolve) {
 		return;
 	}
 
@@ -951,6 +950,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 		return;
 	}
 
+#if 0
 	concept_method_instance_t *method_instance 
 		= get_method_from_concept_instance(instance, concept_method);
 	if(method_instance == NULL) {
@@ -965,6 +965,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 
 	reference->expression.datatype = pointer_type;
 	reference->declaration         = (declaration_t*) &method_instance->method;
+#endif
 }
 
 static void check_type_constraints(type_variable_t *type_variables,
@@ -1108,6 +1109,8 @@ static void check_call_expression(call_expression_t *call)
 	/* can happen if we had a deeper semantic error */
 	if(type == NULL)
 		return;
+
+	/* determine method type */
 	if(type->type != TYPE_POINTER) {
 		print_error_prefix(call->expression.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
@@ -1127,9 +1130,7 @@ static void check_call_expression(call_expression_t *call)
 	}
 	method_type_t *method_type = (method_type_t*) type;
 
-	/* we have to match the parameter types against the type variables in case
-	 * of concept methods or polymorphic methods
-	 */
+	/* match parameter types against type variables */
 	type_variable_t *type_variables = NULL;
 	if(method->type == EXPR_REFERENCE) {
 		reference_expression_t *reference
@@ -1206,7 +1207,7 @@ static void check_call_expression(call_expression_t *call)
 		/* match type of argument against type variables */
 		if(type_variables != NULL && type_arguments == NULL) {
 			match_variant_to_concrete_type(wanted_type, expression_type,
-			                               expression->source_position);
+			                               expression->source_position, true);
 		} else if(expression_type != wanted_type) {
 			expression_t *new_expression 
 				= make_cast(expression, wanted_type,

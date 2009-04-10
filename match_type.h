@@ -1,6 +1,7 @@
 #ifndef MATCH_TYPE_H
 #define MATCH_TYPE_H
 
+#include <stdbool.h>
 #include "semantic.h"
 #include "type.h"
 #include "lexer.h"
@@ -10,9 +11,10 @@
  * and a concrete and binds the type variables in the variant type so it
  * matches the concrete type
  */
-void match_variant_to_concrete_type(type_t *variant_type,
+bool match_variant_to_concrete_type(type_t *variant_type,
                                     type_t *concrete_type,
-                                    const source_position_t source_position);
+                                    const source_position_t source_position,
+									bool report_errors);
 
 #endif
 
