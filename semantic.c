@@ -834,7 +834,15 @@ static concept_instance_t *_find_concept_instance(concept_t *concept,
 				panic("type variable has no type set while searching "
 				      "concept instance");
 			}
+#if 0
 			if(parameter->current_type != argument->type) {
+				match = false;
+				break;
+			}
+#endif
+			if (!match_variant_to_concrete_type(
+						argument->type, parameter->current_type,
+						concept->declaration.source_position, false)) {
 				match = false;
 				break;
 			}
@@ -1258,7 +1266,6 @@ static void check_call_expression(call_expression_t *call)
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = method_type->result_type;
 	if(type_variables != NULL) {
-		bool set_type_arguments = true;
 		reference_expression_t *ref = (reference_expression_t*) method;
 		declaration_t          *declaration = ref->declaration;
 		type_variable_t        *type_parameters;
@@ -1268,10 +1275,6 @@ static void check_call_expression(call_expression_t *call)
 		if(declaration->type == DECLARATION_CONCEPT_METHOD) {
 			/* we might be able to resolve the concept_method_instance now */
 			resolve_concept_method_instance(ref);
-#if 0
-			if(ref->declaration->type == DECLARATION_METHOD)
-				set_type_arguments = false;
-#endif
 
 			concept_method_t *concept_method = (concept_method_t*) declaration;
 			concept_t        *concept        = concept_method->concept;
@@ -1288,7 +1291,7 @@ static void check_call_expression(call_expression_t *call)
 		}
 
 		/* set type arguments on the reference expression */
-		if(set_type_arguments && ref->type_arguments == NULL) {
+		if(ref->type_arguments == NULL) {
 			type_variable_t *type_var      = type_parameters;
 			type_argument_t *last_argument = NULL;
 			while(type_var != NULL) {
@@ -2266,44 +2269,64 @@ static void resolve_concept_instance(concept_instance_t *instance)
 	}
 
 	/* link methods and normalize their types */
-	concept_method_t *method = concept->methods;
-	while(method != NULL) {
-		bool                       found_instance = false;
-		concept_method_instance_t *method_instance 
-			= instance->method_instances;
+	size_t n_concept_methods = 0;
+	concept_method_t *method;
+	for (method = concept->methods; method != NULL; method = method->next) {
+		++n_concept_methods;
+	}
+	bool have_method[n_concept_methods];
+	memset(&have_method, 0, sizeof(have_method));
 
-		while(method_instance != NULL) {
-			method_t *imethod = & method_instance->method;
+	concept_method_instance_t *method_instance;
+	for (method_instance = instance->method_instances; method_instance != NULL;
+			method_instance = method_instance->next) {
 
-			if(method_instance->symbol != method->declaration.symbol) {
-				method_instance = method_instance->next;
-				continue;
-			}
-			
-			if(found_instance) {
+		/* find corresponding concept method */
+		int n = 0;
+		for (method = concept->methods; method != NULL;
+				method = method->next, ++n) {
+			if (method->declaration.symbol == method_instance->symbol)
+				break;
+		}
+
+		if (method == NULL) {
+			print_warning_prefix(method_instance->source_position);
+			fprintf(stderr, "concept '%s' does not declare a method '%s'\n",
+			        concept->declaration.symbol->string,
+					method->declaration.symbol->string);
+		} else {
+			method_instance->concept_method   = method;
+			method_instance->concept_instance = instance;
+			if (have_method[n]) {
 				print_error_prefix(method_instance->source_position);
 				fprintf(stderr, "multiple implementations of method '%s' found "
-				        "in instance of concept '%s'\n",
-				        method->declaration.symbol->string,
-				        concept->declaration.symbol->string);
-			} else {
-				found_instance                    = true;
-				method_instance->concept_method   = method;
-				method_instance->concept_instance = instance;
+						"in instance of concept '%s'\n",
+						method->declaration.symbol->string,
+						concept->declaration.symbol->string);
 			}
-
-			imethod->type 
-				= (method_type_t*) normalize_type((type_t*) imethod->type);
-			method_instance = method_instance->next;
+			have_method[n] = true;
 		}
-		if(!found_instance) {
+		method_t *imethod = & method_instance->method;
+
+		if (imethod->type_parameters != NULL) {
+			print_error_prefix(method_instance->source_position);
+			fprintf(stderr, "instance method '%s' must not have type parameters\n",
+					method_instance->symbol->string);
+		}
+		
+		imethod->type 
+			= (method_type_t*) normalize_type((type_t*) imethod->type);
+	}
+
+	size_t n = 0;
+	for (method = concept->methods; method != NULL;
+			method = method->next, ++n) {
+		if(!have_method[n]) {
 			print_error_prefix(instance->source_position);
 			fprintf(stderr, "instance of concept '%s' does not implement "
 					"method '%s'\n", concept->declaration.symbol->string,
 			        method->declaration.symbol->string);
 		}
-
-		method = method->next;
 	}
 
 	environment_pop_to(old_top);
@@ -2392,6 +2415,12 @@ static void check_and_push_context(context_t *context)
 	}
 	
 
+	/* check semantics in conceptes */
+	instance = context->concept_instances;
+	while(instance != NULL) {
+		check_concept_instance(instance);
+		instance = instance->next;
+	}
 	/* check semantics in methods */
 	declaration = context->declarations;
 	while(declaration != NULL) {
@@ -2409,12 +2438,6 @@ static void check_and_push_context(context_t *context)
 		}
 
 		declaration = declaration->next;
-	}
-	/* check semantics in conceptes */
-	instance = context->concept_instances;
-	while(instance != NULL) {
-		check_concept_instance(instance);
-		instance = instance->next;
 	}
 	/* handle export declarations */
 	export_t *export = context->exports;
