@@ -4,11 +4,11 @@ func extern malloc(size : unsigned int) : void*
 struct Blo:
 	array : int[10]
 
-typealias arr <- int[7]
+typealias arr = int[7]
 
 func main() : int:
-	var blo <- cast<Blo* > malloc(sizeof<Blo>)
+	var blo = cast<Blo* > malloc(sizeof<Blo>)
 	printf("Size: %d\n", sizeof<Blo>)
-	blo.array[2] <- 5
+	blo.array[2] = 5
 	return blo.array[2]
 export main

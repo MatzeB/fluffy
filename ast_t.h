@@ -94,6 +94,10 @@ struct method_declaration_t {
 	method_t       method;
 };
 
+struct iterator_declaration_t {
+	
+};
+
 typedef enum {
 	EXPR_INVALID = 0,
 	EXPR_INT_CONST,

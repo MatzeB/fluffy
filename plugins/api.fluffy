@@ -145,86 +145,86 @@ struct Lexer:
 	input           : FILE*
 	// more stuff...
 
-const STATEMENT_INAVLID              <- 0
-const STATEMENT_BLOCK                <- 1
-const STATEMENT_RETURN               <- 2
-const STATEMENT_VARIABLE_DECLARATION <- 3
-const STATEMENT_IF                   <- 4
-const STATEMENT_EXPRESSION           <- 5
-const STATEMENT_GOTO                 <- 6
-const STATEMENT_LABEL                <- 7
+const STATEMENT_INAVLID              = 0
+const STATEMENT_BLOCK                = 1
+const STATEMENT_RETURN               = 2
+const STATEMENT_VARIABLE_DECLARATION = 3
+const STATEMENT_IF                   = 4
+const STATEMENT_EXPRESSION           = 5
+const STATEMENT_GOTO                 = 6
+const STATEMENT_LABEL                = 7
 
-const TYPE_INVALID                 <- 0
-const TYPE_VOID                    <- 1
-const TYPE_ATOMIC                  <- 2
-const TYPE_COMPOUND_STRUCT         <- 3
-const TYPE_COMPOUND_UNION          <- 4
-const TYPE_METHOD                  <- 5
-const TYPE_POINTER                 <- 6
-const TYPE_ARRAY                   <- 7
-const TYPE_REFERENCE               <- 8
-const TYPE_REFERENCE_TYPE_VARIABLE <- 9
+const TYPE_INVALID                 = 0
+const TYPE_VOID                    = 1
+const TYPE_ATOMIC                  = 2
+const TYPE_COMPOUND_STRUCT         = 3
+const TYPE_COMPOUND_UNION          = 4
+const TYPE_METHOD                  = 5
+const TYPE_POINTER                 = 6
+const TYPE_ARRAY                   = 7
+const TYPE_REFERENCE               = 8
+const TYPE_REFERENCE_TYPE_VARIABLE = 9
 
-const DECLARATION_INVALID          <- 0
-const DECLARATION_METHOD           <- 1
-const DECLARATION_METHOD_PARAMETER <- 2
-const DECLARATION_VARIABLE         <- 3
-const DECLARATION_CONSTANT         <- 4
-const DECLARATION_TYPE_VARIABLE    <- 5
-const DECLARATION_TYPEALIAS        <- 6
-const DECLARATION_TYPECLASS        <- 7
-const DECLARATION_TYPECLASS_METHOD <- 8
-const DECLARATION_LABEL            <- 9
+const DECLARATION_INVALID          = 0
+const DECLARATION_METHOD           = 1
+const DECLARATION_METHOD_PARAMETER = 2
+const DECLARATION_VARIABLE         = 3
+const DECLARATION_CONSTANT         = 4
+const DECLARATION_TYPE_VARIABLE    = 5
+const DECLARATION_TYPEALIAS        = 6
+const DECLARATION_TYPECLASS        = 7
+const DECLARATION_TYPECLASS_METHOD = 8
+const DECLARATION_LABEL            = 9
 
-const ATOMIC_TYPE_INVALID          <- 0
-const ATOMIC_TYPE_BOOL             <- 1
-const ATOMIC_TYPE_BYTE             <- 2
-const ATOMIC_TYPE_UBYTE            <- 3
-const ATOMIC_TYPE_SHORT            <- 4
-const ATOMIC_TYPE_USHORT           <- 5
-const ATOMIC_TYPE_INT              <- 6
-const ATOMIC_TYPE_UINT             <- 7
-const ATOMIC_TYPE_LONG             <- 8
-const ATOMIC_TYPE_ULONG            <- 9
+const ATOMIC_TYPE_INVALID          = 0
+const ATOMIC_TYPE_BOOL             = 1
+const ATOMIC_TYPE_BYTE             = 2
+const ATOMIC_TYPE_UBYTE            = 3
+const ATOMIC_TYPE_SHORT            = 4
+const ATOMIC_TYPE_USHORT           = 5
+const ATOMIC_TYPE_INT              = 6
+const ATOMIC_TYPE_UINT             = 7
+const ATOMIC_TYPE_LONG             = 8
+const ATOMIC_TYPE_ULONG            = 9
 
-const EXPR_INVALID                 <- 0
-const EXPR_INT_CONST               <- 1
-const EXPR_FLOAT_CONST             <- 2
-const EXPR_BOOL_CONST              <- 3
-const EXPR_STRING_CONST            <- 4
-const EXPR_NULL_POINTER            <- 5
-const EXPR_REFERENCE               <- 6
-const EXPR_CALL                    <- 7
-const EXPR_UNARY                   <- 8
-const EXPR_BINARY                  <- 9
+const EXPR_INVALID                 = 0
+const EXPR_INT_CONST               = 1
+const EXPR_FLOAT_CONST             = 2
+const EXPR_BOOL_CONST              = 3
+const EXPR_STRING_CONST            = 4
+const EXPR_NULL_POINTER            = 5
+const EXPR_REFERENCE               = 6
+const EXPR_CALL                    = 7
+const EXPR_UNARY                   = 8
+const EXPR_BINARY                  = 9
 
-const BINEXPR_INVALID              <- 0
-const BINEXPR_ASSIGN               <- 1
-const BINEXPR_ADD                  <- 2
+const BINEXPR_INVALID              = 0
+const BINEXPR_ASSIGN               = 1
+const BINEXPR_ADD                  = 2
 
-const T_EOF            <- -1
-const T_NEWLINE        <- 256
-const T_INDENT         <- 257
-const T_DEDENT         <- 258
-const T_IDENTIFIER     <- 259
-const T_INTEGER        <- 260
-const T_STRING_LITERAL <- 261
-const T_ASSIGN         <- 296
+const T_EOF            = -1
+const T_NEWLINE        = 256
+const T_INDENT         = 257
+const T_DEDENT         = 258
+const T_IDENTIFIER     = 259
+const T_INTEGER        = 260
+const T_STRING_LITERAL = 261
+const T_ASSIGN         = 296
 
-typealias FILE                    <- void
-typealias EnvironmentEntry        <- void
-typealias IrNode                  <- void
-typealias IrType                  <- void
-typealias IrEntity                <- void
-typealias ParseStatementFunction  <- func () : Statement*
-typealias ParseAttributeFunction  <- func () : Attribute*
-typealias ParseExpressionFunction <- func (precedence : unsigned int) : Expression*
-typealias ParseExpressionInfixFunction <- func (precedence : unsigned int, \
+typealias FILE                    = void
+typealias EnvironmentEntry        = void
+typealias IrNode                  = void
+typealias IrType                  = void
+typealias IrEntity                = void
+typealias ParseStatementFunction  = func () : Statement*
+typealias ParseAttributeFunction  = func () : Attribute*
+typealias ParseExpressionFunction = func (precedence : unsigned int) : Expression*
+typealias ParseExpressionInfixFunction = func (precedence : unsigned int, \
                                                left : Expression*) : Expression*
-typealias LowerStatementFunction  <- func (statement : Statement*) : Statement*
-typealias LowerExpressionFunction <- func (expression : Expression*) : Expression*
-typealias ParseDeclarationFunction <- func() : void
-typealias String                  <- byte*
+typealias LowerStatementFunction  = func (statement : Statement*) : Statement*
+typealias LowerExpressionFunction = func (expression : Expression*) : Expression*
+typealias ParseDeclarationFunction = func() : void
+typealias String                  = byte*
 
 func extern register_new_token(token : String) : unsigned int
 func extern register_statement() : unsigned int
@@ -287,61 +287,61 @@ concept AllocateOnAst<T>:
 	func allocate() : T*
 
 func allocate_zero<T>() : T*:
-	var res <- cast<T* > allocate_ast(sizeof<T>)
+	var res = cast<T* > allocate_ast(sizeof<T>)
 	memset(res, 0, sizeof<T>)
 	return res
 
 instance AllocateOnAst BlockStatement:
 	func allocate() : BlockStatement*:
-		var res <- allocate_zero<$BlockStatement>()
-		res.statement.type <- STATEMENT_BLOCK
+		var res = allocate_zero<$BlockStatement>()
+		res.statement.type = STATEMENT_BLOCK
 		return res
 	
 instance AllocateOnAst IfStatement:
 	func allocate() : IfStatement*:
-		var res <- allocate_zero<$IfStatement>()
-		res.statement.type <- STATEMENT_IF
+		var res = allocate_zero<$IfStatement>()
+		res.statement.type = STATEMENT_IF
 		return res
 
 instance AllocateOnAst ExpressionStatement:
 	func allocate() : ExpressionStatement*:
-		var res <- allocate_zero<$ExpressionStatement>()
-		res.statement.type <- STATEMENT_EXPRESSION
+		var res = allocate_zero<$ExpressionStatement>()
+		res.statement.type = STATEMENT_EXPRESSION
 		return res
 
 instance AllocateOnAst GotoStatement:
 	func allocate() : GotoStatement*:
-		var res <- allocate_zero<$GotoStatement>()
-		res.statement.type <- STATEMENT_GOTO
+		var res = allocate_zero<$GotoStatement>()
+		res.statement.type = STATEMENT_GOTO
 		return res
 
 instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
-		var res <- allocate_zero<$LabelStatement>()
-		res.statement.type               <- STATEMENT_LABEL
-		res.declaration.declaration.type <- DECLARATION_LABEL
+		var res = allocate_zero<$LabelStatement>()
+		res.statement.type               = STATEMENT_LABEL
+		res.declaration.declaration.type = DECLARATION_LABEL
 		return res
 
 instance AllocateOnAst Constant:
 	func allocate() : Constant*:
-		var res <- allocate_zero<$Constant>()
-		res.declaration.type <- DECLARATION_CONSTANT
+		var res = allocate_zero<$Constant>()
+		res.declaration.type = DECLARATION_CONSTANT
 		return res
 
 instance AllocateOnAst BinaryExpression:
 	func allocate() : BinaryExpression*:
-		var res <- allocate_zero<$BinaryExpression>()
-		res.expression.type <- EXPR_BINARY
+		var res = allocate_zero<$BinaryExpression>()
+		res.expression.type = EXPR_BINARY
 		return res
 
 instance AllocateOnAst IntConst:
 	func allocate() : IntConst*:
-		var res <- allocate_zero<$IntConst>()
-		res.expression.type <- EXPR_INT_CONST
+		var res = allocate_zero<$IntConst>()
+		res.expression.type = EXPR_INT_CONST
 		return res
 
 func api_init():
-	stderr <- __stderrp
+	stderr = __stderrp
 
 func expect(token_type : int):
 	if token.type /= token_type:
@@ -356,21 +356,21 @@ func assert(expr : bool):
 		abort()
 
 func context_append(context : Context*, declaration : Declaration*):
-	declaration.next     <- context.declarations
-	context.declarations <- declaration
+	declaration.next     = context.declarations
+	context.declarations = declaration
 
 func block_append(block : BlockStatement*, append : Statement*):
-	var statement <- block.statements
+	var statement = block.statements
 
-	if block.statements = null:
-		block.statements <- append
+	if block.statements == null:
+		block.statements = append
 		return
 
 	:label
-	if statement.next = null:
-		statement.next <- append
+	if statement.next == null:
+		statement.next = append
 		return
 
-	statement <- statement.next
+	statement = statement.next
 	goto label
 

@@ -1,4 +1,4 @@
-typealias String <- byte*
+typealias String = byte*
 
 func extern malloc(size : unsigned int) : void*
 func extern printf(format : String, ...) : int
@@ -28,9 +28,9 @@ instance Printable int:
 		printf("%d\n", obj)
 
 func bubblesort<T : Ordered> (array : T*, len : int):
-	var sorted <- 1
+	var sorted = 1
 
-	var i <- 0
+	var i = 0
 	:loop_begin
 	if i >= len - 1:
 		if sorted /= 1:
@@ -38,16 +38,16 @@ func bubblesort<T : Ordered> (array : T*, len : int):
 		return
 	
 	if less(array[i+1], array[i]):
-		var temp   <- array[i]
-		array[i]   <- array[i+1]
-		array[i+1] <- temp
-		sorted     <- 0
+		var temp   = array[i]
+		array[i]   = array[i+1]
+		array[i+1] = temp
+		sorted     = 0
 	
-	i <- i + 1
+	i = i + 1
 	goto loop_begin
 
 func print_array<T : Printable>(array : T*, len : int):
-	var i <- 0
+	var i = 0
 	:loop_begin
 	if i >= len:
 		return
@@ -55,29 +55,29 @@ func print_array<T : Printable>(array : T*, len : int):
 	printf("\t")
 	print(array[i])
 	
-	i <- i + 1
+	i = i + 1
 	goto loop_begin
 
 func main() : int:
-	typealias arr_type <- int*
-	var array <- cast<arr_type> malloc( cast<unsigned int> 10 * sizeof<int>)
-	array[0] <- 20
-	array[1] <- 10
-	array[2] <- 5
-	array[3] <- 89
-	array[4] <- 24
-	array[5] <- 43
-	array[6] <- 13
-	array[7] <- 99
-	array[8] <- 66
-	array[9] <- 5
+	typealias arr_type = int*
+	var array = cast<arr_type> malloc( cast<unsigned int> 10 * sizeof<int>)
+	array[0] = 20
+	array[1] = 10
+	array[2] = 5
+	array[3] = 89
+	array[4] = 24
+	array[5] = 43
+	array[6] = 13
+	array[7] = 99
+	array[8] = 66
+	array[9] = 5
 
-	var sarray <- cast<String* > malloc(cast<unsigned int> 5 * sizeof<String>)
-	sarray[0] <- "Eva"
-	sarray[1] <- "Adam"
-	sarray[2] <- "Mr. Fluffy"
-	sarray[3] <- "Peter"
-	sarray[4] <- "Hugo"
+	var sarray = cast<String* > malloc(cast<unsigned int> 5 * sizeof<String>)
+	sarray[0] = "Eva"
+	sarray[1] = "Adam"
+	sarray[2] = "Mr. Fluffy"
+	sarray[3] = "Peter"
+	sarray[4] = "Hugo"
 
 	print("Initial array:")
 	print_array(array, 10)

@@ -1,4 +1,4 @@
-typealias string <- byte*
+typealias string = byte*
 
 func extern puts(blo : string) : int
 

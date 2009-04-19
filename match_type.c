@@ -59,6 +59,7 @@ static bool match_compound_type(compound_type_t *variant_type,
 				            source_position);
 			return false;
 		}
+		return true;
 	}
 
 	if(concrete_type->type != TYPE_BIND_TYPEVARIABLES) {

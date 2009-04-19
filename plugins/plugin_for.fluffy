@@ -10,60 +10,60 @@ var for_statement : unsigned int
 
 instance AllocateOnAst ForStatement:
 	func allocate() : ForStatement*:
-		var res <- allocate_zero<$ForStatement>()
-		res.statement.type <- for_statement
+		var res = allocate_zero<$ForStatement>()
+		res.statement.type = for_statement
 		return res
 
 func parse_for_statement() : Statement*:
-	var statement                       <- allocate<$ForStatement>()
-	statement.statement.source_position <- source_position
+	var statement                       = allocate<$ForStatement>()
+	statement.statement.source_position = source_position
 
-	assert(token.type = token_for)
+	assert(token.type == token_for)
 	next_token()
 
 	expect('(')
 	if token.type /= ';':
-		statement.pre_expression <- parse_expression()
+		statement.pre_expression = parse_expression()
 	expect(';')
-	statement.loop_control <- parse_expression()
+	statement.loop_control = parse_expression()
 	expect(';')
 	if token.type /= ')':
-		statement.step_expression <- parse_expression()
+		statement.step_expression = parse_expression()
 	expect(')')
 	expect(':')
 
-	statement.loop_body <- parse_statement()
+	statement.loop_body = parse_statement()
 
 	return cast<Statement* > statement
 
 func lower_for_statement(statement : Statement*) : Statement*:
-	var for_statement <- cast<ForStatement* > statement
-	var loop_body     <- for_statement.loop_body
+	var for_statement = cast<ForStatement* > statement
+	var loop_body     = for_statement.loop_body
 
-	var expression        <- allocate<$ExpressionStatement>()
-	expression.expression <- for_statement.pre_expression
+	var expression        = allocate<$ExpressionStatement>()
+	expression.expression = for_statement.pre_expression
 
-	var label             <- allocate<$LabelStatement>()
-	label.declaration.declaration.symbol <- symbol_table_insert("__loop_begin")
+	var label             = allocate<$LabelStatement>()
+	label.declaration.declaration.symbol = symbol_table_insert("__loop_begin")
 
-	var if_statement            <- allocate<$IfStatement>()
-	if_statement.condition      <- for_statement.loop_control
-	if_statement.true_statement <- loop_body
+	var if_statement            = allocate<$IfStatement>()
+	if_statement.condition      = for_statement.loop_control
+	if_statement.true_statement = loop_body
 
-	var loop_body_block        <- cast<BlockStatement*> loop_body
+	var loop_body_block        = cast<BlockStatement*> loop_body
 
-	var step_expression        <- allocate<$ExpressionStatement>()
-	step_expression.expression <- for_statement.step_expression
+	var step_expression        = allocate<$ExpressionStatement>()
+	step_expression.expression = for_statement.step_expression
 	block_append(loop_body_block, cast<Statement*> step_expression) 
 
-	var goto_statement   <- allocate<$GotoStatement>()
-	goto_statement.label <- & label.declaration
+	var goto_statement   = allocate<$GotoStatement>()
+	goto_statement.label = & label.declaration
 	block_append(loop_body_block, cast<Statement*> goto_statement)
 
-	var endlabel <- allocate<$LabelStatement>()
-	endlabel.declaration.declaration.symbol <- symbol_table_insert("__loop_end")
+	var endlabel = allocate<$LabelStatement>()
+	endlabel.declaration.declaration.symbol = symbol_table_insert("__loop_end")
 
-	var block <- allocate<$BlockStatement>()
+	var block = allocate<$BlockStatement>()
 	block_append(block, cast<Statement*> expression)
 	block_append(block, cast<Statement*> label)
 	block_append(block, cast<Statement*> if_statement)
@@ -75,8 +75,8 @@ func lower_for_statement(statement : Statement*) : Statement*:
 
 export init_plugin
 func init_plugin():
-	token_for     <- register_new_token("for")
-	for_statement <- register_statement()
+	token_for     = register_new_token("for")
+	for_statement = register_statement()
 	register_statement_parser(parse_for_statement, token_for)
 	register_statement_lowerer(lower_for_statement, for_statement)
 

@@ -926,8 +926,8 @@ CREATE_BINEXPR_PARSER('+', BINEXPR_ADD);
 CREATE_BINEXPR_PARSER('-', BINEXPR_SUB);
 CREATE_BINEXPR_PARSER('<', BINEXPR_LESS);
 CREATE_BINEXPR_PARSER('>', BINEXPR_GREATER);
-CREATE_BINEXPR_PARSER('=', BINEXPR_EQUAL);
-CREATE_BINEXPR_PARSER(T_ASSIGN, BINEXPR_ASSIGN);
+CREATE_BINEXPR_PARSER(T_EQUALEQUAL, BINEXPR_EQUAL);
+CREATE_BINEXPR_PARSER('=', BINEXPR_ASSIGN);
 CREATE_BINEXPR_PARSER(T_SLASHEQUAL, BINEXPR_NOTEQUAL);
 CREATE_BINEXPR_PARSER(T_LESSEQUAL, BINEXPR_LESSEQUAL);
 CREATE_BINEXPR_PARSER(T_GREATEREQUAL, BINEXPR_GREATEREQUAL);
@@ -955,14 +955,14 @@ static void register_expression_parsers(void)
 	register_expression_infix_parser(parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
 	register_expression_infix_parser(parse_BINEXPR_GREATEREQUAL,
 	                           T_GREATEREQUAL, 14);
-	register_expression_infix_parser(parse_BINEXPR_EQUAL,    '=',          13);
+	register_expression_infix_parser(parse_BINEXPR_EQUAL,    T_EQUALEQUAL, 13);
 	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
 	register_expression_infix_parser(parse_BINEXPR_AND,      '&',          12);
 	register_expression_infix_parser(parse_BINEXPR_LAZY_AND, T_ANDAND,     12);
 	register_expression_infix_parser(parse_BINEXPR_XOR,      '^',          11);
 	register_expression_infix_parser(parse_BINEXPR_OR,       '|',          10);
 	register_expression_infix_parser(parse_BINEXPR_LAZY_OR,  T_PIPEPIPE,   10);
-	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   T_ASSIGN,      2);
+	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   '=',          2);
 
 	register_expression_infix_parser(parse_array_expression,  '[', 25);
 
@@ -1211,15 +1211,12 @@ static statement_t *parse_variable_declaration(void)
 		last_statement = (statement_t*) declaration_statement;
 
 		/* do we have an assignment expression? */
-		if(token.type == T_ASSIGN) {
+		if(token.type == '=') {
 			next_token();
 			statement_t *assign = parse_initial_assignment(declaration->symbol);
 
 			last_statement->next = assign;
 			last_statement       = assign;
-		} else if(token.type == '=') {
-			next_token();
-			parse_error("found '=' after variable declaration, did you mean '<-'?");
 		}
 
 		/* check if we have more declared symbols separated by ',' */
@@ -1642,7 +1639,7 @@ static void parse_constant(void)
 		constant->type = parse_type();
 	}
 
-	expect_void(T_ASSIGN);
+	expect_void('=');
 	constant->expression = parse_expression();
 
 	expect_void(T_NEWLINE);
@@ -1666,7 +1663,7 @@ static void parse_typealias(void)
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	expect_void(T_ASSIGN);
+	expect_void('=');
 	typealias->type = parse_type();
 
 	expect_void(T_NEWLINE);

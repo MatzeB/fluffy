@@ -638,7 +638,7 @@ static ir_entity* get_concept_method_instance_entity(
 
 	concept_method_t *concept_method = method_instance->concept_method;
 	concept_t        *concept        = concept_method->concept;
-	const char         *string           
+	const char       *string           
 		= concept->declaration.symbol->string;
 	size_t              len              = strlen(string);
 	obstack_printf(&obst, "_tcv%zu%s", len, string);
@@ -1377,7 +1377,7 @@ static ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
 }
 
 static ir_node *concept_method_reference_to_firm(concept_method_t *method,
-                                          type_argument_t *type_arguments,
+                                       type_argument_t *type_arguments,
                                        const source_position_t *source_position)
 {
 	concept_t *concept = method->concept;
@@ -1914,7 +1914,7 @@ static void context2firm(const context_t *context)
 		declaration = declaration->next;
 	}
 
-	/* TODO: create these lazily? */
+	/* TODO: create these always lazily? */
 	concept_instance_t *instance = context->concept_instances;
 	while(instance != NULL) {
 		create_concept_instance(instance);

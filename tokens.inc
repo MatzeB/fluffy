@@ -46,7 +46,7 @@ Keyword(sizeof)
 
 T(DOTDOT, "..",)
 T(DOTDOTDOT, "...",)
-T(ASSIGN, "<-",)
+T(EQUALEQUAL, "==",)
 T(TYPESTART, "<$",)
 T(SLASHEQUAL, "/=",)
 T(LESSEQUAL, "<=",)

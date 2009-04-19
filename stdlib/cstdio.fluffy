@@ -1,4 +1,4 @@
-typealias FILE <- void
+typealias FILE = void
 
 var extern stdout : FILE*
 var extern stderr : FILE*
@@ -21,4 +21,4 @@ func extern fprintf(stream : FILE*, format : String, ...) : int
 func extern sprintf(str : String, format : String, ...) : int
 func extern snprintf(std : String, size : size_t, format : String, ...) : int
 
-const EOF <- -1
+const EOF = -1

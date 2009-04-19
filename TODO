@@ -25,4 +25,4 @@ because they need no deep understanding of the design.
 - Add an alloca operator
 - create a ++ and -- operator
 - make lexer accept \r, \r\n and \n as newline
-- make lexer unicode aware (so we can read different encodings and utf8)
+- make lexer unicode aware (reading utf-8 is enough, for more inputs we could use iconv, but we should recommend utf-8 as default)

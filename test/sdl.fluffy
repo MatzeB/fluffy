@@ -54,11 +54,11 @@ func extern printf(format : byte*, ...) : int
 func main(argc : int, argv : byte * * ) : int:
 	SDL_Init(cast<unsigned int> 0x0000FFFF)
 
-	var image_count <- argc - 1
-	var screen      <- SDL_SetVideoMode(640, 480, 0, 0)
-	var filename    <- argv + cast<byte * * > 4
-	var i           <- 0
-	var rect        <- cast<Rect* > (malloc(cast<unsigned int> 8))
+	var image_count = argc - 1
+	var screen      = SDL_SetVideoMode(640, 480, 0, 0)
+	var filename    = argv + cast<byte * * > 4
+	var i           = 0
+	var rect        = cast<Rect* > (malloc(cast<unsigned int> 8))
 
 	printf("Screen: %dx%d\n", screen.w, screen.h)
 
@@ -67,19 +67,19 @@ func main(argc : int, argv : byte * * ) : int:
 		goto end
 
 	printf("Loading file: %s\n", *filename)
-	var image <- IMG_Load(*filename)
-	if image = null:
+	var image = IMG_Load(*filename)
+	if image == null:
 		return 1
 	
 	SDL_FillRect(screen, null, cast<unsigned int> 0)
-	rect.x <- (screen.w - image.w) >> 1
-	rect.y <- (screen.h - image.h) >> 1
+	rect.x = (screen.w - image.w) >> 1
+	rect.y = (screen.h - image.h) >> 1
 	SDL_UpperBlit(image, null, screen, rect)
 	SDL_Flip(screen)
 
 	SDL_Delay(cast<unsigned int> 1500)
-	i        <- i + 1
-	filename <- filename + cast<byte * * > 4
+	i        = i + 1
+	filename = filename + cast<byte * * > 4
 	goto loop
 
 	:end

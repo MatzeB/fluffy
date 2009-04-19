@@ -3,7 +3,7 @@ concept Construct<T>:
 	func destruct(object : T*)
 
 func new<T : Construct>() : T*:
-	var result <- cast<T* > malloc(sizeof<T>)
+	var result = cast<T* > malloc(sizeof<T>)
 	construct(result)
 	return result
 

@@ -6,44 +6,44 @@ func myabs(i : int) : int:
 	return i
 
 func place_ok(i : int) : bool:
-	var j <- 0
+	var j = 0
 
 	while j < i:
-		if row[j] = row[i] || myabs(row[i]-row[j]) = (i-j):
+		if row[j] == row[i] || myabs(row[i]-row[j]) == (i-j):
 			return false
-		j <- j + 1
+		j = j + 1
 	
 	return true
 
 func solve(n : int) : int:
-	var c   <- 0
-	var res <- 0
+	var c   = 0
+	var res = 0
 
-	row    <- cast<int* > malloc(sizeof<int> * n)
-	row[0] <- -1
+	row    = cast<int* > malloc(sizeof<int> * n)
+	row[0] = -1
 
 	while c >= 0:
-		row[c] <- row[c] + 1
+		row[c] = row[c] + 1
 		while (row[c] < n) && (!place_ok(c)):
-			row[c] <- row[c] + 1
+			row[c] = row[c] + 1
 
 		if row[c] < n:
-			if c = n-1:
-				res <- res + 1
+			if c == n-1:
+				res = res + 1
 			else:
-				c      <- c + 1
-				row[c] <- -1
+				c      = c + 1
+				row[c] = -1
 		else:
-			c <- c - 1
+			c = c - 1
 	free(row)
 
 	return res
 
 export main
 func main(argc : int, argv : byte* *) : int:
-	var n <- 8
+	var n = 8
 	if argc > 1:
-		n <- atoi(argv[1])
+		n = atoi(argv[1])
 	printf("The %d-queens problem has %d solutions.\n", n, solve(n))
 	return 0
 

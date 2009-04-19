@@ -1,5 +1,5 @@
 func main():
-	var array <- new<$FlexibleArray>()
+	var array = new<$FlexibleArray>()
 	flexarray_append_string(array, "<html>\n")
 	flexarray_append_string(array, "\t<body>\n")
 	flexarray_append_string(array, "\t\t<h1>Hello ")

@@ -1,4 +1,4 @@
-typealias time_t <- int
+typealias time_t = int
 
 func extern time(timer : time_t*) : time_t
 func extern difftime(time1 : time_t, time0 : time_t) : double

@@ -2,7 +2,7 @@ var token_enum : int
 var type_int   : Type*
 
 func parse_enum():
-	assert(token.type = token_enum)
+	assert(token.type == token_enum)
 	next_token()
 
 	expect(T_IDENTIFIER)
@@ -12,45 +12,45 @@ func parse_enum():
 		return
 	next_token()
 
-	var idx             <- 0
-	var last_expression <- cast<Expression* > null
+	var idx             = 0
+	var last_expression = cast<Expression* > null
 	while token.type /= T_DEDENT && token.type /= T_EOF:
-		assert(token.type = T_IDENTIFIER)
+		assert(token.type == T_IDENTIFIER)
 
-		var constant                         <- allocate<$Constant>()
-		constant.declaration.symbol          <- token.v.symbol
-		constant.declaration.source_position <- source_position
-		constant.type                        <- type_int
+		var constant                         = allocate<$Constant>()
+		constant.declaration.symbol          = token.v.symbol
+		constant.declaration.source_position = source_position
+		constant.type                        = type_int
 		next_token()
 
-		if token.type = T_ASSIGN:
+		if token.type == T_ASSIGN:
 			next_token()
-			var expression      <- parse_expression()
-			last_expression     <- expression
-			idx                 <- 0
-			constant.expression <- expression
+			var expression      = parse_expression()
+			last_expression     = expression
+			idx                 = 0
+			constant.expression = expression
 		else:
 			if last_expression /= null:
-				var expression      <- allocate<$BinaryExpression>()
-				var intconst        <- allocate<$IntConst>()
-				intconst.value      <- idx
-				expression.type     <- BINEXPR_ADD
-				expression.left     <- last_expression
-				expression.right    <- cast<Expression* > intconst
-				constant.expression <- cast<Expression* > expression
+				var expression      = allocate<$BinaryExpression>()
+				var intconst        = allocate<$IntConst>()
+				intconst.value      = idx
+				expression.type     = BINEXPR_ADD
+				expression.left     = last_expression
+				expression.right    = cast<Expression* > intconst
+				constant.expression = cast<Expression* > expression
 			else:
-				var expression      <- allocate<$IntConst>()
-				expression.value    <- idx
-				constant.expression <- cast<Expression* > expression
+				var expression      = allocate<$IntConst>()
+				expression.value    = idx
+				constant.expression = cast<Expression* > expression
 
 		add_declaration(cast<Declaration* > constant)
 		expect(T_NEWLINE)
-		idx <- idx + 1
+		idx = idx + 1
 	next_token()
 
 func init_plugin():
-	token_enum <- register_new_token("enum")
-	type_int   <- make_atomic_type(ATOMIC_TYPE_INT)
+	token_enum = register_new_token("enum")
+	type_int   = make_atomic_type(ATOMIC_TYPE_INT)
 	register_declaration_parser(parse_enum, token_enum)
 
 export init_plugin
