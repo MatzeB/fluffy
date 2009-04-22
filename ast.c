@@ -75,7 +75,7 @@ static void print_type_arguments(const type_argument_t *type_arguments)
 		} else {
 			fprintf(out, ", ");
 		}
-		print_type(out, argument->type);
+		print_type(argument->type);
 
 		argument = argument->next;
 	}
@@ -120,7 +120,7 @@ static void print_array_access_expression(const array_access_expression_t *acces
 static void print_sizeof_expression(const sizeof_expression_t *expr)
 {
 	fprintf(out, "(sizeof<");
-	print_type(out, expr->type);
+	print_type(expr->type);
 	fprintf(out, ">)");
 }
 
@@ -130,7 +130,7 @@ static void print_unary_expression(const unary_expression_t *unexpr)
 	switch(unexpr->type) {
 	case UNEXPR_CAST:
 		fprintf(out, "cast<");
-		print_type(out, unexpr->expression.datatype);
+		print_type(unexpr->expression.datatype);
 		fprintf(out, "> ");
 		print_expression(unexpr->value);
 		break;
@@ -319,7 +319,7 @@ static void print_variable_declaration(const variable_declaration_t *var)
 	fprintf(out, "var");
 	if(var->type != NULL) {
 		fprintf(out, "<");
-		print_type(out, var->type);
+		print_type(var->type);
 		fprintf(out, ">");
 	}
 	fprintf(out, " %s", var->declaration.symbol->string);
@@ -425,7 +425,7 @@ static void print_method_parameters(const method_parameter_t *parameters,
 			first = 0;
 		}
 
-		print_type(out, parameter_type->type);
+		print_type(parameter_type->type);
 		fprintf(out, " %s", parameter->declaration.symbol->string);
 
 		parameter      = parameter->next;
@@ -454,7 +454,7 @@ static void print_method(const method_declaration_t *method_declaration)
 	print_method_parameters(method->parameters, type);
 
 	fprintf(out, " : ");
-	print_type(out, type->result_type);
+	print_type(type->result_type);
 
 	if(method->statement != NULL) {
 		fprintf(out, ":\n");
@@ -470,7 +470,7 @@ static void print_concept_method(const concept_method_t *method)
 	fprintf(out, "%s", method->declaration.symbol->string);
 	print_method_parameters(method->parameters, method->method_type);
 	fprintf(out, " : ");
-	print_type(out, method->method_type->result_type);
+	print_type(method->method_type->result_type);
 	fprintf(out, "\n\n");
 }
 
@@ -504,7 +504,7 @@ static void print_concept_method_instance(
 	print_method_parameters(method->parameters, method->type);
 
 	fprintf(out, " : ");
-	print_type(out, method_instance->method.type->result_type);
+	print_type(method_instance->method.type->result_type);
 
 	if(method->statement != NULL) {
 		fprintf(out, ":\n");
@@ -538,7 +538,7 @@ static void print_constant(const constant_t *constant)
 	fprintf(out, "const %s", constant->declaration.symbol->string);
 	if(constant->type != NULL) {
 		fprintf(out, " ");
-		print_type(out, constant->type);
+		print_type(constant->type);
 	}
 	if(constant->expression != NULL) {
 		fprintf(out, " <- ");
@@ -550,7 +550,7 @@ static void print_constant(const constant_t *constant)
 static void print_typealias(const typealias_t *alias)
 {
 	fprintf(out, "typealias %s <- ", alias->declaration.symbol->string);
-	print_type(out, alias->type);
+	print_type(alias->type);
 	fprintf(out, "\n");
 }
 

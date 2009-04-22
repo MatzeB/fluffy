@@ -24,10 +24,13 @@ static type_t  type_invalid_ = { TYPE_INVALID, NULL };
 type_t        *type_void     = &type_void_;
 type_t        *type_invalid  = &type_invalid_;
 
+static FILE* out;
+
 void init_type_module()
 {
 	obstack_init(type_obst);
 	typevar_binding_stack = NEW_ARR_F(typevar_binding_t, 0);
+	out = stderr;
 }
 
 void exit_type_module()
@@ -36,7 +39,7 @@ void exit_type_module()
 	obstack_free(type_obst, NULL);
 }
 
-static void print_atomic_type(FILE *out, const atomic_type_t *type)
+static void print_atomic_type(const atomic_type_t *type)
 {
 	switch(type->atype) {
 	case ATOMIC_TYPE_INVALID:   fputs("INVALIDATOMIC", out); break;
@@ -57,7 +60,7 @@ static void print_atomic_type(FILE *out, const atomic_type_t *type)
 	}
 }
 
-static void print_method_type(FILE *out, const method_type_t *type)
+static void print_method_type(const method_type_t *type)
 {
 	fputs("<", out);
 	fputs("func(", out);
@@ -69,39 +72,39 @@ static void print_method_type(FILE *out, const method_type_t *type)
 		} else {
 			fputs(", ", out);
 		}
-		print_type(out, param_type->type);
+		print_type(param_type->type);
 		param_type = param_type->next;
 	}
 	fputs(")", out);
 
 	if(type->result_type != NULL && type->result_type->type != TYPE_VOID) {
 		fputs(" : ", out);
-		print_type(out, type->result_type);
+		print_type(type->result_type);
 	}
 	fputs(">", out);
 }
 
-static void print_pointer_type(FILE *out, const pointer_type_t *type)
+static void print_pointer_type(const pointer_type_t *type)
 {
-	print_type(out, type->points_to);
+	print_type(type->points_to);
 	fputs("*", out);
 }
 
-static void print_array_type(FILE *out, const array_type_t *type)
+static void print_array_type(const array_type_t *type)
 {
-	print_type(out, type->element_type);
+	print_type(type->element_type);
 	fprintf(out, "[%lu]", type->size);
 }
 
-static void print_type_reference(FILE *out, const type_reference_t *type)
+static void print_type_reference(const type_reference_t *type)
 {
 	fprintf(out, "<?%s>", type->symbol->string);
 }
 
-static void print_type_variable(FILE *out, const type_variable_t *type_variable)
+static void print_type_variable(const type_variable_t *type_variable)
 {
 	if(type_variable->current_type != NULL) {
-		print_type(out, type_variable->current_type);
+		print_type(type_variable->current_type);
 		return;
 	}
 
@@ -121,13 +124,13 @@ static void print_type_variable(FILE *out, const type_variable_t *type_variable)
 	}
 }
 
-static void print_type_reference_variable(FILE *out, const type_reference_t *type)
+static void print_type_reference_variable(const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->type_variable;
-	print_type_variable(out, type_variable);
+	print_type_variable(type_variable);
 }
 
-static void print_compound_type(FILE *out, const compound_type_t *type)
+static void print_compound_type(const compound_type_t *type)
 {
 	fprintf(out, "%s", type->symbol->string);
 
@@ -138,14 +141,14 @@ static void print_compound_type(FILE *out, const compound_type_t *type)
 			if(type_parameter != type->type_parameters) {
 				fprintf(out, ", ");
 			}
-			print_type_variable(out, type_parameter);
+			print_type_variable(type_parameter);
 			type_parameter = type_parameter->next;
 		}
 		fprintf(out, ">");
 	}
 }
 
-static void print_bind_type_variables(FILE *out, const bind_typevariables_type_t *type)
+static void print_bind_type_variables(const bind_typevariables_type_t *type)
 {
 	compound_type_t *polymorphic_type = type->polymorphic_type;
 
@@ -153,12 +156,12 @@ static void print_bind_type_variables(FILE *out, const bind_typevariables_type_t
 	push_type_variable_bindings(polymorphic_type->type_parameters,
 	                            type->type_arguments);
 
-	print_type(out, (type_t*) polymorphic_type);
+	print_type((type_t*) polymorphic_type);
 
 	pop_type_variable_bindings(old_top);
 }
 
-void print_type(FILE *out, const type_t *type)
+void print_type(const type_t *type)
 {
 	if(type == NULL) {
 		fputs("nil type", out);
@@ -173,30 +176,30 @@ void print_type(FILE *out, const type_t *type)
 		fputs("void", out);
 		return;
 	case TYPE_ATOMIC:
-		print_atomic_type(out, (const atomic_type_t*) type);
+		print_atomic_type((const atomic_type_t*) type);
 		return;
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
-		print_compound_type(out, (const compound_type_t*) type);
+		print_compound_type((const compound_type_t*) type);
 		return;
 	case TYPE_METHOD:
-		print_method_type(out, (const method_type_t*) type);
+		print_method_type((const method_type_t*) type);
 		return;
 	case TYPE_POINTER:
-		print_pointer_type(out, (const pointer_type_t*) type);
+		print_pointer_type((const pointer_type_t*) type);
 		return;
 	case TYPE_ARRAY:
-		print_array_type(out, (const array_type_t*) type);
+		print_array_type((const array_type_t*) type);
 		return;
 	case TYPE_REFERENCE:
-		print_type_reference(out, (const type_reference_t*) type);
+		print_type_reference((const type_reference_t*) type);
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		print_type_reference_variable(out, (const type_reference_t*) type);
+		print_type_reference_variable((const type_reference_t*) type);
 		return;
 	case TYPE_BIND_TYPEVARIABLES:
-		print_bind_type_variables(out, (const bind_typevariables_type_t*) type);
+		print_bind_type_variables((const bind_typevariables_type_t*) type);
 		return;
 	}
 	fputs("unknown", out);
@@ -290,14 +293,6 @@ type_t* make_pointer_type(type_t *points_to)
 	}
 
 	return normalized_type;
-}
-
-static __attribute__((unused))
-void dbg_type(const type_t *type)
-{
-	print_type(stdout,type);
-	puts("\n");
-	fflush(stdout);
 }
 
 static type_t *create_concrete_compound_type(compound_type_t *type)

@@ -1391,7 +1391,7 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
 		        method->declaration.symbol->string,
 		        concept->declaration.symbol->string);
-		print_type(stderr, concept->type_parameters->current_type);
+		print_type(concept->type_parameters->current_type);
 		panic("no concept instance found in ast2firm phase");
 		return NULL;
 	}

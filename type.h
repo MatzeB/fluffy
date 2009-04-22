@@ -26,7 +26,7 @@ void exit_type_module(void);
 /**
  * prints a human readable form of @p type to a stream
  */
-void print_type(FILE* out, const type_t *type);
+void print_type(const type_t *type);
 
 /**
  * returns 1 if type contains integer numbers

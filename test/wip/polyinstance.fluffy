@@ -28,15 +28,15 @@ func AddToList<T>(list : List<T>*, element : ListElement<T>*):
 	element.next = list.first
 	list.first   = element
 
-func PrintList<T : Printable>(list : List<T>*):
-	var elem = list.first
-	while elem /= null:
-		print(elem.val)
-		elem = elem.next
-
 instance Printable<Foo : Printable> List<Foo>*:
-	func print(obj : List<Foo>*):
-		PrintList(obj)
+	func print(list : List<Foo>*):
+		var e = list.first
+		:beginloop
+		if e == null:
+			return
+		print(e.val)
+		e = e.next
+		goto beginloop
 
 func main() : int:
 	var l : List<String>
@@ -47,7 +47,6 @@ func main() : int:
 	e2.val = "Welt"
 	AddToList(&l, &e1)
 	AddToList(&l, &e2)
-	//PrintList(&l)
 	print(&l)
 	return 0
 export main

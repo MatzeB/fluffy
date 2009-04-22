@@ -231,7 +231,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		if(type_argument == NULL) {
 			print_error_prefix(type_ref->source_position);
 			fprintf(stderr, "too few type parameters specified for type ");
-			print_type(stderr, type);
+			print_type(type);
 			fprintf(stderr, "\n");
 			break;
 		}
@@ -246,7 +246,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		} else {
 			fprintf(stderr, "too many type parameters specified for ");
 		}
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, " takes no type parameters\n");
 	}
 
@@ -563,7 +563,7 @@ static expression_t *make_cast(expression_t *from,
 	if(from_type == NULL) {
 		print_error_prefix(from->source_position);
 		fprintf(stderr, "can't implicitely cast from unknown type to ");
-		print_type(stderr, dest_type);
+		print_type(dest_type);
 		fprintf(stderr, "\n");
 		return NULL;
 	}
@@ -663,9 +663,9 @@ static expression_t *make_cast(expression_t *from,
 	if(!implicit_cast_allowed) {
 		print_error_prefix(source_position);
 		fprintf(stderr, "can't implicitely cast ");
-		print_type(stderr, from_type);
+		print_type(from_type);
 		fprintf(stderr, " to ");
-		print_type(stderr, dest_type);
+		print_type(dest_type);
 		fprintf(stderr, "\n");
 		return NULL;
 	}
@@ -746,7 +746,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "Mul/Mod/Div expressions need a numeric type but "
 			        "type ");
-			print_type(stderr, left->datatype);
+			print_type(left->datatype);
 			fprintf(stderr, "is given\n");
 		}
 		exprtype  = left->datatype;
@@ -761,7 +761,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "And/Or/Xor expressions need an integer type "
 			        "but type ");
-			print_type(stderr, left->datatype);
+			print_type(left->datatype);
 			fprintf(stderr, "is given\n");
 		}
 		exprtype  = left->datatype;
@@ -775,7 +775,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "ShiftLeft/ShiftRight expressions need an integer "
 			        "type, but type ");
-			print_type(stderr, left->datatype);
+			print_type(left->datatype);
 			fprintf(stderr, "is given\n");
 		}
 		exprtype  = left->datatype;
@@ -957,7 +957,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 		type_variable_t *typevar = concept->type_parameters;
 		while(typevar != NULL) {
 			if(typevar->current_type != NULL) {
-				print_type(stderr, typevar->current_type);
+				print_type(typevar->current_type);
 				fprintf(stderr, " ");
 			}
 			typevar = typevar->next;
@@ -1024,7 +1024,7 @@ static void check_type_constraints(type_variable_t *type_variables,
 				        type_var->declaration.symbol->string);
 				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
-				print_type(stderr, type_var->current_type);
+				print_type(type_var->current_type);
 				fprintf(stderr, " is no instance of concept '%s'\n",
 				        concept->declaration.symbol->string);
 			}
@@ -1087,7 +1087,7 @@ static type_t *get_default_param_type(type_t *type,
 	case TYPE_METHOD:
 		print_error_prefix(source_position);
 		fprintf(stderr, "method type (");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, ") not supported for function parameters.\n");
 		return type;
 
@@ -1097,7 +1097,7 @@ static type_t *get_default_param_type(type_t *type,
 	case TYPE_COMPOUND_UNION:
 		print_error_prefix(source_position);
 		fprintf(stderr, "compound type (");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, ") not supported for function parameter.\n");
 		return type;		
 
@@ -1107,7 +1107,7 @@ static type_t *get_default_param_type(type_t *type,
 	case TYPE_INVALID:
 		print_error_prefix(source_position);
 		fprintf(stderr, "function argument has invalid type ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 		return type;
 	}
@@ -1130,7 +1130,7 @@ static void check_call_expression(call_expression_t *call)
 	if(type->type != TYPE_POINTER) {
 		print_error_prefix(call->expression.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -1140,7 +1140,7 @@ static void check_call_expression(call_expression_t *call)
 	if(type->type != TYPE_METHOD) {
 		print_error_prefix(call->expression.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -1234,9 +1234,9 @@ static void check_call_expression(call_expression_t *call)
 			if(new_expression == NULL) {
 				print_error_prefix(expression->source_position);
 				fprintf(stderr, "invalid type for argument %d of call: ", i);
-				print_type(stderr, expression->datatype);
+				print_type(expression->datatype);
 				fprintf(stderr, " should be ");
-				print_type(stderr, wanted_type);
+				print_type(wanted_type);
 				fprintf(stderr, "\n");
 			} else {
 				expression = new_expression;
@@ -1267,7 +1267,7 @@ static void check_call_expression(call_expression_t *call)
 #ifdef DEBUG_TYPEVAR_BINDING
 		fprintf(stderr, "TypeVar '%s'(%p) bound to ",
 		        type_var->declaration.symbol->string, type_var);
-		print_type(stderr, type_var->current_type);
+		print_type(type_var->current_type);
 		fprintf(stderr, "\n");
 #endif
 
@@ -1448,7 +1448,7 @@ static void check_negate_expression(unary_expression_t *expression)
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "negate expression only valid for arithmetic types, "
 		        "but argument has type ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
@@ -1467,7 +1467,7 @@ static void check_bitwise_not_expression(unary_expression_t *expression)
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "not expression only valid for integer types, "
 		        "but argument has type ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
@@ -1485,7 +1485,7 @@ static expression_t *lower_incdec_expression(unary_expression_t *expression)
 				"but argument has type ",
 		        expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
 		        );
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 	}
 	if(!is_lvalue(value)) {
@@ -1569,7 +1569,7 @@ static void check_not_expression(unary_expression_t *expression)
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "not expression only valid for bool type, "
 		        "but argument has type ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
@@ -1632,7 +1632,7 @@ static void check_select_expression(select_expression_t *select)
 			print_error_prefix(select->expression.source_position);
 			fprintf(stderr, "select needs a compound type (or pointer) but "
 					"found type ");
-			print_type(stderr, datatype);
+			print_type(datatype);
 			fprintf(stderr, "\n");
 			return;
 		}
@@ -1652,7 +1652,7 @@ static void check_select_expression(select_expression_t *select)
 			print_error_prefix(select->expression.source_position);
 			fprintf(stderr, "select needs a pointer to compound type but found "
 					"type ");
-			print_type(stderr, datatype);
+			print_type(datatype);
 			fprintf(stderr, "\n");
 			return;
 		}
@@ -1686,7 +1686,7 @@ static void check_select_expression(select_expression_t *select)
 	if(entry == NULL) {
 		print_error_prefix(select->expression.source_position);
 		fprintf(stderr, "compound type ");
-		print_type(stderr, (type_t*) compound_type);
+		print_type((type_t*) compound_type);
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
 		return;
 	}
@@ -1719,7 +1719,7 @@ static void check_array_access_expression(array_access_expression_t *access)
 		print_error_prefix(access->expression.source_position);
 		fprintf(stderr, "expected pointer or array type for array access, "
 		        "got ");
-		print_type(stderr, type);
+		print_type(type);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -1742,7 +1742,7 @@ static void check_array_access_expression(array_access_expression_t *access)
 	if(index->datatype == NULL || !is_type_int(index->datatype)) {
 		print_error_prefix(access->expression.source_position);
 		fprintf(stderr, "expected integer type for array index, got ");
-		print_type(stderr, index->datatype);
+		print_type(index->datatype);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -1881,7 +1881,7 @@ static void check_if_statement(if_statement_t *statement)
 	if(condition->datatype != type_bool) {
 		error_at(statement->statement.source_position,
 		         "if condition needs to be boolean but has type ");
-		print_type(stderr, condition->datatype);
+		print_type(condition->datatype);
 		fprintf(stderr, "\n");
 		return;
 	}

@@ -133,6 +133,7 @@ void mangle_type(struct obstack *obst, const type_t *type)
 		panic("can't mangle unresolved type reference");
 		return;
 	case TYPE_BIND_TYPEVARIABLES:
+		/* should have been normalized already in semantic phase... */
 		panic("can't mangle type variable bindings");
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:

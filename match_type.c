@@ -15,9 +15,9 @@ static inline void match_error(type_t *variant, type_t *concrete,
 {
 	print_error_prefix(source_position);
 	fprintf(stderr, "can't match variant type ");
-	print_type(stderr, variant);
+	print_type(variant);
 	fprintf(stderr, " against ");
-	print_type(stderr, concrete);
+	print_type(concrete);
 	fprintf(stderr, "\n");
 }
 
@@ -31,9 +31,9 @@ static bool matched_type_variable(type_variable_t *type_variable, type_t *type,
 			print_error_prefix(source_position);
 			fprintf(stderr, "ambiguous matches found for type variable '%s': ",
 					type_variable->declaration.symbol->string);
-			print_type(stderr, current_type);
+			print_type(current_type);
 			fprintf(stderr, ", ");
-			print_type(stderr, type);
+			print_type(type);
 			fprintf(stderr, "\n");
 		}
 		/* are both types normalized? */

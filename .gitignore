@@ -3,3 +3,6 @@
 .*.swp
 a.out
 /config.mak
+/.depend
+/fluffy
+/fluffy.exe
