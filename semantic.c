@@ -434,6 +434,9 @@ static type_t *check_reference(declaration_t *declaration,
 	case DECLARATION_CONCEPT_METHOD:
 		concept_method = (concept_method_t*) declaration;
 		return make_pointer_type((type_t*) concept_method->method_type);
+	case DECLARATION_ITERATOR:
+		panic("TODO iterator reference");
+		break;
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
 	case DECLARATION_CONCEPT:
@@ -545,7 +548,8 @@ static void check_assign_expression(binary_expression_t *assign)
  */
 static expression_t *make_cast(expression_t *from,
                                type_t *dest_type,
-                               const source_position_t source_position)
+                               const source_position_t source_position,
+							   bool lenient)
 {
 	if(dest_type == NULL || from->datatype == dest_type)
 		return from;
@@ -603,12 +607,14 @@ static expression_t *make_cast(expression_t *from,
 			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
 
 			switch(from_atype) {
-#if 0
 			case ATOMIC_TYPE_BOOL:
+				if (!lenient) {
+					implicit_cast_allowed = false;
+					break;
+				}
 				implicit_cast_allowed |=
 					(dest_atype == ATOMIC_TYPE_BYTE) ||
 					(dest_atype == ATOMIC_TYPE_UBYTE);
-#endif
 			case ATOMIC_TYPE_UBYTE:
 				implicit_cast_allowed |=
 					(dest_atype == ATOMIC_TYPE_USHORT) ||
@@ -644,7 +650,6 @@ static expression_t *make_cast(expression_t *from,
 				implicit_cast_allowed = (dest_atype == ATOMIC_TYPE_DOUBLE);
 				break;
 
-			case ATOMIC_TYPE_BOOL:
 			case ATOMIC_TYPE_DOUBLE:
 			case ATOMIC_TYPE_LONGLONG:
 			case ATOMIC_TYPE_ULONGLONG:
@@ -716,7 +721,8 @@ static void check_binary_expression(binary_expression_t *binexpr)
 			mulexpr->expression.datatype = type_uint;
 			mulexpr->type                = BINEXPR_MUL;
 			mulexpr->left = make_cast(right, type_uint,
-			                          binexpr->expression.source_position);
+			                          binexpr->expression.source_position,
+									  false);
 			mulexpr->right               = (expression_t*) sizeof_expr;
 
 			unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
@@ -805,11 +811,13 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 	if(left->datatype != lefttype) {
 		binexpr->left  = make_cast(left, lefttype,
-		                           binexpr->expression.source_position);
+		                           binexpr->expression.source_position,
+								   false);
 	}
 	if(right->datatype != righttype) {
 		binexpr->right = make_cast(right, righttype,
-		                           binexpr->expression.source_position);
+		                           binexpr->expression.source_position,
+								   false);
 	}
 	binexpr->expression.datatype = exprtype;
 }
@@ -1217,9 +1225,12 @@ static void check_call_expression(call_expression_t *call)
 			match_variant_to_concrete_type(wanted_type, expression_type,
 			                               expression->source_position, true);
 		} else if(expression_type != wanted_type) {
+			/* be a bit lenient for varargs function, to not make using
+			   C printf too much of a pain... */
+			bool lenient = param_type == NULL;
 			expression_t *new_expression 
 				= make_cast(expression, wanted_type,
-			                expression->source_position);
+			                expression->source_position, lenient);
 			if(new_expression == NULL) {
 				print_error_prefix(expression->source_position);
 				fprintf(stderr, "invalid type for argument %d of call: ", i);
@@ -1738,7 +1749,7 @@ static void check_array_access_expression(array_access_expression_t *access)
 
 	if(index->datatype != NULL && index->datatype != type_int) {
 		access->index = make_cast(index, type_int,
-		                          access->expression.source_position);
+		                          access->expression.source_position, false);
 	}
 }
 
@@ -1848,7 +1859,7 @@ static void check_return_statement(return_statement_t *statement)
 		if(return_value->datatype != method_result_type) {
 			return_value
 				= make_cast(return_value, method_result_type,
-				            statement->statement.source_position);
+				            statement->statement.source_position, false);
 
 			statement->return_value = return_value;
 		}
@@ -2124,7 +2135,7 @@ static void check_constant(constant_t *constant)
 	expression = check_expression(expression);
 	if(expression->datatype != constant->type) {
 		expression = make_cast(expression, constant->type,
-		                       constant->declaration.source_position);
+		                       constant->declaration.source_position, false);
 	}
 	constant->expression = expression;
 }

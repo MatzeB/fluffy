@@ -971,6 +971,7 @@ static ir_node *declaration_addr(declaration_t *declaration)
 	case DECLARATION_INVALID:
 	case DECLARATION_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
+	case DECLARATION_ITERATOR:
 	case DECLARATION_CONSTANT:
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
@@ -1542,6 +1543,10 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 		return method_reference_to_firm(&method_declaration->method,
 		                                declaration->symbol, type_arguments,
 										source_position);
+	case DECLARATION_ITERATOR:
+		// TODO
+		panic("TODO: iterator to firm");
+		break;
 	case DECLARATION_CONCEPT_METHOD:
 		return concept_method_reference_to_firm(
 				(concept_method_t*) declaration, type_arguments,
@@ -1898,6 +1903,7 @@ static void context2firm(const context_t *context)
 		case DECLARATION_VARIABLE:
 			create_variable_entity((variable_declaration_t*) declaration);
 			break;
+		case DECLARATION_ITERATOR:
 		case DECLARATION_TYPEALIAS:
 		case DECLARATION_CONCEPT:
 		case DECLARATION_CONSTANT:

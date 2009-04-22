@@ -1,6 +1,7 @@
 #ifndef AST_T_H
 #define AST_T_H
 
+#include <stdbool.h>
 #include "ast.h"
 #include "ast2firm.h"
 #include "symbol.h"
@@ -17,6 +18,7 @@ typedef enum {
 	DECLARATION_INVALID,
 	DECLARATION_METHOD,
 	DECLARATION_METHOD_PARAMETER,
+	DECLARATION_ITERATOR,
 	DECLARATION_VARIABLE,
 	DECLARATION_CONSTANT,
 	DECLARATION_TYPE_VARIABLE,
@@ -76,8 +78,8 @@ struct method_t {
 	method_type_t      *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
-	unsigned char       export;
-	unsigned char       is_extern;
+	bool                export;
+	bool                is_extern;
 
 	context_t           context;
 	statement_t        *statement;
@@ -95,7 +97,8 @@ struct method_declaration_t {
 };
 
 struct iterator_declaration_t {
-	
+	declaration_t  declaration;
+	method_t       method;
 };
 
 typedef enum {
@@ -127,7 +130,7 @@ struct expression_t {
 
 struct bool_const_t {
 	expression_t  expression;
-	int           value;
+	bool          value;
 };
 
 struct int_const_t {
@@ -275,10 +278,10 @@ struct variable_declaration_t {
 	declaration_t  declaration;
 	type_t        *type;
 
-	unsigned char  is_extern;
-	unsigned char  export;
-	unsigned char  is_global;
-	unsigned char  needs_entity;
+	bool           is_extern;
+	bool           export;
+	bool           is_global;
+	bool           needs_entity;
 	int            refs;         /**< temporarily used by semantic phase */
 
 	ir_entity     *entity;

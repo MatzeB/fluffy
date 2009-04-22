@@ -1,6 +1,7 @@
 #ifndef TYPE_T_H
 #define TYPE_T_H
 
+#include <stdbool.h>
 #include "type.h"
 #include "symbol.h"
 #include "lexer.h"
@@ -100,7 +101,13 @@ struct method_type_t {
 	type_t                   type;
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
-	int                      variable_arguments;
+	bool                     variable_arguments;
+};
+
+struct iterator_type_t {
+	type_t                   type;
+	type_t                  *element_type;
+	method_parameter_type_t *parameter_types;
 };
 
 struct compound_entry_t {

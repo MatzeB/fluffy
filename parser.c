@@ -18,7 +18,7 @@
 #include "adt/error.h"
 
 //#define ABORT_ON_ERROR
-//#define PRINT_TOKENS
+//////////////#define PRINT_TOKENS
 
 static expression_parse_function_t *expression_parsers  = NULL;
 static parse_statement_function    *statement_parsers   = NULL;
@@ -594,10 +594,6 @@ static expression_t *parse_func_expression(unsigned precedence)
 	expression->expression.type   = EXPR_FUNC;
 
 	parse_method(&expression->method);
-
-	/* force end of statement */
-	assert(token.type == T_DEDENT);
-	replace_token_type(T_NEWLINE);
 
 	return (expression_t*) expression;
 }

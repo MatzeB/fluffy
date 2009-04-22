@@ -574,10 +574,11 @@ static void print_declaration(const declaration_t *declaration)
 	case DECLARATION_CONSTANT:
 		print_constant((const constant_t*) declaration);
 		break;
+	case DECLARATION_ITERATOR:
 	case DECLARATION_CONCEPT_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
-		fprintf(out, "some declaration of type %d\n", declaration->type);
 		// TODO
+		fprintf(out, "some declaration of type %d\n", declaration->type);
 		break;
 
 	case DECLARATION_TYPE_VARIABLE:
@@ -626,6 +627,7 @@ const char *get_declaration_type_name(declaration_type_t type)
 	case DECLARATION_CONSTANT:         return "constant";
 	case DECLARATION_METHOD_PARAMETER: return "method parameter";
 	case DECLARATION_METHOD:           return "method";
+	case DECLARATION_ITERATOR:         return "iterator";
 	case DECLARATION_CONCEPT:          return "concept";
 	case DECLARATION_TYPEALIAS:        return "type alias";
 	case DECLARATION_TYPE_VARIABLE:    return "type variable";
