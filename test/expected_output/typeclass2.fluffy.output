@@ -1,0 +1,34 @@
+Initial array:
+	20
+	10
+	5
+	89
+	24
+	43
+	13
+	99
+	66
+	5
+Sorted array:
+	5
+	5
+	10
+	13
+	20
+	24
+	43
+	66
+	89
+	99
+Initial array:
+	Eva
+	Adam
+	Mr. Fluffy
+	Peter
+	Hugo
+Sorted array:
+	Adam
+	Eva
+	Hugo
+	Mr. Fluffy
+	Peter

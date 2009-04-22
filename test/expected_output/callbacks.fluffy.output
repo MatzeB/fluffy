@@ -1,0 +1,8 @@
+pre1 -> I'm impl1
+Result: 42
+pre2 -> I'm impl1
+Result: 42
+pre1: I'm impl2
+Result: 23
+pre4: I'm an anonymous func
+Result: 1

@@ -8,7 +8,8 @@ typealias arr = int[7]
 
 func main() : int:
 	var blo = cast<Blo* > malloc(sizeof<Blo>)
-	printf("Size: %d\n", sizeof<Blo>)
 	blo.array[2] = 5
-	return blo.array[2]
+	blo.array[3] = 0
+	printf("Size: %d\n", sizeof<Blo>)
+	return blo.array[3]
 export main

@@ -1,3 +1,4 @@
+func extern printf(format : byte*, ...) : int
 
 func main(argc : int, argv : byte**) : int:
 	var last = argv + (argc - 1)

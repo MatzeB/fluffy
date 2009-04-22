@@ -16,6 +16,7 @@ instance Printable int:
 	func print(obj : int):
 		printf("%d\n", obj)
 
+
 struct ListElement<T>:
 	val  : T
 	next : ListElement<T>*
@@ -27,19 +28,15 @@ func AddToList<T>(list : List<T>*, element : ListElement<T>*):
 	element.next = list.first
 	list.first   = element
 
-func AddMakeElement<T>(list : List<T>*, value : T):
-	var element = cast<ListElement<T>*> malloc( sizeof<T> )
-	element.val = value
-	AddToList(list, element)
-
 func PrintList<T : Printable>(list : List<T>*):
 	var elem = list.first
-	:beginloop
-	if elem == null:
-		return
-	print(elem.val)
-	elem = elem.next
-	goto beginloop
+	while elem /= null:
+		print(elem.val)
+		elem = elem.next
+
+instance Printable<Foo : Printable> List<Foo>*:
+	func print(obj : List<Foo>*):
+		PrintList(obj)
 
 func main() : int:
 	var l : List<String>
@@ -50,14 +47,8 @@ func main() : int:
 	e2.val = "Welt"
 	AddToList(&l, &e1)
 	AddToList(&l, &e2)
-	PrintList(&l)
-
-	var l2 : List<int>
-	l2.first = null
-	AddMakeElement(&l2, 42)
-	AddMakeElement(&l2, 13)
-	PrintList(&l2)
-
+	//PrintList(&l)
+	print(&l)
 	return 0
 export main
 
