@@ -3,5 +3,5 @@ var k : int
 func main() : int:
 	k = 42
 	var l : typeof(k) = 22
-	return (cast<typeof(l)>(k) - l) - 20
+	return cast<typeof(l)>(k) - l - 20
 export main

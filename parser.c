@@ -532,10 +532,8 @@ type_t *parse_type(void)
 
 
 
-static expression_t *parse_string_const(unsigned precedence)
+static expression_t *parse_string_const(void)
 {
-	(void) precedence;
-
 	string_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_STRING_CONST;
@@ -546,10 +544,8 @@ static expression_t *parse_string_const(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static expression_t *parse_int_const(unsigned precedence)
+static expression_t *parse_int_const(void)
 {
-	(void) precedence;
-
 	int_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
 
 	cnst->expression.type = EXPR_INT_CONST;
@@ -560,9 +556,8 @@ static expression_t *parse_int_const(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static expression_t *parse_true(unsigned precedence)
+static expression_t *parse_true(void)
 {
-	(void) precedence;
 	eat(T_true);
 
 	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
@@ -573,9 +568,8 @@ static expression_t *parse_true(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static expression_t *parse_false(unsigned precedence)
+static expression_t *parse_false(void)
 {
-	(void) precedence;
 	eat(T_false);
 
 	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
@@ -586,10 +580,8 @@ static expression_t *parse_false(unsigned precedence)
 	return (expression_t*) cnst;
 }
 
-static expression_t *parse_null(unsigned precedence)
+static expression_t *parse_null(void)
 {
-	(void) precedence;
-
 	eat(T_null);
 
 	null_pointer_t *expression      = allocate_ast_zero(sizeof(expression[0]));
@@ -599,10 +591,8 @@ static expression_t *parse_null(unsigned precedence)
 	return (expression_t*) expression;
 }
 
-static expression_t *parse_func_expression(unsigned precedence)
+static expression_t *parse_func_expression(void)
 {
-	(void) precedence;
-
 	eat(T_func);
 
 	func_expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
@@ -613,10 +603,8 @@ static expression_t *parse_func_expression(unsigned precedence)
 	return (expression_t*) expression;
 }
 
-static expression_t *parse_reference(unsigned precedence)
+static expression_t *parse_reference(void)
 {
-	(void) precedence;
-
 	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
 
 	ref->expression.type = EXPR_REFERENCE;
@@ -633,10 +621,8 @@ static expression_t *parse_reference(unsigned precedence)
 	return (expression_t*) ref;
 }
 
-static expression_t *parse_sizeof(unsigned precedence)
+static expression_t *parse_sizeof(void)
 {
-	(void) precedence;
-
 	eat(T_sizeof);
 
 	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
@@ -729,7 +715,7 @@ static expression_parse_function_t *get_expression_parser_entry(int token_type)
 }
 
 void register_expression_parser(parse_expression_function parser,
-                                int token_type, unsigned precedence)
+                                int token_type)
 {
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(token_type);
@@ -741,7 +727,6 @@ void register_expression_parser(parse_expression_function parser,
 		panic("trying to register multiple expression parsers for a token");
 	}
 	entry->parser     = parser;
-	entry->precedence = precedence;
 }
 
 void register_expression_infix_parser(parse_expression_infix_function parser,
@@ -775,10 +760,8 @@ static expression_t *expected_expression_error(void)
 	return expression;
 }
 
-static expression_t *parse_brace_expression(unsigned precedence)
+static expression_t *parse_brace_expression(void)
 {
-	(void) precedence;
-
 	eat('(');
 
 	expression_t *result = parse_expression();
@@ -788,7 +771,7 @@ static expression_t *parse_brace_expression(unsigned precedence)
 	return result;
 }
 
-static expression_t *parse_cast_expression(unsigned precedence)
+static expression_t *parse_cast_expression(void)
 {
 	eat(T_cast);
 
@@ -801,15 +784,13 @@ static expression_t *parse_cast_expression(unsigned precedence)
 	unary_expression->expression.datatype = parse_type();
 	expect('>');
 
-	unary_expression->value = parse_sub_expression(precedence);
+	unary_expression->value = parse_sub_expression(PREC_CAST);
 
 	return (expression_t*) unary_expression;
 }
 
-static expression_t *parse_call_expression(unsigned precedence,
-                                    expression_t *expression)
+static expression_t *parse_call_expression(expression_t *expression)
 {
-	(void) precedence;
 	call_expression_t *call = allocate_ast_zero(sizeof(call[0]));
 
 	call->expression.type            = EXPR_CALL;
@@ -842,11 +823,8 @@ static expression_t *parse_call_expression(unsigned precedence,
 	return (expression_t*) call;
 }
 
-static expression_t *parse_select_expression(unsigned precedence,
-                                             expression_t *compound)
+static expression_t *parse_select_expression(expression_t *compound)
 {
-	(void) precedence;
-
 	eat('.');
 
 	select_expression_t *select = allocate_ast_zero(sizeof(select[0]));
@@ -865,11 +843,8 @@ static expression_t *parse_select_expression(unsigned precedence,
 	return (expression_t*) select;
 }
 
-static expression_t *parse_array_expression(unsigned precedence,
-                                            expression_t *array_ref)
+static expression_t *parse_array_expression(expression_t *array_ref)
 {
-	(void) precedence;
-
 	eat('[');
 
 	array_access_expression_t *array_access
@@ -889,8 +864,7 @@ static expression_t *parse_array_expression(unsigned precedence,
 }
 
 #define CREATE_UNARY_EXPRESSION_PARSER(token_type, unexpression_type)     \
-static                                                                    \
-expression_t *parse_##unexpression_type(unsigned precedence)              \
+static expression_t *parse_##unexpression_type(void)                      \
 {                                                                         \
 	eat(token_type);                                                      \
                                                                           \
@@ -898,7 +872,7 @@ expression_t *parse_##unexpression_type(unsigned precedence)              \
 		= allocate_ast_zero(sizeof(unary_expression[0]));                 \
 	unary_expression->expression.type = EXPR_UNARY;                       \
 	unary_expression->type            = unexpression_type;                \
-	unary_expression->value           = parse_sub_expression(precedence); \
+	unary_expression->value           = parse_sub_expression(PREC_UNARY); \
                                                                           \
 	return (expression_t*) unary_expression;                              \
 }
@@ -911,94 +885,95 @@ CREATE_UNARY_EXPRESSION_PARSER('&',          UNEXPR_TAKE_ADDRESS)
 CREATE_UNARY_EXPRESSION_PARSER(T_PLUSPLUS,   UNEXPR_INCREMENT)
 CREATE_UNARY_EXPRESSION_PARSER(T_MINUSMINUS, UNEXPR_DECREMENT)
 
-#define CREATE_BINEXPR_PARSER(token_type, binexpression_type)    \
-static                                                           \
-expression_t *parse_##binexpression_type(unsigned precedence,    \
-                                         expression_t *left)     \
-{                                                                \
-	eat(token_type);                                             \
-                                                                 \
-	expression_t *right = parse_sub_expression(precedence);      \
-                                                                 \
-	binary_expression_t *binexpr                                 \
-		= allocate_ast_zero(sizeof(binexpr[0]));                 \
-	binexpr->expression.type            = EXPR_BINARY;           \
-	binexpr->type                       = binexpression_type;    \
-	binexpr->left                       = left;                  \
-	binexpr->right                      = right;                 \
-                                                                 \
-	return (expression_t*) binexpr;                              \
+#define CREATE_BINEXPR_PARSER_RL(token_type, binexpression_type, prec_r)  \
+static expression_t *parse_##binexpression_type(expression_t *left)       \
+{                                                                         \
+	eat(token_type);                                                      \
+                                                                          \
+	expression_t *right = parse_sub_expression(prec_r);                   \
+                                                                          \
+	binary_expression_t *binexpr                                          \
+		= allocate_ast_zero(sizeof(binexpr[0]));                          \
+	binexpr->expression.type            = EXPR_BINARY;                    \
+	binexpr->type                       = binexpression_type;             \
+	binexpr->left                       = left;                           \
+	binexpr->right                      = right;                          \
+                                                                          \
+	return (expression_t*) binexpr;                                       \
 }
 
-CREATE_BINEXPR_PARSER('*', BINEXPR_MUL);
-CREATE_BINEXPR_PARSER('/', BINEXPR_DIV);
-CREATE_BINEXPR_PARSER('%', BINEXPR_MOD);
-CREATE_BINEXPR_PARSER('+', BINEXPR_ADD);
-CREATE_BINEXPR_PARSER('-', BINEXPR_SUB);
-CREATE_BINEXPR_PARSER('<', BINEXPR_LESS);
-CREATE_BINEXPR_PARSER('>', BINEXPR_GREATER);
-CREATE_BINEXPR_PARSER(T_EQUALEQUAL, BINEXPR_EQUAL);
-CREATE_BINEXPR_PARSER('=', BINEXPR_ASSIGN);
-CREATE_BINEXPR_PARSER(T_SLASHEQUAL, BINEXPR_NOTEQUAL);
-CREATE_BINEXPR_PARSER(T_LESSEQUAL, BINEXPR_LESSEQUAL);
-CREATE_BINEXPR_PARSER(T_GREATEREQUAL, BINEXPR_GREATEREQUAL);
-CREATE_BINEXPR_PARSER('&', BINEXPR_AND);
-CREATE_BINEXPR_PARSER('|', BINEXPR_OR);
-CREATE_BINEXPR_PARSER('^', BINEXPR_XOR);
-CREATE_BINEXPR_PARSER(T_ANDAND, BINEXPR_LAZY_AND);
-CREATE_BINEXPR_PARSER(T_PIPEPIPE, BINEXPR_LAZY_OR);
-CREATE_BINEXPR_PARSER(T_LESSLESS, BINEXPR_SHIFTLEFT);
-CREATE_BINEXPR_PARSER(T_GREATERGREATER, BINEXPR_SHIFTRIGHT);
+#define CREATE_BINEXPR_PARSER_LR(token_type, binexpression_type, prec_r)  \
+	CREATE_BINEXPR_PARSER_RL(token_type, binexpression_type, prec_r+1)
+
+CREATE_BINEXPR_PARSER_LR('*', BINEXPR_MUL, PREC_MULTIPLICATIVE);
+CREATE_BINEXPR_PARSER_LR('/', BINEXPR_DIV, PREC_MULTIPLICATIVE);
+CREATE_BINEXPR_PARSER_LR('%', BINEXPR_MOD, PREC_MULTIPLICATIVE);
+CREATE_BINEXPR_PARSER_LR('+', BINEXPR_ADD, PREC_ADDITIVE);
+CREATE_BINEXPR_PARSER_LR('-', BINEXPR_SUB, PREC_ADDITIVE);
+CREATE_BINEXPR_PARSER_LR('<', BINEXPR_LESS, PREC_RELATIONAL);
+CREATE_BINEXPR_PARSER_LR('>', BINEXPR_GREATER, PREC_RELATIONAL);
+CREATE_BINEXPR_PARSER_LR(T_EQUALEQUAL, BINEXPR_EQUAL, PREC_EQUALITY);
+CREATE_BINEXPR_PARSER_RL('=', BINEXPR_ASSIGN, PREC_ASSIGNMENT);
+CREATE_BINEXPR_PARSER_LR(T_SLASHEQUAL, BINEXPR_NOTEQUAL, PREC_EQUALITY);
+CREATE_BINEXPR_PARSER_LR(T_LESSEQUAL, BINEXPR_LESSEQUAL, PREC_RELATIONAL);
+CREATE_BINEXPR_PARSER_LR(T_GREATEREQUAL, BINEXPR_GREATEREQUAL, PREC_RELATIONAL);
+CREATE_BINEXPR_PARSER_LR('&', BINEXPR_AND, PREC_AND);
+CREATE_BINEXPR_PARSER_LR('|', BINEXPR_OR, PREC_OR);
+CREATE_BINEXPR_PARSER_LR('^', BINEXPR_XOR, PREC_XOR);
+CREATE_BINEXPR_PARSER_LR(T_ANDAND, BINEXPR_LAZY_AND, PREC_LAZY_AND);
+CREATE_BINEXPR_PARSER_LR(T_PIPEPIPE, BINEXPR_LAZY_OR, PREC_LAZY_OR);
+CREATE_BINEXPR_PARSER_LR(T_LESSLESS, BINEXPR_SHIFTLEFT, PREC_MULTIPLICATIVE);
+CREATE_BINEXPR_PARSER_LR(T_GREATERGREATER, BINEXPR_SHIFTRIGHT, PREC_MULTIPLICATIVE);
 
 static void register_expression_parsers(void)
 {
-	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', 16);
-	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', 16);
-	register_expression_infix_parser(parse_BINEXPR_MOD,       '%', 16);
+	register_expression_infix_parser(parse_BINEXPR_MUL,       '*', PREC_MULTIPLICATIVE);
+	register_expression_infix_parser(parse_BINEXPR_DIV,       '/', PREC_MULTIPLICATIVE);
+	register_expression_infix_parser(parse_BINEXPR_MOD,       '%', PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_BINEXPR_SHIFTLEFT, 
-	                           T_LESSLESS, 16);
+	                           T_LESSLESS, PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_BINEXPR_SHIFTRIGHT,
-	                           T_GREATERGREATER, 16);
-	register_expression_infix_parser(parse_BINEXPR_ADD,       '+',         15);
-	register_expression_infix_parser(parse_BINEXPR_SUB,       '-',         15);
-	register_expression_infix_parser(parse_BINEXPR_LESS,      '<',         14);
-	register_expression_infix_parser(parse_BINEXPR_GREATER,   '>',         14);
-	register_expression_infix_parser(parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, 14);
+	                           T_GREATERGREATER, PREC_MULTIPLICATIVE);
+	register_expression_infix_parser(parse_BINEXPR_ADD,       '+',         PREC_ADDITIVE);
+	register_expression_infix_parser(parse_BINEXPR_SUB,       '-',         PREC_ADDITIVE);
+	register_expression_infix_parser(parse_BINEXPR_LESS,      '<',         PREC_RELATIONAL);
+	register_expression_infix_parser(parse_BINEXPR_GREATER,   '>',         PREC_RELATIONAL);
+	register_expression_infix_parser(parse_BINEXPR_LESSEQUAL, T_LESSEQUAL, PREC_RELATIONAL);
 	register_expression_infix_parser(parse_BINEXPR_GREATEREQUAL,
-	                           T_GREATEREQUAL, 14);
-	register_expression_infix_parser(parse_BINEXPR_EQUAL,    T_EQUALEQUAL, 13);
-	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, 13);
-	register_expression_infix_parser(parse_BINEXPR_AND,      '&',          12);
-	register_expression_infix_parser(parse_BINEXPR_LAZY_AND, T_ANDAND,     12);
-	register_expression_infix_parser(parse_BINEXPR_XOR,      '^',          11);
-	register_expression_infix_parser(parse_BINEXPR_OR,       '|',          10);
-	register_expression_infix_parser(parse_BINEXPR_LAZY_OR,  T_PIPEPIPE,   10);
-	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   '=',          2);
+	                           T_GREATEREQUAL, PREC_RELATIONAL);
+	register_expression_infix_parser(parse_BINEXPR_EQUAL,    T_EQUALEQUAL, PREC_EQUALITY);
+	register_expression_infix_parser(parse_BINEXPR_NOTEQUAL, T_SLASHEQUAL, PREC_EQUALITY);
+	register_expression_infix_parser(parse_BINEXPR_AND,      '&',          PREC_AND);
+	register_expression_infix_parser(parse_BINEXPR_LAZY_AND, T_ANDAND,     PREC_LAZY_AND);
+	register_expression_infix_parser(parse_BINEXPR_XOR,      '^',          PREC_XOR);
+	register_expression_infix_parser(parse_BINEXPR_OR,       '|',          PREC_OR);
+	register_expression_infix_parser(parse_BINEXPR_LAZY_OR,  T_PIPEPIPE,   PREC_LAZY_OR);
+	register_expression_infix_parser(parse_BINEXPR_ASSIGN,   '=',          PREC_ASSIGNMENT);
 
-	register_expression_infix_parser(parse_array_expression,  '[', 25);
+	register_expression_infix_parser(parse_array_expression,  '[', PREC_POSTFIX);
 
-	register_expression_infix_parser(parse_call_expression,   '(', 30);
-	register_expression_infix_parser(parse_select_expression, '.', 30);
+	register_expression_infix_parser(parse_call_expression,   '(', PREC_POSTFIX);
+	register_expression_infix_parser(parse_select_expression, '.', PREC_POSTFIX);
 
-	register_expression_parser(parse_UNEXPR_NEGATE,           '-',          25);
-	register_expression_parser(parse_UNEXPR_NOT,              '!',          25);
-	register_expression_parser(parse_UNEXPR_BITWISE_NOT,      '~',          25);
-	register_expression_parser(parse_UNEXPR_INCREMENT,        T_PLUSPLUS,   25);
-	register_expression_parser(parse_UNEXPR_DECREMENT,        T_MINUSMINUS, 25);
+	register_expression_parser(parse_UNEXPR_NEGATE,           '-');
+	register_expression_parser(parse_UNEXPR_NOT,              '!');
+	register_expression_parser(parse_UNEXPR_BITWISE_NOT,      '~');
+	register_expression_parser(parse_UNEXPR_INCREMENT,        T_PLUSPLUS);
+	register_expression_parser(parse_UNEXPR_DECREMENT,        T_MINUSMINUS);
 
-	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*',    20);
-	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&',    20);
-	register_expression_parser(parse_cast_expression,         T_cast, 19);
+	register_expression_parser(parse_UNEXPR_DEREFERENCE,      '*');
+	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&');
+	register_expression_parser(parse_cast_expression,         T_cast);
 
-	register_expression_parser(parse_brace_expression,     '(',              1);
-	register_expression_parser(parse_sizeof,               T_sizeof,         1);
-	register_expression_parser(parse_int_const,            T_INTEGER,        1);
-	register_expression_parser(parse_true,                 T_true,           1);
-	register_expression_parser(parse_false,                T_false,          1);
-	register_expression_parser(parse_string_const,         T_STRING_LITERAL, 1);
-	register_expression_parser(parse_null,                 T_null,           1);
-	register_expression_parser(parse_reference,            T_IDENTIFIER,     1);
-	register_expression_parser(parse_func_expression,      T_func,           1);
+	register_expression_parser(parse_brace_expression,     '(');
+	register_expression_parser(parse_sizeof,               T_sizeof);
+	register_expression_parser(parse_int_const,            T_INTEGER);
+	register_expression_parser(parse_true,                 T_true);
+	register_expression_parser(parse_false,                T_false);
+	register_expression_parser(parse_string_const,         T_STRING_LITERAL);
+	register_expression_parser(parse_null,                 T_null);
+	register_expression_parser(parse_reference,            T_IDENTIFIER);
+	register_expression_parser(parse_func_expression,      T_func);
 }
 
 expression_t *parse_sub_expression(unsigned precedence)
@@ -1013,7 +988,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 	expression_t      *left;
 	
 	if(parser->parser != NULL) {
-		left = parser->parser(parser->precedence);
+		left = parser->parser();
 	} else {
 		left = expected_expression_error();
 	}
@@ -1031,7 +1006,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 		if(parser->infix_precedence < precedence)
 			break;
 
-		left = parser->infix_parser(parser->infix_precedence, left);
+		left = parser->infix_parser(left);
 		assert(left != NULL);
 		left->source_position = start;
 	}

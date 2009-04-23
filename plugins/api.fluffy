@@ -218,9 +218,8 @@ typealias IrType                  = void
 typealias IrEntity                = void
 typealias ParseStatementFunction  = func () : Statement*
 typealias ParseAttributeFunction  = func () : Attribute*
-typealias ParseExpressionFunction = func (precedence : unsigned int) : Expression*
-typealias ParseExpressionInfixFunction = func (precedence : unsigned int, \
-                                               left : Expression*) : Expression*
+typealias ParseExpressionFunction = func () : Expression*
+typealias ParseExpressionInfixFunction = func (left : Expression*) : Expression*
 typealias LowerStatementFunction  = func (statement : Statement*) : Statement*
 typealias LowerExpressionFunction = func (expression : Expression*) : Expression*
 typealias ParseDeclarationFunction = func() : void
@@ -243,8 +242,7 @@ func extern register_statement_parser(parser : ParseStatementFunction*, \
 func extern register_attribute_parser(parser : ParseAttributeFunction*, \
                                       token_type : int)
 func extern register_expression_parser(parser : ParseExpressionFunction*, \
-                                       token_type : int, \
-									   precedence : unsigned int)
+                                       token_type : int)
 func extern register_expression_infix_parser( \
 				parser : ParseExpressionInfixFunction, token_type : int, \
 				precedence : unsigned int)

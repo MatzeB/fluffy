@@ -14,6 +14,27 @@
 extern struct obstack  ast_obstack;
 extern namespace_t    *namespaces;
 
+/**
+ * Operator precedence classes
+ */
+typedef enum precedence_t {
+	PREC_BOTTOM,
+	PREC_ASSIGNMENT,
+	PREC_LAZY_OR,
+	PREC_LAZY_AND,
+	PREC_OR,
+	PREC_XOR,
+	PREC_AND,
+	PREC_EQUALITY,
+	PREC_RELATIONAL,
+	PREC_ADDITIVE,
+	PREC_MULTIPLICATIVE,
+	PREC_CAST,
+	PREC_UNARY,
+	PREC_POSTFIX,
+	PREC_TOP
+} precedence_t;
+
 typedef enum {
 	DECLARATION_INVALID,
 	DECLARATION_METHOD,
