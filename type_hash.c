@@ -1,5 +1,6 @@
 #include <config.h>
 
+#include <stdbool.h>
 #include "type_hash.h"
 
 #include "adt/error.h"
@@ -112,109 +113,98 @@ static unsigned hash_type(const type_t *type)
 	abort();
 }
 
-static int atomic_types_equal(const atomic_type_t *type1, const atomic_type_t *type2)
+static bool atomic_types_equal(const atomic_type_t *type1,
+                               const atomic_type_t *type2)
 {
 	return type1->atype == type2->atype;
 }
 
-static int compound_types_equal(const compound_type_t *type1,
-                         const compound_type_t *type2)
+static bool compound_types_equal(const compound_type_t *type1,
+                                 const compound_type_t *type2)
 {
 	if(type1->symbol != type2->symbol)
-		return 0;
+		return false;
+	/* TODO: check type parameters? */
 
-#if 0
-	struct_entry_t *entry1 = type1->entries;
-	struct_entry_t *entry2 = type2->entries;
-
-	while(entry1 != NULL && entry2 != NULL) {
-		if(entry1->type != entry2->type)
-			return 0;
-		entry1 = entry1->next;
-		entry2 = entry2->next;
-	}
-	if(entry1 != NULL || entry2 != NULL)
-		return 0;
-#endif
-
-	return 1;
+	return true;
 }
 
-static int method_types_equal(const method_type_t *type1, const method_type_t *type2)
+static bool method_types_equal(const method_type_t *type1,
+                               const method_type_t *type2)
 {
 	if(type1->result_type != type2->result_type)
-		return 0;
+		return false;
 
 	if(type1->variable_arguments != type2->variable_arguments)
-		return 0;
+		return false;
 
 	method_parameter_type_t *param1 = type1->parameter_types;
 	method_parameter_type_t *param2 = type2->parameter_types;
 	while(param1 != NULL && param2 != NULL) {
 		if(param1->type != param2->type)
-			return 0;
+			return false;
 		param1 = param1->next;
 		param2 = param2->next;
 	}
 	if(param1 != NULL || param2 != NULL)
-		return 0;
+		return false;
 
-	return 1;
+	return true;
 }
 
-static int pointer_types_equal(const pointer_type_t *type1,
-                               const pointer_type_t *type2)
+static bool pointer_types_equal(const pointer_type_t *type1,
+                                const pointer_type_t *type2)
 {
 	return type1->points_to == type2->points_to;
 }
 
-static int array_types_equal(const array_type_t *type1,
-                             const array_type_t *type2)
+static bool array_types_equal(const array_type_t *type1,
+                              const array_type_t *type2)
 {
-	return type1->element_type == type2->element_type &&
-	       type1->size == type2->size;
+	return type1->element_type == type2->element_type
+		&& type1->size == type2->size;
 }
 
-static int type_references_type_variable_equal(const type_reference_t *type1,
-                                               const type_reference_t *type2)
+static bool type_references_type_variable_equal(const type_reference_t *type1,
+                                                const type_reference_t *type2)
 {
 	return type1->type_variable == type2->type_variable;
 }
 
-static int bind_typevariables_type_equal(const bind_typevariables_type_t *type1,
-                                         const bind_typevariables_type_t *type2)
+static bool bind_typevariables_type_equal(const bind_typevariables_type_t*type1,
+                                          const bind_typevariables_type_t*type2)
 {
 	if(type1->polymorphic_type != type2->polymorphic_type)
-		return 0;
+		return false;
 
 	type_argument_t *argument1 = type1->type_arguments;
 	type_argument_t *argument2 = type2->type_arguments;
 	while(argument1 != NULL) {
 		if(argument2 == NULL)
-			return 0;
+			return false;
 		if(argument1->type != argument2->type)
-			return 0;
+			return false;
 		argument1 = argument1->next;
 		argument2 = argument2->next;
 	}
 	if(argument2 != NULL)
-		return 0;
+		return false;
 
-	return 1;
+	return true;
 }
 
-static int types_equal(const type_t *type1, const type_t *type2)
+static bool types_equal(const type_t *type1, const type_t *type2)
 {
 	if(type1 == type2)
-		return 1;
+		return true;
 	if(type1->type != type2->type)
-		return 0;
+		return false;
 
 	switch(type1->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_REFERENCE:
-		return 0;
+		return false;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return type_references_type_variable_equal(
 				(const type_reference_t*) type1,
@@ -241,8 +231,7 @@ static int types_equal(const type_t *type1, const type_t *type2)
 				(const bind_typevariables_type_t*) type1,
 				(const bind_typevariables_type_t*) type2);
 	}
-
-	abort();
+	panic("invalid type encountered");
 }
 
 #define HashSet                    type_hash_t
