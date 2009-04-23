@@ -77,9 +77,20 @@ static void mangle_atomic_type(const atomic_type_t *type)
 	obstack_1grow(&obst, c);
 }
 
+static void mangle_type_variables(type_variable_t *type_variables)
+{
+	type_variable_t *type_variable = type_variables;
+	for( ; type_variable != NULL; type_variable = type_variable->next) {
+		/* is this a good char? */
+		obstack_1grow(&obst, 'T');
+		mangle_type(type_variable->current_type);
+	}
+}
+
 static void mangle_compound_type(const compound_type_t *type)
 {
 	mangle_len_string(type->symbol->string);
+	mangle_type_variables(type->type_parameters);
 }
 
 static void mangle_pointer_type(const pointer_type_t *type)
@@ -118,6 +129,17 @@ static void mangle_reference_type_variable(const type_reference_t* ref)
 	mangle_type(current_type);
 }
 
+static void mangle_bind_typevariables(const bind_typevariables_type_t *type)
+{
+	compound_type_t *polymorphic_type = type->polymorphic_type;
+
+	int old_top = typevar_binding_stack_top();
+	push_type_variable_bindings(polymorphic_type->type_parameters,
+	                            type->type_arguments);
+	mangle_type((type_t*) polymorphic_type);
+	pop_type_variable_bindings(old_top);
+}
+
 void mangle_type(const type_t *type)
 {
 	switch(type->type) {
@@ -147,8 +169,7 @@ void mangle_type(const type_t *type)
 		panic("can't mangle unresolved type reference");
 		return;
 	case TYPE_BIND_TYPEVARIABLES:
-		/* should have been normalized already in semantic phase... */
-		panic("can't mangle type variable bindings");
+		mangle_bind_typevariables((const bind_typevariables_type_t*) type);
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		mangle_reference_type_variable((const type_reference_t*) type);

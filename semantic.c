@@ -387,9 +387,6 @@ static type_t *normalize_type(type_t *type)
 	panic("Unknown type found");
 }
 
-
-
-
 static type_t *check_reference(declaration_t *declaration,
                                const source_position_t source_position)
 {
