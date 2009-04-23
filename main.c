@@ -21,6 +21,7 @@
 #include "ast2firm.h"
 #include "plugins.h"
 #include "type_hash.h"
+#include "mangle.h"
 #include "adt/error.h"
 
 #ifdef _WIN32
@@ -209,6 +210,7 @@ int main(int argc, const char **argv)
 	initialize_plugins();
 	initialize_firm();
 	init_ast2firm();
+	init_mangle();
 
 	firm_opt.lower_ll = false;
 
@@ -303,6 +305,7 @@ int main(int argc, const char **argv)
 		link(asmname, outname);
 	}
 
+	exit_mangle();
 	exit_ast2firm();
 	free_plugins();
 	exit_semantic_module();

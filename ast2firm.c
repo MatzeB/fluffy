@@ -9,7 +9,6 @@
 #include "type_t.h"
 #include "semantic_t.h"
 #include "mangle.h"
-#include "mangle_type.h"
 #include "adt/array.h"
 #include "adt/obst.h"
 #include "adt/strset.h"
@@ -44,8 +43,6 @@ struct type2firm_env_t {
 static struct obstack     obst;
 static strset_t           instantiated_methods;
 static pdeq              *instantiate_methods   = NULL;
-
-//static ident* (*create_ld_ident)(declaration_t*) = create_name_linux_elf;
 
 static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
 static ir_type *get_ir_type(type_t *type);
@@ -638,27 +635,17 @@ static ir_entity* get_concept_method_instance_entity(
 
 	concept_method_t *concept_method = method_instance->concept_method;
 	concept_t        *concept        = concept_method->concept;
-	const char       *string           
-		= concept->declaration.symbol->string;
-	size_t              len              = strlen(string);
-	obstack_printf(&obst, "_tcv%zu%s", len, string);
 
-	string = concept_method->declaration.symbol->string;
-	len    = strlen(string);
-	obstack_printf(&obst, "%zu%s", len, string);
+	start_mangle();
+	mangle_concept_name(concept->declaration.symbol);
+	mangle_symbol(concept_method->declaration.symbol);
 
 	concept_instance_t *instance = method_instance->concept_instance;
 	type_argument_t    *argument = instance->type_arguments;
-	while(argument != NULL) {
-		mangle_type(&obst, argument->type);
-		argument = argument->next;
+	for ( ; argument != NULL; argument = argument->next) {
+		mangle_type(argument->type);
 	}
-	obstack_1grow(&obst, 0);
-
-	char *str = obstack_finish(&obst);
-
-	ident *id = new_id_from_str(str);
-	obstack_free(&obst, str);
+	ident *id = finish_mangle();
 
 	/* create the entity */
 	ir_type *global_type    = get_glob_type();
@@ -682,34 +669,15 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 		return method->e.entity;
 	}
 
-	ident *id;
-	if(!is_polymorphic) {
-		//id = new_id_from_str(symbol->string);
-		obstack_printf(&obst, "_%s", symbol->string);
-		obstack_1grow(&obst, 0);
-
-		char *str = obstack_finish(&obst);
-
-		id = new_id_from_str(str);
-		obstack_free(&obst, str);
-	} else {
-		const char *string = symbol->string;
-		size_t      len    = strlen(string);
-		obstack_printf(&obst, "_v%zu%s", len, string);
-
+	start_mangle();
+	mangle_symbol_simple(symbol);
+	if(is_polymorphic) {
 		type_variable_t *type_variable = method->type_parameters;
-		while(type_variable != NULL) {
-			mangle_type(&obst, type_variable->current_type);
-			
-			type_variable = type_variable->next;
+		for ( ; type_variable != NULL; type_variable = type_variable->next) {
+			mangle_type(type_variable->current_type);
 		}
-		obstack_1grow(&obst, 0);
-
-		char *str = obstack_finish(&obst);
-
-		id = new_id_from_str(str);
-		obstack_free(&obst, str);
 	}
+	ident *id = finish_mangle();
 
 	/* search for an existing entity */
 	if(is_polymorphic && method->e.entities != NULL) {

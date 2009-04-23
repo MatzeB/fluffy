@@ -22,7 +22,6 @@ SOURCES := \
 	ast2firm.c \
 	lexer.c \
 	main.c \
-	mangle_type.c \
 	mangle.c \
 	match_type.c \
 	parser.c \

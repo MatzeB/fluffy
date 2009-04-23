@@ -3,147 +3,191 @@
 #include <stdbool.h>
 #include "mangle.h"
 #include "ast_t.h"
+#include "type_t.h"
+#include "adt/error.h"
 #include <libfirm/firm.h>
+#include "driver/firm_cmdline.h"
 
 static struct obstack obst;
 
-static ident *make_id_from_obst(void)
+static void mangle_string(const char *str)
+{
+	size_t len = strlen(str);
+	obstack_grow(&obst, str, len);
+}
+
+static void mangle_len_string(const char *string)
+{
+	size_t len = strlen(string);
+	obstack_printf(&obst, "%zu%s", len, string);
+}
+
+static void mangle_atomic_type(const atomic_type_t *type)
+{
+	char c;
+
+	switch(type->atype) {
+	case ATOMIC_TYPE_INVALID:
+		abort();
+		break;
+	case ATOMIC_TYPE_BOOL:
+		c = 'b';
+		break;
+	case ATOMIC_TYPE_BYTE:
+		c = 'c';
+		break;
+	case ATOMIC_TYPE_UBYTE:
+		c = 'h';
+		break;
+	case ATOMIC_TYPE_INT:
+		c = 'i';
+		break;
+	case ATOMIC_TYPE_UINT:
+		c = 'j';
+		break;
+	case ATOMIC_TYPE_SHORT:
+		c = 's';
+		break;
+	case ATOMIC_TYPE_USHORT:
+		c = 't';
+		break;
+	case ATOMIC_TYPE_LONG:
+		c = 'l';
+		break;
+	case ATOMIC_TYPE_ULONG:
+		c = 'm';
+		break;
+	case ATOMIC_TYPE_LONGLONG:
+		c = 'n';
+		break;
+	case ATOMIC_TYPE_ULONGLONG:
+		c = 'o';
+		break;
+	case ATOMIC_TYPE_FLOAT:
+		c = 'f';
+		break;
+	case ATOMIC_TYPE_DOUBLE:
+		c = 'd';
+		break;
+	default:
+		abort();
+		break;
+	}
+
+	obstack_1grow(&obst, c);
+}
+
+static void mangle_compound_type(const compound_type_t *type)
+{
+	mangle_len_string(type->symbol->string);
+}
+
+static void mangle_pointer_type(const pointer_type_t *type)
+{
+	obstack_1grow(&obst, 'P');
+	mangle_type(type->points_to);
+}
+
+static void mangle_array_type(const array_type_t *type)
+{
+	obstack_1grow(&obst, 'A');
+	mangle_type(type->element_type);
+	obstack_printf(&obst, "%lu", type->size);
+}
+
+static void mangle_method_type(const method_type_t *type)
+{
+	obstack_1grow(&obst, 'F');
+	mangle_type(type->result_type);
+
+	method_parameter_type_t *parameter_type = type->parameter_types;
+	while(parameter_type != NULL) {
+		mangle_type(parameter_type->type);
+	}
+	obstack_1grow(&obst, 'E');
+}
+
+static void mangle_reference_type_variable(const type_reference_t* ref)
+{
+	type_variable_t *type_var     = ref->type_variable;
+	type_t          *current_type = type_var->current_type;
+
+	if(current_type == NULL) {
+		panic("can't mangle unbound type variable");
+	}
+	mangle_type(current_type);
+}
+
+void mangle_type(const type_t *type)
+{
+	switch(type->type) {
+	case TYPE_INVALID:
+		break;
+	case TYPE_VOID:
+		obstack_1grow(&obst, 'v');
+		return;
+	case TYPE_ATOMIC:
+		mangle_atomic_type((const atomic_type_t*) type);
+		return;
+	case TYPE_COMPOUND_CLASS:
+	case TYPE_COMPOUND_UNION:
+	case TYPE_COMPOUND_STRUCT:
+		mangle_compound_type((const compound_type_t*) type);
+		return;
+	case TYPE_METHOD:
+		mangle_method_type((const method_type_t*) type);
+		return;
+	case TYPE_POINTER:
+		mangle_pointer_type((const pointer_type_t*) type);
+		return;
+	case TYPE_ARRAY:
+		mangle_array_type((const array_type_t*) type);
+		return;
+	case TYPE_REFERENCE:
+		panic("can't mangle unresolved type reference");
+		return;
+	case TYPE_BIND_TYPEVARIABLES:
+		/* should have been normalized already in semantic phase... */
+		panic("can't mangle type variable bindings");
+		return;
+	case TYPE_REFERENCE_TYPE_VARIABLE:
+		mangle_reference_type_variable((const type_reference_t*) type);
+		return;
+	}
+	panic("Unknown type mangled");
+}
+
+void mangle_symbol_simple(symbol_t *symbol)
+{
+	mangle_string(symbol->string);
+}
+
+void mangle_symbol(symbol_t *symbol)
+{
+	mangle_len_string(symbol->string);
+}
+
+void mangle_concept_name(symbol_t *symbol)
+{
+	obstack_grow(&obst, "tcv", 3);
+	mangle_len_string(symbol->string);
+}
+
+void start_mangle(void)
+{
+	if (firm_opt.os_support == OS_SUPPORT_MACHO
+			|| firm_opt.os_support == OS_SUPPORT_MINGW) {
+		obstack_1grow(&obst, '_');
+	}
+}
+
+ident *finish_mangle(void)
 {
 	size_t  size = obstack_object_size(&obst);
 	char   *str  = obstack_finish(&obst);
 	ident  *id   = new_id_from_chars(str, size);
 	obstack_free(&obst, str);
 	return id;
-}
-
-/**
- * Mangles an entity linker (ld) name for win32 usage.
- *
- * @param ent          the entity to be mangled
- * @param declaration  the declaration
- */
-ident *create_name_win32(declaration_t *declaration)
-{
-	struct obstack *o = &obst;
-
-#if 0
-	if (declaration->type == DECLARATION_METHOD) {
-		if (declaration->declaration.modifiers & DM_DLLIMPORT)
-			/* add prefix for imported symbols */
-			obstack_printf(o, "__imp_");
-
-		cc_kind_t cc = declaration->declaration.type->function.calling_convention;
-
-		/* calling convention prefix */
-		switch (cc) {
-			case CC_DEFAULT:
-			case CC_CDECL:
-			case CC_STDCALL:  obstack_1grow(o, '_'); break;
-			case CC_FASTCALL: obstack_1grow(o, '@'); break;
-			default:          panic("unhandled calling convention");
-		}
-
-		switch (declaration->declaration.type->function.linkage) {
-			case LINKAGE_INVALID:
-				panic("linkage type of function is invalid");
-
-			case LINKAGE_C:
-				obstack_printf(o, "%s", declaration->base.symbol->string);
-				break;
-
-			case LINKAGE_CXX:
-				mangle_entity(declaration);
-				break;
-		}
-
-		/* calling convention suffix */
-		switch (cc) {
-			case CC_DEFAULT:
-			case CC_CDECL:
-				break;
-
-			case CC_STDCALL:
-			case CC_FASTCALL: {
-				ir_type  *irtype = get_ir_type(declaration->declaration.type);
-				unsigned size    = 0;
-				for (int i = get_method_n_params(irtype) - 1; i >= 0; --i) {
-					size += get_type_size_bytes(get_method_param_type(irtype, i));
-				}
-				obstack_printf(o, "@%u", size);
-				break;
-			}
-
-			default:
-				panic("unhandled calling convention");
-		}
-	} else {
-		obstack_printf(o, "_%s", declaration->base.symbol->string);
-	}
-#endif
-	obstack_printf(o, "_%s", declaration->symbol->string);
-
-	return make_id_from_obst();
-}
-
-/**
- * Mangles an entity linker (ld) name for Linux ELF usage.
- *
- * @param ent          the entity to be mangled
- * @param declaration  the declaration
- */
-ident *create_name_linux_elf(declaration_t *declaration)
-{
-#if 0
-	bool needs_mangling = false;
-
-	if (declaration->kind == ENTITY_FUNCTION) {
-		switch (declaration->declaration.type->function.linkage) {
-			case LINKAGE_INVALID:
-				panic("linkage type of function is invalid");
-
-			case LINKAGE_C:       break;
-			case LINKAGE_CXX:     needs_mangling = true; break;
-		}
-	}
-
-	if (needs_mangling) {
-		mangle_entity(declaration);
-		return make_id_from_obst();
-	}
-#endif
-
-	return new_id_from_str(declaration->symbol->string);
-}
-
-/**
- * Mangles an entity linker (ld) name for Mach-O usage.
- *
- * @param ent          the entity to be mangled
- * @param declaration  the declaration
- */
-ident *create_name_macho(declaration_t *declaration)
-{
-#if 0
-	bool needs_mangling = false;
-	if (declaration->kind == ENTITY_FUNCTION) {
-		switch (declaration->declaration.type->function.linkage) {
-			case LINKAGE_INVALID:
-				panic("linkage type of function is invalid");
-
-			case LINKAGE_C:       break;
-			case LINKAGE_CXX:     needs_mangling = true; break;
-		}
-	}
-
-	if (needs_mangling) {
-		obstack_1grow(&obst, '_');
-		mangle_entity(declaration);
-		return make_id_from_obst();
-	}
-#endif
-
-	obstack_printf(&obst, "_%s", declaration->symbol->string);
-	return make_id_from_obst();
 }
 
 void init_mangle(void)
