@@ -15,7 +15,6 @@ namespace_t    *namespaces;
 static FILE *out;
 static int   indent = 0;
 
-static void print_expression(const expression_t *expression);
 static void print_statement(const statement_t *statement);
 
 static void print_int_const(const int_const_t *int_const)
@@ -639,6 +638,7 @@ const char *get_declaration_type_name(declaration_type_t type)
 
 void init_ast_module(void)
 {
+	out = stderr;
 	obstack_init(&ast_obstack);
 }
 

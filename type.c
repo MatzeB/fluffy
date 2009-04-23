@@ -172,6 +172,16 @@ void print_type(const type_t *type)
 	case TYPE_INVALID:
 		fputs("invalid", out);
 		return;
+	case TYPE_TYPEOF: {
+		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
+		fputs("typeof(", out);
+		print_expression(typeof_type->expression);
+		fputs(")", out);
+		return;
+	}
+	case TYPE_ERROR:
+		fputs("error", out);
+		return;
 	case TYPE_VOID:
 		fputs("void", out);
 		return;
@@ -455,6 +465,7 @@ type_t *create_concrete_type(type_t *type)
 		return type_invalid;
 	case TYPE_VOID:
 		return type_void;
+	case TYPE_ERROR:
 	case TYPE_ATOMIC:
 		return type;
 	case TYPE_COMPOUND_CLASS:
@@ -473,6 +484,8 @@ type_t *create_concrete_type(type_t *type)
 	case TYPE_BIND_TYPEVARIABLES:
 		return create_concrete_typevar_binding_type(
 		        (bind_typevariables_type_t*) type);
+	case TYPE_TYPEOF:
+		panic("TODO: concrete type for typeof()");
 	case TYPE_REFERENCE:
 		panic("trying to normalize unresolved type reference");
 		break;
@@ -564,3 +577,11 @@ void pop_type_variable_bindings(int new_top)
 	ARR_SHRINKLEN(typevar_binding_stack, new_top);
 }
 
+type_t *skip_typeref(type_t *type)
+{
+	if (type->type == TYPE_TYPEOF) {
+		typeof_type_t *typeof_type = (typeof_type_t*) type;
+		return skip_typeref(typeof_type->expression->datatype);
+	}
+	return type;
+}

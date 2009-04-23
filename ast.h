@@ -55,6 +55,7 @@ void  init_ast_module(void);
 void  exit_ast_module(void);
 
 void  print_ast(FILE *out, const namespace_t *namespace);
+void  print_expression(const expression_t *expression);
 void *allocate_ast(size_t size);
 
 #endif

@@ -230,11 +230,17 @@ static unsigned get_type_size(type_t *type)
 		return get_mode_size_bytes(mode_P_data);
 	case TYPE_ARRAY:
 		return get_array_type_size((array_type_t*) type);
+	case TYPE_TYPEOF: {
+		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
+		return get_type_size(typeof_type->expression->datatype);
+	}
 	case TYPE_REFERENCE:
 		panic("Type reference not resolved");
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return get_type_reference_type_var_size((type_reference_t*) type);
+	case TYPE_ERROR:
+		return 0;
 	case TYPE_INVALID:
 		break;
 	case TYPE_BIND_TYPEVARIABLES:
@@ -572,9 +578,15 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		firm_type = get_type_for_bind_typevariables(env,
 				(bind_typevariables_type_t*) type);
 		break;
+	case TYPE_TYPEOF: {
+		typeof_type_t *typeof_type = (typeof_type_t*) type;
+		firm_type = get_ir_type(typeof_type->expression->datatype);
+		break;
+	}
 	case TYPE_REFERENCE:
 		panic("unresolved reference type found");
 		break;
+	case TYPE_ERROR:
 	case TYPE_INVALID:
 		break;
 	}
@@ -1289,7 +1301,7 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 }
 
 static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
-                           type_argument_t *type_arguments)
+                                  type_argument_t *type_arguments)
 {
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(method->type_parameters, type_arguments);

@@ -38,6 +38,8 @@ static type_t *type_uint     = NULL;
 static type_t *type_double   = NULL;
 static type_t *type_byte_ptr = NULL;
 static type_t *type_void_ptr = NULL;
+static type_t *error_type    = NULL;
+
 
 static method_t *current_method            = NULL;
 bool             last_statement_was_return = false;
@@ -358,7 +360,14 @@ static type_t *normalize_type(type_t *type)
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ATOMIC:
+	case TYPE_ERROR:
 		return type;
+
+	case TYPE_TYPEOF: {
+		typeof_type_t *typeof_type = (typeof_type_t*) type;
+		typeof_type->expression = check_expression(typeof_type->expression);
+		return type;
+	}
 
 	case TYPE_REFERENCE:
 		return resolve_type_reference((type_reference_t*) type);
@@ -555,6 +564,7 @@ static expression_t *make_cast(expression_t *from,
 	 *       - improve error reporting (want to know the context of the cast)
 	 *          ("can't implicitely cast for argument 2 of method call...")
 	 */
+	dest_type = skip_typeref(dest_type);
 
 	type_t *from_type = from->datatype;
 	if(from_type == NULL) {
@@ -564,6 +574,8 @@ static expression_t *make_cast(expression_t *from,
 		fprintf(stderr, "\n");
 		return NULL;
 	}
+
+	from_type = skip_typeref(from_type);
 
 	bool implicit_cast_allowed = true;
 	if(from_type->type == TYPE_POINTER) {
@@ -1047,6 +1059,8 @@ static type_t *get_default_param_type(type_t *type,
 		return type_int;
 	}
 
+	type = skip_typeref(type);
+
 	switch(type->type) {
 	case TYPE_ATOMIC:
 		atomic_type = (atomic_type_t*) type;
@@ -1054,7 +1068,7 @@ static type_t *get_default_param_type(type_t *type,
 		case ATOMIC_TYPE_INVALID:
 			print_error_prefix(source_position);
 			fprintf(stderr, "function argument has invalid type.\n");
-			return type;
+			return error_type;
 
 		case ATOMIC_TYPE_BOOL:
 			return type_uint;
@@ -1086,7 +1100,7 @@ static type_t *get_default_param_type(type_t *type,
 		fprintf(stderr, "method type (");
 		print_type(type);
 		fprintf(stderr, ") not supported for function parameters.\n");
-		return type;
+		return error_type;
 
 	case TYPE_BIND_TYPEVARIABLES:
 	case TYPE_COMPOUND_CLASS:
@@ -1096,17 +1110,21 @@ static type_t *get_default_param_type(type_t *type,
 		fprintf(stderr, "compound type (");
 		print_type(type);
 		fprintf(stderr, ") not supported for function parameter.\n");
-		return type;		
+		return error_type;
+
+	case TYPE_ERROR:
+		return type;
 
 	case TYPE_REFERENCE:
 	case TYPE_REFERENCE_TYPE_VARIABLE:
+	case TYPE_TYPEOF:
 	case TYPE_VOID:
 	case TYPE_INVALID:
 		print_error_prefix(source_position);
 		fprintf(stderr, "function argument has invalid type ");
 		print_type(type);
 		fprintf(stderr, "\n");
-		return type;
+		return error_type;
 	}
 	print_error_prefix(source_position);
 	panic("invalid type for function argument");
@@ -2511,6 +2529,7 @@ int check_static_semantic(void)
 	type_double   = make_atomic_type(ATOMIC_TYPE_DOUBLE);
 	type_void_ptr = make_pointer_type(type_void);
 	type_byte_ptr = make_pointer_type(type_byte);
+	error_type    = type_void;
 
 	namespace_t *namespace = namespaces;
 	while(namespace != NULL) {

@@ -16,6 +16,7 @@ typedef struct method_parameter_type_t    method_parameter_type_t;
 typedef struct method_type_t              method_type_t;
 typedef struct pointer_type_t             pointer_type_t;
 typedef struct array_type_t               array_type_t;
+typedef struct typeof_type_t              typeof_type_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;
@@ -49,6 +50,8 @@ int type_valid(const type_t *type);
  * current type. The given type (and all its hierarchy) is not modified.
  */
 type_t *create_concrete_type(type_t *type);
+
+type_t *skip_typeref(type_t *type);
 
 int typevar_binding_stack_top(void);
 

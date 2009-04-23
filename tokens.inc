@@ -42,6 +42,7 @@ Keyword(unsigned)
 Keyword(var)
 Keyword(void)
 Keyword(sizeof)
+Keyword(typeof)
 #undef S
 
 T(DOTDOT, "..",)

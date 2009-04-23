@@ -147,6 +147,9 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 	assert(type_valid(variant_type));
 	assert(type_valid(concrete_type));
 
+	variant_type = skip_typeref(variant_type);
+	concrete_type = skip_typeref(concrete_type);
+
 	switch(variant_type->type) {
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		type_ref     = (type_reference_t*) variant_type;
@@ -218,6 +221,9 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 		        concrete_type, source_position, report_errors);
 	case TYPE_ARRAY:
 		panic("TODO");
+	case TYPE_ERROR:
+		return false;
+	case TYPE_TYPEOF:
 	case TYPE_REFERENCE:
 		panic("type reference not resolved in match variant to concrete type");
 	case TYPE_INVALID:

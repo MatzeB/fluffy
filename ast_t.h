@@ -243,7 +243,6 @@ struct sizeof_expression_t {
 	type_t       *type;
 };
 
-
 typedef enum {
 	STATEMENT_INVALID,
 	STATEMENT_BLOCK,

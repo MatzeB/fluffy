@@ -89,6 +89,7 @@ static unsigned hash_type(const type_t *type)
 	switch(type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
+	case TYPE_ERROR:
 	case TYPE_REFERENCE:
 		panic("internalizing void or invalid types not possible");
 	case TYPE_REFERENCE_TYPE_VARIABLE:
@@ -96,6 +97,10 @@ static unsigned hash_type(const type_t *type)
 				(const type_reference_t*) type);
 	case TYPE_ATOMIC:
 		return hash_atomic_type((const atomic_type_t*) type);
+	case TYPE_TYPEOF: {
+		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
+		return hash_ptr(typeof_type->expression);
+	}
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
@@ -203,8 +208,14 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 	switch(type1->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
+	case TYPE_ERROR:
 	case TYPE_REFERENCE:
 		return false;
+	case TYPE_TYPEOF: {
+		const typeof_type_t *typeof_type1 = (const typeof_type_t*) type1;
+		const typeof_type_t *typeof_type2 = (const typeof_type_t*) type2;
+		return typeof_type1->expression == typeof_type2->expression;
+	}
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return type_references_type_variable_equal(
 				(const type_reference_t*) type1,

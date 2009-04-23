@@ -14,6 +14,7 @@ struct obstack *type_obst;
 
 typedef enum {
 	TYPE_INVALID,
+	TYPE_ERROR,
 	TYPE_VOID,
 	TYPE_ATOMIC,
 	TYPE_COMPOUND_CLASS,
@@ -22,6 +23,7 @@ typedef enum {
 	TYPE_METHOD,
 	TYPE_POINTER,
 	TYPE_ARRAY,
+	TYPE_TYPEOF,
 	TYPE_REFERENCE,
 	TYPE_REFERENCE_TYPE_VARIABLE,
 	TYPE_BIND_TYPEVARIABLES
@@ -64,6 +66,11 @@ struct array_type_t {
 	type_t         type;
 	type_t        *element_type;
 	unsigned long  size;
+};
+
+struct typeof_type_t {
+	type_t        type;
+	expression_t *expression;
 };
 
 struct type_argument_t {

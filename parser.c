@@ -18,7 +18,7 @@
 #include "adt/error.h"
 
 //#define ABORT_ON_ERROR
-//////////////#define PRINT_TOKENS
+//#define PRINT_TOKENS
 
 static expression_parse_function_t *expression_parsers  = NULL;
 static parse_statement_function    *statement_parsers   = NULL;
@@ -302,6 +302,18 @@ static type_argument_t *parse_type_arguments(void)
 	return first_argument;
 }
 
+static type_t *parse_typeof(void)
+{
+	eat(T_typeof);
+	expect('(');
+	typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
+	typeof_type->type.type     = TYPE_TYPEOF;
+	typeof_type->expression    = parse_expression();
+	expect(')');
+
+	return (type_t*) typeof_type;
+}
+
 static type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
@@ -444,6 +456,9 @@ type_t *parse_type(void)
 		break;
 	case T_IDENTIFIER:
 		type = parse_type_ref();
+		break;
+	case T_typeof:
+		type = parse_typeof();
 		break;
 	case T_void:
 		type = type_void;

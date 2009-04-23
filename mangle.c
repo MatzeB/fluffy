@@ -151,6 +151,11 @@ void mangle_type(const type_t *type)
 	case TYPE_ATOMIC:
 		mangle_atomic_type((const atomic_type_t*) type);
 		return;
+	case TYPE_TYPEOF: {
+		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
+		mangle_type(typeof_type->expression->datatype);
+		return;
+	}
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
@@ -174,6 +179,8 @@ void mangle_type(const type_t *type)
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		mangle_reference_type_variable((const type_reference_t*) type);
 		return;
+	case TYPE_ERROR:
+		panic("trying to mangle error type");
 	}
 	panic("Unknown type mangled");
 }
