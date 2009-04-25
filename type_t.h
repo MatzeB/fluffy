@@ -140,5 +140,10 @@ struct compound_type_t {
 type_t *make_atomic_type(atomic_type_type_t type);
 type_t *make_pointer_type(type_t *type);
 
+static inline bool is_type_array(const type_t *type)
+{
+	return type->type == TYPE_ARRAY;
+}
+
 #endif
 

@@ -587,9 +587,18 @@ static expression_t *make_cast(expression_t *from,
 			pointer_type_t *p2 = (pointer_type_t*) dest_type;
 			/* you can implicitely cast any pointer to void* and
 			 * it is allowed to cast 'null' to any pointer */
-			if (p1->points_to != p2->points_to
-					&& dest_type != type_void_ptr
-					&& from->type != EXPR_NULL_POINTER) {
+			if (p1->points_to == p2->points_to
+					|| dest_type == type_void_ptr
+					|| from->type == EXPR_NULL_POINTER) {
+				/* fine */
+			} else if (is_type_array(p1->points_to)) {
+				array_type_t *array_type = (array_type_t*) p1->points_to;
+				if (array_type->element_type == p2->points_to) {
+					/* fine */
+				} else {
+					implicit_cast_allowed = false;
+				}
+			} else {
 				implicit_cast_allowed = false;
 			}
 		} else {
