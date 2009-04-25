@@ -1602,6 +1602,7 @@ static ir_node *expression_to_firm(expression_t *expression)
 				(func_expression_t*) expression);
 	case EXPR_LAST:
 	case EXPR_INVALID:
+	case EXPR_ERROR:
 		break;
 	}
 	abort();

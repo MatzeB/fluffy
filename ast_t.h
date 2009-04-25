@@ -125,6 +125,7 @@ struct iterator_declaration_t {
 
 typedef enum {
 	EXPR_INVALID = 0,
+	EXPR_ERROR,
 	EXPR_INT_CONST,
 	EXPR_FLOAT_CONST,
 	EXPR_BOOL_CONST,

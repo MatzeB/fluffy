@@ -1844,6 +1844,9 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_ARRAY_ACCESS:
 		check_array_access_expression((array_access_expression_t*) expression);
 		break;
+	case EXPR_ERROR:
+		found_errors = true;
+		break;
 	case EXPR_LAST:
 	case EXPR_INVALID:
 		panic("Invalid expression encountered");

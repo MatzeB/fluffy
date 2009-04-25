@@ -419,6 +419,13 @@ end_error:
 	return (type_t*) type_ref;
 }
 
+static type_t *create_error_type(void)
+{
+	type_t *error_type = allocate_type_zero(sizeof(error_type[0]));
+	error_type->type   = TYPE_ERROR;
+	return error_type;
+}
+
 static type_t *parse_method_type(void)
 {
 	eat(T_func);
@@ -434,8 +441,10 @@ static type_t *parse_method_type(void)
 	expect(':', end_error);
 	method_type->result_type = parse_type();
 
-end_error:
 	return (type_t*) method_type;
+
+end_error:
+	return create_error_type();
 }
 
 static compound_entry_t *parse_compound_entries(void)
@@ -732,6 +741,14 @@ end_error:
 	return (expression_t*) ref;
 }
 
+static expression_t *create_error_expression(void)
+{
+	expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
+	expression->type         = EXPR_ERROR;
+	expression->datatype     = create_error_type();
+	return expression;
+}
+
 static expression_t *parse_sizeof(void)
 {
 	eat(T_sizeof);
@@ -739,14 +756,27 @@ static expression_t *parse_sizeof(void)
 	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
 	expression->expression.type = EXPR_SIZEOF;
 
-	expect('<', end_error);
-	add_anchor_token('>');
-	expression->type = parse_type();
-	rem_anchor_token('>');
-	expect('>', end_error);
+	if (token.type == '(') {
+		next_token();
+		typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
+		typeof_type->type.type     = TYPE_TYPEOF;
+		expression->type           = (type_t*) typeof_type;
+
+		add_anchor_token(')');
+		typeof_type->expression = parse_expression();
+		rem_anchor_token(')');
+		expect(')', end_error);
+	} else {
+		expect('<', end_error);
+		add_anchor_token('>');
+		expression->type = parse_type();
+		rem_anchor_token('>');
+		expect('>', end_error);
+	}
+	return (expression_t*) expression;
 
 end_error:
-	return (expression_t*) expression;
+	return create_error_expression();
 }
 
 void register_statement_parser(parse_statement_function parser, int token_type)
