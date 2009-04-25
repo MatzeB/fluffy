@@ -32,16 +32,14 @@ static context_t *current_context = NULL;
 static int      error = 0;
        token_t  token;
 
-static inline
-void *allocate_ast_zero(size_t size)
+static inline void *allocate_ast_zero(size_t size)
 {
 	void *res = allocate_ast(size);
 	memset(res, 0, size);
 	return res;
 }
 
-static inline
-void *allocate_type_zero(size_t size)
+static inline void *allocate_type_zero(size_t size)
 {
 	void *res = obstack_alloc(type_obst, size);
 	memset(res, 0, size);
@@ -74,22 +72,6 @@ static void add_anchor_token(int token_type)
 	assert(0 <= token_type && token_type < T_LAST_TOKEN);
 	++token_anchor_set[token_type];
 }
-
-#if 0
-static int save_and_reset_anchor_state(int token_type)
-{
-	assert(0 <= token_type && token_type < T_LAST_TOKEN);
-	int count = token_anchor_set[token_type];
-	token_anchor_set[token_type] = 0;
-	return count;
-}
-
-static void restore_anchor_state(int token_type, int count)
-{
-	assert(0 <= token_type && token_type < T_LAST_TOKEN);
-	token_anchor_set[token_type] = count;
-}
-#endif
 
 static void rem_anchor_token(int token_type)
 {
@@ -126,7 +108,7 @@ static void parse_error_expected(const char *message, ...)
 	va_list args;
 	int first = 1;
 
-	if(message != NULL) {
+	if (message != NULL) {
 		parser_print_error_prefix();
 		fprintf(stderr, "%s\n", message);
 	}
@@ -137,8 +119,8 @@ static void parse_error_expected(const char *message, ...)
 
 	va_start(args, message);
 	token_type_t token_type = va_arg(args, token_type_t);
-	while(token_type != 0) {
-		if(first == 1) {
+	while (token_type != 0) {
+		if (first == 1) {
 			first = 0;
 		} else {
 			fprintf(stderr, ", ");
@@ -155,17 +137,17 @@ static void parse_error_expected(const char *message, ...)
  */
 static void maybe_eat_block(void)
 {
-	if(token.type != T_INDENT)
+	if (token.type != T_INDENT)
 		return;
 	next_token();
 
 	unsigned indent = 1;
-	while(indent >= 1) {
-		if(token.type == T_INDENT) {
+	while (indent >= 1) {
+		if (token.type == T_INDENT) {
 			indent++;
-		} else if(token.type == T_DEDENT) {
+		} else if (token.type == T_DEDENT) {
 			indent--;
-		} else if(token.type == T_EOF) {
+		} else if (token.type == T_EOF) {
 			break;
 		}
 		next_token();
@@ -247,7 +229,7 @@ static void eat_until_anchor(void)
 
 #define expect(expected, error_label)                      \
 	do {                                                   \
-		if(UNLIKELY(token.type != (expected))) {           \
+		if (UNLIKELY(token.type != (expected))) {           \
 			parse_error_expected(NULL, (expected), 0);     \
 			add_anchor_token(expected);                    \
 			eat_until_anchor();                            \
@@ -277,7 +259,7 @@ static atomic_type_type_t parse_unsigned_atomic_type(void)
 		return ATOMIC_TYPE_USHORT;
 	case T_long:
 		next_token();
-		if(token.type == T_long) {
+		if (token.type == T_long) {
 			next_token();
 			return ATOMIC_TYPE_ULONGLONG;
 		}
@@ -306,7 +288,7 @@ static atomic_type_type_t parse_signed_atomic_type(void)
 		return ATOMIC_TYPE_SHORT;
 	case T_long:
 		next_token();
-		if(token.type == T_long) {
+		if (token.type == T_long) {
 			next_token();
 			return ATOMIC_TYPE_LONGLONG;
 		}
@@ -349,7 +331,7 @@ static type_t *parse_atomic_type(void)
 	type->atype = atype;
 
 	type_t *result = typehash_insert((type_t*) type);
-	if(result != (type_t*) type) {
+	if (result != (type_t*) type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -369,7 +351,7 @@ static type_argument_t *parse_type_arguments(void)
 	type_argument_t *first_argument = parse_type_argument();
 	type_argument_t *last_argument  = first_argument;
 
-	while(token.type == ',') {
+	while (token.type == ',') {
 		next_token();
 		type_argument_t *type_argument = parse_type_argument();
 
@@ -407,7 +389,7 @@ static type_t *parse_type_ref(void)
 	type_ref->source_position = source_position;
 	next_token();
 
-	if(token.type == '<') {
+	if (token.type == '<') {
 		next_token();
 		add_anchor_token('>');
 		type_ref->type_arguments = parse_type_arguments();
@@ -451,10 +433,10 @@ static compound_entry_t *parse_compound_entries(void)
 {
 	compound_entry_t *result     = NULL;
 	compound_entry_t *last_entry = NULL;
-	while(token.type != T_DEDENT && token.type != T_EOF) {
+	while (token.type != T_DEDENT && token.type != T_EOF) {
 		compound_entry_t *entry = allocate_ast_zero(sizeof(entry[0]));
 
-		if(token.type != T_IDENTIFIER) {
+		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("Problem while parsing compound entry",
 								 T_IDENTIFIER, 0);
 			continue;
@@ -466,7 +448,7 @@ static compound_entry_t *parse_compound_entries(void)
 		entry->type       = parse_type();
 		entry->attributes = parse_attributes();
 
-		if(last_entry == NULL) {
+		if (last_entry == NULL) {
 			result = entry;
 		} else {
 			last_entry->next = entry;
@@ -610,7 +592,7 @@ type_t *parse_type(void)
 		case '[': {
 			next_token();
 			add_anchor_token(']');
-			if(token.type != T_INTEGER) {
+			if (token.type != T_INTEGER) {
 				parse_error_expected("problem while parsing array type",
 				                     T_INTEGER, 0);
 				eat_until_anchor();
@@ -620,7 +602,7 @@ type_t *parse_type(void)
 			int size = token.v.intvalue;
 			next_token();
 
-			if(size < 0) {
+			if (size < 0) {
 				parse_error("negative array size not allowed");
 				eat_until_anchor();
 				rem_anchor_token(']');
@@ -729,7 +711,7 @@ static expression_t *parse_reference(void)
 
 	next_token();
 
-	if(token.type == T_TYPESTART) {
+	if (token.type == T_TYPESTART) {
 		next_token();
 		add_anchor_token('>');
 		ref->type_arguments = parse_type_arguments();
@@ -781,17 +763,17 @@ end_error:
 
 void register_statement_parser(parse_statement_function parser, int token_type)
 {
-	if(token_type < 0)
+	if (token_type < 0)
 		panic("can't register parser for negative token");
 
 	int len = ARR_LEN(statement_parsers);
-	if(token_type >= len) {
+	if (token_type >= len) {
 		ARR_RESIZE(parse_statement_function, statement_parsers, token_type + 1);
 		memset(& statement_parsers[len], 0,
 				(token_type - len + 1) * sizeof(statement_parsers[0]));
 	}
 
-	if(statement_parsers[token_type] != NULL) {
+	if (statement_parsers[token_type] != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
@@ -803,17 +785,17 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 void register_declaration_parser(parse_declaration_function parser,
                                  int token_type)
 {
-	if(token_type < 0)
+	if (token_type < 0)
 		panic("can't register parser for negative token");
 
 	int len = ARR_LEN(declaration_parsers);
-	if(token_type >= len) {
+	if (token_type >= len) {
 		ARR_RESIZE(parse_declaration_function, declaration_parsers, token_type + 1);
 		memset(& declaration_parsers[len], 0,
 				(token_type - len + 1) * sizeof(declaration_parsers[0]));
 	}
 
-	if(declaration_parsers[token_type] != NULL) {
+	if (declaration_parsers[token_type] != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
@@ -824,17 +806,17 @@ void register_declaration_parser(parse_declaration_function parser,
 
 void register_attribute_parser(parse_attribute_function parser, int token_type)
 {
-	if(token_type < 0)
+	if (token_type < 0)
 		panic("can't register parser for negative token");
 
 	int len = ARR_LEN(attribute_parsers);
-	if(token_type >= len) {
+	if (token_type >= len) {
 		ARR_RESIZE(parse_attribute_function, attribute_parsers, token_type + 1);
 		memset(& attribute_parsers[len], 0,
 				(token_type - len + 1) * sizeof(attribute_parsers[0]));
 	}
 
-	if(attribute_parsers[token_type] != NULL) {
+	if (attribute_parsers[token_type] != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
@@ -845,11 +827,11 @@ void register_attribute_parser(parse_attribute_function parser, int token_type)
 
 static expression_parse_function_t *get_expression_parser_entry(int token_type)
 {
-	if(token_type < 0)
+	if (token_type < 0)
 		panic("can't register parser for negative token");
 
 	int len = ARR_LEN(expression_parsers);
-	if(token_type >= len) {
+	if (token_type >= len) {
 		ARR_RESIZE(expression_parse_function_t, expression_parsers, token_type + 1);
 		memset(& expression_parsers[len], 0,
 				(token_type - len + 1) * sizeof(expression_parsers[0]));
@@ -864,7 +846,7 @@ void register_expression_parser(parse_expression_function parser,
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(token_type);
 
-	if(entry->parser != NULL) {
+	if (entry->parser != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
@@ -879,7 +861,7 @@ void register_expression_infix_parser(parse_expression_infix_function parser,
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(token_type);
 
-	if(entry->infix_parser != NULL) {
+	if (entry->infix_parser != NULL) {
 		fprintf(stderr, "for token ");
 		print_token_type(stderr, token_type);
 		fprintf(stderr, "\n");
@@ -949,21 +931,21 @@ static expression_t *parse_call_expression(expression_t *expression)
 	add_anchor_token(')');
 	add_anchor_token(',');
 
-	if(token.type != ')') {
+	if (token.type != ')') {
 		call_argument_t *last_argument = NULL;
 
-		while(1) {
+		while (true) {
 			call_argument_t *argument = allocate_ast_zero(sizeof(argument[0]));
 
 			argument->expression = parse_expression();
-			if(last_argument == NULL) {
+			if (last_argument == NULL) {
 				call->arguments = argument;
 			} else {
 				last_argument->next = argument;
 			}
 			last_argument = argument;
 
-			if(token.type != ',')
+			if (token.type != ',')
 				break;
 			next_token();
 		}
@@ -985,7 +967,7 @@ static expression_t *parse_select_expression(expression_t *compound)
 	select->expression.type            = EXPR_SELECT;
 	select->compound                   = compound;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing compound select",
 		                     T_IDENTIFIER, 0);
 		return NULL;
@@ -1007,7 +989,7 @@ static expression_t *parse_array_expression(expression_t *array_ref)
 	array_access->array_ref       = array_ref;
 	array_access->index           = parse_expression();
 
-	if(token.type != ']') {
+	if (token.type != ']') {
 		parse_error_expected("Problem while parsing array access", ']', 0);
 		return NULL;
 	}
@@ -1131,7 +1113,7 @@ static void register_expression_parsers(void)
 
 expression_t *parse_sub_expression(unsigned precedence)
 {
-	if(token.type < 0) {
+	if (token.type < 0) {
 		return expected_expression_error();
 	}
 
@@ -1140,7 +1122,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 	source_position_t  start = source_position;
 	expression_t      *left;
 	
-	if(parser->parser != NULL) {
+	if (parser->parser != NULL) {
 		left = parser->parser();
 	} else {
 		left = expected_expression_error();
@@ -1148,15 +1130,15 @@ expression_t *parse_sub_expression(unsigned precedence)
 	assert(left != NULL);
 	left->source_position = start;
 
-	while(1) {
-		if(token.type < 0) {
+	while (true) {
+		if (token.type < 0) {
 			return expected_expression_error();
 		}
 
 		parser = &expression_parsers[token.type];
-		if(parser->infix_parser == NULL)
+		if (parser->infix_parser == NULL)
 			break;
-		if(parser->infix_precedence < precedence)
+		if (parser->infix_precedence < precedence)
 			break;
 
 		left = parser->infix_parser(left);
@@ -1184,7 +1166,7 @@ static statement_t *parse_return_statement(void)
 	return_statement->statement.type = STATEMENT_RETURN;
 	next_token();
 
-	if(token.type != T_NEWLINE) {
+	if (token.type != T_NEWLINE) {
 		return_statement->return_value = parse_expression();
 	}
 	expect(T_NEWLINE, end_error);
@@ -1208,7 +1190,7 @@ static statement_t *parse_goto_statement(void)
 		= allocate_ast_zero(sizeof(goto_statement[0]));
 	goto_statement->statement.type = STATEMENT_GOTO;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing goto statement",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1232,7 +1214,7 @@ static statement_t *parse_label_statement(void)
 	label_statement_t *label = allocate_ast_zero(sizeof(label[0]));
 	label->statement.type    = STATEMENT_LABEL;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing label", T_IDENTIFIER, 0);
 		eat_until_anchor();
 		goto end_error;
@@ -1254,12 +1236,12 @@ end_error:
 
 static statement_t *parse_sub_block(void)
 {
-	if(token.type != T_NEWLINE) {
+	if (token.type != T_NEWLINE) {
 		return parse_statement();
 	}
 	eat(T_NEWLINE);
 
-	if(token.type != T_INDENT) {
+	if (token.type != T_INDENT) {
 		/* create an empty block */
 		block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
 		block->statement.type = STATEMENT_BLOCK;
@@ -1278,9 +1260,9 @@ static statement_t *parse_if_statement(void)
 
 	statement_t *true_statement  = parse_sub_block();
 	statement_t *false_statement = NULL;
-	if(token.type == T_else) {
+	if (token.type == T_else) {
 		next_token();
-		if(token.type == ':')
+		if (token.type == ':')
 			next_token();
 		false_statement = parse_sub_block();
 	}
@@ -1329,8 +1311,8 @@ static statement_t *parse_variable_declaration(void)
 
 	eat(T_var);
 
-	while(1) {
-		if(token.type != T_IDENTIFIER) {
+	while (true) {
+		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing variable declaration",
 			                     T_IDENTIFIER, 0);
 			eat_until_anchor();
@@ -1353,13 +1335,13 @@ static statement_t *parse_variable_declaration(void)
 		variable_declaration_t *variable_declaration
 			= &declaration_statement->declaration;
 
-		if(token.type == ':') {
+		if (token.type == ':') {
 			next_token();
 			variable_declaration->type = parse_type();
 		}
 
 		/* append multiple variable declarations */
-		if(last_statement != NULL) {
+		if (last_statement != NULL) {
 			last_statement->next = (statement_t*) declaration_statement;
 		} else {
 			first_statement = (statement_t*) declaration_statement;
@@ -1367,7 +1349,7 @@ static statement_t *parse_variable_declaration(void)
 		last_statement = (statement_t*) declaration_statement;
 
 		/* do we have an assignment expression? */
-		if(token.type == '=') {
+		if (token.type == '=') {
 			next_token();
 			statement_t *assign = parse_initial_assignment(declaration->symbol);
 
@@ -1376,7 +1358,7 @@ static statement_t *parse_variable_declaration(void)
 		}
 
 		/* check if we have more declared symbols separated by ',' */
-		if(token.type != ',')
+		if (token.type != ',')
 			break;
 		next_token();
 	}
@@ -1404,7 +1386,7 @@ static statement_t *parse_newline(void)
 {
 	eat(T_NEWLINE);
 
-	if(token.type == T_INDENT)
+	if (token.type == T_INDENT)
 		return parse_block();
 
 	return NULL;
@@ -1427,18 +1409,18 @@ statement_t *parse_statement(void)
 	source_position_t  start     = source_position;
 
 	parse_statement_function parser = NULL;
-	if(token.type < ARR_LEN(statement_parsers))
+	if (token.type < ARR_LEN(statement_parsers))
 		parser = statement_parsers[token.type];
 
 	add_anchor_token(T_NEWLINE);
-	if(parser != NULL) {
+	if (parser != NULL) {
 		statement = parser();
 	} else {
 		parse_declaration_function declaration_parser = NULL;
-		if(token.type < ARR_LEN(declaration_parsers))
+		if (token.type < ARR_LEN(declaration_parsers))
 			declaration_parser = declaration_parsers[token.type];
 
-		if(declaration_parser != NULL) {
+		if (declaration_parser != NULL) {
 			declaration_parser();
 		} else {
 			statement = parse_expression_statement();
@@ -1446,12 +1428,12 @@ statement_t *parse_statement(void)
 	}
 	rem_anchor_token(T_NEWLINE);
 
-	if(statement == NULL)
+	if (statement == NULL)
 		return NULL;
 
 	statement->source_position = start;
 	statement_t *next = statement->next;
-	while(next != NULL) {
+	while (next != NULL) {
 		next->source_position = start;
 		next                  = next->next;
 	}
@@ -1472,20 +1454,20 @@ static statement_t *parse_block(void)
 	add_anchor_token(T_DEDENT);
 
 	statement_t *last_statement = NULL;
-	while(token.type != T_DEDENT) {
+	while (token.type != T_DEDENT) {
 		/* parse statement */
 		statement_t *statement = parse_statement();
-		if(statement == NULL)
+		if (statement == NULL)
 			continue;
 
-		if(last_statement != NULL) {
+		if (last_statement != NULL) {
 			last_statement->next = statement;
 		} else {
 			block->statements = statement;
 		}
 		last_statement = statement;
 		/* the parse rule might have produced multiple statements */
-		while(last_statement->next != NULL)
+		while (last_statement->next != NULL)
 			last_statement = last_statement->next;
 	}
 
@@ -1505,20 +1487,20 @@ static void parse_parameter_declaration(method_type_t *method_type,
 {
 	assert(method_type != NULL);
 
-	if(token.type == ')')
+	if (token.type == ')')
 		return;
 
 	method_parameter_type_t *last_type = NULL;
 	method_parameter_t      *last_param = NULL;
-	if(parameters != NULL)
+	if (parameters != NULL)
 		*parameters = NULL;
 
-	while(1) {
-		if(token.type == T_DOTDOTDOT) {
+	while (true) {
+		if (token.type == T_DOTDOTDOT) {
 			method_type->variable_arguments = 1;
 			next_token();
 
-			if(token.type == ',') {
+			if (token.type == ',') {
 				parse_error("'...' has to be the last argument in a function "
 				            "parameter list");
 				eat_until_anchor();
@@ -1527,7 +1509,7 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			break;
 		}
 
-		if(token.type != T_IDENTIFIER) {
+		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing parameter",
 			                     T_IDENTIFIER, 0);
 			eat_until_anchor();
@@ -1542,14 +1524,14 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			= allocate_ast_zero(sizeof(param_type[0]));
 		param_type->type = parse_type();
 
-		if(last_type != NULL) {
+		if (last_type != NULL) {
 			last_type->next = param_type;
 		} else {
 			method_type->parameter_types = param_type;
 		}
 		last_type = param_type;
 
-		if(parameters != NULL) {
+		if (parameters != NULL) {
 			method_parameter_t *method_param
 				= allocate_ast_zero(sizeof(method_param[0]));
 			method_param->declaration.type 
@@ -1558,7 +1540,7 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			method_param->declaration.source_position = source_position;
 			method_param->type                        = param_type->type;
 
-			if(last_param != NULL) {
+			if (last_param != NULL) {
 				last_param->next = method_param;
 			} else {
 				*parameters = method_param;
@@ -1566,7 +1548,7 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			last_param = method_param;
 		}
 
-		if(token.type != ',')
+		if (token.type != ',')
 			break;
 		next_token();
 	}
@@ -1580,14 +1562,14 @@ static type_constraint_t *parse_type_constraints(void)
 	type_constraint_t *first_constraint = NULL;
 	type_constraint_t *last_constraint  = NULL;
 
-	while(token.type == T_IDENTIFIER) {
+	while (token.type == T_IDENTIFIER) {
 		type_constraint_t *constraint 
 			= allocate_ast_zero(sizeof(constraint[0]));
 
 		constraint->concept_symbol = token.v.symbol;
 		next_token();
 
-		if(last_constraint == NULL) {
+		if (last_constraint == NULL) {
 			first_constraint = constraint;
 		} else {
 			last_constraint->next = constraint;
@@ -1604,7 +1586,7 @@ static type_variable_t *parse_type_parameter(void)
 		= allocate_ast_zero(sizeof(type_variable[0]));
 	type_variable->declaration.type = DECLARATION_TYPE_VARIABLE;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing type parameter",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1614,7 +1596,7 @@ static type_variable_t *parse_type_parameter(void)
 	type_variable->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	if(token.type == ':') {
+	if (token.type == ':') {
 		next_token();
 		type_variable->constraints = parse_type_constraints();
 	}
@@ -1626,23 +1608,23 @@ static type_variable_t *parse_type_parameters(context_t *context)
 {
 	type_variable_t *first_variable = NULL;
 	type_variable_t *last_variable  = NULL;
-	while(1) {
+	while (true) {
 		type_variable_t *type_variable = parse_type_parameter();
 
-		if(last_variable != NULL) {
+		if (last_variable != NULL) {
 			last_variable->next = type_variable;
 		} else {
 			first_variable = type_variable;
 		}
 		last_variable = type_variable;
 
-		if(context != NULL) {
+		if (context != NULL) {
 			declaration_t *declaration = & type_variable->declaration;
 			declaration->next          = context->declarations;
 			context->declarations      = declaration;
 		}
 
-		if(token.type != ',')
+		if (token.type != ',')
 			break;
 		next_token();
 	}
@@ -1668,7 +1650,7 @@ static void parse_method(method_t *method)
 	context_t *last_context = current_context;
 	current_context         = &method->context;
 
-	if(token.type == '<') {
+	if (token.type == '<') {
 		next_token();
 		method->type_parameters = parse_type_parameters(current_context);
 		expect('>', end_error);
@@ -1681,7 +1663,7 @@ static void parse_method(method_t *method)
 
 	/* add parameters to context */
 	method_parameter_t *parameter = method->parameters;
-	while(parameter != NULL) {
+	while (parameter != NULL) {
 		declaration_t *declaration    = (declaration_t*) parameter;
 		declaration->next             = current_context->declarations;
 		current_context->declarations = declaration;
@@ -1692,16 +1674,16 @@ static void parse_method(method_t *method)
 	expect(')', end_error);
 
 	method_type->result_type = type_void;
-	if(token.type == ':') {
+	if (token.type == ':') {
 		next_token();
-		if(token.type == T_NEWLINE) {
+		if (token.type == T_NEWLINE) {
 			method->statement = parse_sub_block();
 			goto method_parser_end;
 		}
 
 		method_type->result_type = parse_type();
 
-		if(token.type == ':') {
+		if (token.type == ':') {
 			next_token();
 			method->statement = parse_sub_block();
 			goto method_parser_end;
@@ -1725,12 +1707,12 @@ static void parse_method_declaration(void)
 		= allocate_ast_zero(sizeof(method_declaration[0]));
 	method_declaration->declaration.type            = DECLARATION_METHOD;
 
-	if(token.type == T_extern) {
+	if (token.type == T_extern) {
 		method_declaration->method.is_extern = 1;
 		next_token();
 	}
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing function",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1753,12 +1735,12 @@ static void parse_global_variable(void)
 	variable->declaration.type = DECLARATION_VARIABLE;
 	variable->is_global        = 1;
 
-	if(token.type == T_extern) {
+	if (token.type == T_extern) {
 		next_token();
 		variable->is_extern = 1;
 	}
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing global variable",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1769,7 +1751,7 @@ static void parse_global_variable(void)
 	variable->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	if(token.type != ':') {
+	if (token.type != ':') {
 		parse_error_expected("global variables must have a type specified",
 		                     ':', 0);
 		eat_until_anchor();
@@ -1790,7 +1772,7 @@ static void parse_constant(void)
 	constant_t *constant       = allocate_ast_zero(sizeof(constant[0]));
 	constant->declaration.type = DECLARATION_CONSTANT;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing constant", T_IDENTIFIER, 0);
 		eat_until_anchor();
 		return;
@@ -1799,7 +1781,7 @@ static void parse_constant(void)
 	constant->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	if(token.type == ':') {
+	if (token.type == ':') {
 		next_token();
 		constant->type = parse_type();
 	}
@@ -1820,7 +1802,7 @@ static void parse_typealias(void)
 	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typealias",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1844,23 +1826,23 @@ static attribute_t *parse_attribute(void)
 
 	attribute_t *attribute = NULL;
 
-	if(token.type < 0) {
+	if (token.type < 0) {
 		parse_error("problem while parsing attribute");
 		return NULL;
 	}
 
 	parse_attribute_function parser = NULL;
-	if(token.type < ARR_LEN(attribute_parsers))
+	if (token.type < ARR_LEN(attribute_parsers))
 		parser = attribute_parsers[token.type];
 
-	if(parser == NULL) {
+	if (parser == NULL) {
 		parser_print_error_prefix();
 		print_token(stderr, &token);
 		fprintf(stderr, " doesn't start a known attribute type\n");
 		return NULL;
 	}
 
-	if(parser != NULL) {
+	if (parser != NULL) {
 		attribute = parser();
 	}
 
@@ -1871,9 +1853,9 @@ attribute_t *parse_attributes(void)
 {
 	attribute_t *last = NULL;
 
-	while(token.type == '$') {
+	while (token.type == '$') {
 		attribute_t *attribute = parse_attribute();
-		if(attribute != NULL) {
+		if (attribute != NULL) {
 			attribute->next = last;
 			last = attribute;
 		}
@@ -1889,7 +1871,7 @@ static void parse_class(void)
 	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing class",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1910,13 +1892,13 @@ static void parse_class(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
-	if(token.type == T_INDENT) {
+	if (token.type == T_INDENT) {
 		next_token();
 
 		context_t *last_context = current_context;
 		current_context         = &compound_type->context;
 
-		while(token.type != T_EOF && token.type != T_DEDENT) {
+		while (token.type != T_EOF && token.type != T_DEDENT) {
 			parse_declaration();		
 		}
 		next_token();
@@ -1936,7 +1918,7 @@ static void parse_struct(void)
 	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing struct",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -1951,7 +1933,7 @@ static void parse_struct(void)
 	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
 	compound_type->symbol     = typealias->declaration.symbol;
 
-	if(token.type == '<') {
+	if (token.type == '<') {
 		next_token();
 		compound_type->type_parameters 
 			= parse_type_parameters(&compound_type->context);
@@ -1965,7 +1947,7 @@ static void parse_struct(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
-	if(token.type == T_INDENT) {
+	if (token.type == T_INDENT) {
 		next_token();
 		compound_type->entries = parse_compound_entries();
 		eat(T_DEDENT);
@@ -1984,7 +1966,7 @@ static void parse_union(void)
 	typealias_t *typealias      = allocate_ast_zero(sizeof(typealias[0]));
 	typealias->declaration.type = DECLARATION_TYPEALIAS;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing union",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -2005,7 +1987,7 @@ static void parse_union(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
-	if(token.type == T_INDENT) {
+	if (token.type == T_INDENT) {
 		next_token();
 		compound_type->entries = parse_compound_entries();
 		eat(T_DEDENT);
@@ -2026,7 +2008,7 @@ static concept_method_t *parse_concept_method(void)
 	memset(method_type, 0, sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 	
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept method",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -2041,7 +2023,7 @@ static concept_method_t *parse_concept_method(void)
 	parse_parameter_declaration(method_type, &method->parameters);
 	expect(')', end_error);
 
-	if(token.type == ':') {
+	if (token.type == ':') {
 		next_token();
 		method_type->result_type = parse_type();
 	} else {
@@ -2066,7 +2048,7 @@ static void parse_concept(void)
 	concept_t *concept        = allocate_ast_zero(sizeof(concept[0]));
 	concept->declaration.type = DECLARATION_CONCEPT;
 	
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -2077,7 +2059,7 @@ static void parse_concept(void)
 	concept->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	if(token.type == '<') {
+	if (token.type == '<') {
 		next_token();
 		context_t       *context = &concept->context;
 		concept->type_parameters = parse_type_parameters(context);
@@ -2086,14 +2068,14 @@ static void parse_concept(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
-	if(token.type != T_INDENT) {
+	if (token.type != T_INDENT) {
 		goto end_of_parse_concept;
 	}
 	next_token();
 
 	concept_method_t *last_method = NULL;
-	while(token.type != T_DEDENT) {
-		if(token.type == T_EOF) {
+	while (token.type != T_DEDENT) {
+		if (token.type == T_EOF) {
 			parse_error("EOF while parsing concept");
 			goto end_of_parse_concept;
 		}
@@ -2101,7 +2083,7 @@ static void parse_concept(void)
 		concept_method_t *method = parse_concept_method();
 		method->concept          = concept;
 
-		if(last_method != NULL) {
+		if (last_method != NULL) {
 			last_method->next = method;
 		} else {
 			concept->methods = method;
@@ -2124,7 +2106,7 @@ static concept_method_instance_t *parse_concept_method_instance(void)
 		= allocate_ast_zero(sizeof(method_instance[0]));
 
 	expect(T_func, end_error);
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept method "
 		                     "instance", T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -2148,7 +2130,7 @@ static void parse_concept_instance(void)
 	concept_instance_t *instance = allocate_ast_zero(sizeof(instance[0]));
 	instance->source_position    = source_position;
 
-	if(token.type != T_IDENTIFIER) {
+	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept instance",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
@@ -2157,7 +2139,7 @@ static void parse_concept_instance(void)
 	instance->concept_symbol = token.v.symbol;
 	next_token();
 
-	if(token.type == '<') {
+	if (token.type == '<') {
 		next_token();
 		instance->type_parameters
 			= parse_type_parameters(&instance->context);
@@ -2169,27 +2151,27 @@ static void parse_concept_instance(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
-	if(token.type != T_INDENT) {
+	if (token.type != T_INDENT) {
 		goto add_instance;
 	}
 	eat(T_INDENT);
 
 	concept_method_instance_t *last_method = NULL;
-	while(token.type != T_DEDENT) {
-		if(token.type == T_EOF) {
+	while (token.type != T_DEDENT) {
+		if (token.type == T_EOF) {
 			parse_error("EOF while parsing concept instance");
 			return;
 		}
-		if(token.type == T_NEWLINE) {
+		if (token.type == T_NEWLINE) {
 			next_token();
 			continue;
 		}
 
 		concept_method_instance_t *method = parse_concept_method_instance();
-		if(method == NULL)
+		if (method == NULL)
 			continue;
 
-		if(last_method != NULL) {
+		if (last_method != NULL) {
 			last_method->next = method;
 		} else {
 			instance->method_instances = method;
@@ -2217,11 +2199,11 @@ static void parse_export(void)
 {
 	eat(T_export);
 
-	while(1) {
-		if(token.type == T_NEWLINE) {
+	while (true) {
+		if (token.type == T_NEWLINE) {
 			break;
 		}
-		if(token.type != T_IDENTIFIER) {
+		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing export declaration",
 			                     T_IDENTIFIER, 0);
 			eat_until_anchor();
@@ -2237,7 +2219,7 @@ static void parse_export(void)
 		export->next             = current_context->exports;
 		current_context->exports = export;
 
-		if(token.type != ',') {
+		if (token.type != ',') {
 			break;
 		}
 		next_token();
@@ -2250,8 +2232,8 @@ end_error:
 
 void parse_declaration(void)
 {
-	if(token.type < 0) {
-		if(token.type == T_EOF)
+	if (token.type < 0) {
+		if (token.type == T_EOF)
 			return;
 
 		/* this shouldn't happen if the lexer is correct... */
@@ -2261,10 +2243,10 @@ void parse_declaration(void)
 	}
 
 	parse_declaration_function parser = NULL;
-	if(token.type < ARR_LEN(declaration_parsers))
+	if (token.type < ARR_LEN(declaration_parsers))
 		parser = declaration_parsers[token.type];
 
-	if(parser == NULL) {
+	if (parser == NULL) {
 		parse_error_expected("Couldn't parse declaration",
 		                     T_func, T_var, T_extern, T_struct, T_concept,
 		                     T_instance, 0);
@@ -2272,7 +2254,7 @@ void parse_declaration(void)
 		return;
 	}
 
-	if(parser != NULL) {
+	if (parser != NULL) {
 		parser();
 	}
 }
@@ -2281,8 +2263,8 @@ static namespace_t *get_namespace(symbol_t *symbol)
 {
 	/* search for an existing namespace */
 	namespace_t *namespace = namespaces;
-	while(namespace != NULL) {
-		if(namespace->symbol == symbol)
+	while (namespace != NULL) {
+		if (namespace->symbol == symbol)
 			return namespace;
 	
 		namespace = namespace->next;
@@ -2302,9 +2284,9 @@ static namespace_t *parse_namespace(void)
 	symbol_t *namespace_symbol = NULL;
 
 	/* parse namespace name */
-	if(token.type == T_namespace) {
+	if (token.type == T_namespace) {
 		next_token();
-		if(token.type != T_IDENTIFIER) {
+		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing namespace", 
 			                     T_IDENTIFIER, 0);
 			eat_until_anchor();
@@ -2312,7 +2294,7 @@ static namespace_t *parse_namespace(void)
 		namespace_symbol = token.v.symbol;
 		next_token();
 
-		if(token.type != T_NEWLINE) {
+		if (token.type != T_NEWLINE) {
 			parse_error("extra tokens after namespace definition");
 			eat_until_anchor();
 		} else {
@@ -2325,7 +2307,7 @@ static namespace_t *parse_namespace(void)
 	current_context        = &namespace->context;
 
 	/* parse namespace entries */
-	while(token.type != T_EOF) {
+	while (token.type != T_EOF) {
 		parse_declaration();
 	}
 
@@ -2374,7 +2356,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	lexer_destroy();
 
-	if(error) {
+	if (error) {
 		fprintf(stderr, "syntax errors found...\n");
 		return NULL;
 	}

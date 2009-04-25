@@ -57,11 +57,11 @@ static unsigned hash_method_type(const method_type_t *type)
 	unsigned result = hash_ptr(type->result_type);
 
 	method_parameter_type_t *parameter = type->parameter_types;
-	while(parameter != NULL) {
+	while (parameter != NULL) {
 		result ^= hash_ptr(parameter->type);
 		parameter = parameter->next;
 	}
-	if(type->variable_arguments)
+	if (type->variable_arguments)
 		result = ~result;
 
 	return result;
@@ -76,7 +76,7 @@ static unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *
 {
 	unsigned hash = hash_compound_type(type->polymorphic_type);
 	type_argument_t *argument = type->type_arguments;
-	while(argument != NULL) {
+	while (argument != NULL) {
 		hash ^= hash_type(argument->type);
 		argument = argument->next;
 	}
@@ -127,7 +127,7 @@ static bool atomic_types_equal(const atomic_type_t *type1,
 static bool compound_types_equal(const compound_type_t *type1,
                                  const compound_type_t *type2)
 {
-	if(type1->symbol != type2->symbol)
+	if (type1->symbol != type2->symbol)
 		return false;
 	/* TODO: check type parameters? */
 
@@ -137,21 +137,21 @@ static bool compound_types_equal(const compound_type_t *type1,
 static bool method_types_equal(const method_type_t *type1,
                                const method_type_t *type2)
 {
-	if(type1->result_type != type2->result_type)
+	if (type1->result_type != type2->result_type)
 		return false;
 
-	if(type1->variable_arguments != type2->variable_arguments)
+	if (type1->variable_arguments != type2->variable_arguments)
 		return false;
 
 	method_parameter_type_t *param1 = type1->parameter_types;
 	method_parameter_type_t *param2 = type2->parameter_types;
-	while(param1 != NULL && param2 != NULL) {
-		if(param1->type != param2->type)
+	while (param1 != NULL && param2 != NULL) {
+		if (param1->type != param2->type)
 			return false;
 		param1 = param1->next;
 		param2 = param2->next;
 	}
-	if(param1 != NULL || param2 != NULL)
+	if (param1 != NULL || param2 != NULL)
 		return false;
 
 	return true;
@@ -179,20 +179,20 @@ static bool type_references_type_variable_equal(const type_reference_t *type1,
 static bool bind_typevariables_type_equal(const bind_typevariables_type_t*type1,
                                           const bind_typevariables_type_t*type2)
 {
-	if(type1->polymorphic_type != type2->polymorphic_type)
+	if (type1->polymorphic_type != type2->polymorphic_type)
 		return false;
 
 	type_argument_t *argument1 = type1->type_arguments;
 	type_argument_t *argument2 = type2->type_arguments;
-	while(argument1 != NULL) {
-		if(argument2 == NULL)
+	while (argument1 != NULL) {
+		if (argument2 == NULL)
 			return false;
-		if(argument1->type != argument2->type)
+		if (argument1->type != argument2->type)
 			return false;
 		argument1 = argument1->next;
 		argument2 = argument2->next;
 	}
-	if(argument2 != NULL)
+	if (argument2 != NULL)
 		return false;
 
 	return true;
@@ -200,9 +200,9 @@ static bool bind_typevariables_type_equal(const bind_typevariables_type_t*type1,
 
 static bool types_equal(const type_t *type1, const type_t *type2)
 {
-	if(type1 == type2)
+	if (type1 == type2)
 		return true;
-	if(type1->type != type2->type)
+	if (type1->type != type2->type)
 		return false;
 
 	switch(type1->type) {

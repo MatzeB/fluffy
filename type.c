@@ -66,8 +66,8 @@ static void print_method_type(const method_type_t *type)
 	fputs("func(", out);
 	method_parameter_type_t *param_type = type->parameter_types;
 	int first = 1;
-	while(param_type != NULL) {
-		if(first) {
+	while (param_type != NULL) {
+		if (first) {
 			first = 0;
 		} else {
 			fputs(", ", out);
@@ -77,7 +77,7 @@ static void print_method_type(const method_type_t *type)
 	}
 	fputs(")", out);
 
-	if(type->result_type != NULL && type->result_type->type != TYPE_VOID) {
+	if (type->result_type != NULL && type->result_type->type != TYPE_VOID) {
 		fputs(" : ", out);
 		print_type(type->result_type);
 	}
@@ -103,7 +103,7 @@ static void print_type_reference(const type_reference_t *type)
 
 static void print_type_variable(const type_variable_t *type_variable)
 {
-	if(type_variable->current_type != NULL) {
+	if (type_variable->current_type != NULL) {
 		print_type(type_variable->current_type);
 		return;
 	}
@@ -112,8 +112,8 @@ static void print_type_variable(const type_variable_t *type_variable)
 
 	type_constraint_t *constraint = type_variable->constraints;
 	int first = 1;
-	while(constraint != NULL) {
-		if(first) {
+	while (constraint != NULL) {
+		if (first) {
 			first = 0;
 		} else {
 			fprintf(out, ", ");
@@ -135,10 +135,10 @@ static void print_compound_type(const compound_type_t *type)
 	fprintf(out, "%s", type->symbol->string);
 
 	type_variable_t *type_parameter = type->type_parameters;
-	if(type_parameter != NULL) {
+	if (type_parameter != NULL) {
 		fprintf(out, "<");
-		while(type_parameter != NULL) {
-			if(type_parameter != type->type_parameters) {
+		while (type_parameter != NULL) {
+			if (type_parameter != type->type_parameters) {
 				fprintf(out, ", ");
 			}
 			print_type_variable(type_parameter);
@@ -163,7 +163,7 @@ static void print_bind_type_variables(const bind_typevariables_type_t *type)
 
 void print_type(const type_t *type)
 {
-	if(type == NULL) {
+	if (type == NULL) {
 		fputs("nil type", out);
 		return;
 	}
@@ -228,7 +228,7 @@ int type_valid(const type_t *type)
 
 int is_type_int(const type_t *type)
 {
-	if(type->type != TYPE_ATOMIC)
+	if (type->type != TYPE_ATOMIC)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
@@ -251,7 +251,7 @@ int is_type_int(const type_t *type)
 
 int is_type_numeric(const type_t *type)
 {
-	if(type->type != TYPE_ATOMIC)
+	if (type->type != TYPE_ATOMIC)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
@@ -283,7 +283,7 @@ type_t* make_atomic_type(atomic_type_type_t atype)
 	type->atype     = atype;
 
 	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
+	if (normalized_type != (type_t*) type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -298,7 +298,7 @@ type_t* make_pointer_type(type_t *points_to)
 	type->points_to = points_to;
 
 	type_t *normalized_type = typehash_insert((type_t*) type);
-	if(normalized_type != (type_t*) type) {
+	if (normalized_type != (type_t*) type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -320,17 +320,17 @@ static type_t *create_concrete_method_type(method_type_t *type)
 	new_type->type.type     = TYPE_METHOD;
 	
 	type_t *result_type = create_concrete_type(type->result_type);
-	if(result_type != type->result_type)
+	if (result_type != type->result_type)
 		need_new_type = 1;
 	new_type->result_type = result_type;
 
 	method_parameter_type_t *parameter_type      = type->parameter_types;
 	method_parameter_type_t *last_parameter_type = NULL;
-	while(parameter_type != NULL) {
+	while (parameter_type != NULL) {
 		type_t *param_type     = parameter_type->type;
 		type_t *new_param_type = create_concrete_type(param_type);
 
-		if(new_param_type != param_type)
+		if (new_param_type != param_type)
 			need_new_type = 1;
 
 		method_parameter_type_t *new_parameter_type
@@ -338,7 +338,7 @@ static type_t *create_concrete_method_type(method_type_t *type)
 		memset(new_parameter_type, 0, sizeof(new_parameter_type[0]));
 		new_parameter_type->type = new_param_type;
 
-		if(last_parameter_type != NULL) {
+		if (last_parameter_type != NULL) {
 			last_parameter_type->next = new_parameter_type;
 		} else {
 			new_type->parameter_types = new_parameter_type;
@@ -348,7 +348,7 @@ static type_t *create_concrete_method_type(method_type_t *type)
 		parameter_type = parameter_type->next;
 	}
 
-	if(!need_new_type) {
+	if (!need_new_type) {
 		obstack_free(type_obst, new_type);
 		new_type = type;
 	}
@@ -360,7 +360,7 @@ static type_t *create_concrete_pointer_type(pointer_type_t *type)
 {
 	type_t *points_to = create_concrete_type(type->points_to);
 
-	if(points_to == type->points_to)
+	if (points_to == type->points_to)
 		return (type_t*) type;
 
 	pointer_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
@@ -369,7 +369,7 @@ static type_t *create_concrete_pointer_type(pointer_type_t *type)
 	new_type->points_to = points_to;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
-	if(normalized_type != (type_t*) new_type) {
+	if (normalized_type != (type_t*) new_type) {
 		obstack_free(type_obst, new_type);
 	}
 
@@ -381,7 +381,7 @@ static type_t *create_concrete_type_variable_reference_type(type_reference_t *ty
 	type_variable_t *type_variable = type->type_variable;
 	type_t          *current_type  = type_variable->current_type;
 
-	if(current_type != NULL)
+	if (current_type != NULL)
 		return current_type;
 
 	return (type_t*) type;
@@ -390,7 +390,7 @@ static type_t *create_concrete_type_variable_reference_type(type_reference_t *ty
 static type_t *create_concrete_array_type(array_type_t *type)
 {
 	type_t *element_type = create_concrete_type(type->element_type);
-	if(element_type == type->element_type)
+	if (element_type == type->element_type)
 		return (type_t*) type;
 
 	array_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
@@ -401,7 +401,7 @@ static type_t *create_concrete_array_type(array_type_t *type)
 	new_type->size         = type->size;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
-	if(normalized_type != (type_t*) new_type) {
+	if (normalized_type != (type_t*) new_type) {
 		obstack_free(type_obst, new_type);
 	}
 
@@ -415,11 +415,11 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 	type_argument_t *new_arguments;
 	type_argument_t *last_argument = NULL;
 	type_argument_t *type_argument = type->type_arguments;
-	while(type_argument != NULL) {
+	while (type_argument != NULL) {
 		type_t *type     = type_argument->type;
 		type_t *new_type = create_concrete_type(type);
 
-		if(new_type != type) {
+		if (new_type != type) {
 			changed = 1;
 		}
 
@@ -427,7 +427,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 			= obstack_alloc(type_obst, sizeof(new_argument[0]));
 		memset(new_argument, 0, sizeof(new_argument[0]));
 		new_argument->type = new_type;
-		if(last_argument != NULL) {
+		if (last_argument != NULL) {
 			last_argument->next = new_argument;
 		} else {
 			new_arguments = new_argument;
@@ -437,7 +437,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 		type_argument = type_argument->next;
 	}
 
-	if(!changed) {
+	if (!changed) {
 		assert(new_arguments != NULL);
 		obstack_free(type_obst, new_arguments);
 		return (type_t*) type;
@@ -451,7 +451,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 	new_type->type_arguments   = new_arguments;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
-	if(normalized_type != (type_t*) new_type) {
+	if (normalized_type != (type_t*) new_type) {
 		obstack_free(type_obst, new_type);
 	}
 
@@ -505,7 +505,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	type_variable_t *type_parameter;
 	type_argument_t *type_argument;
 
-	if(type_parameters == NULL || type_arguments == NULL)
+	if (type_parameters == NULL || type_arguments == NULL)
 		return;
 
 	/* we have to take care that all rebinding happens atomically, so we first
@@ -517,13 +517,13 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 
 	int old_top = typevar_binding_stack_top();
 	int top     = ARR_LEN(typevar_binding_stack) + 1;
-	while(type_parameter != NULL) {
+	while (type_parameter != NULL) {
 		type_t *type = type_argument->type;
-		while(type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+		while (type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *ref = (type_reference_t*) type;
 			type_variable_t  *var = ref->type_variable;
 
-			if(var->current_type == NULL) {
+			if (var->current_type == NULL) {
 				break;
 			}
 			type = var->current_type;

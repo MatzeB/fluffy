@@ -61,7 +61,7 @@ ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 unsigned dbg_snprint(char *buf, unsigned len, const dbg_info *dbg)
 {
 	const source_position_t *pos = (const source_position_t*) dbg;
-	if(pos == NULL)
+	if (pos == NULL)
 		return 0;
 	return (unsigned) snprintf(buf, len, "%s:%u", pos->input_name,
 	                           pos->linenr);
@@ -70,9 +70,9 @@ unsigned dbg_snprint(char *buf, unsigned len, const dbg_info *dbg)
 const char *dbg_retrieve(const dbg_info *dbg, unsigned *line)
 {
 	const source_position_t *pos = (const source_position_t*) dbg;
-	if(pos == NULL)
+	if (pos == NULL)
 		return NULL;
-	if(line != NULL)
+	if (line != NULL)
 		*line = pos->linenr;
 	return pos->input_name;
 }
@@ -199,7 +199,7 @@ static unsigned get_type_reference_type_var_size(const type_reference_t *type)
 {
 	type_variable_t *type_variable = type->type_variable;
 
-	if(type_variable->current_type == NULL) {
+	if (type_variable->current_type == NULL) {
 		panic("taking size of unbound type variable");
 		return 0;
 	}
@@ -254,7 +254,7 @@ static int count_parameters(const method_type_t *method_type)
 	int count = 0;
 
 	method_parameter_type_t *param_type = method_type->parameter_types;
-	while(param_type != NULL) {
+	while (param_type != NULL) {
 		param_type = param_type->next;
 		count++;
 	}
@@ -284,14 +284,14 @@ static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *metho
 	int      n_results    = result_type->type == TYPE_VOID ? 0 : 1;
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
-	if(result_type->type != TYPE_VOID) {
+	if (result_type->type != TYPE_VOID) {
 		ir_type *restype = _get_ir_type(env, result_type);
 		set_method_res_type(irtype, 0, restype);
 	}
 
 	method_parameter_type_t *param_type = method_type->parameter_types;
 	int n = 0;
-	while(param_type != NULL) {
+	while (param_type != NULL) {
 		ir_type *p_irtype = _get_ir_type(env, param_type->type);
 		set_method_param_type(irtype, n, p_irtype);
 
@@ -299,7 +299,7 @@ static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *metho
 		n++;
 	}
 
-	if(method_type->variable_arguments) {
+	if (method_type->variable_arguments) {
 		set_method_variadicity(irtype, variadicity_variadic);
 	}
 
@@ -335,7 +335,7 @@ static ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 
 	size_t elemsize = get_type_size_bytes(ir_element_type);
 	int align = get_type_alignment_bytes(ir_element_type);
-	if(elemsize % align > 0) {
+	if (elemsize % align > 0) {
 		elemsize += align - (elemsize % align);
 	}
 	set_type_size_bytes(ir_type, type->size * elemsize);
@@ -351,7 +351,7 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol = type->symbol;
 	ident    *id;
-	if(symbol != NULL) {
+	if (symbol != NULL) {
 		id = unique_ident(symbol->string);
 	} else {
 		id = unique_ident("__anonymous_struct");
@@ -363,7 +363,7 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 	int align_all = 1;
 	int offset    = 0;
 	compound_entry_t *entry = type->entries;
-	while(entry != NULL) {
+	while (entry != NULL) {
 		ident       *ident         = new_id_from_str(entry->symbol->string);
 		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
 
@@ -378,8 +378,8 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 		entry->entity = entity;
 
 		offset += entry_size;
-		if(entry_alignment > align_all) {
-			if(entry_alignment % align_all != 0) {
+		if (entry_alignment > align_all) {
+			if (entry_alignment % align_all != 0) {
 				panic("Uneven alignments not supported yet");
 			}
 			align_all = entry_alignment;
@@ -400,7 +400,7 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 {
 	symbol_t *symbol = type->symbol;
 	ident    *id;
-	if(symbol != NULL) {
+	if (symbol != NULL) {
 		id = unique_ident(symbol->string);
 	} else {
 		id = unique_ident("__anonymous_union");
@@ -412,7 +412,7 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	int align_all = 1;
 	int size      = 0;
 	compound_entry_t *entry = type->entries;
-	while(entry != NULL) {
+	while (entry != NULL) {
 		ident       *ident         = new_id_from_str(entry->symbol->string);
 		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
 
@@ -424,11 +424,11 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 		set_entity_offset(entity, 0);
 		entry->entity = entity;
 
-		if(entry_size > size) {
+		if (entry_size > size) {
 			size = entry_size;
 		}
-		if(entry_alignment > align_all) {
-			if(entry_alignment % align_all != 0) {
+		if (entry_alignment > align_all) {
+			if (entry_alignment % align_all != 0) {
 				panic("Uneven alignments not supported yet");
 			}
 			align_all = entry_alignment;
@@ -455,12 +455,12 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 	int align_all = 1;
 	int size      = 0;
 	declaration_t *declaration = type->context.declarations;
-	while(declaration != NULL) {
-		if(declaration->type == DECLARATION_METHOD) {
+	while (declaration != NULL) {
+		if (declaration->type == DECLARATION_METHOD) {
 			/* TODO */
 			continue;
 		}
-		if(declaration->type != DECLARATION_VARIABLE)
+		if (declaration->type != DECLARATION_VARIABLE)
 			continue;
 
 		variable_declaration_t *variable 
@@ -477,11 +477,11 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 		set_entity_offset(entity, 0);
 		variable->entity = entity;
 
-		if(entry_size > size) {
+		if (entry_size > size) {
 			size = entry_size;
 		}
-		if(entry_alignment > align_all) {
-			if(entry_alignment % align_all != 0) {
+		if (entry_alignment > align_all) {
+			if (entry_alignment % align_all != 0) {
 				panic("Uneven alignments not supported yet");
 			}
 			align_all = entry_alignment;
@@ -508,7 +508,7 @@ static ir_type *get_type_for_type_variable(type2firm_env_t *env,
 	type_variable_t *type_variable = ref->type_variable;
 	type_t          *current_type  = type_variable->current_type;
 
-	if(current_type == NULL) {
+	if (current_type == NULL) {
 		fprintf(stderr, "Panic: trying to transform unbound type variable "
 		        "'%s'\n", type_variable->declaration.symbol->string);
 		abort();
@@ -539,7 +539,7 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
 
-	if(type->firm_type != NULL) {
+	if (type->firm_type != NULL) {
 		assert(type->firm_type != INVALID_TYPE);
 		return type->firm_type;
 	}
@@ -590,10 +590,10 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	case TYPE_INVALID:
 		break;
 	}
-	if(firm_type == NULL)
+	if (firm_type == NULL)
 		panic("unknown type found");
 
-	if(env->can_cache) {
+	if (env->can_cache) {
 		type->firm_type = firm_type;
 	}
 	return firm_type;
@@ -640,7 +640,7 @@ static ir_entity* get_concept_method_instance_entity(
 		concept_method_instance_t *method_instance)
 {
 	method_t *method = & method_instance->method;
-	if(method->e.entity != NULL)
+	if (method->e.entity != NULL)
 		return method->e.entity;
 
 	method_type_t *method_type = method->type;
@@ -677,13 +677,13 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	method_type_t *method_type    = method->type;
 	int            is_polymorphic = is_polymorphic_method(method);
 
-	if(!is_polymorphic && method->e.entity != NULL) {
+	if (!is_polymorphic && method->e.entity != NULL) {
 		return method->e.entity;
 	}
 
 	start_mangle();
 	mangle_symbol_simple(symbol);
-	if(is_polymorphic) {
+	if (is_polymorphic) {
 		type_variable_t *type_variable = method->type_parameters;
 		for ( ; type_variable != NULL; type_variable = type_variable->next) {
 			mangle_type(type_variable->current_type);
@@ -692,11 +692,11 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	ident *id = finish_mangle();
 
 	/* search for an existing entity */
-	if(is_polymorphic && method->e.entities != NULL) {
+	if (is_polymorphic && method->e.entities != NULL) {
 		int len = ARR_LEN(method->e.entities);
 		for(int i = 0; i < len; ++i) {
 			ir_entity *entity = method->e.entities[i];
-			if(get_entity_ident(entity) == id) {
+			if (get_entity_ident(entity) == id) {
 				return entity;
 			}
 		}
@@ -708,22 +708,22 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	if(method->is_extern) {
+	if (method->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
-	} else if(!is_polymorphic && method->export) {
+	} else if (!is_polymorphic && method->export) {
 		set_entity_visibility(entity, visibility_external_visible);
 	} else {
-		if(is_polymorphic && method->export) {
+		if (is_polymorphic && method->export) {
 			fprintf(stderr, "Warning: exporting polymorphic methods not "
 			        "supported.\n");
 		}
 		set_entity_visibility(entity, visibility_local);
 	}
 
-	if(!is_polymorphic) {
+	if (!is_polymorphic) {
 		method->e.entity = entity;
 	} else {
-		if(method->e.entities == NULL)
+		if (method->e.entities == NULL)
 			method->e.entities = NEW_ARR_F(ir_entity*, 0);
 		ARR_APP1(ir_entity*, method->e.entities, entity);
 	}
@@ -762,7 +762,7 @@ static ir_node *bool_const_to_firm(const bool_const_t *cnst)
 {
 	dbg_info *dbgi = get_dbg_info(&cnst->expression.source_position);
 
-	if(cnst->value == 0) {
+	if (cnst->value == 0) {
 		return new_d_Const(dbgi, get_tarval_b_false());
 	} else {
 		return new_d_Const(dbgi, get_tarval_b_true());
@@ -821,7 +821,7 @@ static ir_node *select_expression_addr(const select_expression_t *select)
 	ir_node   *compound_ptr_node = expression_to_firm(compound_ptr);
 	ir_node   *nomem             = new_NoMem();
 	ir_entity *entity;
-	if(select->compound_entry != NULL) {
+	if (select->compound_entry != NULL) {
 		entity = select->compound_entry->entity;
 	} else {
 		// TODO
@@ -853,13 +853,13 @@ static ir_node *array_access_expression_addr(const array_access_expression_t* ac
 
 static ir_entity *create_variable_entity(variable_declaration_t *variable)
 {
-	if(variable->entity != NULL)
+	if (variable->entity != NULL)
 		return variable->entity;
 
 	ir_type       *parent_type;
-	if(variable->is_global) {
+	if (variable->is_global) {
 		parent_type = get_glob_type();
-	} else if(variable->needs_entity) {
+	} else if (variable->needs_entity) {
 		parent_type = get_irg_frame_type(current_ir_graph);
 	} else {
 		return NULL;
@@ -879,7 +879,7 @@ static ir_entity *create_variable_entity(variable_declaration_t *variable)
 	set_entity_ld_ident(entity, ident);
 	set_entity_variability(entity, variability_uninitialized);
 	set_entity_allocation(entity, allocation_static);
-	if(variable->is_extern) {
+	if (variable->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
 	} else {
 		set_entity_visibility(entity, visibility_local);
@@ -896,7 +896,7 @@ static ir_node *variable_addr(variable_declaration_t *variable)
 
 	ir_node *result;
 
-	if(variable->is_global) {
+	if (variable->is_global) {
 		result = new_d_SymConst(dbgi, mode_P, (union symconst_symbol) entity,
 		                        symconst_addr_ent);
 	} else {
@@ -913,11 +913,11 @@ static ir_node *variable_addr(variable_declaration_t *variable)
 static ir_node *variable_to_firm(variable_declaration_t *variable,
                           const source_position_t *source_position)
 {
-	if(variable->is_global || variable->needs_entity) {
+	if (variable->is_global || variable->needs_entity) {
 		ir_node *addr = variable_addr(variable);
 		type_t  *type = variable->type;
 
-		if(type->type == TYPE_COMPOUND_STRUCT 
+		if (type->type == TYPE_COMPOUND_STRUCT 
 				|| type->type == TYPE_COMPOUND_UNION
 				|| type->type == TYPE_COMPOUND_CLASS
 				|| type->type == TYPE_BIND_TYPEVARIABLES
@@ -988,7 +988,7 @@ static ir_node *expression_addr(const expression_t *expression)
 				(const reference_expression_t*) expression);
 	case EXPR_UNARY:
 		unexpr = (const unary_expression_t*) expression;
-		if(unexpr->type == UNEXPR_DEREFERENCE) {
+		if (unexpr->type == UNEXPR_DEREFERENCE) {
 			return expression_to_firm(unexpr->value);
 		}
 		break;
@@ -1001,16 +1001,16 @@ static ir_node *expression_addr(const expression_t *expression)
 static void firm_assign(expression_t *dest_expr, ir_node *value,
                         const source_position_t *source_position)
 {
-	if(dest_expr->type == EXPR_REFERENCE) {
+	if (dest_expr->type == EXPR_REFERENCE) {
 		const reference_expression_t *ref 
 			= (const reference_expression_t*) dest_expr;
 		declaration_t *declaration = ref->declaration;
 
-		if(declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->type == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
 
-			if(!variable->is_global && !variable->needs_entity) {
+			if (!variable->is_global && !variable->needs_entity) {
 				value_numbers[variable->value_number] = variable;
 				set_value(variable->value_number, value);
 				return;
@@ -1024,7 +1024,7 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 	type_t   *type  = dest_expr->datatype;
 	ir_node  *result;
 
-	if(type->type == TYPE_COMPOUND_STRUCT 
+	if (type->type == TYPE_COMPOUND_STRUCT 
 	         || type->type == TYPE_COMPOUND_UNION) {
 		ir_type *irtype = get_ir_type(type);
 
@@ -1111,7 +1111,7 @@ static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 
 	/* the true case */
 	ir_node *calc_val2_block = new_immBlock();
-	if(is_or) {
+	if (is_or) {
 		add_immBlock_pred(calc_val2_block, false_proj);
 	} else {
 		add_immBlock_pred(calc_val2_block, true_proj);
@@ -1121,14 +1121,14 @@ static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 
 	set_cur_block(calc_val2_block);
 	ir_node *val2 = expression_to_firm(binary_expression->right);
-	if(get_cur_block() != NULL) {
+	if (get_cur_block() != NULL) {
 		ir_node *jmp = new_d_Jmp(dbgi);
 		add_immBlock_pred(fallthrough_block, jmp);
 	}
 
 	/* fallthrough */
 	ir_node *constb;
-	if(is_or) {
+	if (is_or) {
 		constb = new_d_Const(dbgi, get_tarval_b_true());
 		add_immBlock_pred(fallthrough_block, true_proj);
 	} else {
@@ -1165,11 +1165,11 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 		= get_dbg_info(&binary_expression->expression.source_position);
 
 
-	if(btype == BINEXPR_DIV) {
+	if (btype == BINEXPR_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
 		ir_node *node, *res;
-		if(mode_is_float(mode)) {
+		if (mode_is_float(mode)) {
 			node  = new_d_Quot(dbgi, store, left, right, mode,
 			                   op_pin_state_floats);
 			store = new_d_Proj(dbgi, node, mode_M, pn_Quot_M);
@@ -1185,7 +1185,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 		return res;
 	}
 
-	if(btype == BINEXPR_MOD) {
+	if (btype == BINEXPR_MOD) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
 		ir_node *node  = new_d_Mod(dbgi, store, left, right, mode,
@@ -1198,7 +1198,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 
 	/* an arithmetic binexpression? */
 	ir_op *irop = binexpr_type_to_op(btype);
-	if(irop != NULL) {
+	if (irop != NULL) {
 		ir_node *in[2] = { left, right };
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *block = get_cur_block();
@@ -1209,7 +1209,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 
 	/* a comparison expression? */
 	long compare_pn = binexpr_type_to_cmp_pn(btype);
-	if(compare_pn != 0) {
+	if (compare_pn != 0) {
 		ir_node *cmp  = new_d_Cmp(dbgi, left, right);
 		ir_node *proj = new_d_Proj(dbgi, cmp, mode_b, compare_pn);
 
@@ -1292,7 +1292,7 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 {
 	ir_node *addr       = select_expression_addr(select);
 	type_t  *entry_type = select->compound_entry->type;
-	if(entry_type->type == TYPE_COMPOUND_STRUCT	
+	if (entry_type->type == TYPE_COMPOUND_STRUCT	
 			|| entry_type->type == TYPE_COMPOUND_UNION
 			|| entry_type->type == TYPE_ARRAY)
 		return addr;
@@ -1312,7 +1312,7 @@ static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 
 	pop_type_variable_bindings(old_top);
 
-	if(strset_find(&instantiated_methods, name) != NULL) {
+	if (strset_find(&instantiated_methods, name) != NULL) {
 		return entity;
 	}
 
@@ -1321,7 +1321,7 @@ static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 
 	type_argument_t *type_argument = type_arguments;
 	type_argument_t *last_argument = NULL;
-	while(type_argument != NULL) {
+	while (type_argument != NULL) {
 		type_t          *type         = type_argument->type;
 		type_argument_t *new_argument
 			= obstack_alloc(&obst, sizeof(new_argument[0]));
@@ -1329,7 +1329,7 @@ static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 
 		new_argument->type = create_concrete_type(type);
 
-		if(last_argument != NULL) {
+		if (last_argument != NULL) {
 			last_argument->next = new_argument;
 		} else {
 			instantiate->type_arguments = new_argument;
@@ -1368,7 +1368,7 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 	push_type_variable_bindings(concept->type_parameters, type_arguments);
 
 	concept_instance_t *instance = find_concept_instance(concept);
-	if(instance == NULL) {
+	if (instance == NULL) {
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
 		        method->declaration.symbol->string,
 		        concept->declaration.symbol->string);
@@ -1379,7 +1379,7 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 
 	concept_method_instance_t *method_instance 
 		= get_method_from_concept_instance(instance, method);
-	if(method_instance == NULL) {
+	if (method_instance == NULL) {
 		fprintf(stderr, "panic: no method '%s' in instance of concept '%s'\n",
 		        method->declaration.symbol->string,
 		        concept->declaration.symbol->string);
@@ -1434,12 +1434,12 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 
 	int              n_parameters = 0;
 	call_argument_t *argument     = call->arguments;
-	while(argument != NULL) {
+	while (argument != NULL) {
 		n_parameters++;
 		argument = argument->next;
 	}
 
-	if(method_type->variable_arguments) {
+	if (method_type->variable_arguments) {
 		/* we need to construct a new method type matching the call
 		 * arguments... */
 		new_method_type = new_type_method(unique_ident("calltype"),
@@ -1459,13 +1459,13 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 
 	argument = call->arguments;
 	int n = 0;
-	while(argument != NULL) {
+	while (argument != NULL) {
 		expression_t *expression = argument->expression;
 
 		ir_node *arg_node = expression_to_firm(expression);
 
 		in[n] = arg_node;
-		if(new_method_type != NULL) {
+		if (new_method_type != NULL) {
 			ir_type *irtype = get_ir_type(expression->datatype);
 			set_method_param_type(new_method_type, n, irtype);
 		}
@@ -1474,7 +1474,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 		n++;
 	}
 
-	if(new_method_type != NULL)
+	if (new_method_type != NULL)
 		ir_method_type = new_method_type;
 
 	dbg_info *dbgi  = get_dbg_info(&call->expression.source_position);
@@ -1486,7 +1486,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 
 	type_t  *result_type = method_type->result_type;
 	ir_node *result      = NULL;
-	if(result_type->type != TYPE_VOID) {
+	if (result_type->type != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_d_Proj(dbgi, node, mode_T, pn_Call_T_result);
 		result           = new_d_Proj(dbgi, resproj, mode, 0);
@@ -1500,7 +1500,7 @@ static ir_node *func_expression_to_firm(func_expression_t *expression)
 	method_t  *method = & expression->method;
 	ir_entity *entity = method->e.entity;
 
-	if(entity == NULL) {
+	if (entity == NULL) {
 		symbol_t *symbol = unique_symbol("anonfunc");
 		entity           = get_method_entity(method, symbol);
 	}
@@ -1618,7 +1618,7 @@ static void return_statement_to_firm(const return_statement_t *statement)
 {
 	dbg_info *dbgi = get_dbg_info(&statement->statement.source_position);
 	ir_node *ret;
-	if(statement->return_value != NULL) {
+	if (statement->return_value != NULL) {
 		ir_node *retval = expression_to_firm(statement->return_value);
 		ir_node *in[1];
 
@@ -1652,20 +1652,20 @@ static void if_statement_to_firm(const if_statement_t *statement)
 
 	set_cur_block(true_block);
 	statement_to_firm(statement->true_statement);
-	if(get_cur_block() != NULL) {
+	if (get_cur_block() != NULL) {
 		ir_node *jmp = new_Jmp();
 		add_immBlock_pred(fallthrough_block, jmp);
 	}
 
 	/* the false (blocks) */
-	if(statement->false_statement != NULL) {
+	if (statement->false_statement != NULL) {
 		ir_node *false_block = new_immBlock();
 		add_immBlock_pred(false_block, false_proj);
 		mature_immBlock(false_block);
 
 		set_cur_block(false_block);
 		statement_to_firm(statement->false_statement);
-		if(get_cur_block() != NULL) {
+		if (get_cur_block() != NULL) {
 			ir_node *jmp = new_Jmp();
 			add_immBlock_pred(fallthrough_block, jmp);
 		}
@@ -1687,7 +1687,7 @@ static void block_statement_to_firm(const block_statement_t *block)
 	context2firm(&block->context);
 
 	statement_t *statement = block->statements;
-	while(statement != NULL) {
+	while (statement != NULL) {
 		statement_to_firm(statement);
 		statement = statement->next;
 	}
@@ -1717,14 +1717,14 @@ static void label_statement_to_firm(label_statement_t *label_statement)
 	label_declaration_t *label = &label_statement->declaration;
 	ir_node *block = label->block;
 
-	if(block == NULL) {
+	if (block == NULL) {
 		block         = new_immBlock();
 		label->block  = block;
 		label->next   = labels;
 		labels        = label;
 	}
 
-	if(get_cur_block() != NULL) {
+	if (get_cur_block() != NULL) {
 		ir_node *jmp = new_Jmp();
 
 		add_immBlock_pred(block, jmp);
@@ -1734,7 +1734,7 @@ static void label_statement_to_firm(label_statement_t *label_statement)
 
 static void statement_to_firm(statement_t *statement)
 {
-	if(statement->type != STATEMENT_LABEL && get_cur_block() == NULL) {
+	if (statement->type != STATEMENT_LABEL && get_cur_block() == NULL) {
 		fprintf(stderr, "Warning: unreachable code detected\n");
 		return;
 	}
@@ -1769,11 +1769,11 @@ static void statement_to_firm(statement_t *statement)
 static void create_method(method_t *method, ir_entity *entity,
                           type_argument_t *type_arguments)
 {
-	if(method->is_extern)
+	if (method->is_extern)
 		return;
 
 	int old_top = typevar_binding_stack_top();
-	if(is_polymorphic_method(method)) {
+	if (is_polymorphic_method(method)) {
 		assert(type_arguments != NULL);
 		push_type_variable_bindings(method->type_parameters, type_arguments);
 	}
@@ -1790,12 +1790,12 @@ static void create_method(method_t *method, ir_entity *entity,
 
 	ir_node *firstblock = get_cur_block();
 
-	if(method->statement)
+	if (method->statement)
 		statement_to_firm(method->statement);
 
 	/* no return statement seen yet? */
 	ir_node *end_block = get_irg_end_block(irg);
-	if(get_cur_block() != NULL) {
+	if (get_cur_block() != NULL) {
 		ir_node *ret = new_Return(get_store(), 0, NULL);
 		add_immBlock_pred(end_block, ret);
 	}
@@ -1804,7 +1804,7 @@ static void create_method(method_t *method, ir_entity *entity,
 	mature_immBlock(end_block);
 
 	label_declaration_t *label = labels;
-	while(label != NULL) {
+	while (label != NULL) {
 		mature_immBlock(label->block);
 		label->block = NULL;
 		label        = label->next;
@@ -1823,10 +1823,10 @@ static void create_method(method_t *method, ir_entity *entity,
 		ir_type   *entity_type = get_entity_type(entity);
 	
 		int align = get_type_alignment_bytes(entity_type);
-		if(align > align_all)
+		if (align > align_all)
 			align_all = align;
 		int misalign = 0;
-		if(align > 0) {
+		if (align > 0) {
 			misalign  = offset % align;
 			offset   += misalign;
 		}
@@ -1872,13 +1872,13 @@ static void context2firm(const context_t *context)
 
 	/* scan context for functions */
 	declaration_t *declaration = context->declarations;
-	while(declaration != NULL) {
+	while (declaration != NULL) {
 		switch(declaration->type) {
 		case DECLARATION_METHOD:
 			method_declaration = (method_declaration_t*) declaration;
 			method             = &method_declaration->method;
 
-			if(!is_polymorphic_method(method)) {
+			if (!is_polymorphic_method(method)) {
 				assure_instance(method, declaration->symbol, NULL);
 			}
 
@@ -1906,7 +1906,7 @@ static void context2firm(const context_t *context)
 
 	/* TODO: create these always lazily? */
 	concept_instance_t *instance = context->concept_instances;
-	while(instance != NULL) {
+	while (instance != NULL) {
 		create_concept_instance(instance);
 		instance = instance->next;
 	}
@@ -1929,12 +1929,12 @@ void ast2firm(void)
 	assert(typevar_binding_stack_top() == 0);
 
 	namespace_t *namespace = namespaces;
-	while(namespace != NULL) {
+	while (namespace != NULL) {
 		namespace2firm(namespace);
 		namespace = namespace->next;
 	}
 
-	while(!pdeq_empty(instantiate_methods)) {
+	while (!pdeq_empty(instantiate_methods)) {
 		instantiate_method_t *instantiate_method 
 			= pdeq_getl(instantiate_methods);
 

@@ -6,6 +6,7 @@
 #include "adt/strset.h"
 #include "adt/array.h"
 
+#include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -51,7 +52,7 @@ static void init_tables(void)
 	memset(char_type, 0, sizeof(char_type));
 	memset(ident_char, 0, sizeof(ident_char));
 	for(int c = 0; c < 256; ++c) {
-		if(isalnum(c)) {
+		if (isalnum(c)) {
 			char_type[c]  = START_IDENT;
 			ident_char[c] = 1;
 		}
@@ -90,8 +91,7 @@ static void init_tables(void)
 	tables_init = 1;
 }
 
-static inline
-int is_ident_char(int c)
+static inline int is_ident_char(int c)
 {
 	return ident_char[c];
 }
@@ -112,14 +112,13 @@ static void parse_error(const char *msg)
 	fprintf(stderr, "%s\n", msg);
 }
 
-static inline
-void next_char(void)
+static inline void next_char(void)
 {
 	bufpos++;
-	if(bufpos >= bufend) {
+	if (bufpos >= bufend) {
 		size_t s = fread(buf + MAX_PUTBACK, 1, sizeof(buf) - MAX_PUTBACK,
 		                 input);
-		if(s == 0) {
+		if (s == 0) {
 			c = EOF;
 			return;
 		}
@@ -129,8 +128,7 @@ void next_char(void)
 	c = *(bufpos);
 }
 
-static inline
-void put_back(int c)
+static inline void put_back(int c)
 {
 	char *p = (char*) bufpos - 1;
 	bufpos--;
@@ -146,20 +144,20 @@ static void parse_symbol(token_t *token)
 	do {
 		obstack_1grow(&symbol_obstack, c);
 		next_char();
-	} while(is_ident_char(c));
+	} while (is_ident_char(c));
 	obstack_1grow(&symbol_obstack, '\0');
 	string = obstack_finish(&symbol_obstack);
 
 	symbol = symbol_table_insert(string);
 
-	if(symbol->ID > 0) {
+	if (symbol->ID > 0) {
 		token->type = symbol->ID;
 	} else {
 		token->type = T_IDENTIFIER;
 	}
 	token->v.symbol = symbol;
 
-	if(symbol->string != string) {
+	if (symbol->string != string) {
 		obstack_free(&symbol_obstack, string);
 	}
 }
@@ -241,7 +239,7 @@ static void parse_number_oct(token_t *token)
 static void parse_number_dec(token_t *token, int first_char)
 {
 	int value = 0;
-	if(first_char > 0) {
+	if (first_char > 0) {
 		assert(first_char >= '0' && first_char <= '9');
 		value = first_char - '0';
 	}
@@ -320,14 +318,14 @@ static void parse_string_literal(token_t *token)
 	assert(c == '"');
 	next_char();
 
-	while(c != '\"') {
-		if(c == '\\') {
+	while (c != '\"') {
+		if (c == '\\') {
 			c = parse_escape_sequence();
-		} else if(c == '\n') {
+		} else if (c == '\n') {
 			source_position.linenr++;
 		}
 
-		if(c == EOF) {
+		if (c == EOF) {
 			error_prefix_at(source_position.input_name, start_linenr);
 			fprintf(stderr, "string has no end\n");
 			token->type = T_ERROR;
@@ -345,7 +343,7 @@ static void parse_string_literal(token_t *token)
 
 	/* check if there is already a copy of the string */
 	result = strset_insert(&stringset, string);
-	if(result != string) {
+	if (result != string) {
 		obstack_free(&symbol_obstack, string);
 	}
 
@@ -358,20 +356,20 @@ static void skip_multiline_comment(void)
 	unsigned start_linenr = source_position.linenr;
 	unsigned level = 1;
 
-	while(1) {
+	while (true) {
 		switch(c) {
 		case '*':
 			next_char();
-			if(c == '/') {
+			if (c == '/') {
 				next_char();
 				level--;
-				if(level == 0)
+				if (level == 0)
 					return;
 			}
 			break;
 		case '/':
 			next_char();
-			if(c == '*') {
+			if (c == '*') {
 				next_char();
 				level++;
 			}
@@ -391,22 +389,21 @@ static void skip_multiline_comment(void)
 	}
 }
 
-static 
-void skip_line_comment(void)
+static void skip_line_comment(void)
 {
-	while(c != '\n' && c != EOF) {
+	while (c != '\n' && c != EOF) {
 		next_char();
 	}
 }
 
 static void parse_operator(token_t *token, int firstchar)
 {
-	if(firstchar == '/') {
-		if(c == '*') {
+	if (firstchar == '/') {
+		if (c == '*') {
 			next_char();
 			skip_multiline_comment();
 			return lexer_next_token(token);
-		} else if(c == '/') {
+		} else if (c == '/') {
 			next_char();
 			skip_line_comment();
 			return lexer_next_token(token);
@@ -414,7 +411,7 @@ static void parse_operator(token_t *token, int firstchar)
 	}
 
 	obstack_1grow(&symbol_obstack, firstchar);
-	while(char_type[c] == START_OPERATOR) {
+	while (char_type[c] == START_OPERATOR) {
 		obstack_1grow(&symbol_obstack, c);
 		next_char();
 	}
@@ -423,7 +420,7 @@ static void parse_operator(token_t *token, int firstchar)
 	symbol_t *symbol = symbol_table_insert(string);
 
 	int ID = symbol->ID;
-	if(ID > 0) {
+	if (ID > 0) {
 		token->type = ID;
 	} else {
 		error_prefix();
@@ -432,22 +429,22 @@ static void parse_operator(token_t *token, int firstchar)
 	}
 	token->v.symbol = symbol;
 
-	if(symbol->string != string) {
+	if (symbol->string != string) {
 		obstack_free(&symbol_obstack, string);
 	}
 }
 
 static void parse_indent(token_t *token)
 {
-	if(not_returned_dedents > 0) {
+	if (not_returned_dedents > 0) {
 		token->type = T_DEDENT;
 		not_returned_dedents--;
-		if(not_returned_dedents == 0 && !newline_after_dedents)
+		if (not_returned_dedents == 0 && !newline_after_dedents)
 			at_line_begin = 0;
 		return;
 	}
 
-	if(newline_after_dedents) {
+	if (newline_after_dedents) {
 		token->type = T_NEWLINE;
 		at_line_begin         = 0;
 		newline_after_dedents = 0;
@@ -460,29 +457,29 @@ static void parse_indent(token_t *token)
 
 start_indent_parsing:
 	indent_len = 0;
-	while(c == ' ' || c == '\t') {
+	while (c == ' ' || c == '\t') {
 		indent[indent_len] = c;
 		indent_len++;
-		if(indent_len > MAX_INDENT) {
+		if (indent_len > MAX_INDENT) {
 			panic("Indentation bigger than MAX_INDENT not supported");
 		}
 		next_char();
 	}
 
 	/* skip empty lines */
-	while(c == '/') {
+	while (c == '/') {
 		next_char();
-		if(c == '*') {
+		if (c == '*') {
 			next_char();
 			skip_multiline_comment();
-		} else if(c == '/') {
+		} else if (c == '/') {
 			next_char();
 			skip_line_comment();
 		} else {
 			put_back(c);
 		}
 	}
-	if(c == '\n') {
+	if (c == '\n') {
 		next_char();
 		source_position.linenr++;
 		skipped_line = 1;
@@ -492,14 +489,14 @@ start_indent_parsing:
 
 	unsigned i;
 	for(i = 0; i < indent_len && i < last_line_indent_len; ++i) {
-		if(indent[i] != last_line_indent[i]) {
+		if (indent[i] != last_line_indent[i]) {
 			parse_error("space/tab usage for indentation different from "
 			            "previous line");
 			token->type = T_ERROR;
 			return;
 		}
 	}
-	if(last_line_indent_len < indent_len) {
+	if (last_line_indent_len < indent_len) {
 		/* more indentation */
 		memcpy(& last_line_indent[i], & indent[i], indent_len - i);
 		last_line_indent_len  = indent_len;
@@ -510,7 +507,7 @@ start_indent_parsing:
 
 		token->type = T_INDENT;
 		return;
-	} else if(last_line_indent_len > indent_len) {
+	} else if (last_line_indent_len > indent_len) {
 		/* less indentation */
 		unsigned lower_level;
 		unsigned dedents = 0;
@@ -518,9 +515,9 @@ start_indent_parsing:
 			dedents++;
 			indent_levels_len--;
 			lower_level = indent_levels[indent_levels_len - 1];
-		} while(lower_level > indent_len);
+		} while (lower_level > indent_len);
 
-		if(lower_level < indent_len) {
+		if (lower_level < indent_len) {
 			parse_error("returning to invalid indentation level");
 			token->type = T_ERROR;
 			return;
@@ -528,12 +525,12 @@ start_indent_parsing:
 		assert(dedents >= 1);
 
 		not_returned_dedents = dedents - 1;
-		if(skipped_line) {
+		if (skipped_line) {
 			newline_after_dedents = 1;
 			at_line_begin         = 1;
 		} else {
 			newline_after_dedents = 0;
-			if(not_returned_dedents > 0) {
+			if (not_returned_dedents > 0) {
 				at_line_begin = 1;
 			}
 		}
@@ -552,20 +549,20 @@ void lexer_next_token(token_t *token)
 {
 	int firstchar;
 
-	if(at_line_begin) {
+	if (at_line_begin) {
 		parse_indent(token);
 		return;
 	} else {
 		/* skip whitespaces */
-		while(c == ' ' || c == '\t') {
+		while (c == ' ' || c == '\t') {
 			next_char();
 		}
 	}
 
-	if(c < 0 || c >= 256) {
+	if (c < 0 || c >= 256) {
 		/* if we're indented at end of file, then emit a newline, dedent, ...
 		 * sequence of tokens */
-		if(indent_levels_len > 1) {
+		if (indent_levels_len > 1) {
 			not_returned_dedents = indent_levels_len - 1;
 			at_line_begin        = 1;
 			indent_levels_len    = 1;
@@ -603,12 +600,12 @@ void lexer_next_token(token_t *token)
 
 	case START_CHARACTER_CONSTANT:
 		next_char();
-		if(c == '\\') {
+		if (c == '\\') {
 			token->type       = T_INTEGER;
 			token->v.intvalue = parse_escape_sequence();
 			next_char();
 		} else {
-			if(c == '\n') {
+			if (c == '\n') {
 				parse_error("newline while parsing character constant");
 				source_position.linenr++;
 			}
@@ -619,8 +616,8 @@ void lexer_next_token(token_t *token)
 
 		{
 			int err_displayed = 0;
-			while(c != '\'' && c != EOF) {
-				if(!err_displayed) {
+			while (c != '\'' && c != EOF) {
+				if (!err_displayed) {
 					parse_error("multibyte character constant");
 					err_displayed = 1;
 				}
@@ -640,7 +637,7 @@ void lexer_next_token(token_t *token)
 
 	case START_BACKSLASH:
 		next_char();
-		if(c == '\n') {
+		if (c == '\n') {
 			next_char();
 			source_position.linenr++;
 		} else {
@@ -674,7 +671,7 @@ void lexer_init(FILE *stream, const char *input_name)
 	not_returned_dedents       = 0;
 	newline_after_dedents      = 0;
 
-	if(!tables_init) {
+	if (!tables_init) {
 		init_tables();
 	}
 

@@ -93,26 +93,26 @@ static void get_output_name(char *buf, size_t buflen, const char *inputname,
 	size_t last_dot = 0xffffffff;
 	size_t i = 0;
 	for(const char *c = inputname; *c != 0; ++c) {
-		if(*c == '.')
+		if (*c == '.')
 			last_dot = i;
 		++i;
 	}
-	if(last_dot == 0xffffffff)
+	if (last_dot == 0xffffffff)
 		last_dot = i;
 	
-	if(last_dot >= buflen)
+	if (last_dot >= buflen)
 		panic("filename too long");
 	memcpy(buf, inputname, last_dot);
 
 	size_t extlen = strlen(newext) + 1;
-	if(extlen + last_dot >= buflen)
+	if (extlen + last_dot >= buflen)
 		panic("filename too long");
 	memcpy(buf+last_dot, newext, extlen);
 }
 
 static void dump_ast(const namespace_t *namespace, const char *name)
 {
-	if(!dump_asts)
+	if (!dump_asts)
 		return;
 
 	const char *fname = namespace->filename;
@@ -120,7 +120,7 @@ static void dump_ast(const namespace_t *namespace, const char *name)
 	get_output_name(filename, sizeof(filename), fname, name);
 
 	FILE* out = fopen(filename, "w");
-	if(out == NULL) {
+	if (out == NULL) {
 		fprintf(stderr, "Warning: couldn't open '%s': %s\n", filename,
 		        strerror(errno));
 	} else {
@@ -132,7 +132,7 @@ static void dump_ast(const namespace_t *namespace, const char *name)
 static void parse_file(const char *fname)
 {
 	FILE *in = fopen(fname, "r");
-	if(in == NULL) {
+	if (in == NULL) {
 		fprintf(stderr, "couldn't open '%s' for reading: %s\n", fname,
 		        strerror(errno));
 		exit(1);
@@ -141,7 +141,7 @@ static void parse_file(const char *fname)
 	namespace_t *namespace = parse(in, fname);
 	fclose(in);
 
-	if(namespace == NULL) {
+	if (namespace == NULL) {
 		exit(1);
 	}
 	dump_ast(namespace, "-parse.txt");
@@ -149,19 +149,19 @@ static void parse_file(const char *fname)
 
 static void check_semantic(void)
 {
-	if(!check_static_semantic()) {
+	if (!check_static_semantic()) {
 		fprintf(stderr, "Semantic errors found\n");
 		namespace_t *namespace = namespaces;
-		while(namespace != NULL) {
+		while (namespace != NULL) {
 			dump_ast(namespace, "-error.txt");
 			namespace = namespace->next;
 		}
 		exit(1);
 	}
 
-	if(dump_asts) {
+	if (dump_asts) {
 		namespace_t *namespace = namespaces;
-		while(namespace != NULL) {
+		while (namespace != NULL) {
 			dump_ast(namespace, "-semantic.txt");
 			namespace = namespace->next;
 		}
@@ -172,16 +172,16 @@ static void link(const char *in, const char *out)
 {
 	char buf[4096];
 
-	if(out == NULL) {
+	if (out == NULL) {
 		out = "a.out";
 	}
 
 	snprintf(buf, sizeof(buf), "%s %s -o %s", LINKER, in, out);
-	if(verbose) {
+	if (verbose) {
 		puts(buf);
 	}
 	int err = system(buf);
-	if(err != 0) {
+	if (err != 0) {
 		fprintf(stderr, "linker reported an error\n");
 		exit(1);
 	}
@@ -220,57 +220,57 @@ int main(int argc, const char **argv)
 
 	for(int i = 1; i < argc; ++i) {
 		const char *arg = argv[i];
-		if(strcmp(arg, "-o") == 0) {
+		if (strcmp(arg, "-o") == 0) {
 			++i;
-			if(i >= argc) {
+			if (i >= argc) {
 				usage(argv[0]);
 				return 1;
 			}
 			outname = argv[i];
-		} else if(strcmp(arg, "--dump") == 0) {
+		} else if (strcmp(arg, "--dump") == 0) {
 			dump_graphs = 1;
 			dump_asts   = 1;
-		} else if(strcmp(arg, "--dump-ast") == 0) {
+		} else if (strcmp(arg, "--dump-ast") == 0) {
 			dump_asts = 1;
-		} else if(strcmp(arg, "--dump-graph") == 0) {
+		} else if (strcmp(arg, "--dump-graph") == 0) {
 			dump_graphs = 1;
-		} else if(strcmp(arg, "--help") == 0) {
+		} else if (strcmp(arg, "--help") == 0) {
 			usage(argv[0]);
 			return 0;
-		} else if(strcmp(arg, "--time") == 0) {
+		} else if (strcmp(arg, "--time") == 0) {
 			show_timers = 1;
-		} else if(arg[0] == '-' && arg[1] == 'O') {
+		} else if (arg[0] == '-' && arg[1] == 'O') {
 			int optlevel = atoi(&arg[2]);
-			if(optlevel <= 0) {
+			if (optlevel <= 0) {
 				noopt = 1;
-			} else if(optlevel > 1) {
+			} else if (optlevel > 1) {
 				do_inline = 1;
 			} else {
 				noopt     = 0;
 				do_inline = 0;
 			}
-		} else if(strcmp(arg, "-S") == 0) {
+		} else if (strcmp(arg, "-S") == 0) {
 			mode = Compile;
-		} else if(strcmp(arg, "-c") == 0) {
+		} else if (strcmp(arg, "-c") == 0) {
 			mode = CompileAndLink;
-		} else if(strcmp(arg, "-v") == 0) {
+		} else if (strcmp(arg, "-v") == 0) {
 			verbose = 1;
-		} else if(strncmp(arg, "-b", 2) == 0) {
+		} else if (strncmp(arg, "-b", 2) == 0) {
 			const char *bearg = arg+2;
-			if(bearg[0] == 0) {
+			if (bearg[0] == 0) {
 				++i;
-				if(i >= argc) {
+				if (i >= argc) {
 					usage(argv[0]);
 					return 1;
 				}
 				bearg = argv[i];
 			}
-			if(!be_parse_arg(bearg)) {
+			if (!be_parse_arg(bearg)) {
 				fprintf(stderr, "Invalid backend option: %s\n", bearg);
 				usage(argv[0]);
 				return 1;
 			}
-			if(strcmp(bearg, "help") == 0) {
+			if (strcmp(bearg, "help") == 0) {
 				return 1;
 			}
 		} else {
@@ -278,7 +278,7 @@ int main(int argc, const char **argv)
 			parse_file(argv[i]);
 		}
 	}
-	if(parsed == 0) {
+	if (parsed == 0) {
 		fprintf(stderr, "Error: no input files specified\n");
 		return 0;
 	}
@@ -288,7 +288,7 @@ int main(int argc, const char **argv)
 	ast2firm();
 
 	const char *asmname;
-	if(mode == Compile) {
+	if (mode == Compile) {
 		asmname = outname;
 	} else {
 		asmname = TMPDIR "fluffy.s";
@@ -301,7 +301,7 @@ int main(int argc, const char **argv)
 	gen_firm_finish(asm_out, asmname, 1, true);
 	fclose(asm_out);
 
-	if(mode == CompileAndLink) {
+	if (mode == CompileAndLink) {
 		link(asmname, outname);
 	}
 

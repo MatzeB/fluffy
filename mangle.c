@@ -112,7 +112,7 @@ static void mangle_method_type(const method_type_t *type)
 	mangle_type(type->result_type);
 
 	method_parameter_type_t *parameter_type = type->parameter_types;
-	while(parameter_type != NULL) {
+	while (parameter_type != NULL) {
 		mangle_type(parameter_type->type);
 	}
 	obstack_1grow(&obst, 'E');
@@ -123,7 +123,7 @@ static void mangle_reference_type_variable(const type_reference_t* ref)
 	type_variable_t *type_var     = ref->type_variable;
 	type_t          *current_type = type_var->current_type;
 
-	if(current_type == NULL) {
+	if (current_type == NULL) {
 		panic("can't mangle unbound type variable");
 	}
 	mangle_type(current_type);

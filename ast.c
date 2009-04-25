@@ -49,8 +49,8 @@ static void print_call_expression(const call_expression_t *call)
 	fprintf(out, "(");
 	call_argument_t *argument = call->arguments;
 	int              first    = 1;
-	while(argument != NULL) {
-		if(!first) {
+	while (argument != NULL) {
+		if (!first) {
 			fprintf(out, ", ");
 		} else {
 			first = 0;
@@ -67,8 +67,8 @@ static void print_type_arguments(const type_argument_t *type_arguments)
 	const type_argument_t *argument = type_arguments;
 	int                    first    = 1;
 
-	while(argument != NULL) {
-		if(first) {
+	while (argument != NULL) {
+		if (first) {
 			fprintf(out, "<$");
 			first = 0;
 		} else {
@@ -78,14 +78,14 @@ static void print_type_arguments(const type_argument_t *type_arguments)
 
 		argument = argument->next;
 	}
-	if(type_arguments != NULL) {
+	if (type_arguments != NULL) {
 		fprintf(out, ">");
 	}
 }
 
 static void print_reference_expression(const reference_expression_t *ref)
 {
-	if(ref->declaration == NULL) {
+	if (ref->declaration == NULL) {
 		fprintf(out, "?%s", ref->symbol->string);
 	} else {
 		fprintf(out, "%s", ref->declaration->symbol->string);
@@ -100,7 +100,7 @@ static void print_select_expression(const select_expression_t *select)
 	print_expression(select->compound);
 	fprintf(out, ").");
 
-	if(select->compound_entry != NULL) {
+	if (select->compound_entry != NULL) {
 		fputs(select->compound_entry->symbol->string, out);
 	} else {
 		fprintf(out, "?%s", select->symbol->string);
@@ -194,7 +194,7 @@ static void print_binary_expression(const binary_expression_t *binexpr)
 
 void print_expression(const expression_t *expression)
 {
-	if(expression == NULL) {
+	if (expression == NULL) {
 		fprintf(out, "*null expression*");
 		return;
 	}
@@ -251,7 +251,7 @@ static void print_indent(void)
 static void print_block_statement(const block_statement_t *block)
 {
 	statement_t *statement = block->statements;
-	while(statement != NULL) {
+	while (statement != NULL) {
 		indent++;
 		print_statement(statement);
 		indent--;
@@ -263,7 +263,7 @@ static void print_block_statement(const block_statement_t *block)
 static void print_return_statement(const return_statement_t *statement)
 {
 	fprintf(out, "return ");
-	if(statement->return_value != NULL)
+	if (statement->return_value != NULL)
 		print_expression(statement->return_value);
 }
 
@@ -275,9 +275,9 @@ static void print_expression_statement(const expression_statement_t *statement)
 static void print_goto_statement(const goto_statement_t *statement)
 {
 	fprintf(out, "goto ");
-	if(statement->label != NULL) {
+	if (statement->label != NULL) {
 		symbol_t *symbol = statement->label->declaration.symbol;
-		if(symbol == NULL) {
+		if (symbol == NULL) {
 			fprintf(out, "$%p$", statement->label);
 		} else {
 			fprintf(out, "%s", symbol->string);
@@ -290,7 +290,7 @@ static void print_goto_statement(const goto_statement_t *statement)
 static void print_label_statement(const label_statement_t *statement)
 {
 	symbol_t *symbol = statement->declaration.declaration.symbol;
-	if(symbol != NULL) {
+	if (symbol != NULL) {
 		fprintf(out, ":%s", symbol->string);
 	} else {
 		const label_declaration_t *label = &statement->declaration;
@@ -303,10 +303,10 @@ static void print_if_statement(const if_statement_t *statement)
 	fprintf(out, "if ");
 	print_expression(statement->condition);
 	fprintf(out, ":\n");
-	if(statement->true_statement != NULL)
+	if (statement->true_statement != NULL)
 		print_statement(statement->true_statement);
 
-	if(statement->false_statement != NULL) {
+	if (statement->false_statement != NULL) {
 		print_indent();
 		fprintf(out, "else:\n");
 		print_statement(statement->false_statement);
@@ -316,7 +316,7 @@ static void print_if_statement(const if_statement_t *statement)
 static void print_variable_declaration(const variable_declaration_t *var)
 {
 	fprintf(out, "var");
-	if(var->type != NULL) {
+	if (var->type != NULL) {
 		fprintf(out, "<");
 		print_type(var->type);
 		fprintf(out, ">");
@@ -369,7 +369,7 @@ void print_statement(const statement_t *statement)
 
 static void print_type_constraint(const type_constraint_t *constraint)
 {
-	if(constraint->concept == NULL) {
+	if (constraint->concept == NULL) {
 		fprintf(out, "?%s", constraint->concept_symbol->string);
 	} else {
 		fprintf(out, "%s", constraint->concept->declaration.symbol->string);
@@ -379,7 +379,7 @@ static void print_type_constraint(const type_constraint_t *constraint)
 static void print_type_variable(const type_variable_t *type_variable)
 {
 	type_constraint_t *constraint = type_variable->constraints;
-	while(constraint != NULL) {
+	while (constraint != NULL) {
 		print_type_constraint(constraint);
 		fprintf(out, " ");
 
@@ -393,8 +393,8 @@ static void print_type_parameters(const type_variable_t *type_parameters)
 {
 	int                    first          = 1;
 	const type_variable_t *type_parameter = type_parameters;
-	while(type_parameter != NULL) {
-		if(first) {
+	while (type_parameter != NULL) {
+		if (first) {
 			fprintf(out, "<");
 			first = 0;
 		} else {
@@ -404,7 +404,7 @@ static void print_type_parameters(const type_variable_t *type_parameters)
 		
 		type_parameter = type_parameter->next;
 	}
-	if(type_parameters != NULL)
+	if (type_parameters != NULL)
 		fprintf(out, ">");
 }
 
@@ -417,8 +417,8 @@ static void print_method_parameters(const method_parameter_t *parameters,
 	const method_parameter_t      *parameter      = parameters;
 	const method_parameter_type_t *parameter_type 
 		= method_type->parameter_types;
-	while(parameter != NULL && parameter_type != NULL) {
-		if(!first) {
+	while (parameter != NULL && parameter_type != NULL) {
+		if (!first) {
 			fprintf(out, ", ");
 		} else {
 			first = 0;
@@ -442,7 +442,7 @@ static void print_method(const method_declaration_t *method_declaration)
 
 	fprintf(out, "func ");
 
-	if(method->is_extern) {
+	if (method->is_extern) {
 		fprintf(out, "extern ");
 	}
 
@@ -455,7 +455,7 @@ static void print_method(const method_declaration_t *method_declaration)
 	fprintf(out, " : ");
 	print_type(type->result_type);
 
-	if(method->statement != NULL) {
+	if (method->statement != NULL) {
 		fprintf(out, ":\n");
 		print_statement(method->statement);
 	} else {
@@ -480,7 +480,7 @@ static void print_concept(const concept_t *concept)
 	fprintf(out, ":\n");
 
 	concept_method_t *method = concept->methods;
-	while(method != NULL) {
+	while (method != NULL) {
 		print_concept_method(method);
 
 		method = method->next;
@@ -493,7 +493,7 @@ static void print_concept_method_instance(
 	fprintf(out, "\tfunc ");
 
 	const method_t *method = &method_instance->method;
-	if(method_instance->concept_method != NULL) {
+	if (method_instance->concept_method != NULL) {
 		concept_method_t *method = method_instance->concept_method;
 		fprintf(out, "%s", method->declaration.symbol->string);
 	} else {
@@ -505,7 +505,7 @@ static void print_concept_method_instance(
 	fprintf(out, " : ");
 	print_type(method_instance->method.type->result_type);
 
-	if(method->statement != NULL) {
+	if (method->statement != NULL) {
 		fprintf(out, ":\n");
 		print_statement(method->statement);
 	} else {
@@ -516,7 +516,7 @@ static void print_concept_method_instance(
 static void print_concept_instance(const concept_instance_t *instance)
 {
 	fprintf(out, "instance ");
-	if(instance->concept != NULL) {
+	if (instance->concept != NULL) {
 		fprintf(out, "%s", instance->concept->declaration.symbol->string);
 	} else {
 		fprintf(out, "?%s", instance->concept_symbol->string);
@@ -525,7 +525,7 @@ static void print_concept_instance(const concept_instance_t *instance)
 	fprintf(out, ":\n");
 
 	concept_method_instance_t *method_instance = instance->method_instances;
-	while(method_instance != NULL) {
+	while (method_instance != NULL) {
 		print_concept_method_instance(method_instance);
 
 		method_instance = method_instance->next;
@@ -535,11 +535,11 @@ static void print_concept_instance(const concept_instance_t *instance)
 static void print_constant(const constant_t *constant)
 {
 	fprintf(out, "const %s", constant->declaration.symbol->string);
-	if(constant->type != NULL) {
+	if (constant->type != NULL) {
 		fprintf(out, " ");
 		print_type(constant->type);
 	}
-	if(constant->expression != NULL) {
+	if (constant->expression != NULL) {
 		fprintf(out, " <- ");
 		print_expression(constant->expression);
 	}
@@ -595,13 +595,13 @@ static void print_declaration(const declaration_t *declaration)
 static void print_context(const context_t *context)
 {
 	declaration_t *declaration = context->declarations;
-	while(declaration != NULL) {
+	while (declaration != NULL) {
 		print_declaration(declaration);
 		declaration = declaration->next;
 	}
 
 	concept_instance_t *instance = context->concept_instances;
-	while(instance != NULL) {
+	while (instance != NULL) {
 		print_concept_instance(instance);
 		instance = instance->next;
 	}
