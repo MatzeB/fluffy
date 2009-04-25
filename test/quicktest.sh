@@ -11,3 +11,4 @@ for i in *.fluffy; do
 		echo ""
 	fi
 done
+rm -f a.out

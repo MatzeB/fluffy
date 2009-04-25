@@ -146,13 +146,14 @@ struct Lexer:
 	// more stuff...
 
 const STATEMENT_INAVLID              = 0
-const STATEMENT_BLOCK                = 1
-const STATEMENT_RETURN               = 2
-const STATEMENT_VARIABLE_DECLARATION = 3
-const STATEMENT_IF                   = 4
-const STATEMENT_EXPRESSION           = 5
-const STATEMENT_GOTO                 = 6
-const STATEMENT_LABEL                = 7
+const STATEMENT_ERROR                = 1
+const STATEMENT_BLOCK                = 2
+const STATEMENT_RETURN               = 3
+const STATEMENT_VARIABLE_DECLARATION = 4
+const STATEMENT_IF                   = 5
+const STATEMENT_EXPRESSION           = 6
+const STATEMENT_GOTO                 = 7
+const STATEMENT_LABEL                = 8
 
 const TYPE_INVALID                 = 0
 const TYPE_VOID                    = 1

@@ -25,6 +25,8 @@ static parse_statement_function    *statement_parsers   = NULL;
 static parse_declaration_function  *declaration_parsers = NULL;
 static parse_attribute_function    *attribute_parsers   = NULL;
 
+static unsigned char token_anchor_set[T_LAST_TOKEN];
+
 static context_t *current_context = NULL;
 
 static int      error = 0;
@@ -61,15 +63,42 @@ static void replace_token_type(token_type_t type)
 	token.type = type;
 }
 
-static inline
-void eat(token_type_t type)
+static inline void eat(token_type_t type)
 {
 	assert(token.type == type);
 	next_token();
 }
 
-static inline
-void parser_found_error(void)
+static void add_anchor_token(int token_type)
+{
+	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	++token_anchor_set[token_type];
+}
+
+#if 0
+static int save_and_reset_anchor_state(int token_type)
+{
+	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	int count = token_anchor_set[token_type];
+	token_anchor_set[token_type] = 0;
+	return count;
+}
+
+static void restore_anchor_state(int token_type, int count)
+{
+	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	token_anchor_set[token_type] = count;
+}
+#endif
+
+static void rem_anchor_token(int token_type)
+{
+	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	assert(token_anchor_set[token_type] != 0);
+	--token_anchor_set[token_type];
+}
+
+static inline void parser_found_error(void)
 {
 	error = 1;
 #ifdef ABORT_ON_ERROR
@@ -144,42 +173,91 @@ static void maybe_eat_block(void)
 }
 
 /**
- * error recovery: try to got to the next line. If the current line ends in ':'
- * then we skip blocks that might follow
+ * eats nested brace groups
  */
-static void eat_until_newline(void)
+static void eat_until_matching_token(int type)
 {
-	int prev = -1;
-
-	while(token.type != T_NEWLINE) {
-		prev = token.type;
-		next_token();
-		if(token.type == T_EOF)
-			return;
+	int end_token;
+	switch (type) {
+		case '(': end_token = ')';  break;
+		case '{': end_token = '}';  break;
+		case '[': end_token = ']';  break;
+		default:  end_token = type; break;
 	}
-	next_token();
 
-	if(prev == ':') {
-		maybe_eat_block();
+	unsigned parenthesis_count = 0;
+	unsigned brace_count       = 0;
+	unsigned bracket_count     = 0;
+	while (token.type        != end_token ||
+	       parenthesis_count != 0         ||
+	       brace_count       != 0         ||
+	       bracket_count     != 0) {
+		switch (token.type) {
+		case T_EOF: return;
+		case '(': ++parenthesis_count; break;
+		case '{': ++brace_count;       break;
+		case '[': ++bracket_count;     break;
+
+		case ')':
+			if (parenthesis_count > 0)
+				--parenthesis_count;
+			goto check_stop;
+
+		case '}':
+			if (brace_count > 0)
+				--brace_count;
+			goto check_stop;
+
+		case ']':
+			if (bracket_count > 0)
+				--bracket_count;
+check_stop:
+			if (token.type        == end_token &&
+			    parenthesis_count == 0         &&
+			    brace_count       == 0         &&
+			    bracket_count     == 0)
+				return;
+			break;
+
+		default:
+			break;
+		}
+		next_token();
 	}
 }
 
-#define expect(expected)                                   \
-	if(UNLIKELY(token.type != (expected))) {               \
-		parse_error_expected(NULL, (expected), 0);         \
-		eat_until_newline();                               \
-		return NULL;                                       \
-	}                                                      \
-	next_token();
+/**
+ * Eat input tokens until an anchor is found.
+ */
+static void eat_until_anchor(void)
+{
+	while (token_anchor_set[token.type] == 0) {
+		if (token.type == '(' || token.type == '{' || token.type == '[')
+			eat_until_matching_token(token.type);
+		if (token.type == ':') {
+			next_token();
+			if (!token_anchor_set[token.type] == 0) {
+				maybe_eat_block();
+			}
+		} else {
+			next_token();
+		}
+	}
+}
 
-#define expect_void(expected)                              \
-	if(UNLIKELY(token.type != (expected))) {               \
-		parse_error_expected(NULL, (expected), 0);         \
-		eat_until_newline();                               \
-		return;                                            \
-	}                                                      \
-	next_token();
-
+#define expect(expected, error_label)                      \
+	do {                                                   \
+		if(UNLIKELY(token.type != (expected))) {           \
+			parse_error_expected(NULL, (expected), 0);     \
+			add_anchor_token(expected);                    \
+			eat_until_anchor();                            \
+			if (token.type == expected)                    \
+				next_token();                              \
+			rem_anchor_token(expected);                    \
+			goto error_label;                              \
+		}                                                  \
+		next_token();                                      \
+	} while (0)                      
 
 static void parse_method(method_t *method);
 
@@ -304,13 +382,15 @@ static type_argument_t *parse_type_arguments(void)
 
 static type_t *parse_typeof(void)
 {
-	eat(T_typeof);
-	expect('(');
 	typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
 	typeof_type->type.type     = TYPE_TYPEOF;
-	typeof_type->expression    = parse_expression();
-	expect(')');
 
+	eat(T_typeof);
+	expect('(', end_error);
+	typeof_type->expression    = parse_expression();
+	expect(')', end_error);
+
+end_error:
 	return (type_t*) typeof_type;
 }
 
@@ -328,9 +408,10 @@ static type_t *parse_type_ref(void)
 	if(token.type == '<') {
 		next_token();
 		type_ref->type_arguments = parse_type_arguments();
-		expect('>');
+		expect('>', end_error);
 	}
 
+end_error:
 	return (type_t*) type_ref;
 }
 
@@ -341,13 +422,13 @@ static type_t *parse_method_type(void)
 	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
 	method_type->type.type = TYPE_METHOD;
 
-	expect('(');
+	expect('(', end_error);
 	parse_parameter_declaration(method_type, NULL);
-	expect(')');
-
-	expect(':');
+	expect(')', end_error);
+	expect(':', end_error);
 	method_type->result_type = parse_type();
 
+end_error:
 	return (type_t*) method_type;
 }
 
@@ -361,13 +442,12 @@ static compound_entry_t *parse_compound_entries(void)
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("Problem while parsing compound entry",
 								 T_IDENTIFIER, 0);
-			eat_until_newline();
 			continue;
 		}
 		entry->symbol = token.v.symbol;
 		next_token();
 
-		expect(':');
+		expect(':', end_error);
 		entry->type       = parse_type();
 		entry->attributes = parse_attributes();
 
@@ -378,9 +458,10 @@ static compound_entry_t *parse_compound_entries(void)
 		}
 		last_entry = entry;
 
-		expect(T_NEWLINE);
+		expect(T_NEWLINE, end_error);
 	}
 
+end_error:
 	return result;
 }
 
@@ -393,9 +474,9 @@ static type_t *parse_union_type(void)
 	compound_type->type.type  = TYPE_COMPOUND_UNION;
 	compound_type->attributes = parse_attributes();
 
-	expect(':');
-	expect(T_NEWLINE);
-	expect(T_INDENT);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
+	expect(T_INDENT, end_error);
 		
 	compound_type->entries = parse_compound_entries();
 
@@ -403,6 +484,7 @@ static type_t *parse_union_type(void)
 	assert(token.type == T_DEDENT);
 	replace_token_type(T_NEWLINE);
 
+end_error:
 	return (type_t*) compound_type;
 }
 
@@ -415,9 +497,9 @@ static type_t *parse_struct_type(void)
 	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
 	compound_type->attributes = parse_attributes();
 
-	expect(':');
-	expect(T_NEWLINE);
-	expect(T_INDENT);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
+	expect(T_INDENT, end_error);
 		
 	compound_type->entries = parse_compound_entries();
 
@@ -425,6 +507,7 @@ static type_t *parse_struct_type(void)
 	assert(token.type == T_DEDENT);
 	replace_token_type(T_NEWLINE);
 
+end_error:
 	return (type_t*) compound_type;
 }
 
@@ -436,6 +519,16 @@ static type_t *make_pointer_type_no_hash(type_t *type)
 	pointer_type->points_to = type;
 
 	return (type_t*) pointer_type;	
+}
+
+static type_t *parse_brace_type(void)
+{
+	eat('(');
+	type_t *type = parse_type();
+	expect(')', end_error);
+
+end_error:
+	return type;
 }
 
 type_t *parse_type(void)
@@ -474,9 +567,7 @@ type_t *parse_type(void)
 		type = parse_method_type();
 		break;
 	case '(':
-		next_token();
-		type = parse_type();
-		expect(')');
+		type = parse_brace_type();
 		break;
 	default:
 		parser_print_error_prefix();
@@ -488,8 +579,7 @@ type_t *parse_type(void)
 	}
 
 	/* parse type modifiers */
-	array_type_t   *array_type;
-	while(1) {
+	while (true) {
 		switch(token.type) {
 		case '*': {
 			next_token();
@@ -508,11 +598,11 @@ type_t *parse_type(void)
 
 			if(size < 0) {
 				parse_error("negative array size not allowed");
-				expect(']');
+				expect(']', end_error);
 				break;
 			}
 
-			array_type = allocate_type_zero(sizeof(array_type[0]));
+			array_type_t *array_type = allocate_type_zero(sizeof(array_type[0]));
 
 			array_type->type.type    = TYPE_ARRAY;
 			array_type->element_type = type;
@@ -520,13 +610,16 @@ type_t *parse_type(void)
 
 			type = (type_t*) array_type;
 
-			expect(']');
+			expect(']', end_error);
 			break;
 			}
 		default:
 			return type;
 		}
 	}
+
+end_error:
+	return type;
 }
 
 
@@ -615,9 +708,10 @@ static expression_t *parse_reference(void)
 	if(token.type == T_TYPESTART) {
 		next_token();
 		ref->type_arguments = parse_type_arguments();
-		expect('>');
+		expect('>', end_error);
 	}
 
+end_error:
 	return (expression_t*) ref;
 }
 
@@ -628,10 +722,11 @@ static expression_t *parse_sizeof(void)
 	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
 	expression->expression.type = EXPR_SIZEOF;
 
-	expect('<');
+	expect('<', end_error);
 	expression->type = parse_type();
-	expect('>');
+	expect('>', end_error);
 
+end_error:
 	return (expression_t*) expression;
 }
 
@@ -763,11 +858,10 @@ static expression_t *expected_expression_error(void)
 static expression_t *parse_brace_expression(void)
 {
 	eat('(');
-
 	expression_t *result = parse_expression();
+	expect(')', end_error);
 
-	expect(')');
-
+end_error:
 	return result;
 }
 
@@ -780,12 +874,13 @@ static expression_t *parse_cast_expression(void)
 	unary_expression->expression.type            = EXPR_UNARY;
 	unary_expression->type                       = UNEXPR_CAST;
 	
-	expect('<');
+	expect('<', end_error);
 	unary_expression->expression.datatype = parse_type();
-	expect('>');
+	expect('>', end_error);
 
 	unary_expression->value = parse_sub_expression(PREC_CAST);
 
+end_error:
 	return (expression_t*) unary_expression;
 }
 
@@ -818,8 +913,9 @@ static expression_t *parse_call_expression(expression_t *expression)
 			next_token();
 		}
 	}
-	expect(')');
+	expect(')', end_error);
 
+end_error:
 	return (expression_t*) call;
 }
 
@@ -1034,9 +1130,17 @@ static statement_t *parse_return_statement(void)
 	if(token.type != T_NEWLINE) {
 		return_statement->return_value = parse_expression();
 	}
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
+end_error:
 	return (statement_t*) return_statement;
+}
+
+static statement_t *create_error_statement(void)
+{
+	statement_t *statement = allocate_ast_zero(sizeof(statement[0]));
+	statement->type = STATEMENT_ERROR;
+	return statement;
 }
 
 static statement_t *parse_goto_statement(void)
@@ -1050,15 +1154,18 @@ static statement_t *parse_goto_statement(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing goto statement",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
-		return NULL;
+		eat_until_anchor();
+		goto end_error;
 	}
 	goto_statement->label_symbol = token.v.symbol;
 	next_token();
 
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
 	return (statement_t*) goto_statement;
+
+end_error:
+	return create_error_statement();
 }
 
 static statement_t *parse_label_statement(void)
@@ -1070,8 +1177,8 @@ static statement_t *parse_label_statement(void)
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing label", T_IDENTIFIER, 0);
-		eat_until_newline();
-		return NULL;
+		eat_until_anchor();
+		goto end_error;
 	}
 	label->declaration.declaration.type            = DECLARATION_LABEL;
 	label->declaration.declaration.source_position = source_position;
@@ -1080,9 +1187,12 @@ static statement_t *parse_label_statement(void)
 
 	add_declaration((declaration_t*) &label->declaration);
 
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
 	return (statement_t*) label;
+
+end_error:
+	return create_error_statement();
 }
 
 static statement_t *parse_sub_block(void)
@@ -1107,7 +1217,7 @@ static statement_t *parse_if_statement(void)
 	eat(T_if);
 
 	expression_t *condition = parse_expression();
-	expect(':');
+	expect(':', end_error);
 
 	statement_t *true_statement  = parse_sub_block();
 	statement_t *false_statement = NULL;
@@ -1127,6 +1237,9 @@ static statement_t *parse_if_statement(void)
 	if_statement->false_statement = false_statement;
 
 	return (statement_t*) if_statement;
+
+end_error:
+	return create_error_statement();
 }
 
 static statement_t *parse_initial_assignment(symbol_t *symbol)
@@ -1163,8 +1276,8 @@ static statement_t *parse_variable_declaration(void)
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing variable declaration",
 			                     T_IDENTIFIER, 0);
-			eat_until_newline();
-			return NULL;
+			eat_until_anchor();
+			goto end_error;
 		}
 
 		variable_declaration_statement_t *declaration_statement
@@ -1211,7 +1324,9 @@ static statement_t *parse_variable_declaration(void)
 		next_token();
 	}
 
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
+
+end_error:
 	return first_statement;
 }
 
@@ -1222,8 +1337,9 @@ static statement_t *parse_expression_statement(void)
 
 	expression_statement->statement.type = STATEMENT_EXPRESSION;
 	expression_statement->expression     = parse_expression();
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
+end_error:
 	return (statement_t*) expression_statement;
 }
 
@@ -1323,8 +1439,9 @@ static statement_t *parse_block(void)
 	current_context = last_context;
 
 	block->end_position = source_position;
-	expect(T_DEDENT);
+	expect(T_DEDENT, end_error);
 
+end_error:
 	return (statement_t*) block;
 }
 
@@ -1349,7 +1466,7 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			if(token.type == ',') {
 				parse_error("'...' has to be the last argument in a function "
 				            "parameter list");
-				eat_until_newline();
+				eat_until_anchor();
 				return;
 			}
 			break;
@@ -1358,13 +1475,13 @@ static void parse_parameter_declaration(method_type_t *method_type,
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing parameter",
 			                     T_IDENTIFIER, 0);
-			eat_until_newline();
+			eat_until_anchor();
 			return;
 		}
 		symbol_t *symbol = token.v.symbol;
 		next_token();
 
-		expect_void(':');
+		expect(':', end_error);
 
 		method_parameter_type_t *param_type
 			= allocate_ast_zero(sizeof(param_type[0]));
@@ -1398,6 +1515,9 @@ static void parse_parameter_declaration(method_type_t *method_type,
 			break;
 		next_token();
 	}
+
+end_error:
+	;
 }
 
 static type_constraint_t *parse_type_constraints(void)
@@ -1432,7 +1552,7 @@ static type_variable_t *parse_type_parameter(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing type parameter",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return NULL;
 	}
 	type_variable->declaration.source_position = source_position;
@@ -1496,10 +1616,10 @@ static void parse_method(method_t *method)
 	if(token.type == '<') {
 		next_token();
 		method->type_parameters = parse_type_parameters(current_context);
-		expect_void('>');
+		expect('>', end_error);
 	}
 
-	expect_void('(');
+	expect('(', end_error);
 
 	parse_parameter_declaration(method_type, &method->parameters);
 	method->type = method_type;
@@ -1514,7 +1634,7 @@ static void parse_method(method_t *method)
 		parameter = parameter->next;
 	}
 
-	expect_void(')');
+	expect(')', end_error);
 
 	method_type->result_type = type_void;
 	if(token.type == ':') {
@@ -1532,11 +1652,14 @@ static void parse_method(method_t *method)
 			goto method_parser_end;
 		}
 	}
-	expect_void(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
 method_parser_end:
 	assert(current_context == &method->context);
 	current_context = last_context;
+
+end_error:
+	;
 }
 
 static void parse_method_declaration(void)
@@ -1555,7 +1678,7 @@ static void parse_method_declaration(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing function",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	method_declaration->declaration.source_position = source_position;
@@ -1583,7 +1706,7 @@ static void parse_global_variable(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing global variable",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 
@@ -1594,13 +1717,14 @@ static void parse_global_variable(void)
 	if(token.type != ':') {
 		parse_error_expected("global variables must have a type specified",
 		                     ':', 0);
-		eat_until_newline();
+		eat_until_anchor();
 	} else {
 		next_token();
 		variable->type = parse_type();
-		expect_void(T_NEWLINE);
+		expect(T_NEWLINE, end_error);
 	}
 
+end_error:
 	add_declaration((declaration_t*) variable);
 }
 
@@ -1613,7 +1737,7 @@ static void parse_constant(void)
 
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing constant", T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	constant->declaration.source_position = source_position; 
@@ -1625,10 +1749,12 @@ static void parse_constant(void)
 		constant->type = parse_type();
 	}
 
-	expect_void('=');
+	expect('=', end_error);
 	constant->expression = parse_expression();
 
-	expect_void(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
+
+end_error:
 	add_declaration((declaration_t*) constant);
 }
 
@@ -1642,17 +1768,18 @@ static void parse_typealias(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typealias",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	typealias->declaration.source_position = source_position;
 	typealias->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	expect_void('=');
+	expect('=', end_error);
 	typealias->type = parse_type();
+	expect(T_NEWLINE, end_error);
 
-	expect_void(T_NEWLINE);
+end_error:
 	add_declaration((declaration_t*) typealias);
 }
 
@@ -1710,7 +1837,7 @@ static void parse_class(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing class",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	typealias->declaration.source_position = source_position;
@@ -1725,8 +1852,8 @@ static void parse_class(void)
 
 	typealias->type = (type_t*) compound_type;
 
-	expect_void(':');
-	expect_void(T_NEWLINE);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
 
 	if(token.type == T_INDENT) {
 		next_token();
@@ -1743,6 +1870,7 @@ static void parse_class(void)
 		current_context = last_context;
 	}
 
+end_error:
 	add_declaration((declaration_t*) typealias);
 }
 
@@ -1756,7 +1884,7 @@ static void parse_struct(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing struct",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	typealias->declaration.source_position = source_position;
@@ -1772,15 +1900,15 @@ static void parse_struct(void)
 		next_token();
 		compound_type->type_parameters 
 			= parse_type_parameters(&compound_type->context);
-		expect_void('>');
+		expect('>', end_error);
 	}
 
 	compound_type->attributes = parse_attributes();
 
 	typealias->type = (type_t*) compound_type;
 
-	expect_void(':');
-	expect_void(T_NEWLINE);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
 
 	if(token.type == T_INDENT) {
 		next_token();
@@ -1789,6 +1917,9 @@ static void parse_struct(void)
 	}
 
 	add_declaration((declaration_t*) typealias);
+
+end_error:
+	;
 }
 
 static void parse_union(void)
@@ -1801,7 +1932,7 @@ static void parse_union(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing union",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	typealias->declaration.source_position = source_position;
@@ -1816,8 +1947,8 @@ static void parse_union(void)
 
 	typealias->type = (type_t*) compound_type;
 
-	expect_void(':');
-	expect_void(T_NEWLINE);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
 
 	if(token.type == T_INDENT) {
 		next_token();
@@ -1825,12 +1956,13 @@ static void parse_union(void)
 		eat(T_DEDENT);
 	}
 
+end_error:
 	add_declaration((declaration_t*) typealias);
 }
 
 static concept_method_t *parse_concept_method(void)
 {
-	expect(T_func);
+	expect(T_func, end_error);
 
 	concept_method_t *method = allocate_ast_zero(sizeof(method[0]));
 	method->declaration.type = DECLARATION_CONCEPT_METHOD;
@@ -1842,17 +1974,17 @@ static concept_method_t *parse_concept_method(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept method",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
-		return NULL;
+		eat_until_anchor();
+		goto end_error;
 	}
 
 	method->declaration.source_position = source_position;
 	method->declaration.symbol          = token.v.symbol;
 	next_token();
 
-	expect('(');
+	expect('(', end_error);
 	parse_parameter_declaration(method_type, &method->parameters);
-	expect(')');
+	expect(')', end_error);
 
 	if(token.type == ':') {
 		next_token();
@@ -1860,13 +1992,16 @@ static concept_method_t *parse_concept_method(void)
 	} else {
 		method_type->result_type = type_void;
 	}
-	expect(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
 
 	method->method_type = method_type;
 
 	add_declaration((declaration_t*) method);
 
 	return method;
+
+end_error:
+	return NULL;
 }
 
 static void parse_concept(void)
@@ -1879,7 +2014,7 @@ static void parse_concept(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 
@@ -1891,10 +2026,10 @@ static void parse_concept(void)
 		next_token();
 		context_t       *context = &concept->context;
 		concept->type_parameters = parse_type_parameters(context);
-		expect_void('>');
+		expect('>', end_error);
 	}
-	expect_void(':');
-	expect_void(T_NEWLINE);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
 
 	if(token.type != T_INDENT) {
 		goto end_of_parse_concept;
@@ -1922,6 +2057,10 @@ static void parse_concept(void)
 
 end_of_parse_concept:
 	add_declaration((declaration_t*) concept);
+	return;
+
+end_error:
+	;
 }
 
 static concept_method_instance_t *parse_concept_method_instance(void)
@@ -1929,20 +2068,22 @@ static concept_method_instance_t *parse_concept_method_instance(void)
 	concept_method_instance_t *method_instance
 		= allocate_ast_zero(sizeof(method_instance[0]));
 
-	expect(T_func);
+	expect(T_func, end_error);
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept method "
 		                     "instance", T_IDENTIFIER, 0);
-		eat_until_newline();
-		return NULL;
+		eat_until_anchor();
+		goto end_error;
 	}
 	method_instance->source_position = source_position;
 	method_instance->symbol          = token.v.symbol;
 	next_token();
 
 	parse_method(& method_instance->method);
-
 	return method_instance;
+
+end_error:
+	return NULL;
 }
 
 static void parse_concept_instance(void)
@@ -1955,7 +2096,7 @@ static void parse_concept_instance(void)
 	if(token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept instance",
 		                     T_IDENTIFIER, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 	instance->concept_symbol = token.v.symbol;
@@ -1965,13 +2106,13 @@ static void parse_concept_instance(void)
 		next_token();
 		instance->type_parameters
 			= parse_type_parameters(&instance->context);
-		expect_void('>');
+		expect('>', end_error);
 	}
 
 	instance->type_arguments = parse_type_arguments();
 	
-	expect_void(':');
-	expect_void(T_NEWLINE);
+	expect(':', end_error);
+	expect(T_NEWLINE, end_error);
 
 	if(token.type != T_INDENT) {
 		goto add_instance;
@@ -2006,6 +2147,10 @@ add_instance:
 	assert(current_context != NULL);
 	instance->next                     = current_context->concept_instances;
 	current_context->concept_instances = instance;
+	return;
+
+end_error:
+	;
 }
 
 static void skip_declaration(void)
@@ -2024,7 +2169,7 @@ static void parse_export(void)
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing export declaration",
 			                     T_IDENTIFIER, 0);
-			eat_until_newline();
+			eat_until_anchor();
 			return;
 		}
 
@@ -2042,7 +2187,10 @@ static void parse_export(void)
 		}
 		next_token();
 	}
-	expect_void(T_NEWLINE);
+	expect(T_NEWLINE, end_error);
+
+end_error:
+	;
 }
 
 void parse_declaration(void)
@@ -2065,7 +2213,7 @@ void parse_declaration(void)
 		parse_error_expected("Couldn't parse declaration",
 		                     T_func, T_var, T_extern, T_struct, T_concept,
 		                     T_instance, 0);
-		eat_until_newline();
+		eat_until_anchor();
 		return;
 	}
 
@@ -2104,14 +2252,14 @@ static namespace_t *parse_namespace(void)
 		if(token.type != T_IDENTIFIER) {
 			parse_error_expected("problem while parsing namespace", 
 			                     T_IDENTIFIER, 0);
-			eat_until_newline();
+			eat_until_anchor();
 		}
 		namespace_symbol = token.v.symbol;
 		next_token();
 
 		if(token.type != T_NEWLINE) {
 			parse_error("extra tokens after namespace definition");
-			eat_until_newline();
+			eat_until_anchor();
 		} else {
 			next_token();
 		}

@@ -35,4 +35,4 @@ Refactorings:
 - make unions for declaration_t, expression_t, type_t (see cparser)
 - rename type to kind, expression->datatype to expression->type
 - keep typerefs as long as possible (start the skip_typeref madness similar to cparser)
-
+- change coding style if (, while (
