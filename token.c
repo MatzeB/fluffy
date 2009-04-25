@@ -78,7 +78,7 @@ void print_token_type(FILE *f, token_type_t token_type)
 
 void print_token(FILE *f, const token_t *token)
 {
-	switch(token->type) {
+	switch (token->type) {
 	case T_IDENTIFIER:
 		fprintf(f, "symbol '%s'", token->v.symbol->string);
 		break;

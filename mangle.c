@@ -26,7 +26,7 @@ static void mangle_atomic_type(const atomic_type_t *type)
 {
 	char c;
 
-	switch(type->atype) {
+	switch (type->atype) {
 	case ATOMIC_TYPE_INVALID:
 		abort();
 		break;
@@ -80,7 +80,7 @@ static void mangle_atomic_type(const atomic_type_t *type)
 static void mangle_type_variables(type_variable_t *type_variables)
 {
 	type_variable_t *type_variable = type_variables;
-	for( ; type_variable != NULL; type_variable = type_variable->next) {
+	for ( ; type_variable != NULL; type_variable = type_variable->next) {
 		/* is this a good char? */
 		obstack_1grow(&obst, 'T');
 		mangle_type(type_variable->current_type);
@@ -142,7 +142,7 @@ static void mangle_bind_typevariables(const bind_typevariables_type_t *type)
 
 void mangle_type(const type_t *type)
 {
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 		break;
 	case TYPE_VOID:

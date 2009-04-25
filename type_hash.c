@@ -86,7 +86,7 @@ static unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *
 
 static unsigned hash_type(const type_t *type)
 {
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ERROR:
@@ -205,7 +205,7 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 	if (type1->type != type2->type)
 		return false;
 
-	switch(type1->type) {
+	switch (type1->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ERROR:

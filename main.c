@@ -92,7 +92,7 @@ static void get_output_name(char *buf, size_t buflen, const char *inputname,
 {
 	size_t last_dot = 0xffffffff;
 	size_t i = 0;
-	for(const char *c = inputname; *c != 0; ++c) {
+	for (const char *c = inputname; *c != 0; ++c) {
 		if (*c == '.')
 			last_dot = i;
 		++i;
@@ -218,7 +218,7 @@ int main(int argc, const char **argv)
 	compile_mode_t mode = CompileAndLink;
 	int parsed = 0;
 
-	for(int i = 1; i < argc; ++i) {
+	for (int i = 1; i < argc; ++i) {
 		const char *arg = argv[i];
 		if (strcmp(arg, "-o") == 0) {
 			++i;

@@ -26,8 +26,8 @@ static void print_string_const(const string_const_t *string_const)
 {
 	/* TODO escape " and non-printable chars */
 	fputc('"', out);
-	for(const char *c = string_const->value; *c != 0; ++c) {
-		switch(*c) {
+	for (const char *c = string_const->value; *c != 0; ++c) {
+		switch (*c) {
 		case '\a': fputs("\\a", out); break;
 		case '\b': fputs("\\b", out); break;
 		case '\f': fputs("\\f", out); break;
@@ -126,7 +126,7 @@ static void print_sizeof_expression(const sizeof_expression_t *expr)
 static void print_unary_expression(const unary_expression_t *unexpr)
 {
 	fprintf(out, "(");
-	switch(unexpr->type) {
+	switch (unexpr->type) {
 	case UNEXPR_CAST:
 		fprintf(out, "cast<");
 		print_type(unexpr->expression.datatype);
@@ -145,7 +145,7 @@ static void print_binary_expression(const binary_expression_t *binexpr)
 	fprintf(out, "(");
 	print_expression(binexpr->left);
 	fprintf(out, " ");
-	switch(binexpr->type) {
+	switch (binexpr->type) {
 	case BINEXPR_INVALID:
 		fprintf(out, "INVOP");
 		break;
@@ -199,7 +199,7 @@ void print_expression(const expression_t *expression)
 		return;
 	}
 
-	switch(expression->type) {
+	switch (expression->type) {
 	case EXPR_LAST:
 	case EXPR_INVALID:
 		fprintf(out, "*invalid expression*");
@@ -244,7 +244,7 @@ void print_expression(const expression_t *expression)
 
 static void print_indent(void)
 {
-	for(int i = 0; i < indent; ++i)
+	for (int i = 0; i < indent; ++i)
 		fprintf(out, "\t");
 }
 
@@ -334,7 +334,7 @@ void print_statement(const statement_t *statement)
 {
 	print_indent();
 
-	switch(statement->type) {
+	switch (statement->type) {
 	case STATEMENT_BLOCK:
 		print_block_statement((const block_statement_t*) statement);
 		break;
@@ -557,7 +557,7 @@ static void print_declaration(const declaration_t *declaration)
 {
 	print_indent();
 
-	switch(declaration->type) {
+	switch (declaration->type) {
 	case DECLARATION_METHOD:
 		print_method((const method_declaration_t*) declaration);
 		break;
@@ -620,7 +620,7 @@ void print_ast(FILE *new_out, const namespace_t *namespace)
 
 const char *get_declaration_type_name(declaration_type_t type)
 {
-	switch(type) {
+	switch (type) {
 	case DECLARATION_LAST:
 	case DECLARATION_ERROR:            return "parse error";
 	case DECLARATION_INVALID:          return "invalid reference";

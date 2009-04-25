@@ -41,7 +41,7 @@ void exit_type_module()
 
 static void print_atomic_type(const atomic_type_t *type)
 {
-	switch(type->atype) {
+	switch (type->atype) {
 	case ATOMIC_TYPE_INVALID:   fputs("INVALIDATOMIC", out); break;
 	case ATOMIC_TYPE_BOOL:      fputs("bool", out); break;
 	case ATOMIC_TYPE_BYTE:      fputs("byte", out); break;
@@ -168,7 +168,7 @@ void print_type(const type_t *type)
 		return;
 	}
 
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 		fputs("invalid", out);
 		return;
@@ -217,7 +217,7 @@ void print_type(const type_t *type)
 
 int type_valid(const type_t *type)
 {
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 	case TYPE_REFERENCE:
 		return 0;
@@ -232,7 +232,7 @@ int is_type_int(const type_t *type)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
-	switch(atomic_type->atype) {
+	switch (atomic_type->atype) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_SHORT:
@@ -255,7 +255,7 @@ int is_type_numeric(const type_t *type)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
-	switch(atomic_type->atype) {
+	switch (atomic_type->atype) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_SHORT:
@@ -460,7 +460,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 
 type_t *create_concrete_type(type_t *type)
 {
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 		return type_invalid;
 	case TYPE_VOID:
@@ -541,7 +541,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	}
 	assert(type_parameter == NULL && type_argument == NULL);
 
-	for(int i = old_top+1; i <= top; ++i) {
+	for (int i = old_top+1; i <= top; ++i) {
 		typevar_binding_t *binding       = & typevar_binding_stack[i-1];
 		type_variable_t   *type_variable = binding->type_variable;
 		type_t            *new_type      = binding->old_current_type;
@@ -561,7 +561,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 void pop_type_variable_bindings(int new_top)
 {
 	int top = ARR_LEN(typevar_binding_stack) - 1;
-	for(int i = top; i >= new_top; --i) {
+	for (int i = top; i >= new_top; --i) {
 		typevar_binding_t *binding       = & typevar_binding_stack[i];
 		type_variable_t   *type_variable = binding->type_variable;
 		type_variable->current_type      = binding->old_current_type;

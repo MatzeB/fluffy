@@ -250,7 +250,7 @@ static void parse_parameter_declaration(method_type_t *method_type,
 
 static atomic_type_type_t parse_unsigned_atomic_type(void)
 {
-	switch(token.type) {
+	switch (token.type) {
 	case T_byte:
 		next_token();
 		return ATOMIC_TYPE_UBYTE;
@@ -276,7 +276,7 @@ static atomic_type_type_t parse_unsigned_atomic_type(void)
 
 static atomic_type_type_t parse_signed_atomic_type(void)
 {
-	switch(token.type) {
+	switch (token.type) {
 	case T_bool:
 		next_token();
 		return ATOMIC_TYPE_BOOL;
@@ -313,7 +313,7 @@ static type_t *parse_atomic_type(void)
 {
 	atomic_type_type_t atype;
 
-	switch(token.type) {
+	switch (token.type) {
 	case T_unsigned:
 		next_token();
 		atype = parse_unsigned_atomic_type();
@@ -538,7 +538,7 @@ type_t *parse_type(void)
 {
 	type_t *type;
 
-	switch(token.type) {
+	switch (token.type) {
 	case T_unsigned:
 	case T_signed:
 	case T_bool:
@@ -583,7 +583,7 @@ type_t *parse_type(void)
 
 	/* parse type modifiers */
 	while (true) {
-		switch(token.type) {
+		switch (token.type) {
 		case '*': {
 			next_token();
 			type = make_pointer_type_no_hash(type);

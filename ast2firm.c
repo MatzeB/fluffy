@@ -123,7 +123,7 @@ static symbol_t *unique_symbol(const char *tag)
 
 static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
-	switch(atomic_type->atype) {
+	switch (atomic_type->atype) {
 	case ATOMIC_TYPE_BYTE:
 		return mode_Bs;
 	case ATOMIC_TYPE_UBYTE:
@@ -161,7 +161,7 @@ static unsigned get_type_size(type_t *type);
 
 static unsigned get_atomic_type_size(const atomic_type_t *type)
 {
-	switch(type->atype) {
+	switch (type->atype) {
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_BYTE:
 		return 1;
@@ -214,7 +214,7 @@ static unsigned get_array_type_size(array_type_t *type)
 
 static unsigned get_type_size(type_t *type)
 {
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_VOID:
 		return 0;
 	case TYPE_ATOMIC:
@@ -545,7 +545,7 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	}
 
 	ir_type *firm_type = NULL;
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_ATOMIC:
 		firm_type = get_atomic_type(env, (atomic_type_t*) type);
 		break;
@@ -694,7 +694,7 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	/* search for an existing entity */
 	if (is_polymorphic && method->e.entities != NULL) {
 		int len = ARR_LEN(method->e.entities);
-		for(int i = 0; i < len; ++i) {
+		for (int i = 0; i < len; ++i) {
 			ir_entity *entity = method->e.entities[i];
 			if (get_entity_ident(entity) == id) {
 				return entity;
@@ -792,7 +792,7 @@ static ir_node *string_const_to_firm(const string_const_t* cnst)
 	set_type_state(type, layout_fixed);
 
 	tarval    **tvs = xmalloc(slen * sizeof(tvs[0]));
-	for(size_t i = 0; i < slen; ++i) {
+	for (size_t i = 0; i < slen; ++i) {
 		tvs[i] = new_tarval_from_long(string[i], mode);
 	}
 
@@ -944,7 +944,7 @@ static ir_node *constant_reference_to_firm(const constant_t *constant)
 
 static ir_node *declaration_addr(declaration_t *declaration)
 {
-	switch(declaration->type) {
+	switch (declaration->type) {
 	case DECLARATION_VARIABLE:
 		return variable_addr((variable_declaration_t*) declaration);
 
@@ -976,7 +976,7 @@ static ir_node *expression_addr(const expression_t *expression)
 	const unary_expression_t  *unexpr;
 	const select_expression_t *select;
 
-	switch(expression->type) {
+	switch (expression->type) {
 	case EXPR_SELECT:
 		select = (const select_expression_t*) expression;
 		return select_expression_addr(select);
@@ -1051,7 +1051,7 @@ static ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 
 static ir_op *binexpr_type_to_op(binary_expression_type_t type)
 {
-	switch(type) {
+	switch (type) {
 	case BINEXPR_ADD:
 		return op_Add;
 	case BINEXPR_SUB:
@@ -1075,7 +1075,7 @@ static ir_op *binexpr_type_to_op(binary_expression_type_t type)
 
 static long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 {
-	switch(type) {
+	switch (type) {
 	case BINEXPR_EQUAL:
 		return pn_Cmp_Eq;
 	case BINEXPR_NOTEQUAL:
@@ -1149,7 +1149,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 {
 	binary_expression_type_t btype = binary_expression->type;
 
-	switch(btype) {
+	switch (btype) {
 	case BINEXPR_ASSIGN:
 		return assign_expression_to_firm(binary_expression);
 	case BINEXPR_LAZY_OR:
@@ -1264,7 +1264,7 @@ static ir_node *unary_expression_to_firm(const unary_expression_t *unary_express
 {
 	ir_node *addr;
 
-	switch(unary_expression->type) {
+	switch (unary_expression->type) {
 	case UNEXPR_CAST:
 		return cast_expression_to_firm(unary_expression);
 	case UNEXPR_DEREFERENCE:
@@ -1450,7 +1450,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 		set_method_additional_properties(new_method_type,
 		               get_method_additional_properties(ir_method_type));
 
-		for(int i = 0; i < get_method_n_ress(ir_method_type); ++i) {
+		for (int i = 0; i < get_method_n_ress(ir_method_type); ++i) {
 			set_method_res_type(new_method_type, i,
 			                    get_method_res_type(ir_method_type, i));
 		}
@@ -1518,7 +1518,7 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 {
 	method_declaration_t *method_declaration;
 
-	switch(declaration->type) {
+	switch (declaration->type) {
 	case DECLARATION_METHOD:
 		method_declaration = (method_declaration_t*) declaration;
 		return method_reference_to_firm(&method_declaration->method,
@@ -1565,7 +1565,7 @@ static ir_node *expression_to_firm(expression_t *expression)
 {
 	ir_node *addr;
 
-	switch(expression->type) {
+	switch (expression->type) {
 	case EXPR_INT_CONST:
 		return int_const_to_firm((const int_const_t*) expression);
 	case EXPR_FLOAT_CONST:
@@ -1739,7 +1739,7 @@ static void statement_to_firm(statement_t *statement)
 		return;
 	}
 
-	switch(statement->type) {
+	switch (statement->type) {
 	case STATEMENT_BLOCK:
 		block_statement_to_firm((block_statement_t*) statement);
 		return;
@@ -1818,7 +1818,7 @@ static void create_method(method_t *method, ir_entity *entity,
 	int      n          = get_compound_n_members(frame_type);
 	int      align_all  = 4;
 	int      offset     = 0;
-	for(int i = 0; i < n; ++i) {
+	for (int i = 0; i < n; ++i) {
 		ir_entity *entity      = get_compound_member(frame_type, i);
 		ir_type   *entity_type = get_entity_type(entity);
 	
@@ -1873,7 +1873,7 @@ static void context2firm(const context_t *context)
 	/* scan context for functions */
 	declaration_t *declaration = context->declarations;
 	while (declaration != NULL) {
-		switch(declaration->type) {
+		switch (declaration->type) {
 		case DECLARATION_METHOD:
 			method_declaration = (method_declaration_t*) declaration;
 			method             = &method_declaration->method;

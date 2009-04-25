@@ -356,7 +356,7 @@ static type_t *normalize_type(type_t *type)
 	if (type == NULL)
 		return NULL;
 
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ATOMIC:
@@ -406,7 +406,7 @@ static type_t *check_reference(declaration_t *declaration,
 	concept_method_t       *concept_method;
 	type_t                 *type;
 
-	switch(declaration->type) {
+	switch (declaration->type) {
 	case DECLARATION_VARIABLE:
 		variable = (variable_declaration_t*) declaration;
 		variable->refs++;
@@ -489,7 +489,7 @@ static bool is_lvalue(const expression_t *expression)
 	reference_expression_t *reference;
 	declaration_t          *declaration;
 
-	switch(expression->type) {
+	switch (expression->type) {
 	case EXPR_REFERENCE:
 		reference   = (reference_expression_t*) expression;
 		declaration = reference->declaration;
@@ -627,7 +627,7 @@ static expression_t *make_cast(expression_t *from,
 			atomic_type_t      *dest_type_atomic = (atomic_type_t*) dest_type;
 			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
 
-			switch(from_atype) {
+			switch (from_atype) {
 			case ATOMIC_TYPE_BOOL:
 				if (!lenient) {
 					implicit_cast_allowed = false;
@@ -713,7 +713,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 	type_t *lefttype, *righttype;
 	binary_expression_type_t binexpr_type = binexpr->type;
 
-	switch(binexpr_type) {
+	switch (binexpr_type) {
 	case BINEXPR_ASSIGN:
 		check_assign_expression(binexpr);
 		exprtype  = left->datatype;
@@ -1013,7 +1013,7 @@ static void check_type_constraints(type_variable_t *type_variables,
 		type_constraint_t *constraint   = type_var->constraints;
 		type_t            *current_type = type_var->current_type;
 
-		for( ;constraint != NULL; constraint = constraint->next) {
+		for ( ;constraint != NULL; constraint = constraint->next) {
 			concept_t *concept = constraint->concept;
 
 			if (concept == NULL)
@@ -1073,10 +1073,10 @@ static type_t *get_default_param_type(type_t *type,
 
 	type = skip_typeref(type);
 
-	switch(type->type) {
+	switch (type->type) {
 	case TYPE_ATOMIC:
 		atomic_type = (atomic_type_t*) type;
-		switch(atomic_type->atype) {
+		switch (atomic_type->atype) {
 		case ATOMIC_TYPE_INVALID:
 			print_error_prefix(source_position);
 			fprintf(stderr, "function argument has invalid type.\n");
@@ -1440,7 +1440,7 @@ static bool is_arithmetic_type(type_t *type)
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
 
-	switch(atomic_type->atype) {
+	switch (atomic_type->atype) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_INT:
@@ -1575,7 +1575,7 @@ static expression_t *lower_unary_expression(expression_t *expression)
 {
 	assert(expression->type == EXPR_UNARY);
 	unary_expression_t *unary_expression = (unary_expression_t*) expression;
-	switch(unary_expression->type) {
+	switch (unary_expression->type) {
 	case UNEXPR_INCREMENT:
 	case UNEXPR_DECREMENT:
 		return lower_incdec_expression(unary_expression);
@@ -1605,7 +1605,7 @@ static void check_not_expression(unary_expression_t *expression)
 
 static void check_unary_expression(unary_expression_t *unary_expression)
 {
-	switch(unary_expression->type) {
+	switch (unary_expression->type) {
 	case UNEXPR_CAST:
 		check_cast_expression(unary_expression);
 		return;
@@ -1812,7 +1812,7 @@ expression_t *check_expression(expression_t *expression)
 		}
 	}
 
-	switch(expression->type) {
+	switch (expression->type) {
 	case EXPR_INT_CONST:
 		expression->datatype = type_int;
 		break;
@@ -2075,7 +2075,7 @@ statement_t *check_statement(statement_t *statement)
 		return NULL;
 
 	last_statement_was_return = false;
-	switch(statement->type) {
+	switch (statement->type) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
 		break;
@@ -2387,7 +2387,7 @@ static void check_export(const export_t *export)
 		return;
 	}
 
-	switch(declaration->type) {
+	switch (declaration->type) {
 	case DECLARATION_METHOD:
 		method                = (method_declaration_t*) declaration;
 		method->method.export = 1;
@@ -2420,7 +2420,7 @@ static void check_and_push_context(context_t *context)
 	/* normalize types, resolve concept instance references */
 	declaration_t *declaration = context->declarations;
 	while (declaration != NULL) {
-		switch(declaration->type) {
+		switch (declaration->type) {
 		case DECLARATION_VARIABLE:
 			variable       = (variable_declaration_t*) declaration;
 			variable->type = normalize_type(variable->type);
@@ -2465,7 +2465,7 @@ static void check_and_push_context(context_t *context)
 	/* check semantics in methods */
 	declaration = context->declarations;
 	while (declaration != NULL) {
-		switch(declaration->type) {
+		switch (declaration->type) {
 		case DECLARATION_METHOD:
 			method = (method_declaration_t*) declaration;
 			check_method(&method->method, method->declaration.symbol,

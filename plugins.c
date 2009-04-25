@@ -49,7 +49,7 @@ void search_plugins(void)
 	/* search for plugins */
 	glob_t globbuf;
 	if (glob("plugins/plugin_*.dylib", 0, NULL, &globbuf) == 0) {
-		for(size_t i = 0; i < globbuf.gl_pathc; ++i) {
+		for (size_t i = 0; i < globbuf.gl_pathc; ++i) {
 			const char *filename = globbuf.gl_pathv[i];
 
 			load_plugin(filename);

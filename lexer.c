@@ -51,7 +51,7 @@ static void init_tables(void)
 {
 	memset(char_type, 0, sizeof(char_type));
 	memset(ident_char, 0, sizeof(ident_char));
-	for(int c = 0; c < 256; ++c) {
+	for (int c = 0; c < 256; ++c) {
 		if (isalnum(c)) {
 			char_type[c]  = START_IDENT;
 			ident_char[c] = 1;
@@ -59,7 +59,7 @@ static void init_tables(void)
 	}
 	char_type['_']  = START_IDENT;
 	ident_char['_'] = 1;
-	for(int c = '0'; c <= '9'; ++c) {
+	for (int c = '0'; c <= '9'; ++c) {
 		ident_char[c] = 1;
 		char_type[c]  = START_NUMBER;
 	}
@@ -70,7 +70,7 @@ static void init_tables(void)
 	static const int single_char_ops[] = {
 		'(', ')', '[', ']', '{', '}', ',', ':', ';', '*'
 	};
-	for(size_t i = 0; i < sizeof(single_char_ops)/sizeof(single_char_ops[0]);
+	for (size_t i = 0; i < sizeof(single_char_ops)/sizeof(single_char_ops[0]);
 	    ++i) {
 		int c        = single_char_ops[i];
 		char_type[c] = START_SINGLE_CHARACTER_OPERATOR;
@@ -80,7 +80,7 @@ static void init_tables(void)
 		'+', '-', '/', '=', '<', '>', '.', '^', '!', '?', '&', '%',
 		'~', '|', '\\', '$'
 	};
-	for(size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); ++i) {
+	for (size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); ++i) {
 		int c        = ops[i];
 		char_type[c] = START_OPERATOR;
 	}
@@ -174,7 +174,7 @@ static void parse_number_bin(token_t *token)
 	}
 
 	int value = 0;
-	for(;;) {
+	for (;;) {
 		switch (c) {
 			case '0': value = 2 * value;     break;
 			case '1': value = 2 * value + 1; break;
@@ -202,7 +202,7 @@ static void parse_number_hex(token_t *token)
 	}
 
 	int value = 0;
-	for(;;) {
+	for (;;) {
 		if (isdigit(c)) {
 			value = 16 * value + c - '0';
 		} else if ('A' <= c && c <= 'F') {
@@ -224,7 +224,7 @@ static void parse_number_oct(token_t *token)
 	next_char();
 
 	int value = 0;
-	for(;;) {
+	for (;;) {
 		if ('0' <= c && c <= '7') {
 			value = 8 * value + c - '0';
 		} else {
@@ -244,7 +244,7 @@ static void parse_number_dec(token_t *token, int first_char)
 		value = first_char - '0';
 	}
 
-	for(;;) {
+	for (;;) {
 		if (isdigit(c)) {
 			value = 10 * value + c - '0';
 		} else {
@@ -282,7 +282,7 @@ static int parse_escape_sequence(void)
 	assert(c == '\\');
 	next_char();
 
-	switch(c) {
+	switch (c) {
 	case 'a': return '\a';
 	case 'b': return '\b';
 	case 'f': return '\f';
@@ -357,7 +357,7 @@ static void skip_multiline_comment(void)
 	unsigned level = 1;
 
 	while (true) {
-		switch(c) {
+		switch (c) {
 		case '*':
 			next_char();
 			if (c == '/') {
@@ -488,7 +488,7 @@ start_indent_parsing:
 	at_line_begin = 0;
 
 	unsigned i;
-	for(i = 0; i < indent_len && i < last_line_indent_len; ++i) {
+	for (i = 0; i < indent_len && i < last_line_indent_len; ++i) {
 		if (indent[i] != last_line_indent[i]) {
 			parse_error("space/tab usage for indentation different from "
 			            "previous line");
@@ -574,7 +574,7 @@ void lexer_next_token(token_t *token)
 	}
 
 	int type = char_type[c];
-	switch(type) {
+	switch (type) {
 	case START_SINGLE_CHARACTER_OPERATOR:
 		token->type = c;
 		next_char();
