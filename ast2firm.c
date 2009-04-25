@@ -949,6 +949,7 @@ static ir_node *declaration_addr(declaration_t *declaration)
 		return variable_addr((variable_declaration_t*) declaration);
 
 	case DECLARATION_INVALID:
+	case DECLARATION_ERROR:
 	case DECLARATION_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
 	case DECLARATION_ITERATOR:
@@ -1541,6 +1542,7 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 		                        source_position);
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
+	case DECLARATION_ERROR:
 	case DECLARATION_TYPEALIAS:
 	case DECLARATION_CONCEPT:
 	case DECLARATION_LABEL:
@@ -1894,6 +1896,7 @@ static void context2firm(const context_t *context)
 			break;
 		case DECLARATION_LAST:
 		case DECLARATION_INVALID:
+		case DECLARATION_ERROR:
 			panic("Invalid namespace entry type found");
 		}
 

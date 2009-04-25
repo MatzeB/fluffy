@@ -387,7 +387,9 @@ static type_t *parse_typeof(void)
 
 	eat(T_typeof);
 	expect('(', end_error);
-	typeof_type->expression    = parse_expression();
+	add_anchor_token(')');
+	typeof_type->expression = parse_expression();
+	rem_anchor_token(')');
 	expect(')', end_error);
 
 end_error:
@@ -407,7 +409,9 @@ static type_t *parse_type_ref(void)
 
 	if(token.type == '<') {
 		next_token();
+		add_anchor_token('>');
 		type_ref->type_arguments = parse_type_arguments();
+		rem_anchor_token('>');
 		expect('>', end_error);
 	}
 
@@ -423,7 +427,9 @@ static type_t *parse_method_type(void)
 	method_type->type.type = TYPE_METHOD;
 
 	expect('(', end_error);
+	add_anchor_token(')');
 	parse_parameter_declaration(method_type, NULL);
+	rem_anchor_token(')');
 	expect(')', end_error);
 	expect(':', end_error);
 	method_type->result_type = parse_type();
@@ -477,10 +483,12 @@ static type_t *parse_union_type(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
-		
+	
+	add_anchor_token(T_DEDENT);	
 	compound_type->entries = parse_compound_entries();
 
 	/* force end of statement */
+	rem_anchor_token(T_DEDENT);
 	assert(token.type == T_DEDENT);
 	replace_token_type(T_NEWLINE);
 
@@ -500,10 +508,12 @@ static type_t *parse_struct_type(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
-		
+	
+	add_anchor_token(T_DEDENT);	
 	compound_type->entries = parse_compound_entries();
 
 	/* force end of statement */
+	rem_anchor_token(T_DEDENT);
 	assert(token.type == T_DEDENT);
 	replace_token_type(T_NEWLINE);
 
@@ -524,7 +534,9 @@ static type_t *make_pointer_type_no_hash(type_t *type)
 static type_t *parse_brace_type(void)
 {
 	eat('(');
+	add_anchor_token(')');
 	type_t *type = parse_type();
+	rem_anchor_token(')');
 	expect(')', end_error);
 
 end_error:
@@ -588,9 +600,12 @@ type_t *parse_type(void)
 		}
 		case '[': {
 			next_token();
+			add_anchor_token(']');
 			if(token.type != T_INTEGER) {
 				parse_error_expected("problem while parsing array type",
 				                     T_INTEGER, 0);
+				eat_until_anchor();
+				rem_anchor_token(']');
 				break;
 			}
 			int size = token.v.intvalue;
@@ -598,7 +613,8 @@ type_t *parse_type(void)
 
 			if(size < 0) {
 				parse_error("negative array size not allowed");
-				expect(']', end_error);
+				eat_until_anchor();
+				rem_anchor_token(']');
 				break;
 			}
 
@@ -610,6 +626,7 @@ type_t *parse_type(void)
 
 			type = (type_t*) array_type;
 
+			rem_anchor_token(']');
 			expect(']', end_error);
 			break;
 			}
@@ -621,8 +638,6 @@ type_t *parse_type(void)
 end_error:
 	return type;
 }
-
-
 
 
 static expression_t *parse_string_const(void)
@@ -707,7 +722,9 @@ static expression_t *parse_reference(void)
 
 	if(token.type == T_TYPESTART) {
 		next_token();
+		add_anchor_token('>');
 		ref->type_arguments = parse_type_arguments();
+		rem_anchor_token('>');
 		expect('>', end_error);
 	}
 
@@ -723,7 +740,9 @@ static expression_t *parse_sizeof(void)
 	expression->expression.type = EXPR_SIZEOF;
 
 	expect('<', end_error);
+	add_anchor_token('>');
 	expression->type = parse_type();
+	rem_anchor_token('>');
 	expect('>', end_error);
 
 end_error:

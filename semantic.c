@@ -452,6 +452,9 @@ static type_t *check_reference(declaration_t *declaration,
 		        declaration->symbol->string,
 		        get_declaration_type_name(declaration->type));
 		return NULL;
+	case DECLARATION_ERROR:
+		found_errors = true;
+		return NULL;
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 		panic("reference to invalid declaration type encountered");

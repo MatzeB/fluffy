@@ -576,6 +576,7 @@ static void print_declaration(const declaration_t *declaration)
 	case DECLARATION_ITERATOR:
 	case DECLARATION_CONCEPT_METHOD:
 	case DECLARATION_METHOD_PARAMETER:
+	case DECLARATION_ERROR:
 		// TODO
 		fprintf(out, "some declaration of type %d\n", declaration->type);
 		break;
@@ -621,6 +622,7 @@ const char *get_declaration_type_name(declaration_type_t type)
 {
 	switch(type) {
 	case DECLARATION_LAST:
+	case DECLARATION_ERROR:            return "parse error";
 	case DECLARATION_INVALID:          return "invalid reference";
 	case DECLARATION_VARIABLE:         return "variable";
 	case DECLARATION_CONSTANT:         return "constant";
