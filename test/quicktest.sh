@@ -11,4 +11,10 @@ for i in *.fluffy; do
 		echo ""
 	fi
 done
+
+for i in shouldfail/*.fluffy; do
+	echo -n "$i..."
+	../fluffy $i >& /dev/null && echo -n "COMPILED (this is bad)"
+	echo ""
+done
 rm -f a.out
