@@ -855,10 +855,13 @@ static expression_t *expected_expression_error(void)
 	return expression;
 }
 
-static expression_t *parse_brace_expression(void)
+static expression_t *parse_parenthesized_expression(void)
 {
 	eat('(');
+
+	add_anchor_token(')');
 	expression_t *result = parse_expression();
+	rem_anchor_token(')');
 	expect(')', end_error);
 
 end_error:
@@ -888,11 +891,14 @@ static expression_t *parse_call_expression(expression_t *expression)
 {
 	call_expression_t *call = allocate_ast_zero(sizeof(call[0]));
 
-	call->expression.type            = EXPR_CALL;
-	call->method                     = expression;
+	call->expression.type = EXPR_CALL;
+	call->method          = expression;
 
 	/* parse arguments */
 	eat('(');
+
+	add_anchor_token(')');
+	add_anchor_token(',');
 
 	if(token.type != ')') {
 		call_argument_t *last_argument = NULL;
@@ -913,6 +919,8 @@ static expression_t *parse_call_expression(expression_t *expression)
 			next_token();
 		}
 	}
+	rem_anchor_token(',');
+	rem_anchor_token(')');
 	expect(')', end_error);
 
 end_error:
@@ -1061,7 +1069,7 @@ static void register_expression_parsers(void)
 	register_expression_parser(parse_UNEXPR_TAKE_ADDRESS,     '&');
 	register_expression_parser(parse_cast_expression,         T_cast);
 
-	register_expression_parser(parse_brace_expression,     '(');
+	register_expression_parser(parse_parenthesized_expression,'(');
 	register_expression_parser(parse_sizeof,               T_sizeof);
 	register_expression_parser(parse_int_const,            T_INTEGER);
 	register_expression_parser(parse_true,                 T_true);
@@ -1369,17 +1377,11 @@ statement_t *parse_statement(void)
 	statement_t       *statement = NULL;
 	source_position_t  start     = source_position;
 
-	if(token.type < 0) {
-		/* this shouldn't happen if the lexer is correct... */
-		parse_error_expected("problem while parsing statement",
-		                     T_DEDENT, 0);
-		return NULL;
-	}
-
 	parse_statement_function parser = NULL;
 	if(token.type < ARR_LEN(statement_parsers))
 		parser = statement_parsers[token.type];
 
+	add_anchor_token(T_NEWLINE);
 	if(parser != NULL) {
 		statement = parser();
 	} else {
@@ -1393,6 +1395,7 @@ statement_t *parse_statement(void)
 			statement = parse_expression_statement();
 		}
 	}
+	rem_anchor_token(T_NEWLINE);
 
 	if(statement == NULL)
 		return NULL;
@@ -1417,8 +1420,10 @@ static statement_t *parse_block(void)
 	context_t *last_context = current_context;
 	current_context         = &block->context;
 
+	add_anchor_token(T_DEDENT);
+
 	statement_t *last_statement = NULL;
-	while(token.type != T_DEDENT && token.type != T_EOF) {
+	while(token.type != T_DEDENT) {
 		/* parse statement */
 		statement_t *statement = parse_statement();
 		if(statement == NULL)
@@ -1439,6 +1444,7 @@ static statement_t *parse_block(void)
 	current_context = last_context;
 
 	block->end_position = source_position;
+	rem_anchor_token(T_DEDENT);
 	expect(T_DEDENT, end_error);
 
 end_error:
@@ -2297,12 +2303,25 @@ static void register_declaration_parsers(void)
 
 namespace_t *parse(FILE *in, const char *input_name)
 {
-	lexer_init(in, input_name);
+	memset(token_anchor_set, 0, sizeof(token_anchor_set));
 
+	lexer_init(in, input_name);
 	next_token();
+
+	add_anchor_token(T_EOF);
 
 	namespace_t *namespace = parse_namespace();
 	namespace->filename    = input_name;
+
+	rem_anchor_token(T_EOF);
+
+#ifndef NDEBUG
+	for (int i = 0; i < T_LAST_TOKEN; ++i) {
+		if (token_anchor_set[i] > 0) {
+			panic("leaked token");
+		}
+	}
+#endif
 
 	lexer_destroy();
 

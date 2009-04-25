@@ -6,14 +6,14 @@
 #include "symbol_table.h"
 
 typedef enum {
+	T_ERROR = -1,
+	T_EOF   = '\x04', // EOT
 #define T(x,str,val) T_##x val,
 #define TS(x,str,val) T_##x val,
 #include "tokens.inc"
 #undef TS
 #undef T
 
-	T_EOF   = -1,
-	T_ERROR = -2
 } token_type_t;
 
 typedef struct {
