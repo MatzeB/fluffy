@@ -209,14 +209,13 @@ const BINEXPR_INVALID              = 0
 const BINEXPR_ASSIGN               = 1
 const BINEXPR_ADD                  = 2
 
-const T_EOF            = -1
+const T_EOF            = 4
 const T_NEWLINE        = 256
 const T_INDENT         = 257
 const T_DEDENT         = 258
 const T_IDENTIFIER     = 259
 const T_INTEGER        = 260
 const T_STRING_LITERAL = 261
-const T_ASSIGN         = 296
 
 typealias FILE                    = void
 typealias EnvironmentEntry        = void

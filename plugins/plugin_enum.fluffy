@@ -23,7 +23,7 @@ func parse_enum():
 		constant.type                        = type_int
 		next_token()
 
-		if token.type == T_ASSIGN:
+		if token.type == '=':
 			next_token()
 			var expression      = parse_expression()
 			last_expression     = expression
