@@ -49,7 +49,7 @@ struct TypeConstraint:
 	next           : TypeConstraint*
 
 struct Declaration:
-	type             : unsigned int
+	kind             : unsigned int
 	symbol           : Symbol*
 	next             : Declaration*
 	source_position  : SourcePosition
@@ -324,13 +324,13 @@ instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
 		var res = allocate_zero<$LabelStatement>()
 		res.statement.type               = STATEMENT_LABEL
-		res.declaration.declaration.type = DECLARATION_LABEL
+		res.declaration.declaration.kind = DECLARATION_LABEL
 		return res
 
 instance AllocateOnAst Constant:
 	func allocate() : Constant*:
 		var res = allocate_zero<$Constant>()
-		res.declaration.type = DECLARATION_CONSTANT
+		res.declaration.kind = DECLARATION_CONSTANT
 		return res
 
 instance AllocateOnAst BinaryExpression:

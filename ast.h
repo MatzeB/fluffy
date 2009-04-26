@@ -4,10 +4,10 @@
 #include <stdio.h>
 
 typedef struct attribute_t              attribute_t;
-typedef struct declaration_t            declaration_t;
+typedef union  declaration_t            declaration_t;
 typedef struct context_t                context_t;
 typedef struct export_t                 export_t;
-
+typedef struct declaration_base_t       declaration_base_t;
 typedef struct expression_t             expression_t;
 typedef struct int_const_t              int_const_t;
 typedef struct float_const_t            float_const_t;
@@ -42,6 +42,7 @@ typedef struct namespace_t              namespace_t;
 typedef struct method_parameter_t       method_parameter_t;
 typedef struct method_t                 method_t;
 typedef struct method_declaration_t     method_declaration_t;
+typedef struct iterator_declaration_t   iterator_declaration_t;
 typedef struct constant_t               constant_t;
 typedef struct global_variable_t        global_variable_t;
 typedef struct typealias_t              typealias_t;

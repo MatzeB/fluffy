@@ -30,7 +30,7 @@ static bool matched_type_variable(type_variable_t *type_variable, type_t *type,
 		if (report_errors) {
 			print_error_prefix(source_position);
 			fprintf(stderr, "ambiguous matches found for type variable '%s': ",
-					type_variable->declaration.symbol->string);
+					type_variable->base.symbol->string);
 			print_type(current_type);
 			fprintf(stderr, ", ");
 			print_type(type);

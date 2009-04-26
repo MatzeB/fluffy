@@ -108,7 +108,7 @@ static void print_type_variable(const type_variable_t *type_variable)
 		return;
 	}
 
-	fprintf(out, "%s:", type_variable->declaration.symbol->string);
+	fprintf(out, "%s:", type_variable->base.symbol->string);
 
 	type_constraint_t *constraint = type_variable->constraints;
 	int first = 1;

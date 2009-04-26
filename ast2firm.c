@@ -50,11 +50,12 @@ static void context2firm(const context_t *context);
 
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
-	const declaration_t *declaration = & value_numbers[pos]->declaration;
+	const declaration_t *declaration 
+		= (const declaration_t*) &value_numbers[pos];
 
-	print_warning_prefix(declaration->source_position);
+	print_warning_prefix(declaration->base.source_position);
 	fprintf(stderr, "variable '%s' might be used uninitialized\n",
-			declaration->symbol->string);
+			declaration->base.symbol->string);
 	return new_r_Unknown(irg, mode);
 }
 
@@ -455,18 +456,19 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 	int align_all = 1;
 	int size      = 0;
 	declaration_t *declaration = type->context.declarations;
-	while (declaration != NULL) {
-		if (declaration->type == DECLARATION_METHOD) {
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		if (declaration->kind == DECLARATION_METHOD) {
 			/* TODO */
 			continue;
 		}
-		if (declaration->type != DECLARATION_VARIABLE)
+		if (declaration->kind != DECLARATION_VARIABLE)
 			continue;
 
 		variable_declaration_t *variable 
 			= (variable_declaration_t*) declaration;
 
-		ident    *ident       = new_id_from_str(declaration->symbol->string);
+		symbol_t *symbol      = declaration->base.symbol;
+		ident    *ident       = new_id_from_str(symbol->string);
 		ir_type  *var_ir_type = _get_ir_type(env, variable->type);
 
 		int entry_size      = get_type_size_bytes(var_ir_type);
@@ -486,8 +488,6 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 			}
 			align_all = entry_alignment;
 		}
-
-		declaration = declaration->next;
 	}
 
 	set_type_alignment_bytes(class_ir_type, align_all);
@@ -496,10 +496,6 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 
 	return class_ir_type;
 }
-
-
-
-
 
 static ir_type *get_type_for_type_variable(type2firm_env_t *env,
                                            type_reference_t *ref)
@@ -510,7 +506,7 @@ static ir_type *get_type_for_type_variable(type2firm_env_t *env,
 
 	if (current_type == NULL) {
 		fprintf(stderr, "Panic: trying to transform unbound type variable "
-		        "'%s'\n", type_variable->declaration.symbol->string);
+		        "'%s'\n", type_variable->base.symbol->string);
 		abort();
 	}
 	ir_type *ir_type = _get_ir_type(env, current_type);
@@ -649,8 +645,8 @@ static ir_entity* get_concept_method_instance_entity(
 	concept_t        *concept        = concept_method->concept;
 
 	start_mangle();
-	mangle_concept_name(concept->declaration.symbol);
-	mangle_symbol(concept_method->declaration.symbol);
+	mangle_concept_name(concept->base.symbol);
+	mangle_symbol(concept_method->base.symbol);
 
 	concept_instance_t *instance = method_instance->concept_instance;
 	type_argument_t    *argument = instance->type_arguments;
@@ -865,7 +861,7 @@ static ir_entity *create_variable_entity(variable_declaration_t *variable)
 		return NULL;
 	}
 
-	obstack_printf(&obst, "_%s", variable->declaration.symbol->string);
+	obstack_printf(&obst, "_%s", variable->base.symbol->string);
 	obstack_1grow(&obst, 0);
 
 	char *str = obstack_finish(&obst);
@@ -892,7 +888,7 @@ static ir_entity *create_variable_entity(variable_declaration_t *variable)
 static ir_node *variable_addr(variable_declaration_t *variable)
 {
 	ir_entity *entity = create_variable_entity(variable);
-	dbg_info  *dbgi   = get_dbg_info(&variable->declaration.source_position);
+	dbg_info  *dbgi   = get_dbg_info(&variable->base.source_position);
 
 	ir_node *result;
 
@@ -944,7 +940,7 @@ static ir_node *constant_reference_to_firm(const constant_t *constant)
 
 static ir_node *declaration_addr(declaration_t *declaration)
 {
-	switch (declaration->type) {
+	switch (declaration->kind) {
 	case DECLARATION_VARIABLE:
 		return variable_addr((variable_declaration_t*) declaration);
 
@@ -1006,7 +1002,7 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 			= (const reference_expression_t*) dest_expr;
 		declaration_t *declaration = ref->declaration;
 
-		if (declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->kind == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
 
@@ -1370,8 +1366,8 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 	concept_instance_t *instance = find_concept_instance(concept);
 	if (instance == NULL) {
 		fprintf(stderr, "while looking at method '%s' from '%s'\n",
-		        method->declaration.symbol->string,
-		        concept->declaration.symbol->string);
+		        method->base.symbol->string,
+		        concept->base.symbol->string);
 		print_type(concept->type_parameters->current_type);
 		panic("no concept instance found in ast2firm phase");
 		return NULL;
@@ -1381,8 +1377,8 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 		= get_method_from_concept_instance(instance, method);
 	if (method_instance == NULL) {
 		fprintf(stderr, "panic: no method '%s' in instance of concept '%s'\n",
-		        method->declaration.symbol->string,
-		        concept->declaration.symbol->string);
+		        method->base.symbol->string,
+		        concept->base.symbol->string);
 		panic("panic");
 		return NULL;
 	}
@@ -1518,12 +1514,12 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 {
 	method_declaration_t *method_declaration;
 
-	switch (declaration->type) {
+	switch (declaration->kind) {
 	case DECLARATION_METHOD:
 		method_declaration = (method_declaration_t*) declaration;
 		return method_reference_to_firm(&method_declaration->method,
-		                                declaration->symbol, type_arguments,
-										source_position);
+		                                declaration->base.symbol,
+										type_arguments, source_position);
 	case DECLARATION_ITERATOR:
 		// TODO
 		panic("TODO: iterator to firm");
@@ -1872,14 +1868,14 @@ static void context2firm(const context_t *context)
 
 	/* scan context for functions */
 	declaration_t *declaration = context->declarations;
-	while (declaration != NULL) {
-		switch (declaration->type) {
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		switch (declaration->kind) {
 		case DECLARATION_METHOD:
 			method_declaration = (method_declaration_t*) declaration;
 			method             = &method_declaration->method;
 
 			if (!is_polymorphic_method(method)) {
-				assure_instance(method, declaration->symbol, NULL);
+				assure_instance(method, declaration->base.symbol, NULL);
 			}
 
 			break;
@@ -1900,15 +1896,12 @@ static void context2firm(const context_t *context)
 		case DECLARATION_ERROR:
 			panic("Invalid namespace entry type found");
 		}
-
-		declaration = declaration->next;
 	}
 
 	/* TODO: create these always lazily? */
 	concept_instance_t *instance = context->concept_instances;
-	while (instance != NULL) {
+	for ( ; instance != NULL; instance = instance->next) {
 		create_concept_instance(instance);
-		instance = instance->next;
 	}
 }
 

@@ -88,7 +88,7 @@ static void print_reference_expression(const reference_expression_t *ref)
 	if (ref->declaration == NULL) {
 		fprintf(out, "?%s", ref->symbol->string);
 	} else {
-		fprintf(out, "%s", ref->declaration->symbol->string);
+		fprintf(out, "%s", ref->declaration->base.symbol->string);
 	}
 
 	print_type_arguments(ref->type_arguments);
@@ -276,7 +276,7 @@ static void print_goto_statement(const goto_statement_t *statement)
 {
 	fprintf(out, "goto ");
 	if (statement->label != NULL) {
-		symbol_t *symbol = statement->label->declaration.symbol;
+		symbol_t *symbol = statement->label->base.symbol;
 		if (symbol == NULL) {
 			fprintf(out, "$%p$", statement->label);
 		} else {
@@ -289,7 +289,7 @@ static void print_goto_statement(const goto_statement_t *statement)
 
 static void print_label_statement(const label_statement_t *statement)
 {
-	symbol_t *symbol = statement->declaration.declaration.symbol;
+	symbol_t *symbol = statement->declaration.base.symbol;
 	if (symbol != NULL) {
 		fprintf(out, ":%s", symbol->string);
 	} else {
@@ -321,7 +321,7 @@ static void print_variable_declaration(const variable_declaration_t *var)
 		print_type(var->type);
 		fprintf(out, ">");
 	}
-	fprintf(out, " %s", var->declaration.symbol->string);
+	fprintf(out, " %s", var->base.symbol->string);
 }
 
 static void print_variable_declaration_statement(
@@ -372,7 +372,7 @@ static void print_type_constraint(const type_constraint_t *constraint)
 	if (constraint->concept == NULL) {
 		fprintf(out, "?%s", constraint->concept_symbol->string);
 	} else {
-		fprintf(out, "%s", constraint->concept->declaration.symbol->string);
+		fprintf(out, "%s", constraint->concept->base.symbol->string);
 	}
 }
 
@@ -386,7 +386,7 @@ static void print_type_variable(const type_variable_t *type_variable)
 		constraint = constraint->next;
 	}
 
-	fprintf(out, "%s", type_variable->declaration.symbol->string);
+	fprintf(out, "%s", type_variable->base.symbol->string);
 }
 
 static void print_type_parameters(const type_variable_t *type_parameters)
@@ -425,7 +425,7 @@ static void print_method_parameters(const method_parameter_t *parameters,
 		}
 
 		print_type(parameter_type->type);
-		fprintf(out, " %s", parameter->declaration.symbol->string);
+		fprintf(out, " %s", parameter->declaration.base.symbol->string);
 
 		parameter      = parameter->next;
 		parameter_type = parameter_type->next;
@@ -446,7 +446,7 @@ static void print_method(const method_declaration_t *method_declaration)
 		fprintf(out, "extern ");
 	}
 
-	fprintf(out, " %s", method_declaration->declaration.symbol->string);
+	fprintf(out, " %s", method_declaration->base.symbol->string);
 
 	print_type_parameters(method->type_parameters);
 
@@ -466,7 +466,7 @@ static void print_method(const method_declaration_t *method_declaration)
 static void print_concept_method(const concept_method_t *method)
 {
 	fprintf(out, "\tfunc ");
-	fprintf(out, "%s", method->declaration.symbol->string);
+	fprintf(out, "%s", method->base.symbol->string);
 	print_method_parameters(method->parameters, method->method_type);
 	fprintf(out, " : ");
 	print_type(method->method_type->result_type);
@@ -475,7 +475,7 @@ static void print_concept_method(const concept_method_t *method)
 
 static void print_concept(const concept_t *concept)
 {
-	fprintf(out, "concept %s", concept->declaration.symbol->string);
+	fprintf(out, "concept %s", concept->base.symbol->string);
 	print_type_parameters(concept->type_parameters);
 	fprintf(out, ":\n");
 
@@ -495,7 +495,7 @@ static void print_concept_method_instance(
 	const method_t *method = &method_instance->method;
 	if (method_instance->concept_method != NULL) {
 		concept_method_t *method = method_instance->concept_method;
-		fprintf(out, "%s", method->declaration.symbol->string);
+		fprintf(out, "%s", method->base.symbol->string);
 	} else {
 		fprintf(out, "?%s", method_instance->symbol->string);
 	}
@@ -517,7 +517,7 @@ static void print_concept_instance(const concept_instance_t *instance)
 {
 	fprintf(out, "instance ");
 	if (instance->concept != NULL) {
-		fprintf(out, "%s", instance->concept->declaration.symbol->string);
+		fprintf(out, "%s", instance->concept->base.symbol->string);
 	} else {
 		fprintf(out, "?%s", instance->concept_symbol->string);
 	}
@@ -534,7 +534,7 @@ static void print_concept_instance(const concept_instance_t *instance)
 
 static void print_constant(const constant_t *constant)
 {
-	fprintf(out, "const %s", constant->declaration.symbol->string);
+	fprintf(out, "const %s", constant->base.symbol->string);
 	if (constant->type != NULL) {
 		fprintf(out, " ");
 		print_type(constant->type);
@@ -548,7 +548,7 @@ static void print_constant(const constant_t *constant)
 
 static void print_typealias(const typealias_t *alias)
 {
-	fprintf(out, "typealias %s <- ", alias->declaration.symbol->string);
+	fprintf(out, "typealias %s <- ", alias->base.symbol->string);
 	print_type(alias->type);
 	fprintf(out, "\n");
 }
@@ -557,7 +557,7 @@ static void print_declaration(const declaration_t *declaration)
 {
 	print_indent();
 
-	switch (declaration->type) {
+	switch (declaration->kind) {
 	case DECLARATION_METHOD:
 		print_method((const method_declaration_t*) declaration);
 		break;
@@ -578,7 +578,8 @@ static void print_declaration(const declaration_t *declaration)
 	case DECLARATION_METHOD_PARAMETER:
 	case DECLARATION_ERROR:
 		// TODO
-		fprintf(out, "some declaration of type %d\n", declaration->type);
+		fprintf(out, "some declaration of type '%s'\n",
+		        get_declaration_kind_name(declaration->kind));
 		break;
 
 	case DECLARATION_TYPE_VARIABLE:
@@ -587,7 +588,8 @@ static void print_declaration(const declaration_t *declaration)
 
 	case DECLARATION_INVALID:
 	case DECLARATION_LAST:
-		fprintf(out, "invalid namespace declaration (%d)\n", declaration->type);
+		fprintf(out, "invalid namespace declaration (%s)\n",
+		        get_declaration_kind_name(declaration->kind));
 		break;
 	}
 }
@@ -595,15 +597,13 @@ static void print_declaration(const declaration_t *declaration)
 static void print_context(const context_t *context)
 {
 	declaration_t *declaration = context->declarations;
-	while (declaration != NULL) {
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
 		print_declaration(declaration);
-		declaration = declaration->next;
 	}
 
 	concept_instance_t *instance = context->concept_instances;
-	while (instance != NULL) {
+	for ( ; instance != NULL; instance = instance->next) {
 		print_concept_instance(instance);
-		instance = instance->next;
 	}
 }
 
@@ -618,7 +618,7 @@ void print_ast(FILE *new_out, const namespace_t *namespace)
 	out = NULL;
 }
 
-const char *get_declaration_type_name(declaration_type_t type)
+const char *get_declaration_kind_name(declaration_kind_t type)
 {
 	switch (type) {
 	case DECLARATION_LAST:

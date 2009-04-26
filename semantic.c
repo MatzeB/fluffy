@@ -87,16 +87,16 @@ void environment_push(declaration_t *declaration, const void *context)
 	ARR_RESIZE(environment_entry_t*, symbol_stack, top + 1);
 	symbol_stack[top] = entry;
 
-	symbol_t *symbol = declaration->symbol;
+	symbol_t *symbol = declaration->base.symbol;
 
 	assert(declaration != symbol->declaration);
 
 	if (symbol->context == context) {
 		assert(symbol->declaration != NULL);
-		print_error_prefix(declaration->source_position);
+		print_error_prefix(declaration->base.source_position);
 		fprintf(stderr, "multiple definitions for symbol '%s'.\n",
 		        symbol->string);
-		print_error_prefix(symbol->declaration->source_position);
+		print_error_prefix(symbol->declaration->base.source_position);
 		fprintf(stderr, "this is the location of the previous declaration.\n");
 	}
 
@@ -132,11 +132,11 @@ void environment_pop_to(size_t new_top)
 		symbol_t      *symbol      = entry->symbol;
 		declaration_t *declaration = symbol->declaration;
 
-		if (declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->kind == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
 			if (variable->refs == 0 && !variable->is_extern) {
-				print_warning_prefix(declaration->source_position);
+				print_warning_prefix(declaration->base.source_position);
 				fprintf(stderr, "variable '%s' was declared but never read\n",
 				        symbol->string);
 			}
@@ -191,7 +191,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		return NULL;
 	}
 
-	if (declaration->type == DECLARATION_TYPE_VARIABLE) {
+	if (declaration->kind == DECLARATION_TYPE_VARIABLE) {
 		type_variable_t *type_variable = (type_variable_t*) declaration;
 
 		if (type_variable->current_type != NULL) {
@@ -205,10 +205,10 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		return typehash_insert((type_t*) type_ref);
 	}
 
-	if (declaration->type != DECLARATION_TYPEALIAS) {
+	if (declaration->kind != DECLARATION_TYPEALIAS) {
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
-		        symbol->string, get_declaration_type_name(declaration->type));
+		        symbol->string, get_declaration_kind_name(declaration->kind));
 		return NULL;
 	}
 
@@ -406,7 +406,7 @@ static type_t *check_reference(declaration_t *declaration,
 	concept_method_t       *concept_method;
 	type_t                 *type;
 
-	switch (declaration->type) {
+	switch (declaration->kind) {
 	case DECLARATION_VARIABLE:
 		variable = (variable_declaration_t*) declaration;
 		variable->refs++;
@@ -449,8 +449,8 @@ static type_t *check_reference(declaration_t *declaration,
 	case DECLARATION_TYPE_VARIABLE:
 		print_error_prefix(source_position);
 		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
-		        declaration->symbol->string,
-		        get_declaration_type_name(declaration->type));
+		        declaration->base.symbol->string,
+		        get_declaration_kind_name(declaration->kind));
 		return NULL;
 	case DECLARATION_ERROR:
 		found_errors = true;
@@ -493,7 +493,7 @@ static bool is_lvalue(const expression_t *expression)
 	case EXPR_REFERENCE:
 		reference   = (reference_expression_t*) expression;
 		declaration = reference->declaration;
-		if (declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->kind == DECLARATION_VARIABLE) {
 			return true;
 		}
 		break;
@@ -527,10 +527,10 @@ static void check_assign_expression(binary_expression_t *assign)
 		reference_expression_t *reference   = (reference_expression_t*) left;
 		declaration_t          *declaration = reference->declaration;
 
-		if (declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->kind == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
-			symbol_t *symbol = variable->declaration.symbol;
+			symbol_t *symbol = variable->base.symbol;
 
 			/* do type inference if needed */
 			if (left->datatype == NULL) {
@@ -863,15 +863,9 @@ static concept_instance_t *_find_concept_instance(concept_t *concept,
 				panic("type variable has no type set while searching "
 				      "concept instance");
 			}
-#if 0
-			if (parameter->current_type != argument->type) {
-				match = false;
-				break;
-			}
-#endif
 			if (!match_variant_to_concrete_type(
 						argument->type, parameter->current_type,
-						concept->declaration.source_position, false)) {
+						concept->base.source_position, false)) {
 				match = false;
 				break;
 			}
@@ -929,7 +923,7 @@ concept_method_instance_t *get_method_from_concept_instance(
 static void resolve_concept_method_instance(reference_expression_t *reference)
 {
 	declaration_t *declaration = reference->declaration;
-	assert(declaration->type == DECLARATION_CONCEPT_METHOD);
+	assert(declaration->kind == DECLARATION_CONCEPT_METHOD);
 
 	concept_method_t *concept_method = (concept_method_t*) declaration;
 	concept_t        *concept        = concept_method->concept;
@@ -953,9 +947,9 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 				print_error_prefix(reference->expression.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
 				        "concept '%s' when using method '%s'.\n",
-				        type_variable->declaration.symbol->string,
-				        concept->declaration.symbol->string,
-				        concept_method->declaration.symbol->string);
+				        type_variable->base.symbol->string,
+				        concept->base.symbol->string,
+				        concept_method->base.symbol->string);
 				return;
 			}
 			cant_resolve = true;
@@ -974,7 +968,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 	if (instance == NULL) {
 		print_error_prefix(reference->expression.source_position);
 		fprintf(stderr, "there's no instance of concept '%s' for type ",
-		        concept->declaration.symbol->string);
+		        concept->base.symbol->string);
 		type_variable_t *typevar = concept->type_parameters;
 		while (typevar != NULL) {
 			if (typevar->current_type != NULL) {
@@ -1026,8 +1020,8 @@ static void check_type_constraints(type_variable_t *type_variables,
 				if (!type_variable_has_constraint(type_var, concept)) {
 					print_error_prefix(source_position);
 					fprintf(stderr, "type variable '%s' needs constraint "
-					        "'%s'\n", type_var->declaration.symbol->string,
-					        concept->declaration.symbol->string);
+					        "'%s'\n", type_var->base.symbol->string,
+					        concept->base.symbol->string);
 				}
 				continue;
 			}
@@ -1042,12 +1036,12 @@ static void check_type_constraints(type_variable_t *type_variables,
 				print_error_prefix(source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of "
 				        "method doesn't match type constraints:\n",
-				        type_var->declaration.symbol->string);
+				        type_var->base.symbol->string);
 				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
 				print_type(type_var->current_type);
 				fprintf(stderr, " is no instance of concept '%s'\n",
-				        concept->declaration.symbol->string);
+				        concept->base.symbol->string);
 			}
 
 			/* reset typevar binding */
@@ -1180,13 +1174,13 @@ static void check_call_expression(call_expression_t *call)
 			= (reference_expression_t*) method;
 		declaration_t *declaration = reference->declaration;
 
-		if (declaration->type == DECLARATION_CONCEPT_METHOD) {
+		if (declaration->kind == DECLARATION_CONCEPT_METHOD) {
 			concept_method_t *concept_method = (concept_method_t*) declaration;
 			concept_t        *concept        = concept_method->concept;
 		
 			type_variables = concept->type_parameters;
 			type_arguments = reference->type_arguments;
-		} else if (declaration->type == DECLARATION_METHOD) {
+		} else if (declaration->kind == DECLARATION_METHOD) {
 			method_declaration_t *method_declaration
 				= (method_declaration_t*) declaration;
 
@@ -1289,11 +1283,11 @@ static void check_call_expression(call_expression_t *call)
 			print_error_prefix(call->expression.source_position);
 			fprintf(stderr, "Couldn't determine concrete type for type "
 					"variable '%s' in call expression\n",
-			        type_var->declaration.symbol->string);
+			        type_var->base.symbol->string);
 		}
 #ifdef DEBUG_TYPEVAR_BINDING
 		fprintf(stderr, "TypeVar '%s'(%p) bound to ",
-		        type_var->declaration.symbol->string, type_var);
+		        type_var->base.symbol->string, type_var);
 		print_type(type_var->current_type);
 		fprintf(stderr, "\n");
 #endif
@@ -1310,7 +1304,7 @@ static void check_call_expression(call_expression_t *call)
 
 		result_type = create_concrete_type(result_type);
 
-		if (declaration->type == DECLARATION_CONCEPT_METHOD) {
+		if (declaration->kind == DECLARATION_CONCEPT_METHOD) {
 			/* we might be able to resolve the concept_method_instance now */
 			resolve_concept_method_instance(ref);
 
@@ -1319,7 +1313,7 @@ static void check_call_expression(call_expression_t *call)
 			type_parameters                  = concept->type_parameters;
 		} else {
 			/* check type constraints */
-			assert(declaration->type == DECLARATION_METHOD);
+			assert(declaration->kind == DECLARATION_METHOD);
 			check_type_constraints(type_variables,
 			                       call->expression.source_position);
 
@@ -1423,7 +1417,7 @@ static void check_take_address_expression(unary_expression_t *expression)
 		reference_expression_t *reference   = (reference_expression_t*) value;
 		declaration_t          *declaration = reference->declaration;
 
-		if (declaration->type == DECLARATION_VARIABLE) {
+		if (declaration->kind == DECLARATION_VARIABLE) {
 			variable_declaration_t *variable 
 				= (variable_declaration_t*) declaration;
 			variable->needs_entity = 1;
@@ -1689,11 +1683,9 @@ static void check_select_expression(select_expression_t *select)
 
 	/* try to find a matching declaration */
 	declaration_t *declaration = compound_type->context.declarations;
-	while (declaration != NULL) {
-		if (declaration->symbol == symbol)
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		if (declaration->base.symbol == symbol)
 			break;
-
-		declaration = declaration->next;
 	}
 	if (declaration != NULL) {
 		type_t *type = check_reference(declaration,
@@ -1926,10 +1918,8 @@ static void check_if_statement(if_statement_t *statement)
 static void push_context(const context_t *context)
 {
 	declaration_t *declaration = context->declarations;
-	while (declaration != NULL) {
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
 		environment_push(declaration, context);
-
-		declaration = declaration->next;
 	}
 }
 
@@ -2045,10 +2035,10 @@ static void check_goto_statement(goto_statement_t *goto_statement)
 		        symbol->string);
 		return;
 	}
-	if (declaration->type != DECLARATION_LABEL) {
+	if (declaration->kind != DECLARATION_LABEL) {
 		print_error_prefix(goto_statement->statement.source_position);
 		fprintf(stderr, "goto argument '%s' should be a label but is a '%s'.\n",
-		        symbol->string, get_declaration_type_name(declaration->type));
+		        symbol->string, get_declaration_kind_name(declaration->kind));
 		return;
 	}
 
@@ -2165,7 +2155,7 @@ static void check_constant(constant_t *constant)
 	expression = check_expression(expression);
 	if (expression->datatype != constant->type) {
 		expression = make_cast(expression, constant->type,
-		                       constant->declaration.source_position, false);
+		                       constant->base.source_position, false);
 	}
 	constant->expression = expression;
 }
@@ -2181,10 +2171,10 @@ static void resolve_type_constraint(type_constraint_t *constraint,
 		fprintf(stderr, "nothing known about symbol '%s'\n", symbol->string);
 		return;
 	}
-	if (declaration->type != DECLARATION_CONCEPT) {
+	if (declaration->kind != DECLARATION_CONCEPT) {
 		print_error_prefix(source_position);
 		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
-		        symbol->string, get_declaration_type_name(declaration->type));
+		        symbol->string, get_declaration_kind_name(declaration->kind));
 		return;
 	}
 
@@ -2197,10 +2187,8 @@ static void resolve_type_variable_constraints(type_variable_t *type_variables)
 	while (type_var != NULL) {
 		type_constraint_t *constraint = type_var->constraints;
 
-		while (constraint != NULL) {
-			resolve_type_constraint(constraint, type_var->declaration.source_position);
-
-			constraint = constraint->next;
+		for ( ; constraint != NULL; constraint = constraint->next) {
+			resolve_type_constraint(constraint, type_var->base.source_position);
 		}
 		type_var = type_var->next;
 	}
@@ -2216,9 +2204,8 @@ static void resolve_method_types(method_t *method)
 
 	/* normalize parameter types */
 	method_parameter_t *parameter = method->parameters;
-	while (parameter != NULL) {
+	for ( ; parameter != NULL; parameter = parameter->next) {
 		parameter->type = normalize_type(parameter->type);
-		parameter       = parameter->next;
 	}
 
 	method->type = (method_type_t*) normalize_type((type_t*) method->type);
@@ -2255,13 +2242,11 @@ static void resolve_concept_types(concept_t *concept)
 
 	/* normalize method types */
 	concept_method_t *concept_method = concept->methods;
-	while (concept_method != NULL) {
+	for ( ; concept_method != NULL; concept_method = concept_method->next) {
 		type_t *normalized_type 
 			= normalize_type((type_t*) concept_method->method_type);
 		assert(normalized_type->type == TYPE_METHOD);
 		concept_method->method_type = (method_type_t*) normalized_type;
-
-		concept_method = concept_method->next;
 	}
 
 	environment_pop_to(old_top);
@@ -2274,14 +2259,14 @@ static void resolve_concept_instance(concept_instance_t *instance)
 	declaration_t *declaration = symbol->declaration;
 
 	if (declaration == NULL) {
-		print_error_prefix(declaration->source_position);
+		print_error_prefix(declaration->base.source_position);
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
-	if (declaration->type != DECLARATION_CONCEPT) {
-		print_error_prefix(declaration->source_position);
+	if (declaration->kind != DECLARATION_CONCEPT) {
+		print_error_prefix(declaration->base.source_position);
 		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
-		        symbol->string, get_declaration_type_name(declaration->type));
+		        symbol->string, get_declaration_kind_name(declaration->kind));
 		return;
 	}
 
@@ -2326,15 +2311,15 @@ static void resolve_concept_instance(concept_instance_t *instance)
 		int n = 0;
 		for (method = concept->methods; method != NULL;
 				method = method->next, ++n) {
-			if (method->declaration.symbol == method_instance->symbol)
+			if (method->base.symbol == method_instance->symbol)
 				break;
 		}
 
 		if (method == NULL) {
 			print_warning_prefix(method_instance->source_position);
 			fprintf(stderr, "concept '%s' does not declare a method '%s'\n",
-			        concept->declaration.symbol->string,
-					method->declaration.symbol->string);
+			        concept->base.symbol->string,
+					method->base.symbol->string);
 		} else {
 			method_instance->concept_method   = method;
 			method_instance->concept_instance = instance;
@@ -2342,8 +2327,8 @@ static void resolve_concept_instance(concept_instance_t *instance)
 				print_error_prefix(method_instance->source_position);
 				fprintf(stderr, "multiple implementations of method '%s' found "
 						"in instance of concept '%s'\n",
-						method->declaration.symbol->string,
-						concept->declaration.symbol->string);
+						method->base.symbol->string,
+						concept->base.symbol->string);
 			}
 			have_method[n] = true;
 		}
@@ -2365,8 +2350,8 @@ static void resolve_concept_instance(concept_instance_t *instance)
 		if (!have_method[n]) {
 			print_error_prefix(instance->source_position);
 			fprintf(stderr, "instance of concept '%s' does not implement "
-					"method '%s'\n", concept->declaration.symbol->string,
-			        method->declaration.symbol->string);
+					"method '%s'\n", concept->base.symbol->string,
+			        method->base.symbol->string);
 		}
 	}
 
@@ -2387,7 +2372,7 @@ static void check_export(const export_t *export)
 		return;
 	}
 
-	switch (declaration->type) {
+	switch (declaration->kind) {
 	case DECLARATION_METHOD:
 		method                = (method_declaration_t*) declaration;
 		method->method.export = 1;
@@ -2400,7 +2385,7 @@ static void check_export(const export_t *export)
 		print_error_prefix(export->source_position);
 		fprintf(stderr, "Can only export functions and variables but '%s' "
 		        "is a %s\n", symbol->string,
-		        get_declaration_type_name(declaration->type));
+		        get_declaration_kind_name(declaration->kind));
 		return;
 	}
 
@@ -2409,82 +2394,68 @@ static void check_export(const export_t *export)
 
 static void check_and_push_context(context_t *context)
 {
-	variable_declaration_t *variable;
-	method_declaration_t   *method;
-	typealias_t            *typealias;
-	type_t                 *type;
-	concept_t              *concept;
-
 	push_context(context);
 
 	/* normalize types, resolve concept instance references */
 	declaration_t *declaration = context->declarations;
-	while (declaration != NULL) {
-		switch (declaration->type) {
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		switch (declaration->kind) {
 		case DECLARATION_VARIABLE:
-			variable       = (variable_declaration_t*) declaration;
-			variable->type = normalize_type(variable->type);
+			declaration->variable.type 
+				= normalize_type(declaration->variable.type);
 			break;
 		case DECLARATION_METHOD:
-			method = (method_declaration_t*) declaration;
-			resolve_method_types(&method->method);
+			resolve_method_types(&declaration->method.method);
 			break;
-		case DECLARATION_TYPEALIAS:
-			typealias = (typealias_t*) declaration;
-			type      = normalize_type(typealias->type);
+		case DECLARATION_TYPEALIAS: {
+			type_t *type = normalize_type(declaration->typealias.type);
 			if (type->type == TYPE_COMPOUND_UNION
 				|| type->type == TYPE_COMPOUND_STRUCT) {
 				check_compound_type((compound_type_t*) type);
 			}
-			typealias->type = type;
+			declaration->typealias.type = type;
 			break;
+		}
 		case DECLARATION_CONCEPT:
-			concept = (concept_t*) declaration;
-			resolve_concept_types(concept);
+			resolve_concept_types(&declaration->concept);
 			break;
 		default:
 			break;
 		}
-
-		declaration = declaration->next;
 	}
-	concept_instance_t *instance = context->concept_instances;
-	while (instance != NULL) {
-		resolve_concept_instance(instance);
 
-		instance = instance->next;
+	concept_instance_t *instance = context->concept_instances;
+	for ( ; instance != NULL; instance = instance->next) {
+		resolve_concept_instance(instance);
 	}
 	
-
 	/* check semantics in conceptes */
 	instance = context->concept_instances;
-	while (instance != NULL) {
+	for ( ; instance != NULL; instance = instance->next) {
 		check_concept_instance(instance);
-		instance = instance->next;
 	}
+
 	/* check semantics in methods */
 	declaration = context->declarations;
-	while (declaration != NULL) {
-		switch (declaration->type) {
-		case DECLARATION_METHOD:
-			method = (method_declaration_t*) declaration;
-			check_method(&method->method, method->declaration.symbol,
-			             method->declaration.source_position);
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		switch (declaration->kind) {
+		case DECLARATION_METHOD: {
+			check_method(&declaration->method.method, declaration->base.symbol,
+			             declaration->base.source_position);
 			break;
+		}
 		case DECLARATION_CONSTANT:
 			check_constant((constant_t*) declaration);
 			break;
 		default:
 			break;
 		}
-
-		declaration = declaration->next;
 	}
+
 	/* handle export declarations */
 	export_t *export = context->exports;
-	while (export != NULL) {
+	for ( ; export != NULL; export = export->next) {
 		check_export(export);
-		export = export->next;
 	}
 }
 
@@ -2547,9 +2518,8 @@ int check_static_semantic(void)
 	error_type    = type_void;
 
 	namespace_t *namespace = namespaces;
-	while (namespace != NULL) {
+	for ( ; namespace != NULL; namespace = namespace->next) {
 		check_namespace(namespace);
-		namespace = namespace->next;
 	}
 
 	if (!found_export) {

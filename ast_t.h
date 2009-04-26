@@ -49,13 +49,13 @@ typedef enum {
 	DECLARATION_CONCEPT_METHOD,
 	DECLARATION_LABEL,
 	DECLARATION_LAST
-} declaration_type_t;
+} declaration_kind_t;
 
 /**
  * base struct for a declaration
  */
-struct declaration_t {
-	declaration_type_t  type;
+struct declaration_base_t {
+	declaration_kind_t  kind;
 	symbol_t           *symbol;
 	declaration_t      *next;
 	source_position_t   source_position;
@@ -89,11 +89,11 @@ struct attribute_t {
 };
 
 struct type_variable_t {
-	declaration_t      declaration;
-	type_constraint_t *constraints;
-	type_variable_t   *next;
+	declaration_base_t  base;
+	type_constraint_t  *constraints;
+	type_variable_t    *next;
 
-	type_t            *current_type;
+	type_t             *current_type;
 };
 
 struct method_t {
@@ -114,13 +114,76 @@ struct method_t {
 };
 
 struct method_declaration_t {
-	declaration_t  declaration;
-	method_t       method;
+	declaration_base_t base;
+	method_t           method;
 };
 
 struct iterator_declaration_t {
-	declaration_t  declaration;
-	method_t       method;
+	declaration_base_t base;
+	method_t           method;
+};
+
+struct variable_declaration_t {
+	declaration_base_t  base;
+	type_t             *type;
+
+	bool                is_extern;
+	bool                export;
+	bool                is_global;
+	bool                needs_entity;
+	int                 refs;         /**< temporarily used by semantic phase */
+
+	ir_entity          *entity;
+	int                 value_number;
+};
+
+struct label_declaration_t {
+	declaration_base_t   base;
+	ir_node             *block;
+	label_declaration_t *next;
+};
+
+struct constant_t {
+	declaration_base_t  base;
+	type_t             *type;
+	expression_t       *expression;
+};
+
+struct typealias_t {
+	declaration_base_t  base;
+	type_t             *type;
+};
+
+struct concept_method_t {
+	declaration_base_t  base;
+	method_type_t      *method_type;
+	method_parameter_t *parameters;
+	concept_t          *concept;
+
+	concept_method_t   *next;
+};
+
+struct concept_t {
+	declaration_base_t  base;
+
+	type_variable_t    *type_parameters;
+	concept_method_t   *methods;
+	concept_instance_t *instances;
+	context_t           context;
+};
+
+union declaration_t {
+	declaration_kind_t      kind;
+	declaration_base_t      base;
+	type_variable_t         type_variable;
+	method_declaration_t    method;
+	iterator_declaration_t  iterator;
+	variable_declaration_t  variable;
+	label_declaration_t     label;
+	constant_t              constant;
+	typealias_t             typealias;
+	concept_t               concept;
+	concept_method_t        concept_method;
 };
 
 typedef enum {
@@ -297,20 +360,6 @@ struct block_statement_t {
 	context_t          context;
 };
 
-struct variable_declaration_t {
-	declaration_t  declaration;
-	type_t        *type;
-
-	bool           is_extern;
-	bool           export;
-	bool           is_global;
-	bool           needs_entity;
-	int            refs;         /**< temporarily used by semantic phase */
-
-	ir_entity     *entity;
-	int            value_number;
-};
-
 struct variable_declaration_statement_t {
 	statement_t             statement;
 	variable_declaration_t  declaration;
@@ -321,12 +370,6 @@ struct if_statement_t {
 	expression_t *condition;
 	statement_t  *true_statement;
 	statement_t  *false_statement;
-};
-
-struct label_declaration_t {
-	declaration_t        declaration;
-	ir_node             *block;
-	label_declaration_t *next;
 };
 
 struct goto_statement_t {
@@ -345,25 +388,11 @@ struct expression_statement_t {
 	expression_t *expression;
 };
 
-
-
-
 struct method_parameter_t {
 	declaration_t       declaration;
 	method_parameter_t *next;
 	type_t             *type;
 	int                 num;
-};
-
-struct constant_t {
-	declaration_t  declaration;
-	type_t        *type;
-	expression_t  *expression;
-};
-
-struct typealias_t {
-	declaration_t  declaration;
-	type_t        *type;
 };
 
 struct concept_method_instance_t {
@@ -389,24 +418,6 @@ struct concept_instance_t {
 	type_variable_t           *type_parameters;
 };
 
-struct concept_method_t {
-	declaration_t       declaration;
-	method_type_t      *method_type;
-	method_parameter_t *parameters;
-	concept_t          *concept;
-
-	concept_method_t   *next;
-};
-
-struct concept_t {
-	declaration_t       declaration;
-
-	type_variable_t    *type_parameters;
-	concept_method_t   *methods;
-	concept_instance_t *instances;
-	context_t           context;
-};
-
 struct namespace_t {
 	symbol_t             *symbol;
 	const char           *filename;
@@ -424,7 +435,7 @@ void *_allocate_ast(size_t size)
 
 #define allocate_ast(size)                 _allocate_ast(size)
 
-const char *get_declaration_type_name(declaration_type_t type);
+const char *get_declaration_kind_name(declaration_kind_t type);
 
 /* ----- helpers for plugins ------ */
 
