@@ -196,20 +196,83 @@ typedef enum {
 	EXPR_NULL_POINTER,
 	EXPR_REFERENCE,
 	EXPR_CALL,
-	EXPR_UNARY,
-	EXPR_BINARY,
 	EXPR_SELECT,
 	EXPR_ARRAY_ACCESS,
 	EXPR_SIZEOF,
 	EXPR_FUNC,
-	EXPR_LAST
-} expresion_type_t;
+
+	EXPR_UNARY_FIRST,
+	EXPR_UNARY_NEGATE = EXPR_UNARY_FIRST,
+	EXPR_UNARY_NOT,
+	EXPR_UNARY_BITWISE_NOT,
+	EXPR_UNARY_DEREFERENCE,
+	EXPR_UNARY_TAKE_ADDRESS,
+	EXPR_UNARY_CAST,
+	EXPR_UNARY_INCREMENT,
+	EXPR_UNARY_DECREMENT,
+	EXPR_UNARY_LAST = EXPR_UNARY_DECREMENT,
+
+	EXPR_BINARY_FIRST,
+	EXPR_BINARY_ASSIGN = EXPR_BINARY_FIRST,
+	EXPR_BINARY_ADD,
+	EXPR_BINARY_SUB,
+	EXPR_BINARY_MUL,
+	EXPR_BINARY_DIV,
+	EXPR_BINARY_MOD,
+	EXPR_BINARY_EQUAL,
+	EXPR_BINARY_NOTEQUAL,
+	EXPR_BINARY_LESS,
+	EXPR_BINARY_LESSEQUAL,
+	EXPR_BINARY_GREATER,
+	EXPR_BINARY_GREATEREQUAL,
+	EXPR_BINARY_LAZY_AND,
+	EXPR_BINARY_LAZY_OR,
+	EXPR_BINARY_AND,
+	EXPR_BINARY_OR,
+	EXPR_BINARY_XOR,
+	EXPR_BINARY_SHIFTLEFT,
+	EXPR_BINARY_SHIFTRIGHT,
+	EXPR_BINARY_LAST = EXPR_BINARY_SHIFTRIGHT,
+
+	EXPR_LAST = EXPR_BINARY_LAST
+} expression_type_t;
+
+#define EXPR_UNARY_CASES           \
+	case EXPR_UNARY_NEGATE:        \
+	case EXPR_UNARY_NOT:           \
+	case EXPR_UNARY_BITWISE_NOT:   \
+	case EXPR_UNARY_DEREFERENCE:   \
+	case EXPR_UNARY_TAKE_ADDRESS:  \
+	case EXPR_UNARY_CAST:          \
+	case EXPR_UNARY_INCREMENT:     \
+	case EXPR_UNARY_DECREMENT:
+
+#define EXPR_BINARY_CASES          \
+	case EXPR_BINARY_ASSIGN:       \
+	case EXPR_BINARY_ADD:          \
+	case EXPR_BINARY_SUB:          \
+	case EXPR_BINARY_MUL:          \
+	case EXPR_BINARY_DIV:          \
+	case EXPR_BINARY_MOD:          \
+	case EXPR_BINARY_EQUAL:        \
+	case EXPR_BINARY_NOTEQUAL:     \
+	case EXPR_BINARY_LESS:         \
+	case EXPR_BINARY_LESSEQUAL:    \
+	case EXPR_BINARY_GREATER:      \
+	case EXPR_BINARY_GREATEREQUAL: \
+	case EXPR_BINARY_LAZY_AND:     \
+	case EXPR_BINARY_LAZY_OR:      \
+	case EXPR_BINARY_AND:          \
+	case EXPR_BINARY_OR:           \
+	case EXPR_BINARY_XOR:          \
+	case EXPR_BINARY_SHIFTLEFT:    \
+	case EXPR_BINARY_SHIFTRIGHT:
 
 /**
  * base structure for expressions
  */
 struct expression_t {
-	expresion_type_t   type;
+	expression_type_t  type;
 	type_t            *datatype;
 	source_position_t  source_position;
 };
@@ -261,52 +324,15 @@ struct call_expression_t {
 	call_argument_t *arguments;
 };
 
-typedef enum {
-	UNEXPR_INVALID = 0,
-	UNEXPR_NEGATE,
-	UNEXPR_NOT,
-	UNEXPR_BITWISE_NOT,
-	UNEXPR_DEREFERENCE,
-	UNEXPR_TAKE_ADDRESS,
-	UNEXPR_CAST,
-	UNEXPR_INCREMENT,
-	UNEXPR_DECREMENT
-} unary_expression_type_t;
-
 struct unary_expression_t {
-	expression_t             expression;
-	unary_expression_type_t  type;
-	expression_t            *value;
+	expression_t  expression;
+	expression_t *value;
 };
 
-typedef enum {
-	BINEXPR_INVALID = 0,
-	BINEXPR_ASSIGN,
-	BINEXPR_ADD,
-	BINEXPR_SUB,
-	BINEXPR_MUL,
-	BINEXPR_DIV,
-	BINEXPR_MOD,
-	BINEXPR_EQUAL,
-	BINEXPR_NOTEQUAL,
-	BINEXPR_LESS,
-	BINEXPR_LESSEQUAL,
-	BINEXPR_GREATER,
-	BINEXPR_GREATEREQUAL,
-	BINEXPR_LAZY_AND,
-	BINEXPR_LAZY_OR,
-	BINEXPR_AND,
-	BINEXPR_OR,
-	BINEXPR_XOR,
-	BINEXPR_SHIFTLEFT,
-	BINEXPR_SHIFTRIGHT,
-} binary_expression_type_t;
-
 struct binary_expression_t {
-	expression_t              expression;
-	binary_expression_type_t  type;
-	expression_t             *left;
-	expression_t             *right;
+	expression_t  expression;
+	expression_t *left;
+	expression_t *right;
 };
 
 struct select_expression_t {

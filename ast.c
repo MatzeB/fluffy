@@ -126,15 +126,15 @@ static void print_sizeof_expression(const sizeof_expression_t *expr)
 static void print_unary_expression(const unary_expression_t *unexpr)
 {
 	fprintf(out, "(");
-	switch (unexpr->type) {
-	case UNEXPR_CAST:
+	switch (unexpr->expression.type) {
+	case EXPR_UNARY_CAST:
 		fprintf(out, "cast<");
 		print_type(unexpr->expression.datatype);
 		fprintf(out, "> ");
 		print_expression(unexpr->value);
 		break;
 	default:
-		fprintf(out, "*unexpr %d*", unexpr->type);
+		fprintf(out, "*unexpr %d*", unexpr->expression.type);
 		break;
 	}
 	fprintf(out, ")");
@@ -145,46 +145,43 @@ static void print_binary_expression(const binary_expression_t *binexpr)
 	fprintf(out, "(");
 	print_expression(binexpr->left);
 	fprintf(out, " ");
-	switch (binexpr->type) {
-	case BINEXPR_INVALID:
-		fprintf(out, "INVOP");
-		break;
-	case BINEXPR_ASSIGN:
+	switch (binexpr->expression.type) {
+	case EXPR_BINARY_ASSIGN:
 		fprintf(out, "<-");
 		break;
-	case BINEXPR_ADD:
+	case EXPR_BINARY_ADD:
 		fprintf(out, "+");
 		break;
-	case BINEXPR_SUB:
+	case EXPR_BINARY_SUB:
 		fprintf(out, "-");
 		break;
-	case BINEXPR_MUL:
+	case EXPR_BINARY_MUL:
 		fprintf(out, "*");
 		break;
-	case BINEXPR_DIV:
+	case EXPR_BINARY_DIV:
 		fprintf(out, "/");
 		break;
-	case BINEXPR_NOTEQUAL:
+	case EXPR_BINARY_NOTEQUAL:
 		fprintf(out, "/=");
 		break;
-	case BINEXPR_EQUAL:
+	case EXPR_BINARY_EQUAL:
 		fprintf(out, "=");
 		break;
-	case BINEXPR_LESS:
+	case EXPR_BINARY_LESS:
 		fprintf(out, "<");
 		break;
-	case BINEXPR_LESSEQUAL:
+	case EXPR_BINARY_LESSEQUAL:
 		fprintf(out, "<=");
 		break;
-	case BINEXPR_GREATER:
+	case EXPR_BINARY_GREATER:
 		fprintf(out, ">");
 		break;
-	case BINEXPR_GREATEREQUAL:
+	case EXPR_BINARY_GREATEREQUAL:
 		fprintf(out, ">=");
 		break;
 	default:
 		/* TODO: add missing ops */
-		fprintf(out, "op%d", binexpr->type);
+		fprintf(out, "op%d", binexpr->expression.type);
 		break;
 	}
 	fprintf(out, " ");
@@ -200,7 +197,9 @@ void print_expression(const expression_t *expression)
 	}
 
 	switch (expression->type) {
-	case EXPR_LAST:
+	case EXPR_ERROR:
+		fprintf(out, "*error expression*");
+		break;
 	case EXPR_INVALID:
 		fprintf(out, "*invalid expression*");
 		break;
@@ -216,10 +215,10 @@ void print_expression(const expression_t *expression)
 	case EXPR_CALL:
 		print_call_expression((const call_expression_t*) expression);
 		break;
-	case EXPR_BINARY:
+	EXPR_BINARY_CASES
 		print_binary_expression((const binary_expression_t*) expression);
 		break;
-	case EXPR_UNARY:
+	EXPR_UNARY_CASES
 		print_unary_expression((const unary_expression_t*) expression);
 		break;
 	case EXPR_SELECT:
@@ -235,9 +234,11 @@ void print_expression(const expression_t *expression)
 	case EXPR_REFERENCE:
 		print_reference_expression((const reference_expression_t*) expression);
 		break;
-	default:
+	case EXPR_FLOAT_CONST:
+	case EXPR_BOOL_CONST:
+	case EXPR_FUNC:
 		/* TODO */
-		fprintf(out, "some expression of type %d", expression->type);
+		fprintf(out, "*expr TODO*");
 		break;
 	}
 }

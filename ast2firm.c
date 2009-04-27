@@ -969,25 +969,24 @@ static ir_node *reference_expression_addr(const reference_expression_t *referenc
 
 static ir_node *expression_addr(const expression_t *expression)
 {
-	const unary_expression_t  *unexpr;
-	const select_expression_t *select;
 
 	switch (expression->type) {
-	case EXPR_SELECT:
-		select = (const select_expression_t*) expression;
+	case EXPR_SELECT: {
+		const select_expression_t *select
+			= (const select_expression_t*) expression;
 		return select_expression_addr(select);
+	}
 	case EXPR_ARRAY_ACCESS:
 		return array_access_expression_addr(
 				(const array_access_expression_t*) expression);
 	case EXPR_REFERENCE:
 		return reference_expression_addr(
 				(const reference_expression_t*) expression);
-	case EXPR_UNARY:
-		unexpr = (const unary_expression_t*) expression;
-		if (unexpr->type == UNEXPR_DEREFERENCE) {
-			return expression_to_firm(unexpr->value);
-		}
-		break;
+	case EXPR_UNARY_DEREFERENCE: {
+		const unary_expression_t *unexpr 
+			= (const unary_expression_t*) expression;
+		return expression_to_firm(unexpr->value);
+	}
 	default:
 		break;
 	}
@@ -1045,44 +1044,44 @@ static ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	return value;
 }
 
-static ir_op *binexpr_type_to_op(binary_expression_type_t type)
+static ir_op *binexpr_type_to_op(expression_type_t type)
 {
 	switch (type) {
-	case BINEXPR_ADD:
+	case EXPR_BINARY_ADD:
 		return op_Add;
-	case BINEXPR_SUB:
+	case EXPR_BINARY_SUB:
 		return op_Sub;
-	case BINEXPR_MUL:
+	case EXPR_BINARY_MUL:
 		return op_Mul;
-	case BINEXPR_AND:
+	case EXPR_BINARY_AND:
 		return op_And;
-	case BINEXPR_OR:
+	case EXPR_BINARY_OR:
 		return op_Or;
-	case BINEXPR_XOR:
+	case EXPR_BINARY_XOR:
 		return op_Eor;
-	case BINEXPR_SHIFTLEFT:
+	case EXPR_BINARY_SHIFTLEFT:
 		return op_Shl;
-	case BINEXPR_SHIFTRIGHT:
+	case EXPR_BINARY_SHIFTRIGHT:
 		return op_Shr;
 	default:
 		return NULL;
 	}
 }
 
-static long binexpr_type_to_cmp_pn(binary_expression_type_t type)
+static long binexpr_type_to_cmp_pn(expression_type_t type)
 {
 	switch (type) {
-	case BINEXPR_EQUAL:
+	case EXPR_BINARY_EQUAL:
 		return pn_Cmp_Eq;
-	case BINEXPR_NOTEQUAL:
+	case EXPR_BINARY_NOTEQUAL:
 		return pn_Cmp_Lg;
-	case BINEXPR_LESS:
+	case EXPR_BINARY_LESS:
 		return pn_Cmp_Lt;
-	case BINEXPR_LESSEQUAL:
+	case EXPR_BINARY_LESSEQUAL:
 		return pn_Cmp_Le;
-	case BINEXPR_GREATER:
+	case EXPR_BINARY_GREATER:
 		return pn_Cmp_Gt;
-	case BINEXPR_GREATEREQUAL:
+	case EXPR_BINARY_GREATEREQUAL:
 		return pn_Cmp_Ge;
 	default:
 		return 0;
@@ -1091,8 +1090,8 @@ static long binexpr_type_to_cmp_pn(binary_expression_type_t type)
 
 static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 {
-	int is_or = binary_expression->type == BINEXPR_LAZY_OR;
-	assert(is_or || binary_expression->type == BINEXPR_LAZY_AND);
+	bool is_or = binary_expression->expression.type == EXPR_BINARY_LAZY_OR;
+	assert(is_or || binary_expression->expression.type == EXPR_BINARY_LAZY_AND);
 
 	dbg_info *dbgi 
 		= get_dbg_info(&binary_expression->expression.source_position);
@@ -1141,15 +1140,16 @@ static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	return val;
 }
 
-static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expression)
+static ir_node *binary_expression_to_firm(
+		const binary_expression_t *binary_expression)
 {
-	binary_expression_type_t btype = binary_expression->type;
+	expression_type_t type = binary_expression->expression.type;
 
-	switch (btype) {
-	case BINEXPR_ASSIGN:
+	switch (type) {
+	case EXPR_BINARY_ASSIGN:
 		return assign_expression_to_firm(binary_expression);
-	case BINEXPR_LAZY_OR:
-	case BINEXPR_LAZY_AND:
+	case EXPR_BINARY_LAZY_OR:
+	case EXPR_BINARY_LAZY_AND:
 		return create_lazy_op(binary_expression);
 	default:
 		break;
@@ -1161,7 +1161,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 		= get_dbg_info(&binary_expression->expression.source_position);
 
 
-	if (btype == BINEXPR_DIV) {
+	if (type == EXPR_BINARY_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
 		ir_node *node, *res;
@@ -1181,7 +1181,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 		return res;
 	}
 
-	if (btype == BINEXPR_MOD) {
+	if (type == EXPR_BINARY_MOD) {
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
 		ir_node *store = get_store();
 		ir_node *node  = new_d_Mod(dbgi, store, left, right, mode,
@@ -1193,7 +1193,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 	}
 
 	/* an arithmetic binexpression? */
-	ir_op *irop = binexpr_type_to_op(btype);
+	ir_op *irop = binexpr_type_to_op(type);
 	if (irop != NULL) {
 		ir_node *in[2] = { left, right };
 		ir_mode *mode  = get_ir_mode(binary_expression->expression.datatype);
@@ -1204,7 +1204,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 	}
 
 	/* a comparison expression? */
-	long compare_pn = binexpr_type_to_cmp_pn(btype);
+	long compare_pn = binexpr_type_to_cmp_pn(type);
 	if (compare_pn != 0) {
 		ir_node *cmp  = new_d_Cmp(dbgi, left, right);
 		ir_node *proj = new_d_Proj(dbgi, cmp, mode_b, compare_pn);
@@ -1212,7 +1212,7 @@ static ir_node *binary_expression_to_firm(const binary_expression_t *binary_expr
 		return proj;
 	}
 
-	panic("found unknown binexpr type");
+	panic("found unknown binary expression");
 }
 
 static ir_node *cast_expression_to_firm(const unary_expression_t *cast)
@@ -1256,30 +1256,31 @@ static ir_node *create_unary_expression_node(const unary_expression_t *expressio
 	return res;
 }
 
-static ir_node *unary_expression_to_firm(const unary_expression_t *unary_expression)
+static ir_node *unary_expression_to_firm(
+		const unary_expression_t *unary_expression)
 {
 	ir_node *addr;
 
-	switch (unary_expression->type) {
-	case UNEXPR_CAST:
+	switch (unary_expression->expression.type) {
+	case EXPR_UNARY_CAST:
 		return cast_expression_to_firm(unary_expression);
-	case UNEXPR_DEREFERENCE:
+	case EXPR_UNARY_DEREFERENCE:
 		addr = expression_to_firm(unary_expression->value);
 		return load_from_expression_addr(unary_expression->expression.datatype,
 		                                 addr,
 	                             &unary_expression->expression.source_position);
-	case UNEXPR_TAKE_ADDRESS:
+	case EXPR_UNARY_TAKE_ADDRESS:
 		return expression_addr(unary_expression->value);
-	case UNEXPR_BITWISE_NOT:
-	case UNEXPR_NOT:
+	case EXPR_UNARY_BITWISE_NOT:
+	case EXPR_UNARY_NOT:
 		return create_unary_expression_node(unary_expression, new_d_Not);
-	case UNEXPR_NEGATE:
+	case EXPR_UNARY_NEGATE:
 		return create_unary_expression_node(unary_expression, new_d_Minus);
-	case UNEXPR_INCREMENT:
-	case UNEXPR_DECREMENT:
+	case EXPR_UNARY_INCREMENT:
+	case EXPR_UNARY_DECREMENT:
 		panic("inc/dec expression not lowered");
-	case UNEXPR_INVALID:
-		abort();
+	default:
+		break;
 	}
 	panic("found unknown unary expression");
 }
@@ -1575,10 +1576,10 @@ static ir_node *expression_to_firm(expression_t *expression)
 	case EXPR_REFERENCE:
 		return reference_expression_to_firm(
 				(const reference_expression_t*) expression);
-	case EXPR_BINARY:
+	EXPR_BINARY_CASES
 		return binary_expression_to_firm(
 				(const binary_expression_t*) expression);
-	case EXPR_UNARY:
+	EXPR_UNARY_CASES
 		return unary_expression_to_firm(
 				(const unary_expression_t*) expression);
 	case EXPR_SELECT:
@@ -1596,7 +1597,6 @@ static ir_node *expression_to_firm(expression_t *expression)
 	case EXPR_FUNC:
 		return func_expression_to_firm(
 				(func_expression_t*) expression);
-	case EXPR_LAST:
 	case EXPR_INVALID:
 	case EXPR_ERROR:
 		break;

@@ -485,27 +485,22 @@ static void check_reference_expression(reference_expression_t *ref)
 
 static bool is_lvalue(const expression_t *expression)
 {
-	unary_expression_t     *unexpr;
-	reference_expression_t *reference;
-	declaration_t          *declaration;
-
 	switch (expression->type) {
-	case EXPR_REFERENCE:
-		reference   = (reference_expression_t*) expression;
-		declaration = reference->declaration;
+	case EXPR_REFERENCE: {
+		const reference_expression_t *reference
+			= (const reference_expression_t*) expression;
+		const declaration_t *declaration = reference->declaration;
 		if (declaration->kind == DECLARATION_VARIABLE) {
 			return true;
 		}
 		break;
+	}
 	case EXPR_ARRAY_ACCESS:
 		return true;
 	case EXPR_SELECT:
 		return true;
-	case EXPR_UNARY:
-		unexpr = (unary_expression_t*) expression;
-		if (unexpr->type == UNEXPR_DEREFERENCE)
-			return true;
-		break;
+	case EXPR_UNARY_DEREFERENCE:
+		return true;
 	default:
 		break;
 	}
@@ -693,9 +688,8 @@ static expression_t *make_cast(expression_t *from,
 
 	unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
 	memset(cast, 0, sizeof(cast[0]));
-	cast->expression.type            = EXPR_UNARY;
+	cast->expression.type            = EXPR_UNARY_CAST;
 	cast->expression.source_position = source_position;
-	cast->type                       = UNEXPR_CAST;
 	cast->expression.datatype        = dest_type;
 	cast->value                      = from;
 
@@ -711,17 +705,17 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 	type_t *exprtype;
 	type_t *lefttype, *righttype;
-	binary_expression_type_t binexpr_type = binexpr->type;
+	expression_type_t binexpr_type = binexpr->expression.type;
 
 	switch (binexpr_type) {
-	case BINEXPR_ASSIGN:
+	case EXPR_BINARY_ASSIGN:
 		check_assign_expression(binexpr);
 		exprtype  = left->datatype;
 		lefttype  = exprtype;
 		righttype = exprtype;
 		break;
-	case BINEXPR_ADD:
-	case BINEXPR_SUB:
+	case EXPR_BINARY_ADD:
+	case EXPR_BINARY_SUB:
 		exprtype  = left->datatype;
 		lefttype  = exprtype;
 		righttype = right->datatype;
@@ -738,9 +732,8 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 			binary_expression_t *mulexpr = allocate_ast(sizeof(mulexpr[0]));
 			memset(mulexpr, 0, sizeof(mulexpr[0]));
-			mulexpr->expression.type     = EXPR_BINARY;
+			mulexpr->expression.type     = EXPR_BINARY_MUL;
 			mulexpr->expression.datatype = type_uint;
-			mulexpr->type                = BINEXPR_MUL;
 			mulexpr->left = make_cast(right, type_uint,
 			                          binexpr->expression.source_position,
 									  false);
@@ -748,10 +741,9 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 			unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
 			memset(cast, 0, sizeof(cast[0]));
-			cast->expression.type            = EXPR_UNARY;
+			cast->expression.type            = EXPR_UNARY_CAST;
 			cast->expression.source_position 
 				= binexpr->expression.source_position;
-			cast->type                       = UNEXPR_CAST;
 			cast->expression.datatype        = lefttype;
 			cast->value                      = (expression_t*) mulexpr;
 
@@ -760,9 +752,9 @@ static void check_binary_expression(binary_expression_t *binexpr)
 		}
 		righttype = lefttype;
 		break;
-	case BINEXPR_MUL:
-	case BINEXPR_MOD:
-	case BINEXPR_DIV:
+	case EXPR_BINARY_MUL:
+	case EXPR_BINARY_MOD:
+	case EXPR_BINARY_DIV:
 		if (!is_type_numeric(left->datatype)) {
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "Mul/Mod/Div expressions need a numeric type but "
@@ -775,9 +767,9 @@ static void check_binary_expression(binary_expression_t *binexpr)
 		righttype = lefttype;
 		break;
 
-	case BINEXPR_AND:
-	case BINEXPR_OR:
-	case BINEXPR_XOR:
+	case EXPR_BINARY_AND:
+	case EXPR_BINARY_OR:
+	case EXPR_BINARY_XOR:
 		if (!is_type_int(left->datatype)) {
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "And/Or/Xor expressions need an integer type "
@@ -790,8 +782,8 @@ static void check_binary_expression(binary_expression_t *binexpr)
 		righttype = left->datatype;
 		break;
 
-	case BINEXPR_SHIFTLEFT:
-	case BINEXPR_SHIFTRIGHT:
+	case EXPR_BINARY_SHIFTLEFT:
+	case EXPR_BINARY_SHIFTRIGHT:
 		if (!is_type_int(left->datatype)) {
 			print_error_prefix(binexpr->expression.source_position);
 			fprintf(stderr, "ShiftLeft/ShiftRight expressions need an integer "
@@ -805,26 +797,25 @@ static void check_binary_expression(binary_expression_t *binexpr)
 		break;
 
 	/* comparison operation */
-	case BINEXPR_EQUAL:
-	case BINEXPR_NOTEQUAL:
-	case BINEXPR_LESS:
-	case BINEXPR_LESSEQUAL:
-	case BINEXPR_GREATER:
-	case BINEXPR_GREATEREQUAL:
+	case EXPR_BINARY_EQUAL:
+	case EXPR_BINARY_NOTEQUAL:
+	case EXPR_BINARY_LESS:
+	case EXPR_BINARY_LESSEQUAL:
+	case EXPR_BINARY_GREATER:
+	case EXPR_BINARY_GREATEREQUAL:
 		exprtype  = type_bool;
 		/* TODO find out greatest common type... */
 		lefttype  = left->datatype;
 		righttype = left->datatype;
 		break;
-	case BINEXPR_LAZY_AND:
-	case BINEXPR_LAZY_OR:
+	case EXPR_BINARY_LAZY_AND:
+	case EXPR_BINARY_LAZY_OR:
 		exprtype  = type_bool;
 		lefttype  = type_bool;
 		righttype = type_bool;
 		break;
-
-	case BINEXPR_INVALID:
-		abort();
+	default:
+		panic("invalid type in binexpr");
 	}
 
 	if (left == NULL || right == NULL)
@@ -1495,16 +1486,20 @@ static void check_bitwise_not_expression(unary_expression_t *expression)
 	expression->expression.datatype = type;
 }
 
-static expression_t *lower_incdec_expression(unary_expression_t *expression)
+static expression_t *lower_incdec_expression(expression_t *expression_)
 {
+	unary_expression_t *expression = (unary_expression_t*) expression_;
+
 	expression_t *value = check_expression(expression->value);
 	type_t       *type  = value->datatype;
+
+	expression_type_t kind = expression->expression.type;
 
 	if (!is_type_numeric(type) && type->type != TYPE_POINTER) {
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "%s expression only valid for numeric or pointer types "
 				"but argument has type ",
-		        expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
+		        kind == EXPR_UNARY_INCREMENT ? "increment" : "decrement"
 		        );
 		print_type(type);
 		fprintf(stderr, "\n");
@@ -1512,7 +1507,7 @@ static expression_t *lower_incdec_expression(unary_expression_t *expression)
 	if (!is_lvalue(value)) {
 		print_error_prefix(expression->expression.source_position);
 		fprintf(stderr, "%s expression needs an lvalue\n",
-	            expression->type == UNEXPR_INCREMENT ? "increment" : "decrement"
+	            kind == EXPR_UNARY_INCREMENT ? "increment" : "decrement"
 		       );
 	}
 
@@ -1544,40 +1539,24 @@ static expression_t *lower_incdec_expression(unary_expression_t *expression)
 
 	binary_expression_t *add = allocate_ast(sizeof(add[0]));
 	memset(add, 0, sizeof(add[0]));
-	add->expression.type     = EXPR_BINARY;
 	add->expression.datatype = type;
-	if (expression->type == UNEXPR_INCREMENT) {
-		add->type = BINEXPR_ADD;
+	if (kind == EXPR_UNARY_INCREMENT) {
+		add->expression.type = EXPR_BINARY_ADD;
 	} else {
-		add->type = BINEXPR_SUB;
+		assert(kind == EXPR_UNARY_DECREMENT);
+		add->expression.type = EXPR_BINARY_SUB;
 	}
 	add->left  = value;
 	add->right = constant;
 
 	binary_expression_t *assign = allocate_ast(sizeof(assign[0]));
 	memset(assign, 0, sizeof(assign[0]));
-	assign->expression.type     = EXPR_BINARY;
+	assign->expression.type     = EXPR_BINARY_ASSIGN;
 	assign->expression.datatype = type;
-	assign->type                = BINEXPR_ASSIGN;
 	assign->left                = value;
 	assign->right               = (expression_t*) add;
 
 	return (expression_t*) assign;
-}
-
-static expression_t *lower_unary_expression(expression_t *expression)
-{
-	assert(expression->type == EXPR_UNARY);
-	unary_expression_t *unary_expression = (unary_expression_t*) expression;
-	switch (unary_expression->type) {
-	case UNEXPR_INCREMENT:
-	case UNEXPR_DECREMENT:
-		return lower_incdec_expression(unary_expression);
-	default:
-		break;
-	}
-
-	return expression;
 }
 
 static void check_not_expression(unary_expression_t *expression)
@@ -1599,31 +1578,30 @@ static void check_not_expression(unary_expression_t *expression)
 
 static void check_unary_expression(unary_expression_t *unary_expression)
 {
-	switch (unary_expression->type) {
-	case UNEXPR_CAST:
+	switch (unary_expression->expression.type) {
+	case EXPR_UNARY_CAST:
 		check_cast_expression(unary_expression);
 		return;
-	case UNEXPR_DEREFERENCE:
+	case EXPR_UNARY_DEREFERENCE:
 		check_dereference_expression(unary_expression);
 		return;
-	case UNEXPR_TAKE_ADDRESS:
+	case EXPR_UNARY_TAKE_ADDRESS:
 		check_take_address_expression(unary_expression);
 		return;
-	case UNEXPR_NOT:
+	case EXPR_UNARY_NOT:
 		check_not_expression(unary_expression);
 		return;
-	case UNEXPR_BITWISE_NOT:
+	case EXPR_UNARY_BITWISE_NOT:
 		check_bitwise_not_expression(unary_expression);
 		return;
-	case UNEXPR_NEGATE:
+	case EXPR_UNARY_NEGATE:
 		check_negate_expression(unary_expression);
 		return;
-	case UNEXPR_INCREMENT:
-	case UNEXPR_DECREMENT:
+	case EXPR_UNARY_INCREMENT:
+	case EXPR_UNARY_DECREMENT:
 		panic("increment/decrement not lowered");
-
-	case UNEXPR_INVALID:
-		abort();
+	default:
+		break;
 	}
 	panic("Unknown unary expression found");
 }
@@ -1830,10 +1808,10 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_SIZEOF:
 		check_sizeof_expression((sizeof_expression_t*) expression);
 		break;
-	case EXPR_BINARY:
+	EXPR_BINARY_CASES
 		check_binary_expression((binary_expression_t*) expression);
 		break;
-	case EXPR_UNARY:
+	EXPR_UNARY_CASES
 		check_unary_expression((unary_expression_t*) expression);
 		break;
 	case EXPR_SELECT:
@@ -1848,7 +1826,6 @@ expression_t *check_expression(expression_t *expression)
 	case EXPR_ERROR:
 		found_errors = true;
 		break;
-	case EXPR_LAST:
 	case EXPR_INVALID:
 		panic("Invalid expression encountered");
 	}
@@ -1982,12 +1959,10 @@ static void check_expression_statement(expression_statement_t *statement)
 		return;
 
 	bool may_be_unused = false;
-	if (expression->type == EXPR_BINARY &&
-			((binary_expression_t*) expression)->type == BINEXPR_ASSIGN) {
+	if (expression->type == EXPR_BINARY_ASSIGN) {
 		may_be_unused = true;
-	} else if (expression->type == EXPR_UNARY &&
-			(((unary_expression_t*) expression)->type == UNEXPR_INCREMENT ||
-			 ((unary_expression_t*) expression)->type == UNEXPR_DECREMENT)) {
+	} else if (expression->type == EXPR_UNARY_INCREMENT
+			|| expression->type == EXPR_UNARY_DECREMENT) {
 		may_be_unused = true;
 	} else if (expression->type == EXPR_CALL) {
 		may_be_unused = true;
@@ -1996,12 +1971,9 @@ static void check_expression_statement(expression_statement_t *statement)
 	if (expression->datatype != type_void && !may_be_unused) {
 		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "result of expression is unused\n");
-		if (expression->type == EXPR_BINARY) {
-			binary_expression_t *binexpr = (binary_expression_t*) expression;
-			if (binexpr->type == BINEXPR_EQUAL) {
-				print_warning_prefix(statement->statement.source_position);
-				fprintf(stderr, "Did you mean '<-' instead of '='?\n");
-			}
+		if (expression->type == EXPR_BINARY_EQUAL) {
+			print_warning_prefix(statement->statement.source_position);
+			fprintf(stderr, "Did you mean '<-' instead of '='?\n");
 		}
 		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "note: cast expression to void to avoid this "
@@ -2539,7 +2511,8 @@ void init_semantic_module(void)
 	statement_lowerers  = NEW_ARR_F(lower_statement_function, 0);
 	expression_lowerers = NEW_ARR_F(lower_expression_function, 0);
 
-	register_expression_lowerer(lower_unary_expression, EXPR_UNARY);
+	register_expression_lowerer(lower_incdec_expression, EXPR_UNARY_INCREMENT);
+	register_expression_lowerer(lower_incdec_expression, EXPR_UNARY_DECREMENT);
 }
 
 void exit_semantic_module(void)
