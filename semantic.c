@@ -696,6 +696,40 @@ static expression_t *make_cast(expression_t *from,
 	return (expression_t*) cast;
 }
 
+static expression_t *lower_sub_expression(expression_t *expression)
+{
+	binary_expression_t *sub = (binary_expression_t*) expression;
+
+	expression_t *left      = check_expression(sub->left);
+	expression_t *right     = check_expression(sub->right);
+	type_t       *lefttype  = left->datatype;
+	type_t       *righttype = right->datatype;	
+
+	if (lefttype->type != TYPE_POINTER && righttype->type != TYPE_POINTER)
+		return expression;
+
+	sub->expression.datatype = type_uint;
+
+	pointer_type_t *p1 = (pointer_type_t*) lefttype;
+
+	sizeof_expression_t *sizeof_expr 
+		= allocate_ast(sizeof(sizeof_expr[0]));
+	memset(sizeof_expr, 0, sizeof(sizeof_expr[0]));
+	sizeof_expr->expression.type     = EXPR_SIZEOF;
+	sizeof_expr->expression.datatype = type_uint;
+	sizeof_expr->type                = p1->points_to;
+
+	binary_expression_t *divexpr = allocate_ast(sizeof(divexpr[0]));
+	memset(divexpr, 0, sizeof(divexpr[0]));
+	divexpr->expression.type     = EXPR_BINARY_DIV;
+	divexpr->expression.datatype = type_uint;
+	divexpr->left                = expression;
+	divexpr->right               = (expression_t*) sizeof_expr;
+
+	sub->expression.lowered = true;
+	return (expression_t*) divexpr;
+}
+
 static void check_binary_expression(binary_expression_t *binexpr)
 {
 	binexpr->left       = check_expression(binexpr->left);
@@ -749,6 +783,19 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 			right          = (expression_t*) cast;
 			binexpr->right = right;
+		}
+		if (lefttype->type == TYPE_POINTER && righttype->type == TYPE_POINTER) {
+			pointer_type_t *p1 = (pointer_type_t*) lefttype;
+			pointer_type_t *p2 = (pointer_type_t*) righttype;
+			if (p1->points_to != p2->points_to) {
+				print_error_prefix(binexpr->expression.source_position);
+				fprintf(stderr, "Can only subtract pointers to same type, but have type ");
+				print_type(lefttype);
+				fprintf(stderr, " and ");
+				print_type(righttype);
+				fprintf(stderr, "\n");
+			}
+			exprtype = type_uint;
 		}
 		righttype = lefttype;
 		break;
@@ -1777,7 +1824,7 @@ expression_t *check_expression(expression_t *expression)
 		lower_expression_function lowerer 
 			= expression_lowerers[expression->type];
 
-		if (lowerer != NULL) {
+		if (lowerer != NULL && !expression->lowered) {
 			expression = lowerer(expression);
 		}
 	}
@@ -2513,6 +2560,7 @@ void init_semantic_module(void)
 
 	register_expression_lowerer(lower_incdec_expression, EXPR_UNARY_INCREMENT);
 	register_expression_lowerer(lower_incdec_expression, EXPR_UNARY_DECREMENT);
+	register_expression_lowerer(lower_sub_expression, EXPR_BINARY_SUB);
 }
 
 void exit_semantic_module(void)

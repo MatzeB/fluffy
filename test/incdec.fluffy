@@ -1,0 +1,24 @@
+func extern printf(format : byte*, ...)
+
+export main
+func main() : int:
+	var l = 42
+	var k = 11
+	var m  : int*  = null
+	var pm : byte* = cast<byte*> m
+
+	++l
+	printf("L1: %d\n", l)
+	++k
+	--k
+	--l
+	printf("K1: %d L1: %d\n", k, l)
+
+	var m2 = m
+	++m2
+	printf("Diff1: %d\n", m2 - m)
+
+	var pm2 = cast<byte*> m2
+	printf("Diff2: %d\n", pm2 - pm)
+
+	return 0

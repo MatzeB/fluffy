@@ -274,6 +274,7 @@ typedef enum {
 struct expression_t {
 	expression_type_t  type;
 	type_t            *datatype;
+	bool               lowered;
 	source_position_t  source_position;
 };
 
