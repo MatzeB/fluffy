@@ -6,13 +6,10 @@ about the right way to do it yet.
 
 - semantic should check that structs don't contain themselfes
 - having the same entry twice in a struct is not detected
-- correct pointer arithmetic
-- A typeof operator (resulting in the type of the enclosed expression)
 - change lexer to build a decision tree for the operators (so we can write
   <void*> again...)
 - add possibility to specify default implementations for typeclass functions
 - add static ifs that can examine const expressions and types at compiletime
-- fix ++ and -- expressions
 - forbid same variable names in nested blocks
 - change firm to pass on debug info on unitialized_variable callback
 - introduce constant expressions
@@ -23,14 +20,11 @@ because they need no deep understanding of the design.
 
 - Add parsing of floating point numbers in lexer
 - Add option parsing to the compiler, pass options to backend as well
-- Use more firm optimisations
-- Create an eccp like wrapper script
 - Add an alloca operator
-- create a ++ and -- operator
 - make lexer accept \r, \r\n and \n as newline
 - make lexer unicode aware (reading utf-8 is enough, for more inputs we could use iconv, but we should recommend utf-8 as default)
 
 Refactorings:
-- make unions for declaration_t, expression_t, type_t (see cparser)
+- make unions for expression_t, type_t (see cparser)
 - rename type to kind, expression->datatype to expression->type
 - keep typerefs as long as possible (start the skip_typeref madness similar to cparser)
