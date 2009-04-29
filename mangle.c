@@ -153,7 +153,7 @@ void mangle_type(const type_t *type)
 		return;
 	case TYPE_TYPEOF: {
 		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
-		mangle_type(typeof_type->expression->datatype);
+		mangle_type(typeof_type->expression->base.type);
 		return;
 	}
 	case TYPE_COMPOUND_CLASS:

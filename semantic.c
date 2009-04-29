@@ -430,7 +430,7 @@ static type_t *check_reference(declaration_t *declaration,
 		/* do type inference for the constant if needed */
 		if (constant->type == NULL) {
 			constant->expression = check_expression(constant->expression);
-			constant->type       = constant->expression->datatype;
+			constant->type       = constant->expression->base.type;
 		}
 		return constant->type;
 	case DECLARATION_METHOD_PARAMETER:
@@ -469,23 +469,22 @@ static void check_reference_expression(reference_expression_t *ref)
 	symbol_t      *symbol      = ref->symbol;
 	declaration_t *declaration = symbol->declaration;
 	if (declaration == NULL) {
-		print_error_prefix(ref->expression.source_position);
+		print_error_prefix(ref->base.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
 		return;
 	}
 
 	normalize_type_arguments(ref->type_arguments);
 
-	ref->declaration         = declaration;
-	type_t *type             = check_reference(declaration,
-	                                           ref->expression.source_position);
-	ref->expression.datatype = type;
+	ref->declaration = declaration;
+	type_t *type     = check_reference(declaration, ref->base.source_position);
+	ref->base.type   = type;
 }
 
 
 static bool is_lvalue(const expression_t *expression)
 {
-	switch (expression->type) {
+	switch (expression->kind) {
 	case EXPR_REFERENCE: {
 		const reference_expression_t *reference
 			= (const reference_expression_t*) expression;
@@ -514,11 +513,11 @@ static void check_assign_expression(binary_expression_t *assign)
 	expression_t *right = assign->right;
 
 	if (!is_lvalue(left)) {
-		error_at(assign->expression.source_position,
+		error_at(assign->base.source_position,
 		         "left side of assign is not an lvalue.\n");
 		return;
 	}
-	if (left->type == EXPR_REFERENCE) {
+	if (left->kind == EXPR_REFERENCE) {
 		reference_expression_t *reference   = (reference_expression_t*) left;
 		declaration_t          *declaration = reference->declaration;
 
@@ -528,16 +527,16 @@ static void check_assign_expression(binary_expression_t *assign)
 			symbol_t *symbol = variable->base.symbol;
 
 			/* do type inference if needed */
-			if (left->datatype == NULL) {
-				if (right->datatype == NULL) {
-					print_error_prefix(assign->expression.source_position);
+			if (left->base.type == NULL) {
+				if (right->base.type == NULL) {
+					print_error_prefix(assign->base.source_position);
 					fprintf(stderr, "can't infer type for '%s'\n",
 					        symbol->string);
 					return;
 				}
 
-				variable->type = right->datatype;
-				left->datatype = right->datatype;
+				variable->type  = right->base.type;
+				left->base.type = right->base.type;
 			}
 
 			/* the reference expression increased the ref pointer, but
@@ -555,7 +554,7 @@ static expression_t *make_cast(expression_t *from,
                                const source_position_t source_position,
 							   bool lenient)
 {
-	if (dest_type == NULL || from->datatype == dest_type)
+	if (dest_type == NULL || from->base.type == dest_type)
 		return from;
 
 	/* TODO: - test which types can be implicitely casted... 
@@ -564,9 +563,9 @@ static expression_t *make_cast(expression_t *from,
 	 */
 	dest_type = skip_typeref(dest_type);
 
-	type_t *from_type = from->datatype;
+	type_t *from_type = from->base.type;
 	if (from_type == NULL) {
-		print_error_prefix(from->source_position);
+		print_error_prefix(from->base.source_position);
 		fprintf(stderr, "can't implicitely cast from unknown type to ");
 		print_type(dest_type);
 		fprintf(stderr, "\n");
@@ -584,7 +583,7 @@ static expression_t *make_cast(expression_t *from,
 			 * it is allowed to cast 'null' to any pointer */
 			if (p1->points_to == p2->points_to
 					|| dest_type == type_void_ptr
-					|| from->type == EXPR_NULL_POINTER) {
+					|| from->kind == EXPR_NULL_POINTER) {
 				/* fine */
 			} else if (is_type_array(p1->points_to)) {
 				array_type_t *array_type = (array_type_t*) p1->points_to;
@@ -686,14 +685,11 @@ static expression_t *make_cast(expression_t *from,
 		return NULL;
 	}
 
-	unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
-	memset(cast, 0, sizeof(cast[0]));
-	cast->expression.type            = EXPR_UNARY_CAST;
-	cast->expression.source_position = source_position;
-	cast->expression.datatype        = dest_type;
-	cast->value                      = from;
-
-	return (expression_t*) cast;
+	expression_t *cast         = allocate_expression(EXPR_UNARY_CAST);
+	cast->base.source_position = source_position;
+	cast->base.type            = dest_type;
+	cast->unary.value          = from;
+	return cast;
 }
 
 static expression_t *lower_sub_expression(expression_t *expression)
@@ -702,32 +698,27 @@ static expression_t *lower_sub_expression(expression_t *expression)
 
 	expression_t *left      = check_expression(sub->left);
 	expression_t *right     = check_expression(sub->right);
-	type_t       *lefttype  = left->datatype;
-	type_t       *righttype = right->datatype;	
+	type_t       *lefttype  = left->base.type;
+	type_t       *righttype = right->base.type;	
 
 	if (lefttype->type != TYPE_POINTER && righttype->type != TYPE_POINTER)
 		return expression;
 
-	sub->expression.datatype = type_uint;
+	sub->base.type = type_uint;
 
 	pointer_type_t *p1 = (pointer_type_t*) lefttype;
 
-	sizeof_expression_t *sizeof_expr 
-		= allocate_ast(sizeof(sizeof_expr[0]));
-	memset(sizeof_expr, 0, sizeof(sizeof_expr[0]));
-	sizeof_expr->expression.type     = EXPR_SIZEOF;
-	sizeof_expr->expression.datatype = type_uint;
-	sizeof_expr->type                = p1->points_to;
+	expression_t *sizeof_expr = allocate_expression(EXPR_SIZEOF);
+	sizeof_expr->base.type    = type_uint;
+	sizeof_expr->sizeofe.type = p1->points_to;
 
-	binary_expression_t *divexpr = allocate_ast(sizeof(divexpr[0]));
-	memset(divexpr, 0, sizeof(divexpr[0]));
-	divexpr->expression.type     = EXPR_BINARY_DIV;
-	divexpr->expression.datatype = type_uint;
-	divexpr->left                = expression;
-	divexpr->right               = (expression_t*) sizeof_expr;
+	expression_t *divexpr = allocate_expression(EXPR_BINARY_DIV);
+	divexpr->base.type    = type_uint;
+	divexpr->binary.left  = expression;
+	divexpr->binary.right = sizeof_expr;
 
-	sub->expression.lowered = true;
-	return (expression_t*) divexpr;
+	sub->base.lowered = true;
+	return divexpr;
 }
 
 static void check_binary_expression(binary_expression_t *binexpr)
@@ -739,56 +730,48 @@ static void check_binary_expression(binary_expression_t *binexpr)
 
 	type_t *exprtype;
 	type_t *lefttype, *righttype;
-	expression_type_t binexpr_type = binexpr->expression.type;
+	expression_kind_t kind = binexpr->base.kind;
 
-	switch (binexpr_type) {
+	switch (kind) {
 	case EXPR_BINARY_ASSIGN:
 		check_assign_expression(binexpr);
-		exprtype  = left->datatype;
+		exprtype  = left->base.type;
 		lefttype  = exprtype;
 		righttype = exprtype;
 		break;
 	case EXPR_BINARY_ADD:
 	case EXPR_BINARY_SUB:
-		exprtype  = left->datatype;
+		exprtype  = left->base.type;
 		lefttype  = exprtype;
-		righttype = right->datatype;
+		righttype = right->base.type;
 		/* implement address arithmetic */
 		if (lefttype->type == TYPE_POINTER && is_type_int(righttype)) {
 			pointer_type_t *pointer_type = (pointer_type_t*) lefttype;
 
-			sizeof_expression_t *sizeof_expr 
-				= allocate_ast(sizeof(sizeof_expr[0]));
-			memset(sizeof_expr, 0, sizeof(sizeof_expr[0]));
-			sizeof_expr->expression.type     = EXPR_SIZEOF;
-			sizeof_expr->expression.datatype = type_uint;
-			sizeof_expr->type                = pointer_type->points_to;
+			expression_t *sizeof_expr = allocate_expression(EXPR_SIZEOF);
+			sizeof_expr->base.type    = type_uint;
+			sizeof_expr->sizeofe.type = pointer_type->points_to;
 
-			binary_expression_t *mulexpr = allocate_ast(sizeof(mulexpr[0]));
-			memset(mulexpr, 0, sizeof(mulexpr[0]));
-			mulexpr->expression.type     = EXPR_BINARY_MUL;
-			mulexpr->expression.datatype = type_uint;
-			mulexpr->left = make_cast(right, type_uint,
-			                          binexpr->expression.source_position,
-									  false);
-			mulexpr->right               = (expression_t*) sizeof_expr;
+			expression_t *mulexpr = allocate_expression(EXPR_BINARY_MUL);
+			mulexpr->base.type    = type_uint;
+			mulexpr->binary.left  = make_cast(right, type_uint,
+			                                  binexpr->base.source_position,
+			                                  false);
+			mulexpr->binary.right = sizeof_expr;
 
-			unary_expression_t *cast = allocate_ast(sizeof(cast[0]));
-			memset(cast, 0, sizeof(cast[0]));
-			cast->expression.type            = EXPR_UNARY_CAST;
-			cast->expression.source_position 
-				= binexpr->expression.source_position;
-			cast->expression.datatype        = lefttype;
-			cast->value                      = (expression_t*) mulexpr;
+			expression_t *cast         = allocate_expression(EXPR_UNARY_CAST);
+			cast->base.source_position = binexpr->base.source_position;
+			cast->base.type            = lefttype;
+			cast->unary.value          = mulexpr;
 
-			right          = (expression_t*) cast;
-			binexpr->right = right;
+			right          = cast;
+			binexpr->right = cast;
 		}
 		if (lefttype->type == TYPE_POINTER && righttype->type == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) lefttype;
 			pointer_type_t *p2 = (pointer_type_t*) righttype;
 			if (p1->points_to != p2->points_to) {
-				print_error_prefix(binexpr->expression.source_position);
+				print_error_prefix(binexpr->base.source_position);
 				fprintf(stderr, "Can only subtract pointers to same type, but have type ");
 				print_type(lefttype);
 				fprintf(stderr, " and ");
@@ -802,14 +785,14 @@ static void check_binary_expression(binary_expression_t *binexpr)
 	case EXPR_BINARY_MUL:
 	case EXPR_BINARY_MOD:
 	case EXPR_BINARY_DIV:
-		if (!is_type_numeric(left->datatype)) {
-			print_error_prefix(binexpr->expression.source_position);
+		if (!is_type_numeric(left->base.type)) {
+			print_error_prefix(binexpr->base.source_position);
 			fprintf(stderr, "Mul/Mod/Div expressions need a numeric type but "
 			        "type ");
-			print_type(left->datatype);
+			print_type(left->base.type);
 			fprintf(stderr, "is given\n");
 		}
-		exprtype  = left->datatype;
+		exprtype  = left->base.type;
 		lefttype  = exprtype;
 		righttype = lefttype;
 		break;
@@ -817,28 +800,28 @@ static void check_binary_expression(binary_expression_t *binexpr)
 	case EXPR_BINARY_AND:
 	case EXPR_BINARY_OR:
 	case EXPR_BINARY_XOR:
-		if (!is_type_int(left->datatype)) {
-			print_error_prefix(binexpr->expression.source_position);
+		if (!is_type_int(left->base.type)) {
+			print_error_prefix(binexpr->base.source_position);
 			fprintf(stderr, "And/Or/Xor expressions need an integer type "
 			        "but type ");
-			print_type(left->datatype);
+			print_type(left->base.type);
 			fprintf(stderr, "is given\n");
 		}
-		exprtype  = left->datatype;
+		exprtype  = left->base.type;
 		lefttype  = exprtype;
-		righttype = left->datatype;
+		righttype = left->base.type;
 		break;
 
 	case EXPR_BINARY_SHIFTLEFT:
 	case EXPR_BINARY_SHIFTRIGHT:
-		if (!is_type_int(left->datatype)) {
-			print_error_prefix(binexpr->expression.source_position);
+		if (!is_type_int(left->base.type)) {
+			print_error_prefix(binexpr->base.source_position);
 			fprintf(stderr, "ShiftLeft/ShiftRight expressions need an integer "
 			        "type, but type ");
-			print_type(left->datatype);
+			print_type(left->base.type);
 			fprintf(stderr, "is given\n");
 		}
-		exprtype  = left->datatype;
+		exprtype  = left->base.type;
 		lefttype  = exprtype;
 		righttype = type_uint;
 		break;
@@ -852,8 +835,8 @@ static void check_binary_expression(binary_expression_t *binexpr)
 	case EXPR_BINARY_GREATEREQUAL:
 		exprtype  = type_bool;
 		/* TODO find out greatest common type... */
-		lefttype  = left->datatype;
-		righttype = left->datatype;
+		lefttype  = left->base.type;
+		righttype = left->base.type;
 		break;
 	case EXPR_BINARY_LAZY_AND:
 	case EXPR_BINARY_LAZY_OR:
@@ -868,17 +851,17 @@ static void check_binary_expression(binary_expression_t *binexpr)
 	if (left == NULL || right == NULL)
 		return;
 
-	if (left->datatype != lefttype) {
+	if (left->base.type != lefttype) {
 		binexpr->left  = make_cast(left, lefttype,
-		                           binexpr->expression.source_position,
+		                           binexpr->base.source_position,
 								   false);
 	}
-	if (right->datatype != righttype) {
+	if (right->base.type != righttype) {
 		binexpr->right = make_cast(right, righttype,
-		                           binexpr->expression.source_position,
+		                           binexpr->base.source_position,
 								   false);
 	}
-	binexpr->expression.datatype = exprtype;
+	binexpr->base.type = exprtype;
 }
 
 /**
@@ -982,7 +965,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 			type_variable_t  *type_variable = type_ref->type_variable;
 
 			if (!type_variable_has_constraint(type_variable, concept)) {
-				print_error_prefix(reference->expression.source_position);
+				print_error_prefix(reference->base.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
 				        "concept '%s' when using method '%s'.\n",
 				        type_variable->base.symbol->string,
@@ -1001,10 +984,10 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 	}
 
 	/* we assume that all typevars have current_type set */
-	const source_position_t *pos      = &reference->expression.source_position;
+	const source_position_t *pos      = &reference->base.source_position;
 	concept_instance_t      *instance = _find_concept_instance(concept, pos);
 	if (instance == NULL) {
-		print_error_prefix(reference->expression.source_position);
+		print_error_prefix(reference->base.source_position);
 		fprintf(stderr, "there's no instance of concept '%s' for type ",
 		        concept->base.symbol->string);
 		type_variable_t *typevar = concept->type_parameters;
@@ -1023,7 +1006,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 	concept_method_instance_t *method_instance 
 		= get_method_from_concept_instance(instance, concept_method);
 	if (method_instance == NULL) {
-		print_error_prefix(reference->expression.source_position);
+		print_error_prefix(reference->base.source_position);
 		fprintf(stderr, "no instance of method '%s' found in concept "
 		        "instance?\n", concept_method->declaration.symbol->string);
 		panic("panic");
@@ -1032,8 +1015,8 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 	type_t *type         = (type_t*) method_instance->method.type;
 	type_t *pointer_type = make_pointer_type(type);
 
-	reference->expression.datatype = pointer_type;
-	reference->declaration         = (declaration_t*) &method_instance->method;
+	reference->base.type   = pointer_type;
+	reference->declaration = (declaration_t*) &method_instance->method;
 #endif
 }
 
@@ -1178,7 +1161,7 @@ static void check_call_expression(call_expression_t *call)
 {
 	call->method                    = check_expression(call->method);
 	expression_t    *method         = call->method;
-	type_t          *type           = method->datatype;
+	type_t          *type           = method->base.type;
 	type_argument_t *type_arguments = NULL;
 
 	/* can happen if we had a deeper semantic error */
@@ -1187,7 +1170,7 @@ static void check_call_expression(call_expression_t *call)
 
 	/* determine method type */
 	if (type->type != TYPE_POINTER) {
-		print_error_prefix(call->expression.source_position);
+		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
 		print_type(type);
 		fprintf(stderr, "\n");
@@ -1197,7 +1180,7 @@ static void check_call_expression(call_expression_t *call)
 
 	type = pointer_type->points_to;
 	if (type->type != TYPE_METHOD) {
-		print_error_prefix(call->expression.source_position);
+		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
 		print_type(type);
 		fprintf(stderr, "\n");
@@ -1207,7 +1190,7 @@ static void check_call_expression(call_expression_t *call)
 
 	/* match parameter types against type variables */
 	type_variable_t *type_variables = NULL;
-	if (method->type == EXPR_REFERENCE) {
+	if (method->kind == EXPR_REFERENCE) {
 		reference_expression_t *reference
 			= (reference_expression_t*) method;
 		declaration_t *declaration = reference->declaration;
@@ -1249,7 +1232,7 @@ static void check_call_expression(call_expression_t *call)
 		}
 
 		if (type_argument != NULL || type_var != NULL) {
-			error_at(method->source_position,
+			error_at(method->base.source_position,
 			         "wrong number of type arguments on method reference");
 		}
 	}
@@ -1261,7 +1244,7 @@ static void check_call_expression(call_expression_t *call)
 	int                      i          = 0;
 	while (argument != NULL) {
 		if (param_type == NULL && !method_type->variable_arguments) {
-			error_at(call->expression.source_position,
+			error_at(call->base.source_position,
 			         "too much arguments for method call\n");
 			break;
 		}
@@ -1270,30 +1253,31 @@ static void check_call_expression(call_expression_t *call)
 		expression_t *expression = argument->expression;
 
 		type_t       *wanted_type;
-		type_t       *expression_type = expression->datatype;
+		type_t       *expression_type = expression->base.type;
 
 		if (param_type != NULL) {
 			wanted_type = param_type->type;
 		} else {
 			wanted_type = get_default_param_type(expression_type,
-			                    argument->expression->source_position);
+			                        argument->expression->base.source_position);
 		}
 
 		/* match type of argument against type variables */
 		if (type_variables != NULL && type_arguments == NULL) {
 			match_variant_to_concrete_type(wanted_type, expression_type,
-			                               expression->source_position, true);
+			                               expression->base.source_position,
+										   true);
 		} else if (expression_type != wanted_type) {
 			/* be a bit lenient for varargs function, to not make using
 			   C printf too much of a pain... */
 			bool lenient = param_type == NULL;
 			expression_t *new_expression 
 				= make_cast(expression, wanted_type,
-			                expression->source_position, lenient);
+			                expression->base.source_position, lenient);
 			if (new_expression == NULL) {
-				print_error_prefix(expression->source_position);
+				print_error_prefix(expression->base.source_position);
 				fprintf(stderr, "invalid type for argument %d of call: ", i);
-				print_type(expression->datatype);
+				print_type(expression->base.type);
 				fprintf(stderr, " should be ");
 				print_type(wanted_type);
 				fprintf(stderr, "\n");
@@ -1309,7 +1293,7 @@ static void check_call_expression(call_expression_t *call)
 		++i;
 	}
 	if (param_type != NULL) {
-		error_at(call->expression.source_position,
+		error_at(call->base.source_position,
 		         "too few arguments for method call\n");
 	}
 
@@ -1318,7 +1302,7 @@ static void check_call_expression(call_expression_t *call)
 	type_variable_t *type_var = type_variables;
 	while (type_var != NULL) {
 		if (type_var->current_type == NULL) {
-			print_error_prefix(call->expression.source_position);
+			print_error_prefix(call->base.source_position);
 			fprintf(stderr, "Couldn't determine concrete type for type "
 					"variable '%s' in call expression\n",
 			        type_var->base.symbol->string);
@@ -1353,7 +1337,7 @@ static void check_call_expression(call_expression_t *call)
 			/* check type constraints */
 			assert(declaration->kind == DECLARATION_METHOD);
 			check_type_constraints(type_variables,
-			                       call->expression.source_position);
+			                       call->base.source_position);
 
 			method_declaration_t *method_declaration
 				= (method_declaration_t*) declaration;
@@ -1381,8 +1365,7 @@ static void check_call_expression(call_expression_t *call)
 			}
 		}
 
-		ref->expression.datatype 
-			= create_concrete_type(ref->expression.datatype);
+		ref->base.type = create_concrete_type(ref->base.type);
 	}
 
 	/* clear typevariable configuration */
@@ -1400,19 +1383,19 @@ static void check_call_expression(call_expression_t *call)
 		}
 	}
 
-	call->expression.datatype = result_type;
+	call->base.type = result_type;
 }
 
 static void check_cast_expression(unary_expression_t *cast)
 {
-	if (cast->expression.datatype == NULL) {
+	if (cast->base.type == NULL) {
 		panic("Cast expression needs a datatype!");
 	}
-	cast->expression.datatype = normalize_type(cast->expression.datatype);
-	cast->value               = check_expression(cast->value);
+	cast->base.type = normalize_type(cast->base.type);
+	cast->value     = check_expression(cast->value);
 
-	if (cast->value->datatype == type_void) {
-		error_at(cast->expression.source_position,
+	if (cast->value->base.type == type_void) {
+		error_at(cast->base.source_position,
 		         "can't cast void type to anything\n");
 	}
 }
@@ -1422,36 +1405,36 @@ static void check_dereference_expression(unary_expression_t *dereference)
 	dereference->value  = check_expression(dereference->value);
 	expression_t *value = dereference->value;
 
-	if (value->datatype == NULL) {
-		error_at(dereference->expression.source_position,
+	if (value->base.type == NULL) {
+		error_at(dereference->base.source_position,
 		         "can't derefence expression with unknown datatype\n");
 		return;
 	}
-	if (value->datatype->type != TYPE_POINTER) {
-		error_at(dereference->expression.source_position,
+	if (value->base.type->type != TYPE_POINTER) {
+		error_at(dereference->base.source_position,
 		         "can only dereference expressions with pointer type\n");
 		return;
 	}
-	pointer_type_t *pointer_type      = (pointer_type_t*) value->datatype;
+	pointer_type_t *pointer_type      = (pointer_type_t*) value->base.type;
 	type_t         *dereferenced_type = pointer_type->points_to;
-	dereference->expression.datatype  = dereferenced_type;
+	dereference->base.type            = dereferenced_type;
 }
 
 static void check_take_address_expression(unary_expression_t *expression)
 {
 	expression->value   = check_expression(expression->value);
-	type_t *type        = expression->value->datatype;
+	type_t *type        = expression->value->base.type;
 	type_t *result_type = make_pointer_type(type);
 	expression_t *value = expression->value;
 
 	if (!is_lvalue(value)) {
 		/* TODO use another word than lvalue to explain this to the user... */
-		error_at(expression->expression.source_position,
+		error_at(expression->base.source_position,
 		         "can only take address of l-values\n");
 		return;
 	}
 
-	if (value->type == EXPR_REFERENCE) {
+	if (value->kind == EXPR_REFERENCE) {
 		reference_expression_t *reference   = (reference_expression_t*) value;
 		declaration_t          *declaration = reference->declaration;
 
@@ -1462,7 +1445,7 @@ static void check_take_address_expression(unary_expression_t *expression)
 		}
 	}
 
-	expression->expression.datatype = result_type;
+	expression->base.type = result_type;
 }
 
 static bool is_arithmetic_type(type_t *type)
@@ -1499,38 +1482,38 @@ static void check_negate_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
-	type_t *type = expression->value->datatype;
+	type_t *type = expression->value->base.type;
 	if (type == NULL)
 		return;
 
 	if (!is_arithmetic_type(type)) {
-		print_error_prefix(expression->expression.source_position);
+		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "negate expression only valid for arithmetic types, "
 		        "but argument has type ");
 		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
-	expression->expression.datatype = type;
+	expression->base.type = type;
 }
 
 static void check_bitwise_not_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
-	type_t *type = expression->value->datatype;
+	type_t *type = expression->value->base.type;
 	if (type == NULL)
 		return;
 
 	if (!is_type_int(type)) {
-		print_error_prefix(expression->expression.source_position);
+		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "not expression only valid for integer types, "
 		        "but argument has type ");
 		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
-	expression->expression.datatype = type;
+	expression->base.type = type;
 }
 
 static expression_t *lower_incdec_expression(expression_t *expression_)
@@ -1538,12 +1521,12 @@ static expression_t *lower_incdec_expression(expression_t *expression_)
 	unary_expression_t *expression = (unary_expression_t*) expression_;
 
 	expression_t *value = check_expression(expression->value);
-	type_t       *type  = value->datatype;
+	type_t       *type  = value->base.type;
 
-	expression_type_t kind = expression->expression.type;
+	expression_kind_t kind = expression->base.kind;
 
 	if (!is_type_numeric(type) && type->type != TYPE_POINTER) {
-		print_error_prefix(expression->expression.source_position);
+		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "%s expression only valid for numeric or pointer types "
 				"but argument has type ",
 		        kind == EXPR_UNARY_INCREMENT ? "increment" : "decrement"
@@ -1552,7 +1535,7 @@ static expression_t *lower_incdec_expression(expression_t *expression_)
 		fprintf(stderr, "\n");
 	}
 	if (!is_lvalue(value)) {
-		print_error_prefix(expression->expression.source_position);
+		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "%s expression needs an lvalue\n",
 	            kind == EXPR_UNARY_INCREMENT ? "increment" : "decrement"
 		       );
@@ -1569,63 +1552,50 @@ static expression_t *lower_incdec_expression(expression_t *expression_)
 
 	expression_t *constant;
 	if (need_int_const) {
-		int_const_t *iconst = allocate_ast(sizeof(iconst[0]));
-		memset(iconst, 0, sizeof(iconst[0]));
-		iconst->expression.type     = EXPR_INT_CONST;
-		iconst->expression.datatype = type;
-		iconst->value               = 1;
-		constant                    = (expression_t*) iconst;
+		constant                  = allocate_expression(EXPR_INT_CONST);
+		constant->base.type       = type;
+		constant->int_const.value = 1;
 	} else {
-		float_const_t *fconst = allocate_ast(sizeof(fconst[0]));
-		memset(fconst, 0, sizeof(fconst[0]));
-		fconst->expression.type     = EXPR_FLOAT_CONST;
-		fconst->expression.datatype = type;
-		fconst->value               = 1.0;
-		constant                    = (expression_t*) fconst;
+		constant                    = allocate_expression(EXPR_FLOAT_CONST);
+		constant->base.type         = type;
+		constant->float_const.value = 1.0;
 	}
 
-	binary_expression_t *add = allocate_ast(sizeof(add[0]));
-	memset(add, 0, sizeof(add[0]));
-	add->expression.datatype = type;
-	if (kind == EXPR_UNARY_INCREMENT) {
-		add->expression.type = EXPR_BINARY_ADD;
-	} else {
-		assert(kind == EXPR_UNARY_DECREMENT);
-		add->expression.type = EXPR_BINARY_SUB;
-	}
-	add->left  = value;
-	add->right = constant;
+	expression_t *add = allocate_expression(kind == EXPR_UNARY_INCREMENT
+		                                    ? EXPR_BINARY_ADD
+							                : EXPR_BINARY_SUB);
+	add->base.type    = type;
+	add->binary.left  = value;
+	add->binary.right = constant;
 
-	binary_expression_t *assign = allocate_ast(sizeof(assign[0]));
-	memset(assign, 0, sizeof(assign[0]));
-	assign->expression.type     = EXPR_BINARY_ASSIGN;
-	assign->expression.datatype = type;
-	assign->left                = value;
-	assign->right               = (expression_t*) add;
+	expression_t *assign = allocate_expression(EXPR_BINARY_ASSIGN);
+	assign->base.type    = type;
+	assign->binary.left  = value;
+	assign->binary.right = add;
 
-	return (expression_t*) assign;
+	return assign;
 }
 
 static void check_not_expression(unary_expression_t *expression)
 {
 	expression->value = check_expression(expression->value);
 
-	type_t *type = expression->value->datatype;
+	type_t *type = expression->value->base.type;
 
 	if (type != type_bool) {
-		print_error_prefix(expression->expression.source_position);
+		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "not expression only valid for bool type, "
 		        "but argument has type ");
 		print_type(type);
 		fprintf(stderr, "\n");
 	}
 
-	expression->expression.datatype = type;
+	expression->base.type = type;
 }
 
 static void check_unary_expression(unary_expression_t *unary_expression)
 {
-	switch (unary_expression->expression.type) {
+	switch (unary_expression->base.kind) {
 	case EXPR_UNARY_CAST:
 		check_cast_expression(unary_expression);
 		return;
@@ -1658,7 +1628,7 @@ static void check_select_expression(select_expression_t *select)
 	select->compound       = check_expression(select->compound);
 	expression_t *compound = select->compound;
 
-	type_t *datatype = compound->datatype;
+	type_t *datatype = compound->base.type;
 	if (datatype == NULL)
 		return;
 
@@ -1675,7 +1645,7 @@ static void check_select_expression(select_expression_t *select)
 		compound_type = (compound_type_t*) datatype;
 	} else {
 		if (datatype->type != TYPE_POINTER) {
-			print_error_prefix(select->expression.source_position);
+			print_error_prefix(select->base.source_position);
 			fprintf(stderr, "select needs a compound type (or pointer) but "
 					"found type ");
 			print_type(datatype);
@@ -1695,7 +1665,7 @@ static void check_select_expression(select_expression_t *select)
 				|| points_to->type == TYPE_COMPOUND_CLASS) {
 			compound_type = (compound_type_t*) points_to;
 		} else {
-			print_error_prefix(select->expression.source_position);
+			print_error_prefix(select->base.source_position);
 			fprintf(stderr, "select needs a pointer to compound type but found "
 					"type ");
 			print_type(datatype);
@@ -1714,9 +1684,9 @@ static void check_select_expression(select_expression_t *select)
 	}
 	if (declaration != NULL) {
 		type_t *type = check_reference(declaration,
-		                               select->expression.source_position);
-		select->expression.datatype = type;
-		select->declaration         = declaration;
+		                               select->base.source_position);
+		select->base.type   = type;
+		select->declaration = declaration;
 		return;
 	}
 
@@ -1728,7 +1698,7 @@ static void check_select_expression(select_expression_t *select)
 		entry = entry->next;
 	}
 	if (entry == NULL) {
-		print_error_prefix(select->expression.source_position);
+		print_error_prefix(select->base.source_position);
 		fprintf(stderr, "compound type ");
 		print_type((type_t*) compound_type);
 		fprintf(stderr, " does not have a member '%s'\n", symbol->string);
@@ -1746,8 +1716,8 @@ static void check_select_expression(select_expression_t *select)
 		pop_type_variable_bindings(old_top);
 	}
 
-	select->compound_entry      = entry;
-	select->expression.datatype = result_type;
+	select->compound_entry = entry;
+	select->base.type      = result_type;
 }
 
 static void check_array_access_expression(array_access_expression_t *access)
@@ -1757,10 +1727,10 @@ static void check_array_access_expression(array_access_expression_t *access)
 	expression_t *array_ref = access->array_ref;
 	expression_t *index     = access->index;
 
-	type_t *type = array_ref->datatype;
+	type_t *type = array_ref->base.type;
 	if (type == NULL || 
 			(type->type != TYPE_POINTER && type->type != TYPE_ARRAY)) {
-		print_error_prefix(access->expression.source_position);
+		print_error_prefix(access->base.source_position);
 		fprintf(stderr, "expected pointer or array type for array access, "
 		        "got ");
 		print_type(type);
@@ -1781,36 +1751,35 @@ static void check_array_access_expression(array_access_expression_t *access)
 		 * that exceeds the array size
 		 */
 	}
-	access->expression.datatype = result_type;
+	access->base.type = result_type;
 
-	if (index->datatype == NULL || !is_type_int(index->datatype)) {
-		print_error_prefix(access->expression.source_position);
+	if (index->base.type == NULL || !is_type_int(index->base.type)) {
+		print_error_prefix(access->base.source_position);
 		fprintf(stderr, "expected integer type for array index, got ");
-		print_type(index->datatype);
+		print_type(index->base.type);
 		fprintf(stderr, "\n");
 		return;
 	}
 
-	if (index->datatype != NULL && index->datatype != type_int) {
+	if (index->base.type != NULL && index->base.type != type_int) {
 		access->index = make_cast(index, type_int,
-		                          access->expression.source_position, false);
+		                          access->base.source_position, false);
 	}
 }
 
 static void check_sizeof_expression(sizeof_expression_t *expression)
 {
-	expression->type = normalize_type(expression->type);
-	expression->expression.datatype = type_uint;
+	expression->type      = normalize_type(expression->type);
+	expression->base.type = type_uint;
 }
 
 static void check_func_expression(func_expression_t *expression)
 {
 	method_t *method = & expression->method;
-
 	resolve_method_types(method);
-	check_method(method, NULL, expression->expression.source_position);
+	check_method(method, NULL, expression->base.source_position);
 
-	expression->expression.datatype = make_pointer_type((type_t*) method->type);
+	expression->base.type = make_pointer_type((type_t*) method->type);
 }
 
 WARN_UNUSED
@@ -1820,30 +1789,30 @@ expression_t *check_expression(expression_t *expression)
 		return NULL;
 
 	/* try to lower the expression */
-	if ((unsigned) expression->type < (unsigned) ARR_LEN(expression_lowerers)) {
+	if ((unsigned) expression->kind < (unsigned) ARR_LEN(expression_lowerers)) {
 		lower_expression_function lowerer 
-			= expression_lowerers[expression->type];
+			= expression_lowerers[expression->kind];
 
-		if (lowerer != NULL && !expression->lowered) {
+		if (lowerer != NULL && !expression->base.lowered) {
 			expression = lowerer(expression);
 		}
 	}
 
-	switch (expression->type) {
+	switch (expression->kind) {
 	case EXPR_INT_CONST:
-		expression->datatype = type_int;
+		expression->base.type = type_int;
 		break;
 	case EXPR_FLOAT_CONST:
-		expression->datatype = type_double;
+		expression->base.type = type_double;
 		break;
 	case EXPR_BOOL_CONST:
-		expression->datatype = type_bool;
+		expression->base.type = type_bool;
 		break;
 	case EXPR_STRING_CONST:
-		expression->datatype = type_byte_ptr;
+		expression->base.type = type_byte_ptr;
 		break;
 	case EXPR_NULL_POINTER:
-		expression->datatype = type_void_ptr;
+		expression->base.type = type_void_ptr;
 		break;
 	case EXPR_FUNC:
 		check_func_expression((func_expression_t*) expression);
@@ -1895,14 +1864,14 @@ static void check_return_statement(return_statement_t *statement)
 
 	if (return_value != NULL) {
 		if (method_result_type == type_void
-				&& return_value->datatype != type_void) {
+				&& return_value->base.type != type_void) {
 			error_at(statement->statement.source_position,
 			         "return with value in void method\n");
 			return;
 		}
 
 		/* do we need a cast ?*/
-		if (return_value->datatype != method_result_type) {
+		if (return_value->base.type != method_result_type) {
 			return_value
 				= make_cast(return_value, method_result_type,
 				            statement->statement.source_position, false);
@@ -1924,10 +1893,10 @@ static void check_if_statement(if_statement_t *statement)
 	expression_t *condition = statement->condition;
 
 	assert(condition != NULL);
-	if (condition->datatype != type_bool) {
+	if (condition->base.type != type_bool) {
 		error_at(statement->statement.source_position,
 		         "if condition needs to be boolean but has type ");
-		print_type(condition->datatype);
+		print_type(condition->base.type);
 		fprintf(stderr, "\n");
 		return;
 	}
@@ -2002,23 +1971,23 @@ static void check_expression_statement(expression_statement_t *statement)
 	expression_t *expression = statement->expression;
 
 	/* can happen on semantic errors */
-	if (expression->datatype == NULL)
+	if (expression->base.type == NULL)
 		return;
 
 	bool may_be_unused = false;
-	if (expression->type == EXPR_BINARY_ASSIGN) {
+	if (expression->kind == EXPR_BINARY_ASSIGN) {
 		may_be_unused = true;
-	} else if (expression->type == EXPR_UNARY_INCREMENT
-			|| expression->type == EXPR_UNARY_DECREMENT) {
+	} else if (expression->kind == EXPR_UNARY_INCREMENT
+			|| expression->kind == EXPR_UNARY_DECREMENT) {
 		may_be_unused = true;
-	} else if (expression->type == EXPR_CALL) {
+	} else if (expression->kind == EXPR_CALL) {
 		may_be_unused = true;
 	}
 
-	if (expression->datatype != type_void && !may_be_unused) {
+	if (expression->base.type != type_void && !may_be_unused) {
 		print_warning_prefix(statement->statement.source_position);
 		fprintf(stderr, "result of expression is unused\n");
-		if (expression->type == EXPR_BINARY_EQUAL) {
+		if (expression->kind == EXPR_BINARY_EQUAL) {
 			print_warning_prefix(statement->statement.source_position);
 			fprintf(stderr, "Did you mean '<-' instead of '='?\n");
 		}
@@ -2172,7 +2141,7 @@ static void check_constant(constant_t *constant)
 	expression_t *expression = constant->expression;
 
 	expression = check_expression(expression);
-	if (expression->datatype != constant->type) {
+	if (expression->base.type != constant->type) {
 		expression = make_cast(expression, constant->type,
 		                       constant->base.source_position, false);
 	}

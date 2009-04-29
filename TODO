@@ -25,6 +25,6 @@ because they need no deep understanding of the design.
 - make lexer unicode aware (reading utf-8 is enough, for more inputs we could use iconv, but we should recommend utf-8 as default)
 
 Refactorings:
-- make unions for expression_t, type_t (see cparser)
-- rename type to kind, expression->datatype to expression->type
+- make unions for type_t (see cparser)
+- rename type to kind
 - keep typerefs as long as possible (start the skip_typeref madness similar to cparser)

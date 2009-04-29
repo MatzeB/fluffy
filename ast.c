@@ -126,15 +126,15 @@ static void print_sizeof_expression(const sizeof_expression_t *expr)
 static void print_unary_expression(const unary_expression_t *unexpr)
 {
 	fprintf(out, "(");
-	switch (unexpr->expression.type) {
+	switch (unexpr->base.kind) {
 	case EXPR_UNARY_CAST:
 		fprintf(out, "cast<");
-		print_type(unexpr->expression.datatype);
+		print_type(unexpr->base.type);
 		fprintf(out, "> ");
 		print_expression(unexpr->value);
 		break;
 	default:
-		fprintf(out, "*unexpr %d*", unexpr->expression.type);
+		fprintf(out, "*unexpr %d*", unexpr->base.kind);
 		break;
 	}
 	fprintf(out, ")");
@@ -145,7 +145,7 @@ static void print_binary_expression(const binary_expression_t *binexpr)
 	fprintf(out, "(");
 	print_expression(binexpr->left);
 	fprintf(out, " ");
-	switch (binexpr->expression.type) {
+	switch (binexpr->base.kind) {
 	case EXPR_BINARY_ASSIGN:
 		fprintf(out, "<-");
 		break;
@@ -181,7 +181,7 @@ static void print_binary_expression(const binary_expression_t *binexpr)
 		break;
 	default:
 		/* TODO: add missing ops */
-		fprintf(out, "op%d", binexpr->expression.type);
+		fprintf(out, "op%d", binexpr->base.kind);
 		break;
 	}
 	fprintf(out, " ");
@@ -196,7 +196,7 @@ void print_expression(const expression_t *expression)
 		return;
 	}
 
-	switch (expression->type) {
+	switch (expression->kind) {
 	case EXPR_ERROR:
 		fprintf(out, "*error expression*");
 		break;

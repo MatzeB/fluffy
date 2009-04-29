@@ -235,7 +235,7 @@ typedef enum {
 	EXPR_BINARY_LAST = EXPR_BINARY_SHIFTRIGHT,
 
 	EXPR_LAST = EXPR_BINARY_LAST
-} expression_type_t;
+} expression_kind_t;
 
 #define EXPR_UNARY_CASES           \
 	case EXPR_UNARY_NEGATE:        \
@@ -271,47 +271,43 @@ typedef enum {
 /**
  * base structure for expressions
  */
-struct expression_t {
-	expression_type_t  type;
-	type_t            *datatype;
-	bool               lowered;
+struct expression_base_t {
+	expression_kind_t  kind;
+	type_t            *type;
 	source_position_t  source_position;
+	bool               lowered;
 };
 
 struct bool_const_t {
-	expression_t  expression;
-	bool          value;
+	expression_base_t base;
+	bool              value;
 };
 
 struct int_const_t {
-	expression_t  expression;
-	int           value;
+	expression_base_t base;
+	int               value;
 };
 
 struct float_const_t {
-	expression_t  expression;
-	double        value;
+	expression_base_t base;
+	double            value;
 };
 
 struct string_const_t {
-	expression_t  expression;
-	const char   *value;
-};
-
-struct null_pointer_t {
-	expression_t  expression;
+	expression_base_t  base;
+	const char        *value;
 };
 
 struct func_expression_t {
-	expression_t  expression;
-	method_t      method;
+	expression_base_t base;
+	method_t          method;
 };
 
 struct reference_expression_t {
-	expression_t     expression;
-	symbol_t        *symbol;
-	declaration_t   *declaration;
-	type_argument_t *type_arguments;
+	expression_base_t  base;
+	symbol_t          *symbol;
+	declaration_t     *declaration;
+	type_argument_t   *type_arguments;
 };
 
 struct call_argument_t {
@@ -320,40 +316,57 @@ struct call_argument_t {
 };
 
 struct call_expression_t {
-	expression_t     expression;
-	expression_t    *method;
-	call_argument_t *arguments;
+	expression_base_t  base;
+	expression_t      *method;
+	call_argument_t   *arguments;
 };
 
 struct unary_expression_t {
-	expression_t  expression;
-	expression_t *value;
+	expression_base_t  base;
+	expression_t      *value;
 };
 
 struct binary_expression_t {
-	expression_t  expression;
-	expression_t *left;
-	expression_t *right;
+	expression_base_t  base;
+	expression_t      *left;
+	expression_t      *right;
 };
 
 struct select_expression_t {
-	expression_t      expression;
-	expression_t     *compound;
-	symbol_t         *symbol;
+	expression_base_t  base;
+	expression_t      *compound;
+	symbol_t          *symbol;
 
 	compound_entry_t *compound_entry;
 	declaration_t    *declaration;
 };
 
 struct array_access_expression_t {
-	expression_t  expression;
-	expression_t *array_ref;
-	expression_t *index;
+	expression_base_t  base;
+	expression_t      *array_ref;
+	expression_t      *index;
 };
 
 struct sizeof_expression_t {
-	expression_t  expression;
-	type_t       *type;
+	expression_base_t  base;
+	type_t            *type;
+};
+
+union expression_t {
+	expression_kind_t          kind;
+	expression_base_t          base;
+	bool_const_t               bool_const;
+	int_const_t                int_const;
+	float_const_t              float_const;
+	string_const_t             string_const;
+	func_expression_t          func;
+	reference_expression_t     reference;
+	call_expression_t          call;
+	unary_expression_t         unary;
+	binary_expression_t        binary;
+	select_expression_t        select;
+	array_access_expression_t  array_access;
+	sizeof_expression_t        sizeofe;
 };
 
 typedef enum {
@@ -470,5 +483,7 @@ unsigned register_expression(void);
 unsigned register_statement(void);
 unsigned register_declaration(void);
 unsigned register_attribute(void);
+
+expression_t *allocate_expression(expression_kind_t kind);
 
 #endif

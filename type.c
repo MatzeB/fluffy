@@ -581,7 +581,7 @@ type_t *skip_typeref(type_t *type)
 {
 	if (type->type == TYPE_TYPEOF) {
 		typeof_type_t *typeof_type = (typeof_type_t*) type;
-		return skip_typeref(typeof_type->expression->datatype);
+		return skip_typeref(typeof_type->expression->base.type);
 	}
 	return type;
 }

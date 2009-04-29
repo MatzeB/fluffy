@@ -84,6 +84,7 @@ struct Expression:
 	type            : unsigned int
 	datatype        : Type*
 	source_position : SourcePosition
+	lowered         : byte
 
 struct IntConst:
 	expression      : Expression

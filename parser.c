@@ -67,6 +67,40 @@ static declaration_t *allocate_declaration(declaration_kind_t kind)
 	return declaration;
 }
 
+static size_t get_expression_struct_size(expression_kind_t kind)
+{
+	static const size_t sizes[] = {
+		[EXPR_INT_CONST]     = sizeof(int_const_t),
+		[EXPR_FLOAT_CONST]   = sizeof(float_const_t),
+		[EXPR_BOOL_CONST]    = sizeof(bool_const_t),
+		[EXPR_STRING_CONST]  = sizeof(string_const_t),
+		[EXPR_NULL_POINTER]  = sizeof(expression_base_t),
+		[EXPR_REFERENCE]     = sizeof(reference_expression_t),
+		[EXPR_CALL]          = sizeof(call_expression_t),
+		[EXPR_SELECT]        = sizeof(select_expression_t),
+		[EXPR_ARRAY_ACCESS]  = sizeof(array_access_expression_t),
+		[EXPR_SIZEOF]        = sizeof(sizeof_expression_t),
+		[EXPR_FUNC]          = sizeof(func_expression_t),
+	};
+	if (kind >= EXPR_UNARY_FIRST && kind <= EXPR_UNARY_LAST) {
+		return sizeof(unary_expression_t);
+	}
+	if (kind >= EXPR_BINARY_FIRST && kind <= EXPR_BINARY_LAST) {
+		return sizeof(binary_expression_t);
+	}
+	assert(kind <= sizeof(sizes)/sizeof(sizes[0]));
+	assert(sizes[kind] != 0);
+	return sizes[kind];
+}
+
+expression_t *allocate_expression(expression_kind_t kind)
+{
+	size_t        size       = get_expression_struct_size(kind);
+	expression_t *expression = allocate_ast_zero(size);
+	expression->kind         = kind;
+	return expression;
+}
+
 static inline void *allocate_type_zero(size_t size)
 {
 	void *res = obstack_alloc(type_obst, size);
@@ -657,129 +691,106 @@ end_error:
 
 static expression_t *parse_string_const(void)
 {
-	string_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
-
-	cnst->expression.type = EXPR_STRING_CONST;
-	cnst->value           = token.v.string;
-
+	expression_t *expression       = allocate_expression(EXPR_STRING_CONST);
+	expression->string_const.value = token.v.string;
 	next_token();
 
-	return (expression_t*) cnst;
+	return expression;
 }
 
 static expression_t *parse_int_const(void)
 {
-	int_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
-
-	cnst->expression.type = EXPR_INT_CONST;
-	cnst->value           = token.v.intvalue;
-
+	expression_t *expression    = allocate_expression(EXPR_INT_CONST);
+	expression->int_const.value = token.v.intvalue;
 	next_token();
 
-	return (expression_t*) cnst;
+	return expression;
 }
 
 static expression_t *parse_true(void)
 {
 	eat(T_true);
+	expression_t *expression     = allocate_expression(EXPR_BOOL_CONST);
+	expression->bool_const.value = true;
 
-	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
-
-	cnst->expression.type = EXPR_BOOL_CONST;
-	cnst->value           = 1;
-
-	return (expression_t*) cnst;
+	return expression;
 }
 
 static expression_t *parse_false(void)
 {
 	eat(T_false);
+	expression_t *expression     = allocate_expression(EXPR_BOOL_CONST);
+	expression->bool_const.value = false;
 
-	bool_const_t *cnst = allocate_ast_zero(sizeof(cnst[0]));
-
-	cnst->expression.type = EXPR_BOOL_CONST;
-	cnst->value           = 0;
-
-	return (expression_t*) cnst;
+	return expression;
 }
 
 static expression_t *parse_null(void)
 {
 	eat(T_null);
+	expression_t *expression = allocate_expression(EXPR_NULL_POINTER);
+	expression->base.type    = make_pointer_type(type_void);
 
-	null_pointer_t *expression      = allocate_ast_zero(sizeof(expression[0]));
-	expression->expression.type     = EXPR_NULL_POINTER;
-	expression->expression.datatype = make_pointer_type(type_void);
-
-	return (expression_t*) expression;
+	return expression;
 }
 
 static expression_t *parse_func_expression(void)
 {
 	eat(T_func);
+	expression_t *expression = allocate_expression(EXPR_FUNC);
+	parse_method(&expression->func.method);
 
-	func_expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
-	expression->expression.type   = EXPR_FUNC;
-
-	parse_method(&expression->method);
-
-	return (expression_t*) expression;
+	return expression;
 }
 
 static expression_t *parse_reference(void)
 {
-	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
-
-	ref->expression.type = EXPR_REFERENCE;
-	ref->symbol          = token.v.symbol;
-
+	expression_t *expression     = allocate_expression(EXPR_REFERENCE);
+	expression->reference.symbol = token.v.symbol;
 	next_token();
 
 	if (token.type == T_TYPESTART) {
 		next_token();
 		add_anchor_token('>');
-		ref->type_arguments = parse_type_arguments();
+		expression->reference.type_arguments = parse_type_arguments();
 		rem_anchor_token('>');
 		expect('>', end_error);
 	}
 
 end_error:
-	return (expression_t*) ref;
+	return expression;
 }
 
 static expression_t *create_error_expression(void)
 {
-	expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
-	expression->type         = EXPR_ERROR;
-	expression->datatype     = create_error_type();
+	expression_t *expression = allocate_expression(EXPR_ERROR);
+	expression->base.type    = create_error_type();
 	return expression;
 }
 
 static expression_t *parse_sizeof(void)
 {
 	eat(T_sizeof);
-
-	sizeof_expression_t *expression	= allocate_ast_zero(sizeof(expression[0]));
-	expression->expression.type = EXPR_SIZEOF;
+	expression_t *expression = allocate_expression(EXPR_SIZEOF);
 
 	if (token.type == '(') {
 		next_token();
 		typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
 		typeof_type->type.type     = TYPE_TYPEOF;
-		expression->type           = (type_t*) typeof_type;
-
 		add_anchor_token(')');
 		typeof_type->expression = parse_expression();
 		rem_anchor_token(')');
 		expect(')', end_error);
+
+		expression->sizeofe.type = (type_t*) typeof_type;
 	} else {
 		expect('<', end_error);
 		add_anchor_token('>');
-		expression->type = parse_type();
+		expression->sizeofe.type = parse_type();
 		rem_anchor_token('>');
 		expect('>', end_error);
 	}
-	return (expression_t*) expression;
+	return expression;
 
 end_error:
 	return create_error_expression();
@@ -903,11 +914,7 @@ static expression_t *expected_expression_error(void)
 	print_token(stderr, & token);
 	fprintf(stderr, "\n");
 
-	expression_t *expression = allocate_ast_zero(sizeof(expression[0]));
-	expression->type = EXPR_INVALID;
-	next_token();
-
-	return expression;
+	return create_error_expression();
 }
 
 static expression_t *parse_parenthesized_expression(void)
@@ -927,26 +934,22 @@ static expression_t *parse_cast_expression(void)
 {
 	eat(T_cast);
 
-	unary_expression_t *unary_expression 
-		= allocate_ast_zero(sizeof(unary_expression[0]));
-	unary_expression->expression.type = EXPR_UNARY_CAST;
+	expression_t *expression = allocate_expression(EXPR_UNARY_CAST);
 	
 	expect('<', end_error);
-	unary_expression->expression.datatype = parse_type();
+	expression->base.type = parse_type();
 	expect('>', end_error);
 
-	unary_expression->value = parse_sub_expression(PREC_CAST);
+	expression->unary.value = parse_sub_expression(PREC_CAST);
 
 end_error:
-	return (expression_t*) unary_expression;
+	return expression;
 }
 
-static expression_t *parse_call_expression(expression_t *expression)
+static expression_t *parse_call_expression(expression_t *left)
 {
-	call_expression_t *call = allocate_ast_zero(sizeof(call[0]));
-
-	call->expression.type = EXPR_CALL;
-	call->method          = expression;
+	expression_t *expression = allocate_expression(EXPR_CALL);
+	expression->call.method  = left;
 
 	/* parse arguments */
 	eat('(');
@@ -962,7 +965,7 @@ static expression_t *parse_call_expression(expression_t *expression)
 
 			argument->expression = parse_expression();
 			if (last_argument == NULL) {
-				call->arguments = argument;
+				expression->call.arguments = argument;
 			} else {
 				last_argument->next = argument;
 			}
@@ -978,39 +981,32 @@ static expression_t *parse_call_expression(expression_t *expression)
 	expect(')', end_error);
 
 end_error:
-	return (expression_t*) call;
+	return expression;
 }
 
 static expression_t *parse_select_expression(expression_t *compound)
 {
 	eat('.');
-
-	select_expression_t *select = allocate_ast_zero(sizeof(select[0]));
-
-	select->expression.type            = EXPR_SELECT;
-	select->compound                   = compound;
+	expression_t *expression    = allocate_expression(EXPR_SELECT);
+	expression->select.compound = compound;
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing compound select",
 		                     T_IDENTIFIER, 0);
 		return NULL;
 	}
-	select->symbol          = token.v.symbol;
+	expression->select.symbol = token.v.symbol;
 	next_token();
 
-	return (expression_t*) select;
+	return expression;
 }
 
 static expression_t *parse_array_expression(expression_t *array_ref)
 {
 	eat('[');
-
-	array_access_expression_t *array_access
-		= allocate_ast_zero(sizeof(array_access[0]));
-
-	array_access->expression.type = EXPR_ARRAY_ACCESS;
-	array_access->array_ref       = array_ref;
-	array_access->index           = parse_expression();
+	expression_t *expression           = allocate_expression(EXPR_ARRAY_ACCESS);
+	expression->array_access.array_ref = array_ref;
+	expression->array_access.index     = parse_expression();
 
 	if (token.type != ']') {
 		parse_error_expected("Problem while parsing array access", ']', 0);
@@ -1018,20 +1014,17 @@ static expression_t *parse_array_expression(expression_t *array_ref)
 	}
 	next_token();
 
-	return (expression_t*) array_access;
+	return expression;
 }
 
 #define CREATE_UNARY_EXPRESSION_PARSER(token_type, unexpression_type)     \
 static expression_t *parse_##unexpression_type(void)                      \
 {                                                                         \
 	eat(token_type);                                                      \
+	expression_t *expression = allocate_expression(unexpression_type);    \
+	expression->unary.value  = parse_sub_expression(PREC_UNARY);          \
                                                                           \
-	unary_expression_t *unary_expression                                  \
-		= allocate_ast_zero(sizeof(unary_expression[0]));                 \
-	unary_expression->expression.type = unexpression_type;                \
-	unary_expression->value           = parse_sub_expression(PREC_UNARY); \
-                                                                          \
-	return (expression_t*) unary_expression;                              \
+	return expression;                                                    \
 }
 
 CREATE_UNARY_EXPRESSION_PARSER('-',          EXPR_UNARY_NEGATE)
@@ -1046,16 +1039,11 @@ CREATE_UNARY_EXPRESSION_PARSER(T_MINUSMINUS, EXPR_UNARY_DECREMENT)
 static expression_t *parse_##binexpression_type(expression_t *left)       \
 {                                                                         \
 	eat(token_type);                                                      \
+	expression_t *expression = allocate_expression(binexpression_type);   \
+	expression->binary.left  = left;                                      \
+	expression->binary.right = parse_sub_expression(prec_r);              \
                                                                           \
-	expression_t *right = parse_sub_expression(prec_r);                   \
-                                                                          \
-	binary_expression_t *binexpr                                          \
-		= allocate_ast_zero(sizeof(binexpr[0]));                          \
-	binexpr->expression.type            = binexpression_type;             \
-	binexpr->left                       = left;                           \
-	binexpr->right                      = right;                          \
-                                                                          \
-	return (expression_t*) binexpr;                                       \
+	return expression;                                                    \
 }
 
 #define CREATE_BINEXPR_PARSER_LR(token_type, binexpression_type, prec_r)  \
@@ -1149,7 +1137,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 		left = expected_expression_error();
 	}
 	assert(left != NULL);
-	left->source_position = start;
+	left->base.source_position = start;
 
 	while (true) {
 		if (token.type < 0) {
@@ -1164,7 +1152,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 
 		left = parser->infix_parser(left);
 		assert(left != NULL);
-		left->source_position = start;
+		left->base.source_position = start;
 	}
 
 	return left;
@@ -1304,22 +1292,18 @@ end_error:
 
 static statement_t *parse_initial_assignment(symbol_t *symbol)
 {
-	reference_expression_t *ref = allocate_ast_zero(sizeof(ref[0]));
-	ref->expression.type = EXPR_REFERENCE;
-	ref->symbol          = symbol;
+	expression_t *expression     = allocate_expression(EXPR_REFERENCE);
+	expression->reference.symbol = symbol;
 
-	binary_expression_t *assign = allocate_ast_zero(sizeof(assign[0]));
-
-	assign->expression.type            = EXPR_BINARY_ASSIGN;
-	assign->expression.source_position = source_position;
-	assign->left                       = (expression_t*) ref;
-	assign->right                      = parse_expression();
+	expression_t *assign         = allocate_expression(EXPR_BINARY_ASSIGN);
+	assign->base.source_position = source_position;
+	assign->binary.left          = expression;
+	assign->binary.right         = parse_expression();
 
 	expression_statement_t *expr_statement
 		= allocate_ast_zero(sizeof(expr_statement[0]));
-
 	expr_statement->statement.type = STATEMENT_EXPRESSION;
-	expr_statement->expression     = (expression_t*) assign;
+	expr_statement->expression     = assign;
 
 	return (statement_t*) expr_statement;
 }
