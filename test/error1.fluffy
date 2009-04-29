@@ -1,0 +1,10 @@
+// bool as compound element fails
+struct Foo:
+	a : int
+	b : bool
+
+var k : Foo*
+
+func main() : int:
+	return 0
+export main
