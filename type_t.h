@@ -65,7 +65,7 @@ struct pointer_type_t {
 struct array_type_t {
 	type_t         type;
 	type_t        *element_type;
-	unsigned long  size;
+	expression_t  *size_expression;
 };
 
 struct typeof_type_t {

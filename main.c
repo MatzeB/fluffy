@@ -27,13 +27,7 @@
 #ifdef _WIN32
 	#define LINKER "gcc.exe"
 	#define TMPDIR ""
-	#define DEFAULT_OS  TARGET_OS_MINGW
 #else
-	#if defined(__APPLE__)
-		#define DEFAULT_OS  TARGET_OS_MACHO
-	#else
-		#define DEFAULT_OS  TARGET_OS_ELF
-	#endif
 	#define LINKER "gcc"
 	#define TMPDIR "/tmp/"
 #endif
@@ -50,7 +44,6 @@ static int verbose     = 0;
 static int show_timers = 0;
 static int noopt       = 0;
 static int do_inline   = 1;
-static target_os_t target_os = DEFAULT_OS;
 
 typedef enum compile_mode_t {
 	Compile,
@@ -68,23 +61,11 @@ static void set_be_option(const char *arg)
 
 static void initialize_firm(void)
 {
-	be_opt_register();
+	firm_early_init();
+	dump_consts_local(1);
+	dump_keepalive_edges(1);
 
 	dbg_init(NULL, NULL, dbg_snprint);
-
-	switch (target_os) {
-	case TARGET_OS_MINGW:
-		set_be_option("ia32-gasmode=mingw");
-		break;
-	case TARGET_OS_ELF:
-		set_be_option("ia32-gasmode=elf");
-		break;
-	case TARGET_OS_MACHO:
-		set_be_option("ia32-gasmode=macho");
-		set_be_option("ia32-stackalign=4");
-		set_be_option("pic");
-		break;
-	}
 }
 
 static void get_output_name(char *buf, size_t buflen, const char *inputname,
@@ -196,9 +177,35 @@ void lower_compound_params(void)
 {
 }
 
+static void init_os_support(void)
+{
+	/* OS option must be set to the backend */
+	switch (firm_opt.os_support) {
+	case OS_SUPPORT_MINGW:
+		set_be_option("ia32-gasmode=mingw");
+		break;
+	case OS_SUPPORT_LINUX:
+		set_be_option("ia32-gasmode=elf");
+		break;
+	case OS_SUPPORT_MACHO:
+		set_be_option("ia32-gasmode=macho");
+		set_be_option("ia32-stackalign=4");
+		set_be_option("pic");
+		break;
+	}
+}
+
+static void set_option(const char *arg)
+{
+	int res = firm_option(arg);
+	(void) res;
+	assert(res);
+}
+
 int main(int argc, const char **argv)
 {
-	gen_firm_init();
+	int opt_level;
+
 	init_symbol_table();
 	init_tokens();
 	init_type_module();
@@ -212,7 +219,51 @@ int main(int argc, const char **argv)
 	init_ast2firm();
 	init_mangle();
 
-	firm_opt.lower_ll = false;
+	/* early options parsing */
+	for (int i = 1; i < argc; ++i) {
+		const char *arg = argv[i];
+		if (arg[0] != '-')
+			continue;
+
+		const char *option = &arg[1];
+		if (option[0] == 'O') {
+			sscanf(&option[1], "%d", &opt_level);
+		}
+		if (strcmp(arg, "-fwin32") == 0) {
+			firm_opt.os_support = OS_SUPPORT_MINGW;
+		} else if (strcmp(arg, "-fmac") == 0) {
+			firm_opt.os_support = OS_SUPPORT_MACHO;
+		} else if (strcmp(arg, "-flinux") == 0) {
+			firm_opt.os_support = OS_SUPPORT_LINUX;
+		}
+	}
+
+	/* set target/os specific stuff */
+	init_os_support();
+
+	/* set optimisations based on optimisation level */
+	switch(opt_level) {
+	case 0:
+		set_option("no-opt");
+		break;
+	case 1:
+		set_option("no-inline");
+		break;
+	default:
+	case 4:
+		set_option("strict-aliasing");
+		/* use_builtins = true; */
+		/* fallthrough */
+	case 3:
+		set_option("cond-eval");
+		set_option("if-conv");
+		/* fallthrough */
+	case 2:
+		set_option("inline");
+		set_option("deconv");
+		set_be_option("omitfp");
+		break;
+	}
 
 	const char *outname = NULL;
 	compile_mode_t mode = CompileAndLink;
@@ -283,6 +334,8 @@ int main(int argc, const char **argv)
 		return 0;
 	}
 
+	gen_firm_init();
+
 	check_semantic();
 
 	ast2firm();
@@ -298,6 +351,9 @@ int main(int argc, const char **argv)
 		fprintf(stderr, "Couldn't open output '%s'\n", asmname);
 		return 1;
 	}
+	set_ll_modes(
+			mode_Ls, mode_Lu,
+			mode_Is, mode_Iu);
 	gen_firm_finish(asm_out, asmname, 1, true);
 	fclose(asm_out);
 

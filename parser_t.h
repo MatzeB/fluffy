@@ -1,11 +1,11 @@
 #ifndef PARSER_T_H
 #define PARSER_T_H
 
+#include "token_t.h"
 #include "parser.h"
 
 #include <assert.h>
 
-#include "token_t.h"
 #include "lexer.h"
 #include "type.h"
 

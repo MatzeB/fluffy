@@ -682,3 +682,93 @@ unsigned register_attribute()
 	++nextid;
 	return nextid;
 }
+
+bool is_linktime_constant(const expression_t *expression)
+{
+	switch (expression->kind) {
+	case EXPR_SELECT:
+		/* TODO */
+		return false;
+	case EXPR_ARRAY_ACCESS:
+		/* TODO */
+		return false;
+	case EXPR_UNARY_DEREFERENCE:
+		return is_constant_expression(expression->unary.value);
+	default:
+		return false;
+	}
+}
+
+bool is_constant_expression(const expression_t *expression)
+{
+	switch (expression->kind) {
+	case EXPR_INT_CONST:
+	case EXPR_FLOAT_CONST:
+	case EXPR_BOOL_CONST:
+	case EXPR_NULL_POINTER:
+	case EXPR_SIZEOF:
+		return true;
+
+	case EXPR_STRING_CONST:
+	case EXPR_FUNC:
+	case EXPR_UNARY_INCREMENT:
+	case EXPR_UNARY_DECREMENT:
+	case EXPR_UNARY_DEREFERENCE:
+	case EXPR_BINARY_ASSIGN:
+	case EXPR_SELECT:
+	case EXPR_ARRAY_ACCESS:
+		return false;
+
+	case EXPR_UNARY_TAKE_ADDRESS:
+		return is_linktime_constant(expression->unary.value);
+
+	case EXPR_REFERENCE: {
+		declaration_t *declaration = expression->reference.declaration;
+		if (declaration->kind == DECLARATION_CONSTANT)
+			return true;
+		return false;
+	}
+
+	case EXPR_CALL:
+		/* TODO: we might introduce pure/side effect free calls */
+		return false;
+
+	case EXPR_UNARY_CAST:
+	case EXPR_UNARY_NEGATE:
+	case EXPR_UNARY_NOT:
+	case EXPR_UNARY_BITWISE_NOT:
+		return is_constant_expression(expression->unary.value);
+
+	case EXPR_BINARY_ADD:
+	case EXPR_BINARY_SUB:
+	case EXPR_BINARY_MUL:
+	case EXPR_BINARY_DIV:
+	case EXPR_BINARY_MOD:
+	case EXPR_BINARY_EQUAL:
+	case EXPR_BINARY_NOTEQUAL:
+	case EXPR_BINARY_LESS:
+	case EXPR_BINARY_LESSEQUAL:
+	case EXPR_BINARY_GREATER:
+	case EXPR_BINARY_GREATEREQUAL:
+	case EXPR_BINARY_AND:
+	case EXPR_BINARY_OR:
+	case EXPR_BINARY_XOR:
+	case EXPR_BINARY_SHIFTLEFT:
+	case EXPR_BINARY_SHIFTRIGHT:
+	/* not that lazy and/or are not constant if their value is clear after
+	 * evaluating the left side. This is because we can't (always) evaluate the
+	 * left hand side until the ast2firm phase, and therefore can't determine
+	 * constness */
+	case EXPR_BINARY_LAZY_AND:
+	case EXPR_BINARY_LAZY_OR:
+		return is_constant_expression(expression->binary.left)
+			&& is_constant_expression(expression->binary.right);
+
+	case EXPR_ERROR:
+		return true;
+	case EXPR_INVALID:
+		break;
+	}
+	panic("invalid expression in is_constant_expression");
+}
+

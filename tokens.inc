@@ -9,6 +9,11 @@ TS(IDENTIFIER,     "identifier",)
 TS(INTEGER,        "integer number",)
 TS(STRING_LITERAL, "string literal",)
 
+/* hack... */
+#undef bool
+#undef true
+#undef false
+
 #define Keyword(x)   T(x,#x,)
 Keyword(bool)
 Keyword(byte)
@@ -44,6 +49,10 @@ Keyword(void)
 Keyword(sizeof)
 Keyword(typeof)
 #undef S
+
+#define bool _Bool
+#define true 1
+#define false 0
 
 T(DOTDOT, "..",)
 T(DOTDOTDOT, "...",)

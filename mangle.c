@@ -103,7 +103,8 @@ static void mangle_array_type(const array_type_t *type)
 {
 	obstack_1grow(&obst, 'A');
 	mangle_type(type->element_type);
-	obstack_printf(&obst, "%lu", type->size);
+	int size = fold_constant_to_int(type->size_expression);
+	obstack_printf(&obst, "%lu", size);
 }
 
 static void mangle_method_type(const method_type_t *type)

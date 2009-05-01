@@ -1,8 +1,5 @@
-
-
 This does not describe the goals and visions but short term things that should
-not be forgotten and are not done yet because I was lazy or did not decide
-about the right way to do it yet.
+not be forgotten.
 
 - semantic should check that structs don't contain themselfes
 - having the same entry twice in a struct is not detected
@@ -24,7 +21,7 @@ because they need no deep understanding of the design.
 - make lexer accept \r, \r\n and \n as newline
 - make lexer unicode aware (reading utf-8 is enough, for more inputs we could use iconv, but we should recommend utf-8 as default)
 
-Refactorings:
+Refactorings (mindless but often labor intensive tasks):
 - make unions for type_t (see cparser)
 - rename type to kind
 - keep typerefs as long as possible (start the skip_typeref madness similar to cparser)

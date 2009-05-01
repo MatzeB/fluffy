@@ -1,5 +1,7 @@
 #include <config.h>
 
+#include "token_t.h"
+
 #include "parser_t.h"
 
 #include <assert.h>
@@ -650,33 +652,18 @@ type_t *parse_type(void)
 		case '[': {
 			next_token();
 			add_anchor_token(']');
-			if (token.type != T_INTEGER) {
-				parse_error_expected("problem while parsing array type",
-				                     T_INTEGER, 0);
-				eat_until_anchor();
-				rem_anchor_token(']');
-				break;
-			}
-			int size = token.v.intvalue;
-			next_token();
-
-			if (size < 0) {
-				parse_error("negative array size not allowed");
-				eat_until_anchor();
-				rem_anchor_token(']');
-				break;
-			}
+			expression_t *size = parse_expression();
+			rem_anchor_token(']');
+			expect(']', end_error);
 
 			array_type_t *array_type = allocate_type_zero(sizeof(array_type[0]));
 
-			array_type->type.type    = TYPE_ARRAY;
-			array_type->element_type = type;
-			array_type->size         = size;
+			array_type->type.type       = TYPE_ARRAY;
+			array_type->element_type    = type;
+			array_type->size_expression = size;
 
 			type = (type_t*) array_type;
 
-			rem_anchor_token(']');
-			expect(']', end_error);
 			break;
 			}
 		default:

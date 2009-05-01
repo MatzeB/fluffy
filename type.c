@@ -93,7 +93,9 @@ static void print_pointer_type(const pointer_type_t *type)
 static void print_array_type(const array_type_t *type)
 {
 	print_type(type->element_type);
-	fprintf(out, "[%lu]", type->size);
+	fputs("[", out);
+	print_expression(type->size_expression);
+	fputs("]", out);
 }
 
 static void print_type_reference(const type_reference_t *type)
@@ -396,9 +398,9 @@ static type_t *create_concrete_array_type(array_type_t *type)
 	array_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
 	memset(new_type, 0, sizeof(new_type[0]));
 
-	new_type->type.type    = TYPE_ARRAY;
-	new_type->element_type = element_type;
-	new_type->size         = type->size;
+	new_type->type.type       = TYPE_ARRAY;
+	new_type->element_type    = element_type;
+	new_type->size_expression = type->size_expression;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
 	if (normalized_type != (type_t*) new_type) {

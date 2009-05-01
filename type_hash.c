@@ -39,8 +39,7 @@ static unsigned hash_pointer_type(const pointer_type_t *type)
 
 static unsigned hash_array_type(const array_type_t *type)
 {
-	unsigned some_prime = 27644437;
-	return hash_ptr(type->element_type) ^ (type->size * some_prime);
+	return hash_ptr(type->element_type) ^ hash_ptr(type->size_expression);
 }
 
 static unsigned hash_compound_type(const compound_type_t *type)
@@ -167,7 +166,7 @@ static bool array_types_equal(const array_type_t *type1,
                               const array_type_t *type2)
 {
 	return type1->element_type == type2->element_type
-		&& type1->size == type2->size;
+		&& type1->size_expression == type2->size_expression;
 }
 
 static bool type_references_type_variable_equal(const type_reference_t *type1,

@@ -290,6 +290,8 @@ static type_t *normalize_array_type(array_type_t *type)
 {
 	type->element_type = normalize_type(type->element_type);
 
+	type->size_expression = check_expression(type->size_expression);
+
 	return typehash_insert((type_t*) type);
 }
 
@@ -480,7 +482,6 @@ static void check_reference_expression(reference_expression_t *ref)
 	type_t *type     = check_reference(declaration, ref->base.source_position);
 	ref->base.type   = type;
 }
-
 
 static bool is_lvalue(const expression_t *expression)
 {
@@ -2146,6 +2147,12 @@ static void check_constant(constant_t *constant)
 		                       constant->base.source_position, false);
 	}
 	constant->expression = expression;
+
+	if (!is_constant_expression(expression)) {
+		print_error_prefix(constant->base.source_position);
+		fprintf(stderr, "Value for constant '%s' is not constant\n",
+		        constant->base.symbol->string);
+	}
 }
 
 static void resolve_type_constraint(type_constraint_t *constraint,

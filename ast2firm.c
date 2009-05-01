@@ -80,6 +80,10 @@ const char *dbg_retrieve(const dbg_info *dbg, unsigned *line)
 
 void init_ast2firm(void)
 {
+}
+
+static void init_ir_types(void)
+{
 	type_bool = make_atomic_type(ATOMIC_TYPE_BOOL);
 
 	atomic_type_t byte_type;
@@ -326,20 +330,54 @@ static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	return ir_type;
 }
 
+static ir_node *expression_to_firm(const expression_t *expression);
+
+static tarval *fold_constant_to_tarval(const expression_t *expression)
+{
+	assert(is_constant_expression(expression));
+
+	ir_graph *old_current_ir_graph = current_ir_graph;
+	current_ir_graph = get_const_code_irg();
+
+	ir_node *cnst = expression_to_firm(expression);
+	current_ir_graph = old_current_ir_graph;
+
+	if (!is_Const(cnst)) {
+		panic("couldn't fold constant");
+	}
+
+	tarval* tv = get_Const_tarval(cnst);
+	return tv;
+}
+
+long fold_constant_to_int(const expression_t *expression)
+{
+	if (expression->kind == EXPR_ERROR)
+		return 0;
+
+	tarval *tv = fold_constant_to_tarval(expression);
+	if (!tarval_is_long(tv)) {
+		panic("result of constant folding is not an integer");
+	}
+
+	return get_tarval_long(tv);
+}
+
 static ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 {
 	type_t  *element_type    = type->element_type;
 	ir_type *ir_element_type = _get_ir_type(env, element_type);
 
 	ir_type *ir_type = new_type_array(unique_ident("array"), 1, ir_element_type);
-	set_array_bounds_int(ir_type, 0, 0, type->size);
+	int size = fold_constant_to_int(type->size_expression);
+	set_array_bounds_int(ir_type, 0, 0, size);
 
 	size_t elemsize = get_type_size_bytes(ir_element_type);
 	int align = get_type_alignment_bytes(ir_element_type);
 	if (elemsize % align > 0) {
 		elemsize += align - (elemsize % align);
 	}
-	set_type_size_bytes(ir_type, type->size * elemsize);
+	set_type_size_bytes(ir_type, size * elemsize);
 	set_type_alignment_bytes(ir_type, align);
 	set_type_state(ir_type, layout_fixed);
 
@@ -734,8 +772,6 @@ static dbg_info* get_dbg_info(const source_position_t *pos)
 static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
                                           const source_position_t *pos);
 
-static ir_node *expression_to_firm(expression_t *expression);
-
 static ir_node *int_const_to_firm(const int_const_t *cnst)
 {
 	ir_mode  *mode = get_ir_mode(cnst->base.type);
@@ -1044,30 +1080,6 @@ static ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	return value;
 }
 
-static ir_op *binexpr_kind_to_op(expression_kind_t kind)
-{
-	switch (kind) {
-	case EXPR_BINARY_ADD:
-		return op_Add;
-	case EXPR_BINARY_SUB:
-		return op_Sub;
-	case EXPR_BINARY_MUL:
-		return op_Mul;
-	case EXPR_BINARY_AND:
-		return op_And;
-	case EXPR_BINARY_OR:
-		return op_Or;
-	case EXPR_BINARY_XOR:
-		return op_Eor;
-	case EXPR_BINARY_SHIFTLEFT:
-		return op_Shl;
-	case EXPR_BINARY_SHIFTRIGHT:
-		return op_Shr;
-	default:
-		return NULL;
-	}
-}
-
 static long binexpr_kind_to_cmp_pn(expression_kind_t kind)
 {
 	switch (kind) {
@@ -1193,14 +1205,26 @@ static ir_node *binary_expression_to_firm(
 	}
 
 	/* an arithmetic binexpression? */
-	ir_op *irop = binexpr_kind_to_op(kind);
-	if (irop != NULL) {
-		ir_node *in[2] = { left, right };
-		ir_mode *mode  = get_ir_mode(binary_expression->base.type);
-		ir_node *block = get_cur_block();
-		ir_node *node  = new_ir_node(dbgi, current_ir_graph, block, irop, mode,
-		                             2, in);
-		return node;
+	ir_mode *mode = get_ir_mode(binary_expression->base.type);
+	switch (kind) {
+	case EXPR_BINARY_ADD:
+		return new_d_Add(dbgi, left, right, mode);
+	case EXPR_BINARY_SUB:
+		return new_d_Sub(dbgi, left, right, mode);
+	case EXPR_BINARY_MUL:
+		return new_d_Mul(dbgi, left, right, mode);
+	case EXPR_BINARY_AND:
+		return new_d_And(dbgi, left, right, mode);
+	case EXPR_BINARY_OR:
+		return new_d_Or(dbgi, left, right, mode);
+	case EXPR_BINARY_XOR:
+		return new_d_Eor(dbgi, left, right, mode);
+	case EXPR_BINARY_SHIFTLEFT:
+		return new_d_Shl(dbgi, left, right, mode);
+	case EXPR_BINARY_SHIFTRIGHT:
+		return new_d_Shr(dbgi, left, right, mode);
+	default:
+		break;
 	}
 
 	/* a comparison expression? */
@@ -1558,7 +1582,7 @@ static ir_node *reference_expression_to_firm(const reference_expression_t *refer
 	                                    &reference->base.source_position);
 }
 
-static ir_node *expression_to_firm(expression_t *expression)
+static ir_node *expression_to_firm(const expression_t *expression)
 {
 	ir_node *addr;
 
@@ -1918,6 +1942,8 @@ void ast2firm(void)
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
 	instantiate_methods = new_pdeq();
+
+	init_ir_types();
 
 	assert(typevar_binding_stack_top() == 0);
 

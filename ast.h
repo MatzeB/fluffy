@@ -1,6 +1,7 @@
 #ifndef AST_H
 #define AST_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 typedef struct attribute_t              attribute_t;
@@ -58,5 +59,20 @@ void  exit_ast_module(void);
 void  print_ast(FILE *out, const namespace_t *namespace);
 void  print_expression(const expression_t *expression);
 void *allocate_ast(size_t size);
+
+/**
+ * Returns true if a given expression is a compile time
+ * constant.
+ */
+bool is_constant_expression(const expression_t *expression);
+
+/**
+ * An object with a fixed but at compiletime unknown adress which will be known
+ * at link/load time.
+ */
+bool is_linktime_constant(const expression_t *expression);
+
+long fold_constant_to_int(const expression_t *expression);
+bool fold_constant_to_bool(const expression_t *expression);
 
 #endif

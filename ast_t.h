@@ -453,22 +453,18 @@ struct concept_instance_t {
 	concept_method_instance_t *method_instances;
 	concept_instance_t        *next;
 	concept_instance_t        *next_in_concept;
-
 	context_t                  context;
 	type_variable_t           *type_parameters;
 };
 
 struct namespace_t {
-	symbol_t             *symbol;
-	const char           *filename;
-
-	context_t             context;
-
-	namespace_t          *next;
+	symbol_t    *symbol;
+	const char  *filename;
+	context_t    context;
+	namespace_t *next;
 };
 
-static inline
-void *_allocate_ast(size_t size)
+static inline void *_allocate_ast(size_t size)
 {
 	return obstack_alloc(&ast_obstack, size);
 }
