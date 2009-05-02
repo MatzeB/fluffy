@@ -32,32 +32,14 @@
 	#define TMPDIR "/tmp/"
 #endif
 
-typedef enum {
-	TARGET_OS_MINGW,
-	TARGET_OS_ELF,
-	TARGET_OS_MACHO
-} target_os_t;
-
-static int dump_graphs = 0;
-static int dump_asts   = 0;
-static int verbose     = 0;
-static int show_timers = 0;
-static int noopt       = 0;
-static int do_inline   = 1;
+static bool dump_graphs = false;
+static bool dump_asts   = false;
+static bool verbose     = false;
 
 typedef enum compile_mode_t {
 	Compile,
 	CompileAndLink
 } compile_mode_t;
-
-const ir_settings_if_conv_t *if_conv_info = NULL;
-
-static void set_be_option(const char *arg)
-{
-	int res = be_parse_arg(arg);
-	(void) res;
-	assert(res);
-}
 
 static void initialize_firm(void)
 {
@@ -69,7 +51,7 @@ static void initialize_firm(void)
 }
 
 static void get_output_name(char *buf, size_t buflen, const char *inputname,
-                     const char *newext)
+                            const char *newext)
 {
 	size_t last_dot = 0xffffffff;
 	size_t i = 0;
@@ -175,6 +157,13 @@ static void usage(const char *argv0)
 
 void lower_compound_params(void)
 {
+}
+
+static void set_be_option(const char *arg)
+{
+	int res = be_parse_arg(arg);
+	(void) res;
+	assert(res);
 }
 
 static void init_os_support(void)
@@ -288,18 +277,6 @@ int main(int argc, const char **argv)
 		} else if (strcmp(arg, "--help") == 0) {
 			usage(argv[0]);
 			return 0;
-		} else if (strcmp(arg, "--time") == 0) {
-			show_timers = 1;
-		} else if (arg[0] == '-' && arg[1] == 'O') {
-			int optlevel = atoi(&arg[2]);
-			if (optlevel <= 0) {
-				noopt = 1;
-			} else if (optlevel > 1) {
-				do_inline = 1;
-			} else {
-				noopt     = 0;
-				do_inline = 0;
-			}
 		} else if (strcmp(arg, "-S") == 0) {
 			mode = Compile;
 		} else if (strcmp(arg, "-c") == 0) {
