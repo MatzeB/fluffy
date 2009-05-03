@@ -12,7 +12,8 @@
 #include <libfirm/typerep.h>
 
 extern struct obstack  ast_obstack;
-extern namespace_t    *namespaces;
+
+extern module_t *modules;
 
 /**
  * Operator precedence classes
@@ -58,12 +59,21 @@ struct declaration_base_t {
 	declaration_kind_t  kind;
 	symbol_t           *symbol;
 	declaration_t      *next;
+	int                 refs;         /**< temporarily used by semantic phase */
+	bool                exported : 1;
 	source_position_t   source_position;
 };
 
 struct export_t {
 	symbol_t          *symbol;
 	export_t          *next;
+	source_position_t  source_position;
+};
+
+struct import_t {
+	symbol_t          *module;
+	symbol_t          *symbol;
+	import_t          *next;
 	source_position_t  source_position;
 };
 
@@ -76,6 +86,7 @@ struct context_t {
 	declaration_t      *declarations;
 	concept_instance_t *concept_instances;
 	export_t           *exports;
+	import_t           *imports;
 };
 
 /**
@@ -100,7 +111,6 @@ struct method_t {
 	method_type_t      *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
-	bool                export;
 	bool                is_extern;
 
 	context_t           context;
@@ -131,7 +141,6 @@ struct variable_declaration_t {
 	bool                export;
 	bool                is_global;
 	bool                needs_entity;
-	int                 refs;         /**< temporarily used by semantic phase */
 
 	ir_entity          *entity;
 	int                 value_number;
@@ -170,6 +179,14 @@ struct concept_t {
 	concept_method_t   *methods;
 	concept_instance_t *instances;
 	context_t           context;
+};
+
+struct module_t {
+	symbol_t  *name;
+	context_t  context;
+	module_t  *next;
+	bool       processing : 1;
+	bool       processed : 1;
 };
 
 union declaration_t {
@@ -457,13 +474,6 @@ struct concept_instance_t {
 	type_variable_t           *type_parameters;
 };
 
-struct namespace_t {
-	symbol_t    *symbol;
-	const char  *filename;
-	context_t    context;
-	namespace_t *next;
-};
-
 static inline void *_allocate_ast(size_t size)
 {
 	return obstack_alloc(&ast_obstack, size);
@@ -481,5 +491,6 @@ unsigned register_declaration(void);
 unsigned register_attribute(void);
 
 expression_t *allocate_expression(expression_kind_t kind);
+declaration_t *allocate_declaration(declaration_kind_t kind);
 
 #endif

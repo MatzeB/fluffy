@@ -1,0 +1,6 @@
+import "fluffy.org/compiler/test/moduletest" dosomething
+
+export main
+func main() : int:
+	dosomething()
+	return 0

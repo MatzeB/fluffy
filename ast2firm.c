@@ -744,13 +744,7 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	set_entity_ld_ident(entity, id);
 	if (method->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
-	} else if (!is_polymorphic && method->export) {
-		set_entity_visibility(entity, visibility_external_visible);
 	} else {
-		if (is_polymorphic && method->export) {
-			fprintf(stderr, "Warning: exporting polymorphic methods not "
-			        "supported.\n");
-		}
 		set_entity_visibility(entity, visibility_local);
 	}
 
@@ -1322,14 +1316,23 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 	                                 &select->base.source_position);
 }
 
-static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
+static ir_entity *assure_instance(declaration_t *declaration,
                                   type_argument_t *type_arguments)
 {
+	assert(declaration->kind == DECLARATION_METHOD);
+	method_t *method = &declaration->method.method;
+	symbol_t *symbol = declaration->base.symbol;
+
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(method->type_parameters, type_arguments);
 
 	ir_entity  *entity = get_method_entity(method, symbol);
 	const char *name   = get_entity_name(entity);
+
+	if (declaration->base.exported 
+			&& get_entity_visibility(entity) != visibility_external_allocated) {
+		set_entity_visibility(entity, visibility_external_visible);
+	}
 
 	pop_type_variable_bindings(old_top);
 
@@ -1365,12 +1368,12 @@ static ir_entity *assure_instance(method_t *method, symbol_t *symbol,
 	return entity;
 }
 
-static ir_node *method_reference_to_firm(method_t *method, symbol_t *symbol,
-                                  type_argument_t *type_arguments,
-								  const source_position_t *source_position)
+static ir_node *method_reference_to_firm(declaration_t *declaration,
+                                         type_argument_t *type_arguments,
+                                         const source_position_t *source_position)
 {
 	dbg_info  *dbgi   = get_dbg_info(source_position);
-	ir_entity *entity = assure_instance(method, symbol, type_arguments);
+	ir_entity *entity = assure_instance(declaration, type_arguments);
 
 	ir_node *symconst = new_d_SymConst(dbgi, mode_P,
 	                                   (union symconst_symbol) entity,
@@ -1542,9 +1545,8 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 	switch (declaration->kind) {
 	case DECLARATION_METHOD:
 		method_declaration = (method_declaration_t*) declaration;
-		return method_reference_to_firm(&method_declaration->method,
-		                                declaration->base.symbol,
-										type_arguments, source_position);
+		return method_reference_to_firm(declaration, type_arguments,
+		                                source_position);
 	case DECLARATION_ITERATOR:
 		// TODO
 		panic("TODO: iterator to firm");
@@ -1887,19 +1889,13 @@ static void create_concept_instance(concept_instance_t *instance)
 
 static void context2firm(const context_t *context)
 {
-	method_declaration_t *method_declaration;
-	method_t             *method;
-
 	/* scan context for functions */
 	declaration_t *declaration = context->declarations;
 	for ( ; declaration != NULL; declaration = declaration->base.next) {
 		switch (declaration->kind) {
 		case DECLARATION_METHOD:
-			method_declaration = (method_declaration_t*) declaration;
-			method             = &method_declaration->method;
-
-			if (!is_polymorphic_method(method)) {
-				assure_instance(method, declaration->base.symbol, NULL);
+			if (!is_polymorphic_method(&declaration->method.method)) {
+				assure_instance(declaration, NULL);
 			}
 
 			break;
@@ -1929,15 +1925,10 @@ static void context2firm(const context_t *context)
 	}
 }
 
-static void namespace2firm(namespace_t *namespace)
-{
-	context2firm(& namespace->context);
-}
-
 /**
  * Build a firm representation of the program
  */
-void ast2firm(void)
+void ast2firm(const module_t *modules)
 {
 	obstack_init(&obst);
 	strset_init(&instantiated_methods);
@@ -1947,12 +1938,13 @@ void ast2firm(void)
 
 	assert(typevar_binding_stack_top() == 0);
 
-	namespace_t *namespace = namespaces;
-	while (namespace != NULL) {
-		namespace2firm(namespace);
-		namespace = namespace->next;
+	/* transform toplevel stuff */
+	const module_t *module = modules;
+	for ( ; module != NULL; module = module->next) {
+		context2firm(&module->context);
 	}
 
+	/* work generic code instantiation queue */
 	while (!pdeq_empty(instantiate_methods)) {
 		instantiate_method_t *instantiate_method 
 			= pdeq_getl(instantiate_methods);

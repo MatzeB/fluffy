@@ -4,7 +4,7 @@
 #include <libfirm/firm_types.h>
 #include "ast.h"
 
-void ast2firm(void);
+void ast2firm(const module_t *modules);
 
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos);
 unsigned dbg_snprint(char *buf, unsigned len, const dbg_info *dbg);

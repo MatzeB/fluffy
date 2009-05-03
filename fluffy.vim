@@ -19,6 +19,7 @@ syn keyword fluffyStatement export enum class
 syn keyword fluffyAttribute	extern
 syn keyword fluffyRepeat	    for while loop
 syn keyword fluffyConditional	if else
+syn keyword fluffyStatement   module import
 
 syn keyword fluffyConstant    null true false
 

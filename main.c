@@ -32,9 +32,10 @@
 	#define TMPDIR "/tmp/"
 #endif
 
-static bool dump_graphs = false;
-static bool dump_asts   = false;
-static bool verbose     = false;
+static bool dump_graphs;
+static bool dump_asts;
+static bool verbose;
+static bool had_parse_errors;
 
 typedef enum compile_mode_t {
 	Compile,
@@ -73,61 +74,47 @@ static void get_output_name(char *buf, size_t buflen, const char *inputname,
 	memcpy(buf+last_dot, newext, extlen);
 }
 
-static void dump_ast(const namespace_t *namespace, const char *name)
+static void dump_ast(const context_t *context, const char *name,
+                     const char *ext)
 {
 	if (!dump_asts)
 		return;
 
-	const char *fname = namespace->filename;
-	char        filename[4096];
-	get_output_name(filename, sizeof(filename), fname, name);
+	char filename[4096];
+	get_output_name(filename, sizeof(filename), name, ext);
 
 	FILE* out = fopen(filename, "w");
 	if (out == NULL) {
 		fprintf(stderr, "Warning: couldn't open '%s': %s\n", filename,
 		        strerror(errno));
 	} else {
-		print_ast(out, namespace);
+		print_ast(out, context);
 	}
 	fclose(out);
 }
 
-static void parse_file(const char *fname)
+static void do_parse_file(FILE *in, const char *input_name)
 {
-	FILE *in = fopen(fname, "r");
-	if (in == NULL) {
-		fprintf(stderr, "couldn't open '%s' for reading: %s\n", fname,
-		        strerror(errno));
-		exit(1);
+	bool result = parse_file(in, input_name);
+	if (!result) {
+		fprintf(stderr, "syntax errors found...\n");
+		had_parse_errors = true;
+		return;
 	}
-
-	namespace_t *namespace = parse(in, fname);
-	fclose(in);
-
-	if (namespace == NULL) {
-		exit(1);
-	}
-	dump_ast(namespace, "-parse.txt");
 }
 
-static void check_semantic(void)
+static void do_check_semantic(void)
 {
-	if (!check_static_semantic()) {
+	bool result = check_semantic();
+	if (!result) {
 		fprintf(stderr, "Semantic errors found\n");
-		namespace_t *namespace = namespaces;
-		while (namespace != NULL) {
-			dump_ast(namespace, "-error.txt");
-			namespace = namespace->next;
-		}
 		exit(1);
 	}
 
-	if (dump_asts) {
-		namespace_t *namespace = namespaces;
-		while (namespace != NULL) {
-			dump_ast(namespace, "-semantic.txt");
-			namespace = namespace->next;
-		}
+	const module_t *module = modules;
+	for ( ; module != NULL; module = module->next) {
+		dump_ast(&module->context, module->name->string,
+		         "-semantic.txt");
 	}
 }
 
@@ -139,7 +126,10 @@ static void link(const char *in, const char *out)
 		out = "a.out";
 	}
 
-	snprintf(buf, sizeof(buf), "%s %s -o %s", LINKER, in, out);
+	int res = snprintf(buf, sizeof(buf), "%s %s -o %s", LINKER, in, out);
+	if (res < 0 || res >= (int) sizeof(buf)) {
+		panic("Couldn't construct linker commandline (too long?)");
+	}
 	if (verbose) {
 		puts(buf);
 	}
@@ -302,20 +292,41 @@ int main(int argc, const char **argv)
 				return 1;
 			}
 		} else {
+			const char *filename = argv[i];
+			FILE *in;
+			if (strcmp(filename, "-") == 0) {
+				in       = stdin;
+				/* nitpicking: is there a way so we can't have a normal file
+				 * with the same name? probably not... */
+				filename = "<stdin>";
+			} else {
+				in = fopen(filename, "r");
+				if (in == NULL) {
+					fprintf(stderr, "Couldn't open file '%s' for reading: %s\n",
+					        filename, strerror(errno));
+					exit(1);
+				}
+			}
+			do_parse_file(in, filename);
 			parsed++;
-			parse_file(argv[i]);
+			if (in != stdin) {
+				fclose(in);
+			}
 		}
 	}
 	if (parsed == 0) {
 		fprintf(stderr, "Error: no input files specified\n");
 		return 0;
 	}
+	if (had_parse_errors) {
+		return 1;
+	}
 
 	gen_firm_init();
 
-	check_semantic();
+	do_check_semantic();
 
-	ast2firm();
+	ast2firm(modules);
 
 	const char *asmname;
 	if (mode == Compile) {

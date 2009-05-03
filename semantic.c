@@ -76,7 +76,7 @@ void error_at(const source_position_t position,
  * pushs an environment_entry on the environment stack and links the
  * corresponding symbol to the new entry
  */
-static inline
+static 
 void environment_push(declaration_t *declaration, const void *context)
 {
 	environment_entry_t *entry 
@@ -132,13 +132,18 @@ void environment_pop_to(size_t new_top)
 		symbol_t      *symbol      = entry->symbol;
 		declaration_t *declaration = symbol->declaration;
 
-		if (declaration->kind == DECLARATION_VARIABLE) {
-			variable_declaration_t *variable 
-				= (variable_declaration_t*) declaration;
-			if (variable->refs == 0 && !variable->is_extern) {
+		if (declaration->base.refs == 0 && !declaration->base.exported) {
+			switch (declaration->kind) {
+			/* only warn for methods/variables at the moment, we don't
+			   count refs on types yet */
+			case DECLARATION_METHOD:
+			case DECLARATION_VARIABLE:
 				print_warning_prefix(declaration->base.source_position);
-				fprintf(stderr, "variable '%s' was declared but never read\n",
+				fprintf(stderr, "%s '%s' was declared but never read\n",
+						get_declaration_kind_name(declaration->kind),
 				        symbol->string);
+			default:
+				break;
 			}
 		}
 
@@ -408,10 +413,11 @@ static type_t *check_reference(declaration_t *declaration,
 	concept_method_t       *concept_method;
 	type_t                 *type;
 
+	declaration->base.refs++;
+
 	switch (declaration->kind) {
 	case DECLARATION_VARIABLE:
 		variable = (variable_declaration_t*) declaration;
-		variable->refs++;
 		type = variable->type;
 		if (type == NULL)
 			return NULL;
@@ -460,10 +466,8 @@ static type_t *check_reference(declaration_t *declaration,
 	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 		panic("reference to invalid declaration type encountered");
-		return NULL;
 	}
 	panic("reference to unknown declaration type encountered");
-	return NULL;
 }
 
 static void check_reference_expression(reference_expression_t *ref)
@@ -542,7 +546,7 @@ static void check_assign_expression(binary_expression_t *assign)
 
 			/* the reference expression increased the ref pointer, but
 			 * making an assignment is not reading the value */
-			variable->refs--;
+			variable->base.refs--;
 		}
 	}
 }
@@ -1959,7 +1963,7 @@ static void check_variable_declaration(variable_declaration_statement_t *stateme
 	 *  typically)
 	 */
 
-	statement->declaration.refs = 0;
+	statement->declaration.base.refs = 0;
 	if (statement->declaration.type != NULL) {
 		statement->declaration.type 
 			= normalize_type(statement->declaration.type);
@@ -2355,9 +2359,6 @@ static void resolve_concept_instance(concept_instance_t *instance)
 
 static void check_export(const export_t *export)
 {
-	method_declaration_t   *method;
-	variable_declaration_t *variable;
-
 	symbol_t      *symbol      = export->symbol;
 	declaration_t *declaration = symbol->declaration;
 
@@ -2367,24 +2368,8 @@ static void check_export(const export_t *export)
 		return;
 	}
 
-	switch (declaration->kind) {
-	case DECLARATION_METHOD:
-		method                = (method_declaration_t*) declaration;
-		method->method.export = 1;
-		break;
-	case DECLARATION_VARIABLE:
-		variable         = (variable_declaration_t*) declaration;
-		variable->export = 1;
-		break;
-	default:
-		print_error_prefix(export->source_position);
-		fprintf(stderr, "Can only export functions and variables but '%s' "
-		        "is a %s\n", symbol->string,
-		        get_declaration_kind_name(declaration->kind));
-		return;
-	}
-
-	found_export = true;
+	declaration->base.exported = true;
+	found_export               = true;
 }
 
 static void check_and_push_context(context_t *context)
@@ -2454,15 +2439,6 @@ static void check_and_push_context(context_t *context)
 	}
 }
 
-static void check_namespace(namespace_t *namespace)
-{
-	int old_top = environment_top();
-
-	check_and_push_context(&namespace->context);
-
-	environment_pop_to(old_top);
-}
-
 void register_statement_lowerer(lower_statement_function function,
                                 unsigned int statement_type)
 {
@@ -2495,7 +2471,102 @@ void register_expression_lowerer(lower_expression_function function,
 	expression_lowerers[expression_type] = function;
 }
 
-int check_static_semantic(void)
+static module_t *find_module(symbol_t *name)
+{
+	module_t *module = modules;
+	for ( ; module != NULL; module = module->next) {
+		if (module->name == name)
+			break;
+	}
+	return module;
+}
+
+static declaration_t *create_error_declarataion(symbol_t *symbol)
+{
+	declaration_t *declaration = allocate_declaration(DECLARATION_ERROR);
+	declaration->base.symbol   = symbol;
+	declaration->base.exported = true;
+	return declaration;
+}
+
+static declaration_t *find_declaration(const context_t *context,
+                                       symbol_t *symbol)
+{
+	declaration_t *declaration = context->declarations;
+	for ( ; declaration != NULL; declaration = declaration->base.next) {
+		if (declaration->base.symbol == symbol)
+			break;
+	}
+	return declaration;
+}
+
+static void check_module(module_t *module)
+{
+	if (module->processed)
+		return;
+	assert(!module->processing);
+	module->processing = true;
+
+	int old_top = environment_top();
+
+	/* check imports */
+	import_t *import = module->context.imports;
+	for( ; import != NULL; import = import->next) {
+		const context_t *ref_context = NULL;
+		declaration_t   *declaration;
+
+		symbol_t *symbol     = import->symbol;
+		symbol_t *modulename = import->module;
+		module_t *ref_module = find_module(modulename);
+		if (ref_module == NULL) {
+			print_error_prefix(import->source_position);
+			fprintf(stderr, "Referenced module \"%s\" does not exist\n",
+			        modulename->string);
+			declaration = create_error_declarataion(symbol);
+		} else {
+			if (ref_module->processing) {
+				print_error_prefix(import->source_position);
+				fprintf(stderr, "Reference to module '%s' is recursive\n",
+				        modulename->string);
+				declaration = create_error_declarataion(symbol);
+			} else {
+				check_module(ref_module);
+				declaration = find_declaration(&ref_module->context, symbol);
+				if (declaration == NULL) {
+					print_error_prefix(import->source_position);
+					fprintf(stderr, "Module '%s' does not declare '%s'\n",
+					        modulename->string, symbol->string);
+					declaration = create_error_declarataion(symbol);
+				} else {
+					ref_context = &ref_module->context;
+				}
+			}
+		}
+		if (!declaration->base.exported) {
+			print_error_prefix(import->source_position);
+			fprintf(stderr, "Cannot import '%s' from \"%s\" because it is not exported\n",
+			        symbol->string, modulename->string);
+		}
+		if (symbol->declaration == declaration) {
+			print_warning_prefix(import->source_position);
+			fprintf(stderr, "'%s' imported twice\n", symbol->string);
+			/* imported twice, ignore */
+			continue;
+		}
+
+		environment_push(declaration, ref_context);
+	}
+
+	check_and_push_context(&module->context);
+	environment_pop_to(old_top);
+
+	assert(module->processing);
+	module->processing = false;
+	assert(!module->processed);
+	module->processed = true;
+}
+
+bool check_semantic(void)
 {
 	obstack_init(&symbol_environment_obstack);
 
@@ -2512,9 +2583,9 @@ int check_static_semantic(void)
 	type_byte_ptr = make_pointer_type(type_byte);
 	error_type    = type_void;
 
-	namespace_t *namespace = namespaces;
-	for ( ; namespace != NULL; namespace = namespace->next) {
-		check_namespace(namespace);
+	module_t *module = modules;
+	for ( ; module != NULL; module = module->next) {
+		check_module(module);
 	}
 
 	if (!found_export) {
@@ -2523,7 +2594,6 @@ int check_static_semantic(void)
 	}
 
 	DEL_ARR_F(symbol_stack);
-
 	obstack_free(&symbol_environment_obstack, NULL);
 
 	return !found_errors;

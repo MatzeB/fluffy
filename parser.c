@@ -22,17 +22,20 @@
 //#define ABORT_ON_ERROR
 //#define PRINT_TOKENS
 
-static expression_parse_function_t *expression_parsers  = NULL;
-static parse_statement_function    *statement_parsers   = NULL;
-static parse_declaration_function  *declaration_parsers = NULL;
-static parse_attribute_function    *attribute_parsers   = NULL;
+static expression_parse_function_t *expression_parsers;
+static parse_statement_function    *statement_parsers;
+static parse_declaration_function  *declaration_parsers;
+static parse_attribute_function    *attribute_parsers;
 
 static unsigned char token_anchor_set[T_LAST_TOKEN];
 
-static context_t *current_context = NULL;
+static symbol_t  *current_module_name;
+static context_t *current_context;
 
 static int      error = 0;
        token_t  token;
+
+module_t *modules;
 
 static inline void *allocate_ast_zero(size_t size)
 {
@@ -61,7 +64,7 @@ static size_t get_declaration_struct_size(declaration_kind_t kind)
 	return sizes[kind];
 }
 
-static declaration_t *allocate_declaration(declaration_kind_t kind)
+declaration_t *allocate_declaration(declaration_kind_t kind)
 {
 	size_t         size        = get_declaration_struct_size(kind);
 	declaration_t *declaration = allocate_ast_zero(size);
@@ -72,6 +75,7 @@ static declaration_t *allocate_declaration(declaration_kind_t kind)
 static size_t get_expression_struct_size(expression_kind_t kind)
 {
 	static const size_t sizes[] = {
+		[EXPR_ERROR]         = sizeof(expression_base_t),
 		[EXPR_INT_CONST]     = sizeof(int_const_t),
 		[EXPR_FLOAT_CONST]   = sizeof(float_const_t),
 		[EXPR_BOOL_CONST]    = sizeof(bool_const_t),
@@ -1150,10 +1154,6 @@ expression_t *parse_expression(void)
 	return parse_sub_expression(1);
 }
 
-
-
-
-
 static statement_t *parse_return_statement(void)
 {
 	return_statement_t *return_statement =
@@ -2187,6 +2187,45 @@ static void skip_declaration(void)
 	next_token();
 }
 
+static void parse_import(void)
+{
+	eat(T_import);
+	if (token.type != T_STRING_LITERAL) {
+		parse_error_expected("problem while parsing import directive",
+		                     T_STRING_LITERAL, 0);
+		eat_until_anchor();
+		return;
+	}
+	symbol_t *modulename = symbol_table_insert(token.v.string);
+	next_token();
+
+	while (true) {
+		if (token.type != T_IDENTIFIER) {
+			parse_error_expected("problem while parsing import directive",
+			                     T_IDENTIFIER, 0);
+			eat_until_anchor();
+			return;
+		}
+
+		import_t *import        = allocate_ast_zero(sizeof(import[0]));
+		import->module          = modulename;
+		import->symbol          = token.v.symbol;
+		import->source_position = source_position;
+		
+		import->next = current_context->imports;
+		current_context->imports = import;
+		next_token();
+
+		if (token.type != ',')
+			break;
+		eat(',');
+	}
+	expect(T_NEWLINE, end_error);
+
+end_error:
+	;
+}
+
 static void parse_export(void)
 {
 	eat(T_export);
@@ -2196,7 +2235,7 @@ static void parse_export(void)
 			break;
 		}
 		if (token.type != T_IDENTIFIER) {
-			parse_error_expected("problem while parsing export declaration",
+			parse_error_expected("problem while parsing export directive",
 			                     T_IDENTIFIER, 0);
 			eat_until_anchor();
 			return;
@@ -2222,6 +2261,32 @@ end_error:
 	;
 }
 
+static void parse_module(void)
+{
+	eat(T_module);
+
+	/* a simple URL string without a protocol */
+	if (token.type != T_STRING_LITERAL) {
+		parse_error_expected("problem while parsing module", T_STRING_LITERAL, 0);
+		return;
+	}
+
+	symbol_t *new_module_name = symbol_table_insert(token.v.string);
+	next_token();
+
+	if (current_module_name != NULL && current_module_name != new_module_name) {
+		parser_print_error_prefix();
+		fprintf(stderr, "new module name '%s' overrides old name '%s'\n",
+		        new_module_name->string, current_module_name->string);
+	}
+	current_module_name = new_module_name;
+
+	expect(T_NEWLINE, end_error);
+
+end_error:
+	;
+}
+
 void parse_declaration(void)
 {
 	if (token.type < 0) {
@@ -2234,11 +2299,11 @@ void parse_declaration(void)
 		return;
 	}
 
-	parse_declaration_function parser = NULL;
+	parse_declaration_function parse = NULL;
 	if (token.type < ARR_LEN(declaration_parsers))
-		parser = declaration_parsers[token.type];
+		parse = declaration_parsers[token.type];
 
-	if (parser == NULL) {
+	if (parse == NULL) {
 		parse_error_expected("Couldn't parse declaration",
 		                     T_func, T_var, T_extern, T_struct, T_concept,
 		                     T_instance, 0);
@@ -2246,67 +2311,7 @@ void parse_declaration(void)
 		return;
 	}
 
-	if (parser != NULL) {
-		parser();
-	}
-}
-
-static namespace_t *get_namespace(symbol_t *symbol)
-{
-	/* search for an existing namespace */
-	namespace_t *namespace = namespaces;
-	while (namespace != NULL) {
-		if (namespace->symbol == symbol)
-			return namespace;
-	
-		namespace = namespace->next;
-	}
-
-	namespace         = allocate_ast_zero(sizeof(namespace[0]));
-	namespace->symbol = symbol;
-
-	namespace->next = namespaces;
-	namespaces      = namespace;
-
-	return namespace;
-}
-
-static namespace_t *parse_namespace(void)
-{
-	symbol_t *namespace_symbol = NULL;
-
-	/* parse namespace name */
-	if (token.type == T_namespace) {
-		next_token();
-		if (token.type != T_IDENTIFIER) {
-			parse_error_expected("problem while parsing namespace", 
-			                     T_IDENTIFIER, 0);
-			eat_until_anchor();
-		}
-		namespace_symbol = token.v.symbol;
-		next_token();
-
-		if (token.type != T_NEWLINE) {
-			parse_error("extra tokens after namespace definition");
-			eat_until_anchor();
-		} else {
-			next_token();
-		}
-	}	
-
-	namespace_t *namespace = get_namespace(namespace_symbol);
-	assert(current_context == NULL);
-	current_context        = &namespace->context;
-
-	/* parse namespace entries */
-	while (token.type != T_EOF) {
-		parse_declaration();
-	}
-
-	assert(current_context == &namespace->context);
-	current_context = NULL;
-
-	return namespace;
+	parse();
 }
 
 static void register_declaration_parsers(void)
@@ -2321,23 +2326,105 @@ static void register_declaration_parsers(void)
 	register_declaration_parser(parse_concept,            T_concept);
 	register_declaration_parser(parse_concept_instance,   T_instance);
 	register_declaration_parser(parse_export,             T_export);
+	register_declaration_parser(parse_import,             T_import);
+	register_declaration_parser(parse_module,             T_module);
 	register_declaration_parser(skip_declaration,         T_NEWLINE);
 }
 
-namespace_t *parse(FILE *in, const char *input_name)
+static module_t *get_module(symbol_t *name)
+{
+	if (name == NULL) {
+		name = symbol_table_insert("");
+	}
+
+	/* search for an existing module */
+	module_t *module = modules;
+	for ( ; module != NULL; module = module->next) {
+		if (module->name == name)
+			break;
+	}
+	if (module == NULL) {
+		module = allocate_ast_zero(sizeof(module[0]));
+		module->name = name;
+		module->next = modules;
+		modules      = module;
+	}
+	return module;
+}
+
+static void append_context(context_t *dest, const context_t *source)
+{
+	declaration_t *last = dest->declarations;
+	if (last != NULL) {
+		while (last->base.next != NULL) {
+			last = last->base.next;
+		}
+		last->base.next = source->declarations;
+	} else {
+		dest->declarations = source->declarations;
+	}
+
+	concept_instance_t *last_concept_instance = dest->concept_instances;
+	if (last_concept_instance != NULL) {
+		while (last_concept_instance->next != NULL) {
+			last_concept_instance = last_concept_instance->next;
+		}
+		last_concept_instance->next = source->concept_instances;
+	} else {
+		dest->concept_instances = source->concept_instances;
+	}
+
+	export_t *last_export = dest->exports;
+	if (last_export != NULL) {
+		while (last_export->next != NULL) {
+			last_export = last_export->next;
+		}
+		last_export->next = source->exports;
+	} else {
+		dest->exports = source->exports;
+	}
+
+	import_t *last_import = dest->imports;
+	if (last_import != NULL) {
+		while (last_import->next != NULL) {
+			last_import = last_import->next;
+		}
+		last_import->next = source->imports;
+	} else {
+		dest->imports = source->imports;
+	}
+}
+
+bool parse_file(FILE *in, const char *input_name)
 {
 	memset(token_anchor_set, 0, sizeof(token_anchor_set));
 
+	/* get the lexer running */
 	lexer_init(in, input_name);
 	next_token();
 
+	context_t file_context;
+	memset(&file_context, 0, sizeof(file_context));
+
+	assert(current_context == NULL);
+	current_context = &file_context;
+
+	current_module_name = NULL;
+
 	add_anchor_token(T_EOF);
-
-	namespace_t *namespace = parse_namespace();
-	namespace->filename    = input_name;
-
+	while (token.type != T_EOF) {
+		parse_declaration();
+	}
 	rem_anchor_token(T_EOF);
 
+	assert(current_context == &file_context);
+	current_context = NULL;
+
+	/* append stuff to module */
+	module_t *module = get_module(current_module_name);
+	append_context(&module->context, &file_context);
+
+	/* check that we have matching rem_anchor_token calls for each add */
 #ifndef NDEBUG
 	for (int i = 0; i < T_LAST_TOKEN; ++i) {
 		if (token_anchor_set[i] > 0) {
@@ -2348,12 +2435,7 @@ namespace_t *parse(FILE *in, const char *input_name)
 
 	lexer_destroy();
 
-	if (error) {
-		fprintf(stderr, "syntax errors found...\n");
-		return NULL;
-	}
-
-	return namespace;
+	return !error;
 }
 
 void init_parser(void)

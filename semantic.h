@@ -3,7 +3,9 @@
 
 #include "ast.h"
 
-int check_static_semantic(void);
+/* check static semantic of a bunch of files and organize them into modules
+ * if semantic is fine */
+bool check_semantic(void);
 
 concept_instance_t *find_concept_instance(concept_t *concept);
 

@@ -10,7 +10,6 @@
 #include "adt/error.h"
 
 struct obstack  ast_obstack;
-namespace_t    *namespaces;
 
 static FILE *out;
 static int   indent = 0;
@@ -589,7 +588,7 @@ static void print_declaration(const declaration_t *declaration)
 
 	case DECLARATION_INVALID:
 	case DECLARATION_LAST:
-		fprintf(out, "invalid namespace declaration (%s)\n",
+		fprintf(out, "invalid declaration (%s)\n",
 		        get_declaration_kind_name(declaration->kind));
 		break;
 	}
@@ -608,12 +607,12 @@ static void print_context(const context_t *context)
 	}
 }
 
-void print_ast(FILE *new_out, const namespace_t *namespace)
+void print_ast(FILE *new_out, const context_t *context)
 {
 	indent = 0;
 	out    = new_out;
 
-	print_context(&namespace->context);
+	print_context(context);
 
 	assert(indent == 0);
 	out = NULL;

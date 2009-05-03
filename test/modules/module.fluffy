@@ -1,0 +1,8 @@
+module "fluffy.org/compiler/test/moduletest"
+export dosomething
+
+func extern printf(str : byte*, ...) : int
+
+func dosomething():
+	printf("Do Something\n")
+

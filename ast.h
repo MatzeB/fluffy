@@ -9,6 +9,7 @@ typedef union  declaration_t            declaration_t;
 typedef union  expression_t             expression_t;
 typedef struct context_t                context_t;
 typedef struct export_t                 export_t;
+typedef struct import_t                 import_t;
 typedef struct declaration_base_t       declaration_base_t;
 typedef struct expression_base_t        expression_base_t;
 typedef struct int_const_t              int_const_t;
@@ -38,7 +39,7 @@ typedef struct goto_statement_t         goto_statement_t;
 typedef struct label_declaration_t      label_declaration_t;
 typedef struct label_statement_t        label_statement_t;
 
-typedef struct namespace_t              namespace_t;
+typedef struct module_t                 module_t;
 
 typedef struct method_parameter_t       method_parameter_t;
 typedef struct method_t                 method_t;
@@ -56,7 +57,7 @@ typedef struct concept_method_t         concept_method_t;
 void  init_ast_module(void);
 void  exit_ast_module(void);
 
-void  print_ast(FILE *out, const namespace_t *namespace);
+void  print_ast(FILE *out, const context_t *context);
 void  print_expression(const expression_t *expression);
 void *allocate_ast(size_t size);
 
