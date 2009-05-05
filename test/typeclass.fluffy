@@ -1,5 +1,4 @@
 func extern printf(format : byte*, ...) : int
-func extern malloc(size : unsigned int) : void*
 func extern puts(string : byte*) : int
 
 concept Print<T>:

@@ -6,5 +6,6 @@ struct Foo:
 var k : Foo*
 
 func main() : int:
+	cast<void> k
 	return 0
 export main
