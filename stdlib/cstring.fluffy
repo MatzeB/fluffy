@@ -1,3 +1,5 @@
+module "fluffy.org/stdlib"
+
 func extern memcpy(dest : void*, src : void*, size : size_t) : void*
 func extern memmove(dest : void*, src : void*, size : size_t) : void*
 func extern memcmp(s1 : void*, s2 : void*) : int

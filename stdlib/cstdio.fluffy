@@ -1,8 +1,17 @@
+module "fluffy.org/stdlib"
+export FILE
+export stdout, stderr, stdin, errno
+export fputc, fputs, fopen, fclose, fflush, fread, fwrite
+export ungetc, puts, putchar, printf, fprintf, sprintf, snprintf, EOF
+export strerror
+
 typealias FILE = void
 
+/* TODO: these can be macros */
 var extern stdout : FILE*
 var extern stderr : FILE*
 var extern stdin  : FILE*
+var extern errno : int
 
 func extern fputc(c : int, stream : FILE* ) : int
 func extern fputs(s : String, stream : FILE* ) : int
@@ -20,5 +29,7 @@ func extern printf(format : String, ...) : int
 func extern fprintf(stream : FILE*, format : String, ...) : int
 func extern sprintf(str : String, format : String, ...) : int
 func extern snprintf(std : String, size : size_t, format : String, ...) : int
+
+func extern strerror(errnum : int) : String
 
 const EOF = -1

@@ -1,3 +1,5 @@
+module "fluffy.org/stdlib"
+
 typealias time_t = int
 
 func extern time(timer : time_t*) : time_t

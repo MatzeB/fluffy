@@ -1,3 +1,7 @@
+module "fluffy.org/stdlib"
+
+export size_t, String
+
 typealias size_t = unsigned int
 typealias String = byte*
 

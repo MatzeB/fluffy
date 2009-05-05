@@ -1,3 +1,5 @@
+module "fluffy.org/stdlib"
+
 concept Construct<T>:
 	func construct(object : T*)
 	func destruct(object : T*)

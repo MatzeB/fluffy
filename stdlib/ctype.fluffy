@@ -1,3 +1,4 @@
+module "fluffy.org/stdlib"
 
 func extern isalpha(c : int) : int
 func extern isalnum(c : int) : int

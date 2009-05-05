@@ -1,3 +1,5 @@
+module "fluffy.org/stdlib"
+
 struct FlexibleArray:
 	buffer : byte*
 	len    : size_t
