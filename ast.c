@@ -357,7 +357,6 @@ void print_statement(const statement_t *statement)
 		print_variable_declaration_statement(
 		        (const variable_declaration_statement_t*) statement);
 		break;
-	case STATEMENT_LAST:
 	case STATEMENT_INVALID:
 	default:
 		fprintf(out, "*invalid statement*");
@@ -587,7 +586,6 @@ static void print_declaration(const declaration_t *declaration)
 		break;
 
 	case DECLARATION_INVALID:
-	case DECLARATION_LAST:
 		fprintf(out, "invalid declaration (%s)\n",
 		        get_declaration_kind_name(declaration->kind));
 		break;
@@ -621,7 +619,6 @@ void print_ast(FILE *new_out, const context_t *context)
 const char *get_declaration_kind_name(declaration_kind_t type)
 {
 	switch (type) {
-	case DECLARATION_LAST:
 	case DECLARATION_ERROR:            return "parse error";
 	case DECLARATION_INVALID:          return "invalid reference";
 	case DECLARATION_VARIABLE:         return "variable";

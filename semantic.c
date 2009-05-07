@@ -463,7 +463,6 @@ static type_t *check_reference(declaration_t *declaration,
 	case DECLARATION_ERROR:
 		found_errors = true;
 		return NULL;
-	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 		panic("reference to invalid declaration type encountered");
 	}

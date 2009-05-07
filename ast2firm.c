@@ -985,7 +985,6 @@ static ir_node *declaration_addr(declaration_t *declaration)
 	case DECLARATION_CONCEPT:
 	case DECLARATION_CONCEPT_METHOD:
 	case DECLARATION_TYPE_VARIABLE:
-	case DECLARATION_LAST:
 		panic("internal error: trying to create address nodes for non-lvalue");
 	}
 	panic("Unknown declaration found in reference expression");
@@ -1563,7 +1562,6 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
 	case DECLARATION_VARIABLE:
 		return variable_to_firm((variable_declaration_t*) declaration,
 		                        source_position);
-	case DECLARATION_LAST:
 	case DECLARATION_INVALID:
 	case DECLARATION_ERROR:
 	case DECLARATION_TYPEALIAS:
@@ -1773,19 +1771,21 @@ static void statement_to_firm(statement_t *statement)
 		return;
 	case STATEMENT_VARIABLE_DECLARATION:
 		/* nothing to do */
-		break;
+		return;
 	case STATEMENT_EXPRESSION:
 		expression_statement_to_firm((expression_statement_t*) statement);
-		break;
+		return;
 	case STATEMENT_LABEL:
 		label_statement_to_firm((label_statement_t*) statement);
-		break;
+		return;
 	case STATEMENT_GOTO:
 		goto_statement_to_firm((goto_statement_t*) statement);
+		return;
+	case STATEMENT_ERROR:
+	case STATEMENT_INVALID:
 		break;
-	default:
-		abort();
 	}
+	panic("Invalid statement kind found");
 }
 
 static void create_method(method_t *method, ir_entity *entity,
@@ -1911,7 +1911,6 @@ static void context2firm(const context_t *context)
 		case DECLARATION_CONCEPT_METHOD:
 		case DECLARATION_TYPE_VARIABLE:
 			break;
-		case DECLARATION_LAST:
 		case DECLARATION_INVALID:
 		case DECLARATION_ERROR:
 			panic("Invalid namespace entry type found");

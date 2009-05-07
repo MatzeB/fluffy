@@ -257,6 +257,11 @@ int main(int argc, const char **argv)
 				return 1;
 			}
 			outname = argv[i];
+		} else if (arg[0] == 'O'
+				|| strcmp(arg, "-fmac") == 0
+				|| strcmp(arg, "-fwin32") == 0
+				|| strcmp(arg, "-flinux") == 0) {
+			/* already processed in first pass */
 		} else if (strcmp(arg, "--dump") == 0) {
 			dump_graphs = 1;
 			dump_asts   = 1;
@@ -291,6 +296,9 @@ int main(int argc, const char **argv)
 			if (strcmp(bearg, "help") == 0) {
 				return 1;
 			}
+		} else if (arg[0] == '-') {
+			fprintf(stderr, "Invalid option '%s'\n", arg);
+			return 1;
 		} else {
 			const char *filename = argv[i];
 			FILE *in;
