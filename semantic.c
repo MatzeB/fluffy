@@ -2257,7 +2257,7 @@ static void resolve_concept_instance(concept_instance_t *instance)
 	declaration_t *declaration = symbol->declaration;
 
 	if (declaration == NULL) {
-		print_error_prefix(declaration->base.source_position);
+		print_error_prefix(instance->source_position);
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
