@@ -10,6 +10,7 @@ not be forgotten.
 - forbid same variable names in nested blocks
 - change firm to pass on debug info on unitialized_variable callback
 - introduce constant expressions
+- introduce const type qualifier
 
 Tasks suitable for contributors, because they don't affect the general design
 or need only design decision in a very specific part of the compiler and/or

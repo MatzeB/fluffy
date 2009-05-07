@@ -16,7 +16,7 @@ all: $(PLUGINS)
 	gcc -c $< -o $@
 
 %.s: %.fluffy api.fluffy
-	../fluffy --time $(FLUFFY_FLAGS) -S api.fluffy $*.fluffy -o $*.s
+	../fluffy $(FLUFFY_FLAGS) -S api.fluffy $*.fluffy -o $*.s
 
 plugin_sql.s: plugin_while.dylib
 

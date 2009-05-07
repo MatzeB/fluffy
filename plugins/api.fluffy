@@ -1,3 +1,14 @@
+module "fluffy.org/compiler/pluginapi"
+export SourcePosition, Symbol, Token, Type, Attribute, CompoundEntry, \
+       CompoundType, TypeConstraint, Declaration, Export, Context, \
+       TypeVariable, Constant, Statement, Expression, IntConst, \
+       BinaryExpression, BlockStatement, ExpressionStatement, \
+       LabelStatement, GotoStatement, IfStatement, TypeClass, \
+       TypeClassMethod, TypeClassInstance, Lexer, \
+       STATEMENT_INAVLID, STATEMENT_ERROR, STATEMENT_BLOCK, \
+       STATEMENT_RETURN, STATEMENT_VARIABLE_DECLARATION, STATEMENT_IF, \
+       STATEMENT_EXPRESSION, STATEMENT_GOTO, STATEMENT_LABEL
+
 struct SourcePosition:
 	input_name : byte*
 	linenr     : unsigned int
@@ -81,8 +92,8 @@ struct Statement:
 	source_position : SourcePosition
 
 struct Expression:
-	type            : unsigned int
-	datatype        : Type*
+	kind            : unsigned int
+	type            : Type*
 	source_position : SourcePosition
 	lowered         : byte
 
@@ -336,13 +347,13 @@ instance AllocateOnAst Constant:
 instance AllocateOnAst BinaryExpression:
 	func allocate() : BinaryExpression*:
 		var res = allocate_zero<$BinaryExpression>()
-		res.expression.type = EXPR_BINARY
+		res.expression.kind = EXPR_BINARY
 		return res
 
 instance AllocateOnAst IntConst:
 	func allocate() : IntConst*:
 		var res = allocate_zero<$IntConst>()
-		res.expression.type = EXPR_INT_CONST
+		res.expression.kind = EXPR_INT_CONST
 		return res
 
 func api_init():
