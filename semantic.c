@@ -193,7 +193,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "can't resolve type: symbol '%s' is unknown\n",
 		        symbol->string);
-		return NULL;
+		return type_invalid;
 	}
 
 	if (declaration->kind == DECLARATION_TYPE_VARIABLE) {
@@ -214,7 +214,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
 		        symbol->string, get_declaration_kind_name(declaration->kind));
-		return NULL;
+		return type_invalid;
 	}
 
 	typealias_t *typealias = (typealias_t*) declaration;
@@ -469,6 +469,14 @@ static type_t *check_reference(declaration_t *declaration,
 	panic("reference to unknown declaration type encountered");
 }
 
+static declaration_t *create_error_declarataion(symbol_t *symbol)
+{
+	declaration_t *declaration = allocate_declaration(DECLARATION_ERROR);
+	declaration->base.symbol   = symbol;
+	declaration->base.exported = true;
+	return declaration;
+}
+
 static void check_reference_expression(reference_expression_t *ref)
 {
 	symbol_t      *symbol      = ref->symbol;
@@ -476,7 +484,7 @@ static void check_reference_expression(reference_expression_t *ref)
 	if (declaration == NULL) {
 		print_error_prefix(ref->base.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
-		return;
+		declaration = create_error_declarataion(symbol);
 	}
 
 	normalize_type_arguments(ref->type_arguments);
@@ -2476,14 +2484,6 @@ static module_t *find_module(symbol_t *name)
 			break;
 	}
 	return module;
-}
-
-static declaration_t *create_error_declarataion(symbol_t *symbol)
-{
-	declaration_t *declaration = allocate_declaration(DECLARATION_ERROR);
-	declaration->base.symbol   = symbol;
-	declaration->base.exported = true;
-	return declaration;
 }
 
 static declaration_t *find_declaration(const context_t *context,

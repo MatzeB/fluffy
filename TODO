@@ -7,9 +7,8 @@ not be forgotten.
   <void*> again...)
 - add possibility to specify default implementations for typeclass functions
 - add static ifs that can examine const expressions and types at compiletime
-- forbid same variable names in nested blocks
+- forbid same variable names in nested blocks (really?)
 - change firm to pass on debug info on unitialized_variable callback
-- introduce constant expressions
 - introduce const type qualifier
 
 Tasks suitable for contributors, because they don't affect the general design
@@ -23,6 +22,5 @@ because they need no deep understanding of the design.
 - make lexer unicode aware (reading utf-8 is enough, for more inputs we could use iconv, but we should recommend utf-8 as default)
 
 Refactorings (mindless but often labor intensive tasks):
-- make unions for type_t (see cparser)
-- rename type to kind
+- make unions for type_t (see cparser), rename type->type to type->kind
 - keep typerefs as long as possible (start the skip_typeref madness similar to cparser)
