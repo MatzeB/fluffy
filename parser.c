@@ -107,6 +107,31 @@ expression_t *allocate_expression(expression_kind_t kind)
 	return expression;
 }
 
+static size_t get_statement_struct_size(statement_kind_t kind)
+{
+	static const size_t sizes[] = {
+		[STATEMENT_ERROR]       = sizeof(statement_base_t),
+		[STATEMENT_BLOCK]       = sizeof(block_statement_t),
+		[STATEMENT_RETURN]      = sizeof(return_statement_t),
+		[STATEMENT_DECLARATION] = sizeof(declaration_statement_t),
+		[STATEMENT_IF]          = sizeof(if_statement_t),
+		[STATEMENT_EXPRESSION]  = sizeof(expression_statement_t),
+		[STATEMENT_GOTO]        = sizeof(goto_statement_t),
+		[STATEMENT_LABEL]       = sizeof(label_statement_t),
+	};
+	assert(kind < sizeof(sizes)/sizeof(sizes[0]));
+	assert(sizes[kind] != 0);
+	return sizes[kind];
+};
+
+static statement_t *allocate_statement(statement_kind_t kind)
+{
+	size_t       size      = get_statement_struct_size(kind);
+	statement_t *statement = allocate_ast_zero(size);
+	statement->kind        = kind;
+	return statement;
+}
+
 static inline void *allocate_type_zero(size_t size)
 {
 	void *res = obstack_alloc(type_obst, size);
@@ -1156,48 +1181,40 @@ expression_t *parse_expression(void)
 
 static statement_t *parse_return_statement(void)
 {
-	return_statement_t *return_statement =
-		allocate_ast_zero(sizeof(return_statement[0]));
+	eat(T_return);
 
-	return_statement->statement.type = STATEMENT_RETURN;
-	next_token();
-
+	statement_t *return_statement = allocate_statement(STATEMENT_RETURN);
 	if (token.type != T_NEWLINE) {
-		return_statement->return_value = parse_expression();
+		return_statement->returns.value = parse_expression();
 	}
 	expect(T_NEWLINE, end_error);
 
 end_error:
-	return (statement_t*) return_statement;
+	return return_statement;
 }
 
 static statement_t *create_error_statement(void)
 {
-	statement_t *statement = allocate_ast_zero(sizeof(statement[0]));
-	statement->type = STATEMENT_ERROR;
-	return statement;
+	return allocate_statement(STATEMENT_ERROR);
 }
 
 static statement_t *parse_goto_statement(void)
 {
 	eat(T_goto);
 
-	goto_statement_t *goto_statement
-		= allocate_ast_zero(sizeof(goto_statement[0]));
-	goto_statement->statement.type = STATEMENT_GOTO;
-
+	statement_t *goto_statement = allocate_statement(STATEMENT_GOTO);
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing goto statement",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
 		goto end_error;
 	}
-	goto_statement->label_symbol = token.v.symbol;
+	goto_statement->gotos.label_symbol = token.v.symbol;
 	next_token();
 
 	expect(T_NEWLINE, end_error);
 
-	return (statement_t*) goto_statement;
+	return goto_statement;
 
 end_error:
 	return create_error_statement();
@@ -1207,24 +1224,22 @@ static statement_t *parse_label_statement(void)
 {
 	eat(':');
 
-	label_statement_t *label = allocate_ast_zero(sizeof(label[0]));
-	label->statement.type    = STATEMENT_LABEL;
-
+	statement_t *label = allocate_statement(STATEMENT_LABEL);
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing label", T_IDENTIFIER, 0);
 		eat_until_anchor();
 		goto end_error;
 	}
-	label->declaration.base.kind            = DECLARATION_LABEL;
-	label->declaration.base.source_position = source_position;
-	label->declaration.base.symbol          = token.v.symbol;
+	label->label.declaration.base.kind            = DECLARATION_LABEL;
+	label->label.declaration.base.source_position = source_position;
+	label->label.declaration.base.symbol          = token.v.symbol;
 	next_token();
 
-	add_declaration((declaration_t*) &label->declaration);
+	add_declaration((declaration_t*) &label->label.declaration);
 
 	expect(T_NEWLINE, end_error);
 
-	return (statement_t*) label;
+	return label;
 
 end_error:
 	return create_error_statement();
@@ -1239,9 +1254,8 @@ static statement_t *parse_sub_block(void)
 
 	if (token.type != T_INDENT) {
 		/* create an empty block */
-		block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
-		block->statement.type = STATEMENT_BLOCK;
-		return (statement_t*) block;
+		statement_t *block = allocate_statement(STATEMENT_BLOCK);
+		return block;
 	}
 		
 	return parse_block();
@@ -1263,15 +1277,12 @@ static statement_t *parse_if_statement(void)
 		false_statement = parse_sub_block();
 	}
 
-	if_statement_t *if_statement
-		= allocate_ast_zero(sizeof(if_statement[0]));
+	statement_t *if_statement = allocate_statement(STATEMENT_IF);
+	if_statement->ifs.condition       = condition;
+	if_statement->ifs.true_statement  = true_statement;
+	if_statement->ifs.false_statement = false_statement;
 
-	if_statement->statement.type  = STATEMENT_IF;
-	if_statement->condition       = condition;
-	if_statement->true_statement  = true_statement;
-	if_statement->false_statement = false_statement;
-
-	return (statement_t*) if_statement;
+	return if_statement;
 
 end_error:
 	return create_error_statement();
@@ -1287,12 +1298,9 @@ static statement_t *parse_initial_assignment(symbol_t *symbol)
 	assign->binary.left          = expression;
 	assign->binary.right         = parse_expression();
 
-	expression_statement_t *expr_statement
-		= allocate_ast_zero(sizeof(expr_statement[0]));
-	expr_statement->statement.type = STATEMENT_EXPRESSION;
-	expr_statement->expression     = assign;
-
-	return (statement_t*) expr_statement;
+	statement_t *expr_statement = allocate_statement(STATEMENT_EXPRESSION);
+	expr_statement->expression.expression = assign;
+	return expr_statement;
 }
 
 static statement_t *parse_variable_declaration(void)
@@ -1310,12 +1318,10 @@ static statement_t *parse_variable_declaration(void)
 			goto end_error;
 		}
 
-		variable_declaration_statement_t *declaration_statement
-			= allocate_ast_zero(sizeof(declaration_statement[0]));
-		declaration_statement->statement.type = STATEMENT_VARIABLE_DECLARATION;
+		statement_t *statement = allocate_statement(STATEMENT_DECLARATION);
 
 		declaration_t *declaration 
-			= (declaration_t*) &declaration_statement->declaration;
+			= (declaration_t*) &statement->declaration.declaration;
 		declaration->base.kind            = DECLARATION_VARIABLE;
 		declaration->base.source_position = source_position;
 		declaration->base.symbol          = token.v.symbol;
@@ -1324,7 +1330,7 @@ static statement_t *parse_variable_declaration(void)
 		add_declaration(declaration);
 
 		variable_declaration_t *variable_declaration
-			= &declaration_statement->declaration;
+		   = &statement->declaration.declaration;
 
 		if (token.type == ':') {
 			next_token();
@@ -1333,11 +1339,11 @@ static statement_t *parse_variable_declaration(void)
 
 		/* append multiple variable declarations */
 		if (last_statement != NULL) {
-			last_statement->next = (statement_t*) declaration_statement;
+			last_statement->base.next = statement;
 		} else {
-			first_statement = (statement_t*) declaration_statement;
+			first_statement = statement;
 		}
-		last_statement = (statement_t*) declaration_statement;
+		last_statement = statement;
 
 		/* do we have an assignment expression? */
 		if (token.type == '=') {
@@ -1345,8 +1351,8 @@ static statement_t *parse_variable_declaration(void)
 			statement_t *assign 
 				= parse_initial_assignment(declaration->base.symbol);
 
-			last_statement->next = assign;
-			last_statement       = assign;
+			last_statement->base.next = assign;
+			last_statement            = assign;
 		}
 
 		/* check if we have more declared symbols separated by ',' */
@@ -1363,15 +1369,12 @@ end_error:
 
 static statement_t *parse_expression_statement(void)
 {
-	expression_statement_t *expression_statement
-		= allocate_ast_zero(sizeof(expression_statement[0]));
-
-	expression_statement->statement.type = STATEMENT_EXPRESSION;
-	expression_statement->expression     = parse_expression();
+	statement_t *statement = allocate_statement(STATEMENT_EXPRESSION);
+	statement->expression.expression = parse_expression();
 	expect(T_NEWLINE, end_error);
 
 end_error:
-	return (statement_t*) expression_statement;
+	return statement;
 }
 
 static statement_t *parse_newline(void)
@@ -1423,11 +1426,11 @@ statement_t *parse_statement(void)
 	if (statement == NULL)
 		return NULL;
 
-	statement->source_position = start;
-	statement_t *next = statement->next;
+	statement->base.source_position = start;
+	statement_t *next = statement->base.next;
 	while (next != NULL) {
-		next->source_position = start;
-		next                  = next->next;
+		next->base.source_position = start;
+		next                       = next->base.next;
 	}
 
 	return statement;
@@ -1437,11 +1440,10 @@ static statement_t *parse_block(void)
 {
 	eat(T_INDENT);
 
-	block_statement_t *block = allocate_ast_zero(sizeof(block[0]));
-	block->statement.type    = STATEMENT_BLOCK;
-
+	statement_t *block_statement = allocate_statement(STATEMENT_BLOCK);
+	
 	context_t *last_context = current_context;
-	current_context         = &block->context;
+	current_context         = &block_statement->block.context;
 
 	add_anchor_token(T_DEDENT);
 
@@ -1453,25 +1455,25 @@ static statement_t *parse_block(void)
 			continue;
 
 		if (last_statement != NULL) {
-			last_statement->next = statement;
+			last_statement->base.next = statement;
 		} else {
-			block->statements = statement;
+			block_statement->block.statements = statement;
 		}
 		last_statement = statement;
 		/* the parse rule might have produced multiple statements */
-		while (last_statement->next != NULL)
-			last_statement = last_statement->next;
+		while (last_statement->base.next != NULL)
+			last_statement = last_statement->base.next;
 	}
 
-	assert(current_context == &block->context);
+	assert(current_context == &block_statement->block.context);
 	current_context = last_context;
 
-	block->end_position = source_position;
+	block_statement->block.end_position = source_position;
 	rem_anchor_token(T_DEDENT);
 	expect(T_DEDENT, end_error);
 
 end_error:
-	return (statement_t*) block;
+	return block_statement;
 }
 
 static void parse_parameter_declarations(method_type_t *method_type,

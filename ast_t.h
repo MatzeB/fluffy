@@ -391,58 +391,70 @@ typedef enum {
 	STATEMENT_ERROR,
 	STATEMENT_BLOCK,
 	STATEMENT_RETURN,
-	STATEMENT_VARIABLE_DECLARATION,
+	STATEMENT_DECLARATION,
 	STATEMENT_IF,
 	STATEMENT_EXPRESSION,
 	STATEMENT_GOTO,
 	STATEMENT_LABEL,
 	STATEMENT_LAST = STATEMENT_LABEL
-} statement_type_t;
+} statement_kind_t;
 
-struct statement_t {
-	statement_type_t   type;
+struct statement_base_t {
+	statement_kind_t   kind;
 	statement_t       *next;
 	source_position_t  source_position;
 };
 
 struct return_statement_t {
-	statement_t   statement;
-	expression_t *return_value;
+	statement_base_t  base;
+	expression_t     *value;
 };
 
 struct block_statement_t {
-	statement_t        statement;
+	statement_base_t   base;
 	statement_t       *statements;
 	source_position_t  end_position;
 	context_t          context;
 };
 
-struct variable_declaration_statement_t {
-	statement_t             statement;
+struct declaration_statement_t {
+	statement_base_t        base;
 	variable_declaration_t  declaration;
 };
 
 struct if_statement_t {
-	statement_t   statement;
-	expression_t *condition;
-	statement_t  *true_statement;
-	statement_t  *false_statement;
+	statement_base_t  base;
+	expression_t     *condition;
+	statement_t      *true_statement;
+	statement_t      *false_statement;
 };
 
 struct goto_statement_t {
-	statement_t          statement;
+	statement_base_t     base;
 	symbol_t            *label_symbol;
 	label_declaration_t *label;
 };
 
 struct label_statement_t {
-	statement_t          statement;
+	statement_base_t     base;
 	label_declaration_t  declaration;
 };
 
 struct expression_statement_t {
-	statement_t   statement;
-	expression_t *expression;
+	statement_base_t  base;
+	expression_t     *expression;
+};
+
+union statement_t {
+	statement_kind_t         kind;
+	statement_base_t         base;
+	return_statement_t       returns;
+	block_statement_t        block;
+	declaration_statement_t  declaration;
+	goto_statement_t         gotos;
+	label_statement_t        label;
+	expression_statement_t   expression;
+	if_statement_t           ifs;
 };
 
 struct method_parameter_t {

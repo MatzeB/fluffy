@@ -1860,16 +1860,15 @@ static void check_return_statement(return_statement_t *statement)
 {
 	method_t     *method             = current_method;
 	type_t       *method_result_type = method->type->result_type;
-	statement->return_value 
-		= check_expression(statement->return_value);
-	expression_t *return_value       = statement->return_value;
+	statement->value                 = check_expression(statement->value);
+	expression_t *return_value       = statement->value;
 
 	last_statement_was_return = true;
 
 	if (return_value != NULL) {
 		if (method_result_type == type_void
 				&& return_value->base.type != type_void) {
-			error_at(statement->statement.source_position,
+			error_at(statement->base.source_position,
 			         "return with value in void method\n");
 			return;
 		}
@@ -1878,13 +1877,13 @@ static void check_return_statement(return_statement_t *statement)
 		if (return_value->base.type != method_result_type) {
 			return_value
 				= make_cast(return_value, method_result_type,
-				            statement->statement.source_position, false);
+				            statement->base.source_position, false);
 
-			statement->return_value = return_value;
+			statement->value = return_value;
 		}
 	} else {
 		if (method_result_type != type_void) {
-			error_at(statement->statement.source_position,
+			error_at(statement->base.source_position,
 			         "missing return value in non-void method\n");
 			return;
 		}
@@ -1898,7 +1897,7 @@ static void check_if_statement(if_statement_t *statement)
 
 	assert(condition != NULL);
 	if (condition->base.type != type_bool) {
-		error_at(statement->statement.source_position,
+		error_at(statement->base.source_position,
 		         "if condition needs to be boolean but has type ");
 		print_type(condition->base.type);
 		fprintf(stderr, "\n");
@@ -1929,14 +1928,14 @@ static void check_block_statement(block_statement_t *block)
 	statement_t *statement = block->statements;
 	statement_t *last      = NULL;
 	while (statement != NULL) {
-		statement_t *next = statement->next;
+		statement_t *next = statement->base.next;
 
 		statement = check_statement(statement);
-		assert(statement->next == next || statement->next == NULL);
-		statement->next = next;
+		assert(statement->base.next == next || statement->base.next == NULL);
+		statement->base.next = next;
 
 		if (last != NULL) {
-			last->next        = statement;
+			last->base.next   = statement;
 		} else {
 			block->statements = statement;
 		}
@@ -1948,7 +1947,7 @@ static void check_block_statement(block_statement_t *block)
 	environment_pop_to(old_top);
 }
 
-static void check_variable_declaration(variable_declaration_statement_t *statement)
+static void check_variable_declaration(declaration_statement_t *statement)
 {
 	method_t *method = current_method;
 	assert(method != NULL);
@@ -1989,13 +1988,13 @@ static void check_expression_statement(expression_statement_t *statement)
 	}
 
 	if (expression->base.type != type_void && !may_be_unused) {
-		print_warning_prefix(statement->statement.source_position);
+		print_warning_prefix(statement->base.source_position);
 		fprintf(stderr, "result of expression is unused\n");
 		if (expression->kind == EXPR_BINARY_EQUAL) {
-			print_warning_prefix(statement->statement.source_position);
+			print_warning_prefix(statement->base.source_position);
 			fprintf(stderr, "Did you mean '<-' instead of '='?\n");
 		}
-		print_warning_prefix(statement->statement.source_position);
+		print_warning_prefix(statement->base.source_position);
 		fprintf(stderr, "note: cast expression to void to avoid this "
 		        "warning\n");
 	}
@@ -2015,20 +2014,20 @@ static void check_goto_statement(goto_statement_t *goto_statement)
 
 	symbol_t *symbol = goto_statement->label_symbol;
 	if (symbol == NULL) {
-		error_at(goto_statement->statement.source_position,
+		error_at(goto_statement->base.source_position,
 		         "unresolved anonymous goto\n");
 		return;
 	}
 
 	declaration_t *declaration = symbol->declaration;
 	if (declaration == NULL) {
-		print_error_prefix(goto_statement->statement.source_position);
+		print_error_prefix(goto_statement->base.source_position);
 		fprintf(stderr, "goto argument '%s' is an unknown symbol.\n",
 		        symbol->string);
 		return;
 	}
 	if (declaration->kind != DECLARATION_LABEL) {
-		print_error_prefix(goto_statement->statement.source_position);
+		print_error_prefix(goto_statement->base.source_position);
 		fprintf(stderr, "goto argument '%s' should be a label but is a '%s'.\n",
 		        symbol->string, get_declaration_kind_name(declaration->kind));
 		return;
@@ -2045,8 +2044,8 @@ statement_t *check_statement(statement_t *statement)
 		return NULL;
 
 	/* try to lower the statement */
-	if ((int) statement->type < (int) ARR_LEN(statement_lowerers)) {
-		lower_statement_function lowerer = statement_lowerers[statement->type];
+	if ((int) statement->kind < (int) ARR_LEN(statement_lowerers)) {
+		lower_statement_function lowerer = statement_lowerers[statement->kind];
 
 		if (lowerer != NULL) {
 			statement = lowerer(statement);
@@ -2057,31 +2056,30 @@ statement_t *check_statement(statement_t *statement)
 		return NULL;
 
 	last_statement_was_return = false;
-	switch (statement->type) {
+	switch (statement->kind) {
 	case STATEMENT_INVALID:
 		panic("encountered invalid statement");
 		break;
 	case STATEMENT_BLOCK:
-		check_block_statement((block_statement_t*) statement);
+		check_block_statement(&statement->block);
 		break;
 	case STATEMENT_RETURN:
-		check_return_statement((return_statement_t*) statement);
+		check_return_statement(&statement->returns);
 		break;
 	case STATEMENT_GOTO:
-		check_goto_statement((goto_statement_t*) statement);
+		check_goto_statement(&statement->gotos);
 		break;
 	case STATEMENT_LABEL:
-		check_label_statement((label_statement_t*) statement);
+		check_label_statement(&statement->label);
 		break;
 	case STATEMENT_IF:
-		check_if_statement((if_statement_t*) statement);
+		check_if_statement(&statement->ifs);
 		break;
-	case STATEMENT_VARIABLE_DECLARATION:
-		check_variable_declaration((variable_declaration_statement_t*)
-		                           statement);
+	case STATEMENT_DECLARATION:
+		check_variable_declaration(&statement->declaration);
 		break;
 	case STATEMENT_EXPRESSION:
-		check_expression_statement((expression_statement_t*) statement);
+		check_expression_statement(&statement->expression);
 		break;
 	default:
 		panic("Unknown statement found");

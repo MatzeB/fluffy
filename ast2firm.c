@@ -330,9 +330,9 @@ static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	return ir_type;
 }
 
-static ir_node *expression_to_firm(const expression_t *expression);
+static ir_node *expression_to_firm(expression_t *expression);
 
-static tarval *fold_constant_to_tarval(const expression_t *expression)
+static tarval *fold_constant_to_tarval(expression_t *expression)
 {
 	assert(is_constant_expression(expression));
 
@@ -350,7 +350,7 @@ static tarval *fold_constant_to_tarval(const expression_t *expression)
 	return tv;
 }
 
-long fold_constant_to_int(const expression_t *expression)
+long fold_constant_to_int(expression_t *expression)
 {
 	if (expression->kind == EXPR_ERROR)
 		return 0;
@@ -1582,45 +1582,39 @@ static ir_node *reference_expression_to_firm(const reference_expression_t *refer
 	                                    &reference->base.source_position);
 }
 
-static ir_node *expression_to_firm(const expression_t *expression)
+static ir_node *expression_to_firm(expression_t *expression)
 {
 	ir_node *addr;
 
 	switch (expression->kind) {
 	case EXPR_INT_CONST:
-		return int_const_to_firm((const int_const_t*) expression);
+		return int_const_to_firm(&expression->int_const);
 	case EXPR_FLOAT_CONST:
-		return float_const_to_firm((const float_const_t*) expression);
+		return float_const_to_firm(&expression->float_const);
 	case EXPR_STRING_CONST:
-		return string_const_to_firm((const string_const_t*) expression);
+		return string_const_to_firm(&expression->string_const);
 	case EXPR_BOOL_CONST:
-		return bool_const_to_firm((const bool_const_t*) expression);
+		return bool_const_to_firm(&expression->bool_const);
 	case EXPR_NULL_POINTER:
 		return null_pointer_to_firm();
 	case EXPR_REFERENCE:
-		return reference_expression_to_firm(
-				(const reference_expression_t*) expression);
+		return reference_expression_to_firm(&expression->reference);
 	EXPR_BINARY_CASES
-		return binary_expression_to_firm(
-				(const binary_expression_t*) expression);
+		return binary_expression_to_firm(&expression->binary);
 	EXPR_UNARY_CASES
-		return unary_expression_to_firm(
-				(const unary_expression_t*) expression);
+		return unary_expression_to_firm(&expression->unary);
 	case EXPR_SELECT:
-		return select_expression_to_firm(
-				(const select_expression_t*) expression);
+		return select_expression_to_firm(&expression->select);
 	case EXPR_ARRAY_ACCESS:
 		addr = expression_addr(expression);
 		return load_from_expression_addr(expression->base.type, addr,
 		                                 &expression->base.source_position);
 	case EXPR_CALL:
-		return call_expression_to_firm((const call_expression_t*) expression);
+		return call_expression_to_firm(&expression->call);
 	case EXPR_SIZEOF:
-		return sizeof_expression_to_firm(
-				(const sizeof_expression_t*) expression);
+		return sizeof_expression_to_firm(&expression->sizeofe);
 	case EXPR_FUNC:
-		return func_expression_to_firm(
-				(func_expression_t*) expression);
+		return func_expression_to_firm(&expression->func);
 	case EXPR_INVALID:
 	case EXPR_ERROR:
 		break;
@@ -1630,16 +1624,14 @@ static ir_node *expression_to_firm(const expression_t *expression)
 }
 
 
-
-
 static void statement_to_firm(statement_t *statement);
 
 static void return_statement_to_firm(const return_statement_t *statement)
 {
-	dbg_info *dbgi = get_dbg_info(&statement->statement.source_position);
+	dbg_info *dbgi = get_dbg_info(&statement->base.source_position);
 	ir_node *ret;
-	if (statement->return_value != NULL) {
-		ir_node *retval = expression_to_firm(statement->return_value);
+	if (statement->value != NULL) {
+		ir_node *retval = expression_to_firm(statement->value);
 		ir_node *in[1];
 
 		in[0] = retval;
@@ -1655,7 +1647,7 @@ static void return_statement_to_firm(const return_statement_t *statement)
 
 static void if_statement_to_firm(const if_statement_t *statement)
 {
-	dbg_info *dbgi      = get_dbg_info(&statement->statement.source_position);
+	dbg_info *dbgi      = get_dbg_info(&statement->base.source_position);
 	ir_node  *condition = expression_to_firm(statement->condition);
 	assert(condition != NULL);
 
@@ -1707,16 +1699,15 @@ static void block_statement_to_firm(const block_statement_t *block)
 	context2firm(&block->context);
 
 	statement_t *statement = block->statements;
-	while (statement != NULL) {
+	for ( ; statement != NULL; statement = statement->base.next) {
 		statement_to_firm(statement);
-		statement = statement->next;
 	}
 }
 
 static void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
 	dbg_info            *dbgi  
-		= get_dbg_info(&goto_statement->statement.source_position);
+		= get_dbg_info(&goto_statement->base.source_position);
 	label_declaration_t *label = goto_statement->label;
 	ir_node             *block = label->block;
 
@@ -1754,32 +1745,32 @@ static void label_statement_to_firm(label_statement_t *label_statement)
 
 static void statement_to_firm(statement_t *statement)
 {
-	if (statement->type != STATEMENT_LABEL && get_cur_block() == NULL) {
+	if (statement->kind != STATEMENT_LABEL && get_cur_block() == NULL) {
 		fprintf(stderr, "Warning: unreachable code detected\n");
 		return;
 	}
 
-	switch (statement->type) {
+	switch (statement->kind) {
 	case STATEMENT_BLOCK:
-		block_statement_to_firm((block_statement_t*) statement);
+		block_statement_to_firm(&statement->block);
 		return;
 	case STATEMENT_RETURN:
-		return_statement_to_firm((return_statement_t*) statement);
+		return_statement_to_firm(&statement->returns);
 		return;
 	case STATEMENT_IF:
-		if_statement_to_firm((if_statement_t*) statement);
+		if_statement_to_firm(&statement->ifs);
 		return;
-	case STATEMENT_VARIABLE_DECLARATION:
+	case STATEMENT_DECLARATION:
 		/* nothing to do */
 		return;
 	case STATEMENT_EXPRESSION:
-		expression_statement_to_firm((expression_statement_t*) statement);
+		expression_statement_to_firm(&statement->expression);
 		return;
 	case STATEMENT_LABEL:
-		label_statement_to_firm((label_statement_t*) statement);
+		label_statement_to_firm(&statement->label);
 		return;
 	case STATEMENT_GOTO:
-		goto_statement_to_firm((goto_statement_t*) statement);
+		goto_statement_to_firm(&statement->gotos);
 		return;
 	case STATEMENT_ERROR:
 	case STATEMENT_INVALID:

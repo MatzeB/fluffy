@@ -251,20 +251,18 @@ static void print_indent(void)
 static void print_block_statement(const block_statement_t *block)
 {
 	statement_t *statement = block->statements;
-	while (statement != NULL) {
+	for ( ; statement != NULL; statement = statement->base.next) {
 		indent++;
 		print_statement(statement);
 		indent--;
-
-		statement = statement->next;
 	}
 }
 
 static void print_return_statement(const return_statement_t *statement)
 {
 	fprintf(out, "return ");
-	if (statement->return_value != NULL)
-		print_expression(statement->return_value);
+	if (statement->value != NULL)
+		print_expression(statement->value);
 }
 
 static void print_expression_statement(const expression_statement_t *statement)
@@ -324,8 +322,7 @@ static void print_variable_declaration(const variable_declaration_t *var)
 	fprintf(out, " %s", var->base.symbol->string);
 }
 
-static void print_variable_declaration_statement(
-		                     const variable_declaration_statement_t *statement)
+static void print_declaration_statement(const declaration_statement_t *statement)
 {
 	print_variable_declaration(&statement->declaration);
 }
@@ -334,28 +331,27 @@ void print_statement(const statement_t *statement)
 {
 	print_indent();
 
-	switch (statement->type) {
+	switch (statement->kind) {
 	case STATEMENT_BLOCK:
-		print_block_statement((const block_statement_t*) statement);
+		print_block_statement(&statement->block);
 		break;
 	case STATEMENT_RETURN:
-		print_return_statement((const return_statement_t*) statement);
+		print_return_statement(&statement->returns);
 		break;
 	case STATEMENT_EXPRESSION:
-		print_expression_statement((const expression_statement_t*) statement);
+		print_expression_statement(&statement->expression);
 		break;
 	case STATEMENT_LABEL:
-		print_label_statement((const label_statement_t*) statement);
+		print_label_statement(&statement->label);
 		break;
 	case STATEMENT_GOTO:
-		print_goto_statement((const goto_statement_t*) statement);
+		print_goto_statement(&statement->gotos);
 		break;
 	case STATEMENT_IF:
-		print_if_statement((const if_statement_t*) statement);
+		print_if_statement(&statement->ifs);
 		break;
-	case STATEMENT_VARIABLE_DECLARATION:
-		print_variable_declaration_statement(
-		        (const variable_declaration_statement_t*) statement);
+	case STATEMENT_DECLARATION:
+		print_declaration_statement(&statement->declaration);
 		break;
 	case STATEMENT_INVALID:
 	default:

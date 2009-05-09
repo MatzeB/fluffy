@@ -7,6 +7,8 @@
 typedef struct attribute_t              attribute_t;
 typedef union  declaration_t            declaration_t;
 typedef union  expression_t             expression_t;
+typedef union  statement_t              statement_t;
+
 typedef struct context_t                context_t;
 typedef struct export_t                 export_t;
 typedef struct import_t                 import_t;
@@ -27,13 +29,12 @@ typedef struct array_access_expression_t array_access_expression_t;
 typedef struct sizeof_expression_t      sizeof_expression_t;
 typedef struct func_expression_t        func_expression_t;
 
-typedef struct statement_t              statement_t;
+typedef struct statement_base_t         statement_base_t;
 typedef struct block_statement_t        block_statement_t;
 typedef struct return_statement_t       return_statement_t;
 typedef struct if_statement_t           if_statement_t;
 typedef struct variable_declaration_t   variable_declaration_t;
-typedef struct variable_declaration_statement_t
-                                        variable_declaration_statement_t;
+typedef struct declaration_statement_t  declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
 typedef struct goto_statement_t         goto_statement_t;
 typedef struct label_declaration_t      label_declaration_t;
@@ -73,7 +74,7 @@ bool is_constant_expression(const expression_t *expression);
  */
 bool is_linktime_constant(const expression_t *expression);
 
-long fold_constant_to_int(const expression_t *expression);
-bool fold_constant_to_bool(const expression_t *expression);
+long fold_constant_to_int(expression_t *expression);
+bool fold_constant_to_bool(expression_t *expression);
 
 #endif
