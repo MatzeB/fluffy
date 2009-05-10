@@ -88,8 +88,8 @@ static void init_ir_types(void)
 
 	atomic_type_t byte_type;
 	memset(&byte_type, 0, sizeof(byte_type));
-	byte_type.type.type = TYPE_ATOMIC;
-	byte_type.atype     = ATOMIC_TYPE_BYTE;
+	byte_type.base.kind = TYPE_ATOMIC;
+	byte_type.akind     = ATOMIC_TYPE_BYTE;
 
 	byte_ir_type = get_ir_type((type_t*) &byte_type);
 
@@ -128,7 +128,7 @@ static symbol_t *unique_symbol(const char *tag)
 
 static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
-	switch (atomic_type->atype) {
+	switch (atomic_type->akind) {
 	case ATOMIC_TYPE_BYTE:
 		return mode_Bs;
 	case ATOMIC_TYPE_UBYTE:
@@ -166,7 +166,7 @@ static unsigned get_type_size(type_t *type);
 
 static unsigned get_atomic_type_size(const atomic_type_t *type)
 {
-	switch (type->atype) {
+	switch (type->akind) {
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_BYTE:
 		return 1;
@@ -196,7 +196,7 @@ static unsigned get_atomic_type_size(const atomic_type_t *type)
 
 static unsigned get_compound_type_size(compound_type_t *type)
 {
-	ir_type *irtype = get_ir_type(&type->type);
+	ir_type *irtype = get_ir_type((type_t*) type);
 	return get_type_size_bytes(irtype);
 }
 
@@ -213,13 +213,13 @@ static unsigned get_type_reference_type_var_size(const type_reference_t *type)
 
 static unsigned get_array_type_size(array_type_t *type)
 {
-	ir_type *irtype = get_ir_type(&type->type);
+	ir_type *irtype = get_ir_type((type_t*) type);
 	return get_type_size_bytes(irtype);
 }
 
 static unsigned get_type_size(type_t *type)
 {
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_VOID:
 		return 0;
 	case TYPE_ATOMIC:
@@ -286,10 +286,10 @@ static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *metho
 
 	ident   *id           = unique_ident("methodtype");
 	int      n_parameters = count_parameters(method_type);
-	int      n_results    = result_type->type == TYPE_VOID ? 0 : 1;
+	int      n_results    = result_type->kind == TYPE_VOID ? 0 : 1;
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
-	if (result_type->type != TYPE_VOID) {
+	if (result_type->kind != TYPE_VOID) {
 		ir_type *restype = _get_ir_type(env, result_type);
 		set_method_res_type(irtype, 0, restype);
 	}
@@ -322,7 +322,7 @@ static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	ir_type *ir_type_void = get_ir_type(type_void);
 	ir_type *ir_type      = new_type_pointer(unique_ident("pointer"),
                                              ir_type_void, mode_P_data);
-	type->type.firm_type  = ir_type;
+	type->base.firm_type  = ir_type;
 
 	ir_points_to = _get_ir_type(env, points_to);
 	set_pointer_points_to_type(ir_type, ir_points_to);
@@ -397,7 +397,7 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 	}
 	ir_type *ir_type = new_type_struct(id);
 
-	type->type.firm_type = ir_type;
+	type->base.firm_type = ir_type;
 
 	int align_all = 1;
 	int offset    = 0;
@@ -446,7 +446,7 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	}
 	ir_type  *ir_type = new_type_union(id);
 
-	type->type.firm_type = ir_type;
+	type->base.firm_type = ir_type;
 
 	int align_all = 1;
 	int size      = 0;
@@ -489,7 +489,7 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 	ident    *id            = unique_ident(symbol->string);
 	ir_type  *class_ir_type = new_type_class(id);
 
-	type->type.firm_type = class_ir_type;
+	type->base.firm_type = class_ir_type;
 
 	int align_all = 1;
 	int size      = 0;
@@ -538,7 +538,7 @@ static ir_type *get_class_type(type2firm_env_t *env, compound_type_t *type)
 static ir_type *get_type_for_type_variable(type2firm_env_t *env,
                                            type_reference_t *ref)
 {
-	assert(ref->type.type == TYPE_REFERENCE_TYPE_VARIABLE);
+	assert(ref->base.kind == TYPE_REFERENCE_TYPE_VARIABLE);
 	type_variable_t *type_variable = ref->type_variable;
 	type_t          *current_type  = type_variable->current_type;
 
@@ -573,44 +573,44 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 {
 	assert(type != NULL);
 
-	if (type->firm_type != NULL) {
-		assert(type->firm_type != INVALID_TYPE);
-		return type->firm_type;
+	if (type->base.firm_type != NULL) {
+		assert(type->base.firm_type != INVALID_TYPE);
+		return type->base.firm_type;
 	}
 
 	ir_type *firm_type = NULL;
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_ATOMIC:
-		firm_type = get_atomic_type(env, (atomic_type_t*) type);
+		firm_type = get_atomic_type(env, &type->atomic);
 		break;
 	case TYPE_METHOD:
-		firm_type = get_method_type(env, (method_type_t*) type);
+		firm_type = get_method_type(env, &type->method);
 		break;
 	case TYPE_POINTER:
-		firm_type = get_pointer_type(env, (pointer_type_t*) type);
+		firm_type = get_pointer_type(env, &type->pointer);
 		break;
 	case TYPE_ARRAY:
-		firm_type = get_array_type(env, (array_type_t*) type);
+		firm_type = get_array_type(env, &type->array);
 		break;
 	case TYPE_VOID:
 		/* there is no mode_VOID in firm, use mode_C */
 		firm_type = new_type_primitive(new_id_from_str("void"), mode_ANY);
 		break;
 	case TYPE_COMPOUND_STRUCT:
-		firm_type = get_struct_type(env, (compound_type_t*) type);
+		firm_type = get_struct_type(env, &type->compound);
 		break;
 	case TYPE_COMPOUND_UNION:
-		firm_type = get_union_type(env, (compound_type_t*) type);
+		firm_type = get_union_type(env, &type->compound);
 		break;
 	case TYPE_COMPOUND_CLASS:
-		firm_type = get_class_type(env, (compound_type_t*) type);
+		firm_type = get_class_type(env, &type->compound);
 		break;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		firm_type = get_type_for_type_variable(env, (type_reference_t*) type);
+		firm_type = get_type_for_type_variable(env, &type->reference);
 		break;
 	case TYPE_BIND_TYPEVARIABLES:
 		firm_type = get_type_for_bind_typevariables(env,
-				(bind_typevariables_type_t*) type);
+		                                            &type->bind_typevariables);
 		break;
 	case TYPE_TYPEOF: {
 		typeof_type_t *typeof_type = (typeof_type_t*) type;
@@ -628,7 +628,7 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		panic("unknown type found");
 
 	if (env->can_cache) {
-		type->firm_type = firm_type;
+		type->base.firm_type = firm_type;
 	}
 	return firm_type;
 
@@ -943,11 +943,11 @@ static ir_node *variable_to_firm(variable_declaration_t *variable,
 		ir_node *addr = variable_addr(variable);
 		type_t  *type = variable->type;
 
-		if (type->type == TYPE_COMPOUND_STRUCT 
-				|| type->type == TYPE_COMPOUND_UNION
-				|| type->type == TYPE_COMPOUND_CLASS
-				|| type->type == TYPE_BIND_TYPEVARIABLES
-				|| type->type == TYPE_ARRAY) {
+		if (type->kind == TYPE_COMPOUND_STRUCT 
+				|| type->kind == TYPE_COMPOUND_UNION
+				|| type->kind == TYPE_COMPOUND_CLASS
+				|| type->kind == TYPE_BIND_TYPEVARIABLES
+				|| type->kind == TYPE_ARRAY) {
 			return addr;
 		}
 
@@ -1048,8 +1048,8 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 	type_t   *type  = dest_expr->base.type;
 	ir_node  *result;
 
-	if (type->type == TYPE_COMPOUND_STRUCT 
-	         || type->type == TYPE_COMPOUND_UNION) {
+	if (type->kind == TYPE_COMPOUND_STRUCT 
+	         || type->kind == TYPE_COMPOUND_UNION) {
 		ir_type *irtype = get_ir_type(type);
 
 		result       = new_d_CopyB(dbgi, store, addr, value, irtype);
@@ -1306,9 +1306,9 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 {
 	ir_node *addr       = select_expression_addr(select);
 	type_t  *entry_type = select->compound_entry->type;
-	if (entry_type->type == TYPE_COMPOUND_STRUCT	
-			|| entry_type->type == TYPE_COMPOUND_UNION
-			|| entry_type->type == TYPE_ARRAY)
+	if (entry_type->kind == TYPE_COMPOUND_STRUCT	
+			|| entry_type->kind == TYPE_COMPOUND_UNION
+			|| entry_type->kind == TYPE_ARRAY)
 		return addr;
 
 	return load_from_expression_addr(select->base.type, addr,
@@ -1446,11 +1446,11 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	expression_t  *method = call->method;
 	ir_node       *callee = expression_to_firm(method);
 
-	assert(method->base.type->type == TYPE_POINTER);
+	assert(method->base.type->kind == TYPE_POINTER);
 	pointer_type_t *pointer_type = (pointer_type_t*) method->base.type;
 	type_t         *points_to    = pointer_type->points_to;
 
-	assert(points_to->type == TYPE_METHOD);
+	assert(points_to->kind == TYPE_METHOD);
 	method_type_t *method_type     = (method_type_t*) points_to;
 	ir_type       *ir_method_type  = get_ir_type((type_t*) method_type);
 	ir_type       *new_method_type = NULL;
@@ -1509,7 +1509,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 
 	type_t  *result_type = method_type->result_type;
 	ir_node *result      = NULL;
-	if (result_type->type != TYPE_VOID) {
+	if (result_type->kind != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_d_Proj(dbgi, node, mode_T, pn_Call_T_result);
 		result           = new_d_Proj(dbgi, resproj, mode, 0);

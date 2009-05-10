@@ -132,11 +132,35 @@ static statement_t *allocate_statement(statement_kind_t kind)
 	return statement;
 }
 
-static inline void *allocate_type_zero(size_t size)
+static size_t get_type_struct_size(type_kind_t kind)
 {
-	void *res = obstack_alloc(type_obst, size);
-	memset(res, 0, size);
-	return res;
+	static const size_t sizes[] = {
+		[TYPE_ERROR]                   = sizeof(type_base_t),
+		[TYPE_VOID]                    = sizeof(type_base_t),
+		[TYPE_ATOMIC]                  = sizeof(atomic_type_t),
+		[TYPE_COMPOUND_CLASS]          = sizeof(compound_type_t),
+		[TYPE_COMPOUND_STRUCT]         = sizeof(compound_type_t),
+		[TYPE_COMPOUND_UNION]          = sizeof(compound_type_t),
+		[TYPE_METHOD]                  = sizeof(method_type_t),
+		[TYPE_POINTER]                 = sizeof(pointer_type_t),
+		[TYPE_ARRAY]                   = sizeof(array_type_t),
+		[TYPE_TYPEOF]                  = sizeof(typeof_type_t),
+		[TYPE_REFERENCE]               = sizeof(type_reference_t),
+		[TYPE_REFERENCE_TYPE_VARIABLE] = sizeof(type_reference_t),
+		[TYPE_BIND_TYPEVARIABLES]      = sizeof(bind_typevariables_type_t)
+	};
+	assert(kind < sizeof(sizes)/sizeof(sizes[0]));
+	assert(sizes[kind] != 0);
+	return sizes[kind];
+}
+
+type_t *allocate_type(type_kind_t kind)
+{
+	size_t  size = get_type_struct_size(kind);
+	type_t *type = obstack_alloc(type_obst, size);
+	memset(type, 0, size);
+	type->kind = kind;
+	return type;
 }
 
 void next_token(void)
@@ -341,7 +365,7 @@ static statement_t *parse_block(void);
 static void parse_parameter_declarations(method_type_t *method_type,
                                          method_parameter_t **parameters);
 
-static atomic_type_type_t parse_unsigned_atomic_type(void)
+static atomic_type_kind_t parse_unsigned_atomic_type(void)
 {
 	switch (token.type) {
 	case T_byte:
@@ -367,7 +391,7 @@ static atomic_type_type_t parse_unsigned_atomic_type(void)
 	}
 }
 
-static atomic_type_type_t parse_signed_atomic_type(void)
+static atomic_type_kind_t parse_signed_atomic_type(void)
 {
 	switch (token.type) {
 	case T_bool:
@@ -404,27 +428,26 @@ static atomic_type_type_t parse_signed_atomic_type(void)
 
 static type_t *parse_atomic_type(void)
 {
-	atomic_type_type_t atype;
+	atomic_type_kind_t akind;
 
 	switch (token.type) {
 	case T_unsigned:
 		next_token();
-		atype = parse_unsigned_atomic_type();
+		akind = parse_unsigned_atomic_type();
 		break;
 	case T_signed:
 		next_token();
 		/* fallthrough */
 	default:
-		atype = parse_signed_atomic_type();
+		akind = parse_signed_atomic_type();
 		break;
 	}
 
-	atomic_type_t *type = allocate_type_zero(sizeof(type[0]));
-	type->type.type = TYPE_ATOMIC;
-	type->atype = atype;
+	type_t *type = allocate_type(TYPE_ATOMIC);
+	type->atomic.akind = akind;
 
-	type_t *result = typehash_insert((type_t*) type);
-	if (result != (type_t*) type) {
+	type_t *result = typehash_insert(type);
+	if (result != type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -457,62 +480,56 @@ static type_argument_t *parse_type_arguments(void)
 
 static type_t *parse_typeof(void)
 {
-	typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
-	typeof_type->type.type     = TYPE_TYPEOF;
+	type_t *type = allocate_type(TYPE_TYPEOF);
 
 	eat(T_typeof);
 	expect('(', end_error);
 	add_anchor_token(')');
-	typeof_type->expression = parse_expression();
+	type->typeof.expression = parse_expression();
 	rem_anchor_token(')');
 	expect(')', end_error);
 
 end_error:
-	return (type_t*) typeof_type;
+	return type;
 }
 
 static type_t *parse_type_ref(void)
 {
 	assert(token.type == T_IDENTIFIER);
 
-	type_reference_t *type_ref = allocate_type_zero(sizeof(type_ref[0]));
-
-	type_ref->type.type       = TYPE_REFERENCE;
-	type_ref->symbol          = token.v.symbol;
-	type_ref->source_position = source_position;
+	type_t *type = allocate_type(TYPE_REFERENCE);
+	type->reference.symbol          = token.v.symbol;
+	type->reference.source_position = source_position;
 	next_token();
 
 	if (token.type == '<') {
 		next_token();
 		add_anchor_token('>');
-		type_ref->type_arguments = parse_type_arguments();
+		type->reference.type_arguments = parse_type_arguments();
 		rem_anchor_token('>');
 		expect('>', end_error);
 	}
 
 end_error:
-	return (type_t*) type_ref;
+	return type;
 }
 
 static type_t *create_error_type(void)
 {
-	type_t *error_type = allocate_type_zero(sizeof(error_type[0]));
-	error_type->type   = TYPE_ERROR;
-	return error_type;
+	return allocate_type(TYPE_ERROR);
 }
 
 static type_t *parse_method_type(void)
 {
 	eat(T_func);
 
-	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
-	method_type->type.type = TYPE_METHOD;
+	type_t *type = allocate_type(TYPE_METHOD);
 
-	parse_parameter_declarations(method_type, NULL);
+	parse_parameter_declarations(&type->method, NULL);
 	expect(':', end_error);
-	method_type->result_type = parse_type();
+	type->method.result_type = parse_type();
 
-	return (type_t*) method_type;
+	return type;
 
 end_error:
 	return create_error_type();
@@ -555,17 +572,15 @@ static type_t *parse_union_type(void)
 {
 	eat(T_union);
 
-	compound_type_t *compound_type 
-		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND_UNION;
-	compound_type->attributes = parse_attributes();
+	type_t *type = allocate_type(TYPE_COMPOUND_UNION);
+	type->compound.attributes = parse_attributes();
 
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
 	
 	add_anchor_token(T_DEDENT);	
-	compound_type->entries = parse_compound_entries();
+	type->compound.entries = parse_compound_entries();
 
 	/* force end of statement */
 	rem_anchor_token(T_DEDENT);
@@ -573,24 +588,22 @@ static type_t *parse_union_type(void)
 	replace_token_type(T_NEWLINE);
 
 end_error:
-	return (type_t*) compound_type;
+	return type;
 }
 
 static type_t *parse_struct_type(void)
 {
 	eat(T_struct);
 
-	compound_type_t *compound_type 
-		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
-	compound_type->attributes = parse_attributes();
+	type_t *type = allocate_type(TYPE_COMPOUND_STRUCT);
+	type->compound.attributes = parse_attributes();
 
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
 	
-	add_anchor_token(T_DEDENT);	
-	compound_type->entries = parse_compound_entries();
+	add_anchor_token(T_DEDENT);
+	type->compound.entries = parse_compound_entries();
 
 	/* force end of statement */
 	rem_anchor_token(T_DEDENT);
@@ -598,17 +611,15 @@ static type_t *parse_struct_type(void)
 	replace_token_type(T_NEWLINE);
 
 end_error:
-	return (type_t*) compound_type;
+	return type;
 }
 
-static type_t *make_pointer_type_no_hash(type_t *type)
+static type_t *make_pointer_type_no_hash(type_t *points_to)
 {
-	pointer_type_t *pointer_type = allocate_type_zero(sizeof(pointer_type[0]));
+	type_t *type = allocate_type(TYPE_POINTER);
+	type->pointer.points_to = points_to;
 
-	pointer_type->type.type = TYPE_POINTER;
-	pointer_type->points_to = type;
-
-	return (type_t*) pointer_type;	
+	return type;	
 }
 
 static type_t *parse_brace_type(void)
@@ -685,13 +696,10 @@ type_t *parse_type(void)
 			rem_anchor_token(']');
 			expect(']', end_error);
 
-			array_type_t *array_type = allocate_type_zero(sizeof(array_type[0]));
-
-			array_type->type.type       = TYPE_ARRAY;
-			array_type->element_type    = type;
-			array_type->size_expression = size;
-
-			type = (type_t*) array_type;
+			type_t *array_type = allocate_type(TYPE_ARRAY);
+			array_type->array.element_type    = type;
+			array_type->array.size_expression = size;
+			type = array_type;
 
 			break;
 			}
@@ -791,14 +799,13 @@ static expression_t *parse_sizeof(void)
 
 	if (token.type == '(') {
 		next_token();
-		typeof_type_t *typeof_type = allocate_type_zero(sizeof(typeof_type[0]));
-		typeof_type->type.type     = TYPE_TYPEOF;
+		type_t *type = allocate_type(TYPE_TYPEOF);
 		add_anchor_token(')');
-		typeof_type->expression = parse_expression();
+		type->typeof.expression = parse_expression();
 		rem_anchor_token(')');
 		expect(')', end_error);
 
-		expression->sizeofe.type = (type_t*) typeof_type;
+		expression->sizeofe.type = type;
 	} else {
 		expect('<', end_error);
 		add_anchor_token('>');
@@ -1650,8 +1657,7 @@ void add_declaration(declaration_t *declaration)
 
 static void parse_method(method_t *method)
 {
-	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
-	method_type->type.type     = TYPE_METHOD;
+	type_t *type = allocate_type(TYPE_METHOD);
 
 	context_t *last_context = current_context;
 	current_context         = &method->context;
@@ -1664,8 +1670,8 @@ static void parse_method(method_t *method)
 		expect('>', end_error);
 	}
 
-	parse_parameter_declarations(method_type, &method->parameters);
-	method->type = method_type;
+	parse_parameter_declarations(&type->method, &method->parameters);
+	method->type = &type->method;
 
 	/* add parameters to context */
 	method_parameter_t *parameter = method->parameters;
@@ -1675,7 +1681,7 @@ static void parse_method(method_t *method)
 		current_context->declarations = declaration;
 	}
 
-	method_type->result_type = type_void;
+	type->method.result_type = type_void;
 	if (token.type == ':') {
 		next_token();
 		if (token.type == T_NEWLINE) {
@@ -1683,7 +1689,7 @@ static void parse_method(method_t *method)
 			goto method_parser_end;
 		}
 
-		method_type->result_type = parse_type();
+		type->method.result_type = parse_type();
 
 		if (token.type == ':') {
 			next_token();
@@ -1877,13 +1883,11 @@ static void parse_class(void)
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
-	compound_type_t *compound_type 
-		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND_CLASS;
-	compound_type->symbol     = declaration->base.symbol;
-	compound_type->attributes = parse_attributes();
+	type_t *type = allocate_type(TYPE_COMPOUND_CLASS);
+	type->compound.symbol     = declaration->base.symbol;
+	type->compound.attributes = parse_attributes();
 
-	declaration->typealias.type = (type_t*) compound_type;
+	declaration->typealias.type = type;
 
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
@@ -1892,14 +1896,14 @@ static void parse_class(void)
 		next_token();
 
 		context_t *last_context = current_context;
-		current_context         = &compound_type->context;
+		current_context         = &type->compound.context;
 
 		while (token.type != T_EOF && token.type != T_DEDENT) {
 			parse_declaration();		
 		}
 		next_token();
 
-		assert(current_context == &compound_type->context);
+		assert(current_context == &type->compound.context);
 		current_context = last_context;
 	}
 
@@ -1923,28 +1927,26 @@ static void parse_struct(void)
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
-	compound_type_t *compound_type 
-		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND_STRUCT;
-	compound_type->symbol     = declaration->base.symbol;
+	type_t *type = allocate_type(TYPE_COMPOUND_STRUCT);
+	type->compound.symbol = declaration->base.symbol;
 
 	if (token.type == '<') {
 		next_token();
-		compound_type->type_parameters 
-			= parse_type_parameters(&compound_type->context);
+		type->compound.type_parameters 
+			= parse_type_parameters(&type->compound.context);
 		expect('>', end_error);
 	}
 
-	compound_type->attributes = parse_attributes();
+	type->compound.attributes = parse_attributes();
 
-	declaration->typealias.type = (type_t*) compound_type;
+	declaration->typealias.type = type;
 
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
 	if (token.type == T_INDENT) {
 		next_token();
-		compound_type->entries = parse_compound_entries();
+		type->compound.entries = parse_compound_entries();
 		eat(T_DEDENT);
 	}
 
@@ -1970,20 +1972,18 @@ static void parse_union(void)
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
-	compound_type_t *compound_type 
-		= allocate_ast_zero(sizeof(compound_type[0]));
-	compound_type->type.type  = TYPE_COMPOUND_UNION;
-	compound_type->symbol     = declaration->base.symbol;
-	compound_type->attributes = parse_attributes();
+	type_t *type = allocate_type(TYPE_COMPOUND_UNION);
+	type->compound.symbol     = declaration->base.symbol;
+	type->compound.attributes = parse_attributes();
 
-	declaration->typealias.type = (type_t*) compound_type;
+	declaration->typealias.type = type;
 
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
 	if (token.type == T_INDENT) {
 		next_token();
-		compound_type->entries = parse_compound_entries();
+		type->compound.entries = parse_compound_entries();
 		eat(T_DEDENT);
 	}
 
@@ -1998,9 +1998,7 @@ static concept_method_t *parse_concept_method(void)
 	declaration_t *declaration 
 		= allocate_declaration(DECLARATION_CONCEPT_METHOD);
 
-	method_type_t *method_type = allocate_type_zero(sizeof(method_type[0]));
-	memset(method_type, 0, sizeof(method_type[0]));
-	method_type->type.type = TYPE_METHOD;
+	type_t *type = allocate_type(TYPE_METHOD);
 	
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept method",
@@ -2013,18 +2011,18 @@ static concept_method_t *parse_concept_method(void)
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
-	parse_parameter_declarations(method_type,
+	parse_parameter_declarations(&type->method,
 	                             &declaration->concept_method.parameters);
 
 	if (token.type == ':') {
 		next_token();
-		method_type->result_type = parse_type();
+		type->method.result_type = parse_type();
 	} else {
-		method_type->result_type = type_void;
+		type->method.result_type = type_void;
 	}
 	expect(T_NEWLINE, end_error);
 
-	declaration->concept_method.method_type = method_type;
+	declaration->concept_method.method_type = &type->method;
 
 	add_declaration(declaration);
 

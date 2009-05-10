@@ -26,7 +26,7 @@ static void mangle_atomic_type(const atomic_type_t *type)
 {
 	char c;
 
-	switch (type->atype) {
+	switch (type->akind) {
 	case ATOMIC_TYPE_INVALID:
 		abort();
 		break;
@@ -143,7 +143,7 @@ static void mangle_bind_typevariables(const bind_typevariables_type_t *type)
 
 void mangle_type(const type_t *type)
 {
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 		break;
 	case TYPE_VOID:

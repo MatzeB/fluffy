@@ -62,7 +62,7 @@ static bool match_compound_type(compound_type_t *variant_type,
 		return true;
 	}
 
-	if (concrete_type->type != TYPE_BIND_TYPEVARIABLES) {
+	if (concrete_type->kind != TYPE_BIND_TYPEVARIABLES) {
 		if (report_errors)
 			match_error((type_t*) variant_type, concrete_type, source_position);
 		return false;
@@ -98,7 +98,7 @@ static bool match_bind_typevariables(bind_typevariables_type_t *variant_type,
                                      const source_position_t source_position,
 									 bool report_errors)
 {
-	if (concrete_type->type != TYPE_BIND_TYPEVARIABLES) {
+	if (concrete_type->kind != TYPE_BIND_TYPEVARIABLES) {
 		if (report_errors)
 			match_error((type_t*) variant_type, concrete_type, source_position);
 		return false;
@@ -150,7 +150,7 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 	variant_type = skip_typeref(variant_type);
 	concrete_type = skip_typeref(concrete_type);
 
-	switch (variant_type->type) {
+	switch (variant_type->kind) {
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		type_ref     = (type_reference_t*) variant_type;
 		type_var     = type_ref->type_variable;
@@ -174,7 +174,7 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 								   report_errors);
 
 	case TYPE_POINTER:
-		if (concrete_type->type != TYPE_POINTER) {
+		if (concrete_type->kind != TYPE_POINTER) {
 			if (report_errors)
 				match_error(variant_type, concrete_type, source_position);
 			return false;
@@ -187,7 +187,7 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 					       				   report_errors);
 
 	case TYPE_METHOD:
-		if (concrete_type->type != TYPE_METHOD) {
+		if (concrete_type->kind != TYPE_METHOD) {
 			if (report_errors)
 				match_error(variant_type, concrete_type, source_position);
 			return false;

@@ -205,7 +205,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 			        "a concrete type...\n");
 			return type_variable->current_type;
 		}
-		type_ref->type.type     = TYPE_REFERENCE_TYPE_VARIABLE;
+		type_ref->base.kind     = TYPE_REFERENCE_TYPE_VARIABLE;
 		type_ref->type_variable = type_variable;
 		return typehash_insert((type_t*) type_ref);
 	}
@@ -223,8 +223,8 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 	type_t          *type = typealias->type;
 	type_variable_t *type_parameters = NULL;
 	compound_type_t *compound_type   = NULL;
-	if (type->type == TYPE_COMPOUND_STRUCT || type->type == TYPE_COMPOUND_UNION
-			|| type->type == TYPE_COMPOUND_CLASS) {
+	if (type->kind == TYPE_COMPOUND_STRUCT || type->kind == TYPE_COMPOUND_UNION
+			|| type->kind == TYPE_COMPOUND_CLASS) {
 		compound_type   = (compound_type_t*) type;
 		type_parameters = compound_type->type_parameters;
 	}
@@ -263,7 +263,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 			= obstack_alloc(type_obst, sizeof(bind_typevariables[0]));
 		memset(bind_typevariables, 0, sizeof(bind_typevariables[0]));
 
-		bind_typevariables->type.type        = TYPE_BIND_TYPEVARIABLES;
+		bind_typevariables->base.kind        = TYPE_BIND_TYPEVARIABLES;
 		bind_typevariables->type_arguments   = type_arguments;
 		assert(compound_type != NULL);
 		bind_typevariables->polymorphic_type = compound_type;
@@ -323,9 +323,9 @@ static void check_compound_type(compound_type_t *type)
 	compound_entry_t *entry = type->entries;
 	while (entry != NULL) {
 		type_t *type = entry->type;
-		if (type->type == TYPE_COMPOUND_STRUCT
-				|| type->type == TYPE_COMPOUND_UNION
-				|| type->type == TYPE_COMPOUND_CLASS) {
+		if (type->kind == TYPE_COMPOUND_STRUCT
+				|| type->kind == TYPE_COMPOUND_UNION
+				|| type->kind == TYPE_COMPOUND_CLASS) {
 			compound_type_t *compound_type = (compound_type_t*) type;
 			check_compound_type(compound_type);
 		}
@@ -348,9 +348,9 @@ static type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
 {
 	type_t *polymorphic_type = (type_t*) type->polymorphic_type;
 	polymorphic_type = normalize_type(polymorphic_type);
-	assert(polymorphic_type->type == TYPE_COMPOUND_STRUCT ||
-			polymorphic_type->type == TYPE_COMPOUND_UNION ||
-			polymorphic_type->type == TYPE_COMPOUND_CLASS);
+	assert(polymorphic_type->kind == TYPE_COMPOUND_STRUCT ||
+			polymorphic_type->kind == TYPE_COMPOUND_UNION ||
+			polymorphic_type->kind == TYPE_COMPOUND_CLASS);
 	type->polymorphic_type = (compound_type_t*) polymorphic_type;
 
 	type_t *result = typehash_insert((type_t*) type);
@@ -363,7 +363,7 @@ static type_t *normalize_type(type_t *type)
 	if (type == NULL)
 		return NULL;
 
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ATOMIC:
@@ -422,11 +422,11 @@ static type_t *check_reference(declaration_t *declaration,
 		if (type == NULL)
 			return NULL;
 
-		if (type->type == TYPE_COMPOUND_STRUCT
-				|| type->type == TYPE_COMPOUND_UNION
-				|| type->type == TYPE_COMPOUND_CLASS
-				|| type->type == TYPE_BIND_TYPEVARIABLES
-				|| type->type == TYPE_ARRAY) {
+		if (type->kind == TYPE_COMPOUND_STRUCT
+				|| type->kind == TYPE_COMPOUND_UNION
+				|| type->kind == TYPE_COMPOUND_CLASS
+				|| type->kind == TYPE_BIND_TYPEVARIABLES
+				|| type->kind == TYPE_ARRAY) {
 			variable->needs_entity   = 1;
 		}
 		return type;
@@ -587,8 +587,8 @@ static expression_t *make_cast(expression_t *from,
 	from_type = skip_typeref(from_type);
 
 	bool implicit_cast_allowed = true;
-	if (from_type->type == TYPE_POINTER) {
-		if (dest_type->type == TYPE_POINTER) {
+	if (from_type->kind == TYPE_POINTER) {
+		if (dest_type->kind == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) from_type;
 			pointer_type_t *p2 = (pointer_type_t*) dest_type;
 			/* you can implicitely cast any pointer to void* and
@@ -610,9 +610,9 @@ static expression_t *make_cast(expression_t *from,
 		} else {
 			implicit_cast_allowed = false;
 		}
-	} else if (from_type->type == TYPE_ARRAY) {
+	} else if (from_type->kind == TYPE_ARRAY) {
 		array_type_t *array_type = (array_type_t*) from_type;
-		if (dest_type->type == TYPE_POINTER) {
+		if (dest_type->kind == TYPE_POINTER) {
 			pointer_type_t *pointer_type = (pointer_type_t*) dest_type;
 			/* we can cast to pointer of same type and void* */
 			if (pointer_type->points_to != array_type->element_type &&
@@ -622,59 +622,59 @@ static expression_t *make_cast(expression_t *from,
 		} else {
 			implicit_cast_allowed = false;
 		}
-	} else if (dest_type->type == TYPE_POINTER) {
+	} else if (dest_type->kind == TYPE_POINTER) {
 		implicit_cast_allowed = false;
-	} else if (from_type->type == TYPE_ATOMIC) {
-		if (dest_type->type != TYPE_ATOMIC) {
+	} else if (from_type->kind == TYPE_ATOMIC) {
+		if (dest_type->kind != TYPE_ATOMIC) {
 			implicit_cast_allowed = false;
 		} else {
-			atomic_type_t      *from_type_atomic = (atomic_type_t*) from_type;
-			atomic_type_type_t  from_atype       = from_type_atomic->atype;
-			atomic_type_t      *dest_type_atomic = (atomic_type_t*) dest_type;
-			atomic_type_type_t  dest_atype       = dest_type_atomic->atype;
+			atomic_type_t      *from_type_atomic = &from_type->atomic;
+			atomic_type_kind_t  from_akind       = from_type_atomic->akind;
+			atomic_type_t      *dest_type_atomic = &dest_type->atomic;
+			atomic_type_kind_t  dest_akind       = dest_type_atomic->akind;
 
-			switch (from_atype) {
+			switch (from_akind) {
 			case ATOMIC_TYPE_BOOL:
 				if (!lenient) {
 					implicit_cast_allowed = false;
 					break;
 				}
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_BYTE) ||
-					(dest_atype == ATOMIC_TYPE_UBYTE);
+					(dest_akind == ATOMIC_TYPE_BYTE) ||
+					(dest_akind == ATOMIC_TYPE_UBYTE);
 			case ATOMIC_TYPE_UBYTE:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_USHORT) ||
-					(dest_atype == ATOMIC_TYPE_SHORT);
+					(dest_akind == ATOMIC_TYPE_USHORT) ||
+					(dest_akind == ATOMIC_TYPE_SHORT);
 			case ATOMIC_TYPE_USHORT:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_UINT) ||
-					(dest_atype == ATOMIC_TYPE_INT);
+					(dest_akind == ATOMIC_TYPE_UINT) ||
+					(dest_akind == ATOMIC_TYPE_INT);
 			case ATOMIC_TYPE_UINT:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_ULONG) ||
-					(dest_atype == ATOMIC_TYPE_LONG);
+					(dest_akind == ATOMIC_TYPE_ULONG) ||
+					(dest_akind == ATOMIC_TYPE_LONG);
 			case ATOMIC_TYPE_ULONG:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_ULONGLONG) ||
-					(dest_atype == ATOMIC_TYPE_LONGLONG);
+					(dest_akind == ATOMIC_TYPE_ULONGLONG) ||
+					(dest_akind == ATOMIC_TYPE_LONGLONG);
 				break;
 			case ATOMIC_TYPE_BYTE:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_SHORT);
+					(dest_akind == ATOMIC_TYPE_SHORT);
 			case ATOMIC_TYPE_SHORT:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_INT);
+					(dest_akind == ATOMIC_TYPE_INT);
 			case ATOMIC_TYPE_INT:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_LONG);
+					(dest_akind == ATOMIC_TYPE_LONG);
 			case ATOMIC_TYPE_LONG:
 				implicit_cast_allowed |=
-					(dest_atype == ATOMIC_TYPE_LONGLONG);
+					(dest_akind == ATOMIC_TYPE_LONGLONG);
 				break;
 
 			case ATOMIC_TYPE_FLOAT:
-				implicit_cast_allowed = (dest_atype == ATOMIC_TYPE_DOUBLE);
+				implicit_cast_allowed = (dest_akind == ATOMIC_TYPE_DOUBLE);
 				break;
 
 			case ATOMIC_TYPE_DOUBLE:
@@ -713,7 +713,7 @@ static expression_t *lower_sub_expression(expression_t *expression)
 	type_t       *lefttype  = left->base.type;
 	type_t       *righttype = right->base.type;	
 
-	if (lefttype->type != TYPE_POINTER && righttype->type != TYPE_POINTER)
+	if (lefttype->kind != TYPE_POINTER && righttype->kind != TYPE_POINTER)
 		return expression;
 
 	sub->base.type = type_uint;
@@ -757,7 +757,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 		lefttype  = exprtype;
 		righttype = right->base.type;
 		/* implement address arithmetic */
-		if (lefttype->type == TYPE_POINTER && is_type_int(righttype)) {
+		if (lefttype->kind == TYPE_POINTER && is_type_int(righttype)) {
 			pointer_type_t *pointer_type = (pointer_type_t*) lefttype;
 
 			expression_t *sizeof_expr = allocate_expression(EXPR_SIZEOF);
@@ -779,7 +779,7 @@ static void check_binary_expression(binary_expression_t *binexpr)
 			right          = cast;
 			binexpr->right = cast;
 		}
-		if (lefttype->type == TYPE_POINTER && righttype->type == TYPE_POINTER) {
+		if (lefttype->kind == TYPE_POINTER && righttype->kind == TYPE_POINTER) {
 			pointer_type_t *p1 = (pointer_type_t*) lefttype;
 			pointer_type_t *p2 = (pointer_type_t*) righttype;
 			if (p1->points_to != p2->points_to) {
@@ -972,7 +972,7 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 		if (current_type == NULL)
 			return;
 
-		if (current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+		if (current_type->kind == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *type_ref      = (type_reference_t*) current_type;
 			type_variable_t  *type_variable = type_ref->type_variable;
 
@@ -1046,7 +1046,7 @@ static void check_type_constraints(type_variable_t *type_variables,
 			if (concept == NULL)
 				continue;
 
-			if (current_type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+			if (current_type->kind == TYPE_REFERENCE_TYPE_VARIABLE) {
 				type_reference_t *ref      = (type_reference_t*) current_type;
 				type_variable_t  *type_var = ref->type_variable;
 
@@ -1100,10 +1100,10 @@ static type_t *get_default_param_type(type_t *type,
 
 	type = skip_typeref(type);
 
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_ATOMIC:
-		atomic_type = (atomic_type_t*) type;
-		switch (atomic_type->atype) {
+		atomic_type = &type->atomic;
+		switch (atomic_type->akind) {
 		case ATOMIC_TYPE_INVALID:
 			print_error_prefix(source_position);
 			fprintf(stderr, "function argument has invalid type.\n");
@@ -1181,7 +1181,7 @@ static void check_call_expression(call_expression_t *call)
 		return;
 
 	/* determine method type */
-	if (type->type != TYPE_POINTER) {
+	if (type->kind != TYPE_POINTER) {
 		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
 		print_type(type);
@@ -1191,7 +1191,7 @@ static void check_call_expression(call_expression_t *call)
 	pointer_type_t *pointer_type = (pointer_type_t*) type;
 
 	type = pointer_type->points_to;
-	if (type->type != TYPE_METHOD) {
+	if (type->kind != TYPE_METHOD) {
 		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
 		print_type(type);
@@ -1422,7 +1422,7 @@ static void check_dereference_expression(unary_expression_t *dereference)
 		         "can't derefence expression with unknown datatype\n");
 		return;
 	}
-	if (value->base.type->type != TYPE_POINTER) {
+	if (value->base.type->kind != TYPE_POINTER) {
 		error_at(dereference->base.source_position,
 		         "can only dereference expressions with pointer type\n");
 		return;
@@ -1462,12 +1462,12 @@ static void check_take_address_expression(unary_expression_t *expression)
 
 static bool is_arithmetic_type(type_t *type)
 {
-	if (type->type != TYPE_ATOMIC)
+	if (type->kind != TYPE_ATOMIC)
 		return false;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
 
-	switch (atomic_type->atype) {
+	switch (atomic_type->akind) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_INT:
@@ -1537,7 +1537,7 @@ static expression_t *lower_incdec_expression(expression_t *expression_)
 
 	expression_kind_t kind = expression->base.kind;
 
-	if (!is_type_numeric(type) && type->type != TYPE_POINTER) {
+	if (!is_type_numeric(type) && type->kind != TYPE_POINTER) {
 		print_error_prefix(expression->base.source_position);
 		fprintf(stderr, "%s expression only valid for numeric or pointer types "
 				"but argument has type ",
@@ -1554,10 +1554,10 @@ static expression_t *lower_incdec_expression(expression_t *expression_)
 	}
 
 	bool need_int_const = true;
-	if (type->type == TYPE_ATOMIC) {
+	if (type->kind == TYPE_ATOMIC) {
 		atomic_type_t *atomic_type = (atomic_type_t*) type;
-		if (atomic_type->atype == ATOMIC_TYPE_FLOAT ||
-				atomic_type->atype == ATOMIC_TYPE_DOUBLE) {
+		if (atomic_type->akind == ATOMIC_TYPE_FLOAT ||
+				atomic_type->akind == ATOMIC_TYPE_DOUBLE) {
 			need_int_const = false;
 		}
 	}
@@ -1647,16 +1647,16 @@ static void check_select_expression(select_expression_t *select)
 	bind_typevariables_type_t *bind_typevariables = NULL;
 	compound_type_t           *compound_type;
 
-	if (datatype->type == TYPE_BIND_TYPEVARIABLES) {
+	if (datatype->kind == TYPE_BIND_TYPEVARIABLES) {
 		bind_typevariables = (bind_typevariables_type_t*) datatype;
 		compound_type
 			= (compound_type_t*) bind_typevariables->polymorphic_type;
-	} else if (datatype->type == TYPE_COMPOUND_STRUCT
-			|| datatype->type == TYPE_COMPOUND_UNION
-			|| datatype->type == TYPE_COMPOUND_CLASS) {
+	} else if (datatype->kind == TYPE_COMPOUND_STRUCT
+			|| datatype->kind == TYPE_COMPOUND_UNION
+			|| datatype->kind == TYPE_COMPOUND_CLASS) {
 		compound_type = (compound_type_t*) datatype;
 	} else {
-		if (datatype->type != TYPE_POINTER) {
+		if (datatype->kind != TYPE_POINTER) {
 			print_error_prefix(select->base.source_position);
 			fprintf(stderr, "select needs a compound type (or pointer) but "
 					"found type ");
@@ -1668,13 +1668,13 @@ static void check_select_expression(select_expression_t *select)
 		pointer_type_t *pointer_type = (pointer_type_t*) datatype;
 		
 		type_t *points_to = pointer_type->points_to;
-		if (points_to->type == TYPE_BIND_TYPEVARIABLES) {
+		if (points_to->kind == TYPE_BIND_TYPEVARIABLES) {
 			bind_typevariables = (bind_typevariables_type_t*) points_to;
 			compound_type
 				= (compound_type_t*) bind_typevariables->polymorphic_type;
-		} else if (points_to->type == TYPE_COMPOUND_STRUCT
-				|| points_to->type == TYPE_COMPOUND_UNION
-				|| points_to->type == TYPE_COMPOUND_CLASS) {
+		} else if (points_to->kind == TYPE_COMPOUND_STRUCT
+				|| points_to->kind == TYPE_COMPOUND_UNION
+				|| points_to->kind == TYPE_COMPOUND_CLASS) {
 			compound_type = (compound_type_t*) points_to;
 		} else {
 			print_error_prefix(select->base.source_position);
@@ -1741,7 +1741,7 @@ static void check_array_access_expression(array_access_expression_t *access)
 
 	type_t *type = array_ref->base.type;
 	if (type == NULL || 
-			(type->type != TYPE_POINTER && type->type != TYPE_ARRAY)) {
+			(type->kind != TYPE_POINTER && type->kind != TYPE_ARRAY)) {
 		print_error_prefix(access->base.source_position);
 		fprintf(stderr, "expected pointer or array type for array access, "
 		        "got ");
@@ -1751,11 +1751,11 @@ static void check_array_access_expression(array_access_expression_t *access)
 	}
 
 	type_t *result_type;
-	if (type->type == TYPE_POINTER) {
+	if (type->kind == TYPE_POINTER) {
 		pointer_type_t *pointer_type = (pointer_type_t*) type;
 		result_type                  = pointer_type->points_to;
 	} else {
-		assert(type->type == TYPE_ARRAY);
+		assert(type->kind == TYPE_ARRAY);
 		array_type_t *array_type = (array_type_t*) type;
 		result_type              = array_type->element_type;
 
@@ -2249,7 +2249,7 @@ static void resolve_concept_types(concept_t *concept)
 	for ( ; concept_method != NULL; concept_method = concept_method->next) {
 		type_t *normalized_type 
 			= normalize_type((type_t*) concept_method->method_type);
-		assert(normalized_type->type == TYPE_METHOD);
+		assert(normalized_type->kind == TYPE_METHOD);
 		concept_method->method_type = (method_type_t*) normalized_type;
 	}
 
@@ -2394,8 +2394,8 @@ static void check_and_push_context(context_t *context)
 			break;
 		case DECLARATION_TYPEALIAS: {
 			type_t *type = normalize_type(declaration->typealias.type);
-			if (type->type == TYPE_COMPOUND_UNION
-				|| type->type == TYPE_COMPOUND_STRUCT) {
+			if (type->kind == TYPE_COMPOUND_UNION
+				|| type->kind == TYPE_COMPOUND_STRUCT) {
 				check_compound_type((compound_type_t*) type);
 			}
 			declaration->typealias.type = type;

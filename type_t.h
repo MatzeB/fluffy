@@ -26,8 +26,9 @@ typedef enum {
 	TYPE_TYPEOF,
 	TYPE_REFERENCE,
 	TYPE_REFERENCE_TYPE_VARIABLE,
-	TYPE_BIND_TYPEVARIABLES
-} type_type_t;
+	TYPE_BIND_TYPEVARIABLES,
+	TYPE_LAST = TYPE_BIND_TYPEVARIABLES
+} type_kind_t;
 
 typedef enum {
 	ATOMIC_TYPE_INVALID,
@@ -44,32 +45,32 @@ typedef enum {
 	ATOMIC_TYPE_ULONGLONG,
 	ATOMIC_TYPE_FLOAT,
 	ATOMIC_TYPE_DOUBLE,
-} atomic_type_type_t;
+} atomic_type_kind_t;
 
-struct type_t {
-	type_type_t        type;
+struct type_base_t {
+	type_kind_t        kind;
 
 	ir_type           *firm_type;
 };
 
 struct atomic_type_t {
-	type_t              type;
-	atomic_type_type_t  atype;
+	type_base_t         base;
+	atomic_type_kind_t  akind;
 };
 
 struct pointer_type_t {
-	type_t  type;
-	type_t *points_to;
+	type_base_t  base;
+	type_t      *points_to;
 };
 
 struct array_type_t {
-	type_t         type;
+	type_base_t    base;
 	type_t        *element_type;
 	expression_t  *size_expression;
 };
 
 struct typeof_type_t {
-	type_t        type;
+	type_base_t   base;
 	expression_t *expression;
 };
 
@@ -79,7 +80,7 @@ struct type_argument_t {
 };
 
 struct type_reference_t {
-	type_t             type;
+	type_base_t        base;
 	symbol_t          *symbol;
 	source_position_t  source_position;
 	type_argument_t   *type_arguments;
@@ -88,7 +89,7 @@ struct type_reference_t {
 };
 
 struct bind_typevariables_type_t {
-	type_t           type;
+	type_base_t      base;
 	type_argument_t *type_arguments;
 	compound_type_t *polymorphic_type;
 };
@@ -105,14 +106,14 @@ struct type_constraint_t {
 };
 
 struct method_type_t {
-	type_t                   type;
+	type_base_t              base;
 	type_t                  *result_type;
 	method_parameter_type_t *parameter_types;
 	bool                     variable_arguments;
 };
 
 struct iterator_type_t {
-	type_t                   type;
+	type_base_t              base;
 	type_t                  *element_type;
 	method_parameter_type_t *parameter_types;
 };
@@ -128,7 +129,7 @@ struct compound_entry_t {
 };
 
 struct compound_type_t {
-	type_t             type;
+	type_base_t        base;
 	compound_entry_t  *entries;
 	symbol_t          *symbol;
 	attribute_t       *attributes;
@@ -137,12 +138,28 @@ struct compound_type_t {
 	source_position_t  source_position;
 };
 
-type_t *make_atomic_type(atomic_type_type_t type);
+union type_t
+{
+	type_kind_t                kind;
+	type_base_t                base;
+	atomic_type_t              atomic;
+	pointer_type_t             pointer;
+	array_type_t               array;
+	typeof_type_t              typeof;
+	type_reference_t           reference;
+	bind_typevariables_type_t  bind_typevariables;
+	method_type_t              method;
+	iterator_type_t            iterator;
+	compound_type_t            compound;
+};
+
+type_t *allocate_type(type_kind_t kind);
+type_t *make_atomic_type(atomic_type_kind_t type);
 type_t *make_pointer_type(type_t *type);
 
 static inline bool is_type_array(const type_t *type)
 {
-	return type->type == TYPE_ARRAY;
+	return type->kind == TYPE_ARRAY;
 }
 
 #endif

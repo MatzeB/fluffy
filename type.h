@@ -3,7 +3,8 @@
 
 #include <stdio.h>
 
-typedef struct type_t                     type_t;
+typedef union  type_t                     type_t;
+typedef struct type_base_t                type_base_t;
 typedef struct atomic_type_t              atomic_type_t;
 typedef struct type_reference_t           type_reference_t;
 typedef struct compound_entry_t           compound_entry_t;
@@ -17,6 +18,7 @@ typedef struct method_type_t              method_type_t;
 typedef struct pointer_type_t             pointer_type_t;
 typedef struct array_type_t               array_type_t;
 typedef struct typeof_type_t              typeof_type_t;
+typedef struct iterator_type_t            iterator_type_t;
 
 extern type_t *type_void;
 extern type_t *type_invalid;

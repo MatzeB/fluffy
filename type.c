@@ -19,10 +19,10 @@ static typevar_binding_t *typevar_binding_stack = NULL;
 static struct obstack  _type_obst;
 struct obstack        *type_obst = &_type_obst;
 
-static type_t  type_void_    = { TYPE_VOID, NULL };
-static type_t  type_invalid_ = { TYPE_INVALID, NULL };
-type_t        *type_void     = &type_void_;
-type_t        *type_invalid  = &type_invalid_;
+static type_base_t  type_void_    = { TYPE_VOID, NULL };
+static type_base_t  type_invalid_ = { TYPE_INVALID, NULL };
+type_t             *type_void     = (type_t*) &type_void_;
+type_t             *type_invalid  = (type_t*) &type_invalid_;
 
 static FILE* out;
 
@@ -41,7 +41,7 @@ void exit_type_module()
 
 static void print_atomic_type(const atomic_type_t *type)
 {
-	switch (type->atype) {
+	switch (type->akind) {
 	case ATOMIC_TYPE_INVALID:   fputs("INVALIDATOMIC", out); break;
 	case ATOMIC_TYPE_BOOL:      fputs("bool", out); break;
 	case ATOMIC_TYPE_BYTE:      fputs("byte", out); break;
@@ -77,7 +77,7 @@ static void print_method_type(const method_type_t *type)
 	}
 	fputs(")", out);
 
-	if (type->result_type != NULL && type->result_type->type != TYPE_VOID) {
+	if (type->result_type != NULL && type->result_type->kind != TYPE_VOID) {
 		fputs(" : ", out);
 		print_type(type->result_type);
 	}
@@ -170,7 +170,7 @@ void print_type(const type_t *type)
 		return;
 	}
 
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 		fputs("invalid", out);
 		return;
@@ -219,7 +219,7 @@ void print_type(const type_t *type)
 
 int type_valid(const type_t *type)
 {
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 	case TYPE_REFERENCE:
 		return 0;
@@ -230,11 +230,11 @@ int type_valid(const type_t *type)
 
 int is_type_int(const type_t *type)
 {
-	if (type->type != TYPE_ATOMIC)
+	if (type->kind != TYPE_ATOMIC)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
-	switch (atomic_type->atype) {
+	switch (atomic_type->akind) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_SHORT:
@@ -253,11 +253,11 @@ int is_type_int(const type_t *type)
 
 int is_type_numeric(const type_t *type)
 {
-	if (type->type != TYPE_ATOMIC)
+	if (type->kind != TYPE_ATOMIC)
 		return 0;
 
 	atomic_type_t *atomic_type = (atomic_type_t*) type;
-	switch (atomic_type->atype) {
+	switch (atomic_type->akind) {
 	case ATOMIC_TYPE_BYTE:
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_SHORT:
@@ -277,15 +277,13 @@ int is_type_numeric(const type_t *type)
 }
 
 
-type_t* make_atomic_type(atomic_type_type_t atype)
+type_t* make_atomic_type(atomic_type_kind_t akind)
 {
-	atomic_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_ATOMIC;
-	type->atype     = atype;
+	type_t *type = allocate_type(TYPE_ATOMIC);
+	type->atomic.akind = akind;
 
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if (normalized_type != (type_t*) type) {
+	type_t *normalized_type = typehash_insert(type);
+	if (normalized_type != type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -294,13 +292,11 @@ type_t* make_atomic_type(atomic_type_type_t atype)
 
 type_t* make_pointer_type(type_t *points_to)
 {
-	pointer_type_t *type = obstack_alloc(type_obst, sizeof(type[0]));
-	memset(type, 0, sizeof(type[0]));
-	type->type.type = TYPE_POINTER;
-	type->points_to = points_to;
+	type_t *type = allocate_type(TYPE_POINTER);
+	type->pointer.points_to = points_to;
 
-	type_t *normalized_type = typehash_insert((type_t*) type);
-	if (normalized_type != (type_t*) type) {
+	type_t *normalized_type = typehash_insert(type);
+	if (normalized_type != type) {
 		obstack_free(type_obst, type);
 	}
 
@@ -317,14 +313,12 @@ static type_t *create_concrete_method_type(method_type_t *type)
 {
 	int need_new_type = 0;
 
-	method_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
-	memset(new_type, 0, sizeof(new_type[0]));
-	new_type->type.type     = TYPE_METHOD;
+	type_t *new_type = allocate_type(TYPE_METHOD);
 	
 	type_t *result_type = create_concrete_type(type->result_type);
 	if (result_type != type->result_type)
 		need_new_type = 1;
-	new_type->result_type = result_type;
+	new_type->method.result_type = result_type;
 
 	method_parameter_type_t *parameter_type      = type->parameter_types;
 	method_parameter_type_t *last_parameter_type = NULL;
@@ -343,7 +337,7 @@ static type_t *create_concrete_method_type(method_type_t *type)
 		if (last_parameter_type != NULL) {
 			last_parameter_type->next = new_parameter_type;
 		} else {
-			new_type->parameter_types = new_parameter_type;
+			new_type->method.parameter_types = new_parameter_type;
 		}
 		last_parameter_type = new_parameter_type;
 
@@ -352,10 +346,10 @@ static type_t *create_concrete_method_type(method_type_t *type)
 
 	if (!need_new_type) {
 		obstack_free(type_obst, new_type);
-		new_type = type;
+		new_type = (type_t*) type;
 	}
 
-	return (type_t*) new_type;
+	return new_type;
 }
 
 static type_t *create_concrete_pointer_type(pointer_type_t *type)
@@ -365,13 +359,11 @@ static type_t *create_concrete_pointer_type(pointer_type_t *type)
 	if (points_to == type->points_to)
 		return (type_t*) type;
 
-	pointer_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
-	memset(new_type, 0, sizeof(new_type[0]));
-	new_type->type.type = TYPE_POINTER;
-	new_type->points_to = points_to;
+	type_t *new_type = allocate_type(TYPE_POINTER);
+	new_type->pointer.points_to = points_to;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
-	if (normalized_type != (type_t*) new_type) {
+	if (normalized_type != new_type) {
 		obstack_free(type_obst, new_type);
 	}
 
@@ -395,12 +387,9 @@ static type_t *create_concrete_array_type(array_type_t *type)
 	if (element_type == type->element_type)
 		return (type_t*) type;
 
-	array_type_t *new_type = obstack_alloc(type_obst, sizeof(new_type[0]));
-	memset(new_type, 0, sizeof(new_type[0]));
-
-	new_type->type.type       = TYPE_ARRAY;
-	new_type->element_type    = element_type;
-	new_type->size_expression = type->size_expression;
+	type_t *new_type = allocate_type(TYPE_ARRAY);
+	new_type->array.element_type    = element_type;
+	new_type->array.size_expression = type->size_expression;
 
 	type_t *normalized_type = typehash_insert((type_t*) new_type);
 	if (normalized_type != (type_t*) new_type) {
@@ -445,15 +434,12 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 		return (type_t*) type;
 	}
 
-	bind_typevariables_type_t *new_type 
-		= obstack_alloc(type_obst, sizeof(new_type[0]));
-	memset(new_type, 0, sizeof(new_type[0]));
-	new_type->type.type        = TYPE_BIND_TYPEVARIABLES;
-	new_type->polymorphic_type = type->polymorphic_type;
-	new_type->type_arguments   = new_arguments;
+	type_t *new_type = allocate_type(TYPE_BIND_TYPEVARIABLES);
+	new_type->bind_typevariables.polymorphic_type = type->polymorphic_type;
+	new_type->bind_typevariables.type_arguments   = new_arguments;
 
-	type_t *normalized_type = typehash_insert((type_t*) new_type);
-	if (normalized_type != (type_t*) new_type) {
+	type_t *normalized_type = typehash_insert(new_type);
+	if (normalized_type != new_type) {
 		obstack_free(type_obst, new_type);
 	}
 
@@ -462,7 +448,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 
 type_t *create_concrete_type(type_t *type)
 {
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 		return type_invalid;
 	case TYPE_VOID:
@@ -521,7 +507,7 @@ void push_type_variable_bindings(type_variable_t *type_parameters,
 	int top     = ARR_LEN(typevar_binding_stack) + 1;
 	while (type_parameter != NULL) {
 		type_t *type = type_argument->type;
-		while (type->type == TYPE_REFERENCE_TYPE_VARIABLE) {
+		while (type->kind == TYPE_REFERENCE_TYPE_VARIABLE) {
 			type_reference_t *ref = (type_reference_t*) type;
 			type_variable_t  *var = ref->type_variable;
 
@@ -581,8 +567,8 @@ void pop_type_variable_bindings(int new_top)
 
 type_t *skip_typeref(type_t *type)
 {
-	if (type->type == TYPE_TYPEOF) {
-		typeof_type_t *typeof_type = (typeof_type_t*) type;
+	if (type->kind == TYPE_TYPEOF) {
+		typeof_type_t *typeof_type = &type->typeof;
 		return skip_typeref(typeof_type->expression->base.type);
 	}
 	return type;

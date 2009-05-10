@@ -29,7 +29,7 @@ static unsigned hash_atomic_type(const atomic_type_t *type)
 {
 	unsigned some_prime = 27644437;
 
-	return type->atype * some_prime;
+	return type->akind * some_prime;
 }
 
 static unsigned hash_pointer_type(const pointer_type_t *type)
@@ -85,20 +85,18 @@ static unsigned hash_bind_typevariables_type_t(const bind_typevariables_type_t *
 
 static unsigned hash_type(const type_t *type)
 {
-	switch (type->type) {
+	switch (type->kind) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ERROR:
 	case TYPE_REFERENCE:
 		panic("internalizing void or invalid types not possible");
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		return hash_type_reference_type_variable(
-				(const type_reference_t*) type);
+		return hash_type_reference_type_variable(&type->reference);
 	case TYPE_ATOMIC:
-		return hash_atomic_type((const atomic_type_t*) type);
+		return hash_atomic_type(&type->atomic);
 	case TYPE_TYPEOF: {
-		const typeof_type_t *typeof_type = (const typeof_type_t*) type;
-		return hash_ptr(typeof_type->expression);
+		return hash_ptr(type->typeof.expression);
 	}
 	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
@@ -120,7 +118,7 @@ static unsigned hash_type(const type_t *type)
 static bool atomic_types_equal(const atomic_type_t *type1,
                                const atomic_type_t *type2)
 {
-	return type1->atype == type2->atype;
+	return type1->akind == type2->akind;
 }
 
 static bool compound_types_equal(const compound_type_t *type1,
@@ -201,10 +199,10 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 {
 	if (type1 == type2)
 		return true;
-	if (type1->type != type2->type)
+	if (type1->kind != type2->kind)
 		return false;
 
-	switch (type1->type) {
+	switch (type1->kind) {
 	case TYPE_INVALID:
 	case TYPE_VOID:
 	case TYPE_ERROR:
