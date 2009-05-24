@@ -1,0 +1,70 @@
+                                  Design Scratchpad
+
+Input Files:
+	- UTF-8 should be the default to avoid most encoding troubles.
+	  (Maybe add explicit way to override this for exceptional cases)
+	- File Extension? .fluffy for now
+	- Think about a recommded standard for file naming/hierarchy. Similar to
+	  javas directory hierarchy equals package hierarchy, filename==classname
+	  thing. Build tools and IDEs can then work with this standard and make
+	  it considerably easier to setup new projects/build foreign ones.
+	  (Basing this on pure filesystem hierarchy also avoids new configuration
+	   or buildfile specification that noone wants to deal with)
+
+Layout:
+	- Default mode is python like. Only difference is that we explicitely
+	  differentiate between tab and space indentation. Mixing these gives an
+	  error, to avoid the typical problems when editing python source and
+	  not having your editor set to tab=8 spaces.
+	  (Example: if a line is indented with 2 spaces, then the next line
+	   may be indented with 0 or 1 space, or 2 spaces + any number of spaces
+	   and tabs. What is not allowed it having a tab(+space) or space+tab
+	   indentation in that next line)
+
+Contexts:
+	- What is a context? A Name+A Context gives a semantic meaning to a language
+	  construct.
+	- Try to avoid having multiple "namespaces" depending only on the usage.
+	  (= Types, Variables should be in the same namespace so you cannot have a
+	   type and a variable with the same name in the same namespace nesting
+	   level)
+
+Concepts/Instances:
+	- Concept functions should go to the default namespace (do we want an
+	additional mode where they are availble under a special name only?)
+	- Determining the concept instance from the calling type is very usefull
+	- But we probably also want named concept instances. We would then need
+	  a way to call these explicitely and/or bind them to the current context.
+	  (Which brings us back to the question what is a context?)
+	- Shouldn't we rather call it implementation instead of instance?
+
+Coroutine Support:
+	- To avoid complications with a 2nd stack in the coroutine datastructure,
+	  yield is only allowed at the coroutine itself (you can't call a function
+	  which yields)
+	- A coroutine supports producing (typed) values with each yield
+	- A coroutine needs a way to signal the end of a coroutine vs. a yield.
+	  In the coroutine code this would be yield vs. return.
+	  How would one go about this when using the coroutine?
+
+Namespacing:
+	- How to handle modules, imports, exports, libraries?
+	- Is there a concept of file-local? module-local? global?
+	== Modules ==
+	Each file belongs to exactly 1 module. If there's no module specified then
+	stuff will go to the anonymous "main" module.
+
+	Modules are specified by the module command.
+	Modulenames are a URL without the protocol part or optionally protocol
+	"fluffymodule://"
+
+	All files of a module have to be compiled together.
+
+	A recommendataion for naming is using internet urls:
+	module fluffy.org/stdlib
+
+	(Practical question 1: should we allow all possible strings? Or just
+	 stuff which is allowed in filenames?)
+
+	- Think about a 2nd model where all files in a directory form a module
+	with a separate module description file in the directory...

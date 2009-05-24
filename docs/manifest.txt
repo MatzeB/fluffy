@@ -1,0 +1,66 @@
+#Goal#
+	- Enable programmers to write efficient code, our first target is being
+	  an alternative to C/C++. Which means playing nice in the unix/mac/windows
+	  world and their exising C libraries.
+	- lean and modern: Don't introduce complicated constructs to keep (backward)
+	  compatible with other stuff.
+	- Play nice with others: Enable and support bridges to the rest of the world
+	  (but remember the "be modern" rule)
+
+#Programming World#
+	- Projects are driven by multiple developers. They have a compositional
+	  nature where each developer is responsible for his part.
+	  This project division can happen at multiple levels. Horizontally
+	  or vertically (heh what does this really mean... I guess mostly that there
+	  should be multiple dimensions that allow extending/composing a program)
+	- At the places where developers interact communication starts. We should
+	  have strong possibilities to document, hint and specify public information
+	  (making it easy to keep it in sync with the real stuff is also important
+	   to keep the information usefull). This is the most important part to
+	   avoid errors. A way to specify invariants is also helpfull. Maybe also
+	   a way to specify "smells" for possible wrong usage, where an invariant
+	   would be too strong.
+	- Some code becomes a commodity (logging, file system access,
+	  container classes, http protocol, xml parsing, ...).
+	  Provide way to easily specify, locate and use implementations of these
+	  codes to start a process where such code is maintained and developed
+	  in an open source fashion so everybody benefits (Look at how nice linux
+	  package managers work for open source software).
+
+#Productivity#
+	- Make it hard to produce accidental errors by:
+		* Enable the compiler to warn/check static invariants where possible.
+		  This needs more discussion to what extend the type system should be
+		  employed here. In what way we allow people to annotate their libraries
+		  to hint at correct library usage.
+		  (Bad example: C/printf fails if format string doesn't match the
+	       arguments. Without the compiler being able to tell most of the times.
+		   Another C example: Catching too small buffers in strncat, snprintf)
+		* Disallow some standard notations (but make sure there are easy
+		  workarounds to do the same with a bit more typing maybe). Example:
+			if a = b: should be disallowed because its a common type for
+			if a == b: as a workaround we should allow if (a = b):
+		* Limit implicit effects. Make things explicit where possible
+		  try to be short, as much typing is painfull. Just don't use the
+		   shorter syntax if it introduces too much implicit stuff.
+		   (A really bad example here is pearl with all its $', $`, etc.
+			variables getting defined implicitely, variable assignment is
+		    an important semantic thing and should never happen without an
+		    explicit syntax).
+
+#Language Implementation#
+	- Keep the language simple. We want to stimulate 3rd parties to provide
+	  tools and support for our language: IDEs, ports to new architectures,
+	  competing compiler implementations, refactoring tools, build tools,
+	  editors. Some ways we try to achieve this:
+		* Make the language fit into the SLL(k) category so parsers are
+		  easy to write. (Helps refactoring tools)
+		* Try hard to put stuff into libraries instead of the core language
+		  (only generic support for libraries needed in 3rd party tools)
+		* Have a simple core language and a way to transform complicated
+		  language constructs ("syntactic sugar") into this core language
+		  (helps program analysis, comprehension tools)
+		  Take care to identify things for the core language, and stuff for
+		  libraries
+
+

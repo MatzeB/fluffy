@@ -1,0 +1,44 @@
+- Try to preserve the things C did well
+- Be compatible with C play nice in the linux/unix/macos world
+	- make it easy to create wrappers for C libraries
+	- provide lots of prepared wrappers 
+- If the programmer wants maximum speed, give him maximum speed
+- If the programmer wants control over resources, give it to him
+- Make it hard to fall into common pitfalls
+- Don't make it impossible to do things because of this
+- Always offer a fast way if the prohibiting errors costs speed
+- Make it simple to pickup other projects (build, dependencies, ...)
+- Simple things should be simple
+- Keep the language simple, move stuff into the library where possible
+- Have example programs ready when deciding what to add to the language
+- When adding stuff to the language try to make it generic
+- But don't make the constructs verbose
+- While not unnecessarily abreviating
+- Avoid implicit effects
+- Macros and Language extensions are nice to have
+- Unless they prohibit language tools (refactoring, etc.)
+- Side effects are pragmatic
+- Pure code is pragmatic if the programmer wants it that way
+- A good and comprehensive standard library is important
+- When adding stuff to the standard library prefer it in this order:
+	- simple + generic
+	- usefull
+	- efficient
+- There are several usefull programming paradigms:
+	Algorithmic:
+		- pure functions, functions as first-class objects
+		- map/reduce stuff
+		- matching list manipulation
+	Reusable Code:
+		- Generic Programming (type-classes)
+		- Object Oriented Programming (mixins)
+		- Module/Library System
+	Efficient Code:
+		- pointers
+		- arbitrary side-effects
+		- "atomic" operations
+	Safe Code:
+		- Garbage Collection?
+		- Array Bound Checks?
+		- Type Qualifiers?
+		- Custom restricted Types 	

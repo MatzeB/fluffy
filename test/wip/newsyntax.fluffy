@@ -1,0 +1,4 @@
+c   = 5
+foo = func(a : int, b : float) : int:
+	// ...
+
