@@ -107,12 +107,12 @@ static void mangle_array_type(const array_type_t *type)
 	obstack_printf(&obst, "%lu", size);
 }
 
-static void mangle_method_type(const method_type_t *type)
+static void mangle_function_type(const function_type_t *type)
 {
 	obstack_1grow(&obst, 'F');
 	mangle_type(type->result_type);
 
-	method_parameter_type_t *parameter_type = type->parameter_types;
+	function_parameter_type_t *parameter_type = type->parameter_types;
 	while (parameter_type != NULL) {
 		mangle_type(parameter_type->type);
 	}
@@ -161,8 +161,8 @@ void mangle_type(const type_t *type)
 	case TYPE_COMPOUND_STRUCT:
 		mangle_compound_type((const compound_type_t*) type);
 		return;
-	case TYPE_METHOD:
-		mangle_method_type((const method_type_t*) type);
+	case TYPE_FUNCTION:
+		mangle_function_type((const function_type_t*) type);
 		return;
 	case TYPE_POINTER:
 		mangle_pointer_type((const pointer_type_t*) type);

@@ -404,14 +404,14 @@ static void print_type_parameters(const type_variable_t *type_parameters)
 }
 
 static void print_method_parameters(const method_parameter_t *parameters,
-                                    const method_type_t *method_type)
+                                    const function_type_t    *function_type)
 {
 	fprintf(out, "(");
 
 	int                            first          = 1;
 	const method_parameter_t      *parameter      = parameters;
-	const method_parameter_type_t *parameter_type 
-		= method_type->parameter_types;
+	const function_parameter_type_t *parameter_type 
+		= function_type->parameter_types;
 	while (parameter != NULL && parameter_type != NULL) {
 		if (!first) {
 			fprintf(out, ", ");
@@ -432,8 +432,8 @@ static void print_method_parameters(const method_parameter_t *parameters,
 
 static void print_method(const method_declaration_t *method_declaration)
 {
-	const method_t *method = &method_declaration->method;
-	method_type_t  *type   = method->type;
+	const method_t  *method = &method_declaration->method;
+	function_type_t *type   = method->type;
 
 	fprintf(out, "func ");
 
@@ -462,9 +462,9 @@ static void print_concept_method(const concept_method_t *method)
 {
 	fprintf(out, "\tfunc ");
 	fprintf(out, "%s", method->base.symbol->string);
-	print_method_parameters(method->parameters, method->method_type);
+	print_method_parameters(method->parameters, method->type);
 	fprintf(out, " : ");
-	print_type(method->method_type->result_type);
+	print_type(method->type->result_type);
 	fprintf(out, "\n\n");
 }
 

@@ -227,7 +227,7 @@ static unsigned get_type_size(type_t *type)
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		return get_compound_type_size((compound_type_t*) type);
-	case TYPE_METHOD:
+	case TYPE_FUNCTION:
 		/* just a pointer to the method */
 		return get_mode_size_bytes(mode_P_code);
 	case TYPE_POINTER:
@@ -253,11 +253,11 @@ static unsigned get_type_size(type_t *type)
 	panic("Trying to determine size of invalid type");
 }
 
-static int count_parameters(const method_type_t *method_type)
+static int count_parameters(const function_type_t *function_type)
 {
 	int count = 0;
 
-	method_parameter_type_t *param_type = method_type->parameter_types;
+	function_parameter_type_t *param_type = function_type->parameter_types;
 	while (param_type != NULL) {
 		param_type = param_type->next;
 		count++;
@@ -265,9 +265,6 @@ static int count_parameters(const method_type_t *method_type)
 
 	return count;
 }
-
-
-
 
 static ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 {
@@ -279,12 +276,13 @@ static ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 	return irtype;
 }
 
-static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *method_type)
+static ir_type *get_function_type(type2firm_env_t *env,
+                                  const function_type_t *function_type)
 {
-	type_t  *result_type  = method_type->result_type;
+	type_t  *result_type  = function_type->result_type;
 
-	ident   *id           = unique_ident("methodtype");
-	int      n_parameters = count_parameters(method_type);
+	ident   *id           = unique_ident("functiontype");
+	int      n_parameters = count_parameters(function_type);
 	int      n_results    = result_type->kind == TYPE_VOID ? 0 : 1;
 	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
 
@@ -293,7 +291,7 @@ static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *metho
 		set_method_res_type(irtype, 0, restype);
 	}
 
-	method_parameter_type_t *param_type = method_type->parameter_types;
+	function_parameter_type_t *param_type = function_type->parameter_types;
 	int n = 0;
 	while (param_type != NULL) {
 		ir_type *p_irtype = _get_ir_type(env, param_type->type);
@@ -303,7 +301,7 @@ static ir_type *get_method_type(type2firm_env_t *env, const method_type_t *metho
 		n++;
 	}
 
-	if (method_type->variable_arguments) {
+	if (function_type->variable_arguments) {
 		set_method_variadicity(irtype, variadicity_variadic);
 	}
 
@@ -530,8 +528,8 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 	case TYPE_ATOMIC:
 		firm_type = get_atomic_type(env, &type->atomic);
 		break;
-	case TYPE_METHOD:
-		firm_type = get_method_type(env, &type->method);
+	case TYPE_FUNCTION:
+		firm_type = get_function_type(env, &type->function);
 		break;
 	case TYPE_POINTER:
 		firm_type = get_pointer_type(env, &type->pointer);
@@ -621,7 +619,7 @@ static ir_entity* get_concept_method_instance_entity(
 	if (method->e.entity != NULL)
 		return method->e.entity;
 
-	method_type_t *method_type = method->type;
+	function_type_t *function_type = method->type;
 
 	concept_method_t *concept_method = method_instance->concept_method;
 	concept_t        *concept        = concept_method->concept;
@@ -639,7 +637,7 @@ static ir_entity* get_concept_method_instance_entity(
 
 	/* create the entity */
 	ir_type *global_type    = get_glob_type();
-	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
+	ir_type *ir_method_type = get_ir_type((type_t*) function_type);
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
@@ -652,8 +650,8 @@ static ir_entity* get_concept_method_instance_entity(
 
 static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 {
-	method_type_t *method_type    = method->type;
-	int            is_polymorphic = is_polymorphic_method(method);
+	function_type_t *function_type  = method->type;
+	int              is_polymorphic = is_polymorphic_method(method);
 
 	if (!is_polymorphic && method->e.entity != NULL) {
 		return method->e.entity;
@@ -682,7 +680,7 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 
 	/* create the entity */
 	ir_type *global_type    = get_glob_type();
-	ir_type *ir_method_type = get_ir_type((type_t*) method_type);
+	ir_type *ir_method_type = get_ir_type((type_t*) function_type);
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
@@ -1393,10 +1391,10 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	pointer_type_t *pointer_type = (pointer_type_t*) method->base.type;
 	type_t         *points_to    = pointer_type->points_to;
 
-	assert(points_to->kind == TYPE_METHOD);
-	method_type_t *method_type     = (method_type_t*) points_to;
-	ir_type       *ir_method_type  = get_ir_type((type_t*) method_type);
-	ir_type       *new_method_type = NULL;
+	assert(points_to->kind == TYPE_FUNCTION);
+	function_type_t *function_type   = (function_type_t*) points_to;
+	ir_type         *ir_method_type  = get_ir_type((type_t*) function_type);
+	ir_type         *new_method_type = NULL;
 
 	int              n_parameters = 0;
 	call_argument_t *argument     = call->arguments;
@@ -1405,7 +1403,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 		argument = argument->next;
 	}
 
-	if (method_type->variable_arguments) {
+	if (function_type->variable_arguments) {
 		/* we need to construct a new method type matching the call
 		 * arguments... */
 		new_method_type = new_type_method(unique_ident("calltype"),
@@ -1450,7 +1448,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node  *mem   = new_d_Proj(dbgi, node, mode_M, pn_Call_M_regular);
 	set_store(mem);
 
-	type_t  *result_type = method_type->result_type;
+	type_t  *result_type = function_type->result_type;
 	ir_node *result      = NULL;
 	if (result_type->kind != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);

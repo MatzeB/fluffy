@@ -116,7 +116,7 @@ struct type_variable_t {
 };
 
 struct method_t {
-	method_type_t      *type;
+	function_type_t    *type;
 	type_variable_t    *type_parameters;
 	method_parameter_t *parameters;
 	bool                is_extern;
@@ -173,7 +173,7 @@ struct typealias_t {
 
 struct concept_method_t {
 	declaration_base_t  base;
-	method_type_t      *method_type;
+	function_type_t    *type;
 	method_parameter_t *parameters;
 	concept_t          *concept;
 

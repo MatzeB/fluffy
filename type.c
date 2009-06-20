@@ -60,11 +60,11 @@ static void print_atomic_type(const atomic_type_t *type)
 	}
 }
 
-static void print_method_type(const method_type_t *type)
+static void print_function_type(const function_type_t *type)
 {
 	fputs("<", out);
 	fputs("func(", out);
-	method_parameter_type_t *param_type = type->parameter_types;
+	function_parameter_type_t *param_type = type->parameter_types;
 	int first = 1;
 	while (param_type != NULL) {
 		if (first) {
@@ -188,29 +188,29 @@ void print_type(const type_t *type)
 		fputs("void", out);
 		return;
 	case TYPE_ATOMIC:
-		print_atomic_type((const atomic_type_t*) type);
+		print_atomic_type(&type->atomic);
 		return;
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
-		print_compound_type((const compound_type_t*) type);
+		print_compound_type(&type->compound);
 		return;
-	case TYPE_METHOD:
-		print_method_type((const method_type_t*) type);
+	case TYPE_FUNCTION:
+		print_function_type(&type->function);
 		return;
 	case TYPE_POINTER:
-		print_pointer_type((const pointer_type_t*) type);
+		print_pointer_type(&type->pointer);
 		return;
 	case TYPE_ARRAY:
-		print_array_type((const array_type_t*) type);
+		print_array_type(&type->array);
 		return;
 	case TYPE_REFERENCE:
-		print_type_reference((const type_reference_t*) type);
+		print_type_reference(&type->reference);
 		return;
 	case TYPE_REFERENCE_TYPE_VARIABLE:
-		print_type_reference_variable((const type_reference_t*) type);
+		print_type_reference_variable(&type->reference);
 		return;
 	case TYPE_BIND_TYPEVARIABLES:
-		print_bind_type_variables((const bind_typevariables_type_t*) type);
+		print_bind_type_variables(&type->bind_typevariables);
 		return;
 	}
 	fputs("unknown", out);
@@ -308,19 +308,19 @@ static type_t *create_concrete_compound_type(compound_type_t *type)
 	return (type_t*) type;
 }
 
-static type_t *create_concrete_method_type(method_type_t *type)
+static type_t *create_concrete_function_type(function_type_t *type)
 {
 	int need_new_type = 0;
 
-	type_t *new_type = allocate_type(TYPE_METHOD);
+	type_t *new_type = allocate_type(TYPE_FUNCTION);
 	
 	type_t *result_type = create_concrete_type(type->result_type);
 	if (result_type != type->result_type)
 		need_new_type = 1;
-	new_type->method.result_type = result_type;
+	new_type->function.result_type = result_type;
 
-	method_parameter_type_t *parameter_type      = type->parameter_types;
-	method_parameter_type_t *last_parameter_type = NULL;
+	function_parameter_type_t *parameter_type      = type->parameter_types;
+	function_parameter_type_t *last_parameter_type = NULL;
 	while (parameter_type != NULL) {
 		type_t *param_type     = parameter_type->type;
 		type_t *new_param_type = create_concrete_type(param_type);
@@ -328,7 +328,7 @@ static type_t *create_concrete_method_type(method_type_t *type)
 		if (new_param_type != param_type)
 			need_new_type = 1;
 
-		method_parameter_type_t *new_parameter_type
+		function_parameter_type_t *new_parameter_type
 			= obstack_alloc(type_obst, sizeof(new_parameter_type[0]));
 		memset(new_parameter_type, 0, sizeof(new_parameter_type[0]));
 		new_parameter_type->type = new_param_type;
@@ -336,7 +336,7 @@ static type_t *create_concrete_method_type(method_type_t *type)
 		if (last_parameter_type != NULL) {
 			last_parameter_type->next = new_parameter_type;
 		} else {
-			new_type->method.parameter_types = new_parameter_type;
+			new_type->function.parameter_types = new_parameter_type;
 		}
 		last_parameter_type = new_parameter_type;
 
@@ -458,8 +458,8 @@ type_t *create_concrete_type(type_t *type)
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return create_concrete_compound_type((compound_type_t*) type);
-	case TYPE_METHOD:
-		return create_concrete_method_type((method_type_t*) type);
+	case TYPE_FUNCTION:
+		return create_concrete_function_type((function_type_t*) type);
 	case TYPE_POINTER:
 		return create_concrete_pointer_type((pointer_type_t*) type);
 	case TYPE_ARRAY:

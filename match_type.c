@@ -141,8 +141,8 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 	type_variable_t  *type_var;
 	pointer_type_t   *pointer_type_1;
 	pointer_type_t   *pointer_type_2;
-	method_type_t    *method_type_1;
-	method_type_t    *method_type_2;
+	function_type_t  *function_type_1;
+	function_type_t  *function_type_2;
 
 	assert(type_valid(variant_type));
 	assert(type_valid(concrete_type));
@@ -185,21 +185,21 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 		                                      source_position,
 					       				   report_errors);
 
-	case TYPE_METHOD:
-		if (concrete_type->kind != TYPE_METHOD) {
+	case TYPE_FUNCTION:
+		if (concrete_type->kind != TYPE_FUNCTION) {
 			if (report_errors)
 				match_error(variant_type, concrete_type, source_position);
 			return false;
 		}
-		method_type_1 = (method_type_t*) variant_type;
-		method_type_2 = (method_type_t*) concrete_type;
-		bool result = match_variant_to_concrete_type(method_type_1->result_type,
-		                               method_type_2->result_type,
+		function_type_1 = (function_type_t*) variant_type;
+		function_type_2 = (function_type_t*) concrete_type;
+		bool result = match_variant_to_concrete_type(function_type_1->result_type,
+		                               function_type_2->result_type,
 		                               source_position,
 									   report_errors);
 
-		method_parameter_type_t *param1 = method_type_1->parameter_types;
-		method_parameter_type_t *param2 = method_type_2->parameter_types;
+		function_parameter_type_t *param1 = function_type_1->parameter_types;
+		function_parameter_type_t *param2 = function_type_2->parameter_types;
 		while (param1 != NULL && param2 != NULL) {
 			if (!match_variant_to_concrete_type(param1->type, param2->type,
 			                               source_position, report_errors))

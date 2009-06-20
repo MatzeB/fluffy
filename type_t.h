@@ -19,7 +19,7 @@ typedef enum {
 	TYPE_ATOMIC,
 	TYPE_COMPOUND_STRUCT,
 	TYPE_COMPOUND_UNION,
-	TYPE_METHOD,
+	TYPE_FUNCTION,
 	TYPE_POINTER,
 	TYPE_ARRAY,
 	TYPE_TYPEOF,
@@ -93,9 +93,9 @@ struct bind_typevariables_type_t {
 	compound_type_t *polymorphic_type;
 };
 
-struct method_parameter_type_t {
-	type_t                  *type;
-	method_parameter_type_t *next;
+struct function_parameter_type_t {
+	type_t                    *type;
+	function_parameter_type_t *next;
 };
 
 struct type_constraint_t {
@@ -104,17 +104,11 @@ struct type_constraint_t {
 	type_constraint_t *next;
 };
 
-struct method_type_t {
-	type_base_t              base;
-	type_t                  *result_type;
-	method_parameter_type_t *parameter_types;
-	bool                     variable_arguments;
-};
-
-struct iterator_type_t {
-	type_base_t              base;
-	type_t                  *element_type;
-	method_parameter_type_t *parameter_types;
+struct function_type_t {
+	type_base_t                base;
+	type_t                    *result_type;
+	function_parameter_type_t *parameter_types;
+	bool                       variable_arguments;
 };
 
 struct compound_entry_t {
@@ -147,8 +141,7 @@ union type_t
 	typeof_type_t              typeof;
 	type_reference_t           reference;
 	bind_typevariables_type_t  bind_typevariables;
-	method_type_t              method;
-	iterator_type_t            iterator;
+	function_type_t            function;
 	compound_type_t            compound;
 };
 

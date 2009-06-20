@@ -51,11 +51,11 @@ static unsigned hash_compound_type(const compound_type_t *type)
 
 static unsigned hash_type(const type_t *type);
 
-static unsigned hash_method_type(const method_type_t *type)
+static unsigned hash_function_type(const function_type_t *type)
 {
 	unsigned result = hash_ptr(type->result_type);
 
-	method_parameter_type_t *parameter = type->parameter_types;
+	function_parameter_type_t *parameter = type->parameter_types;
 	while (parameter != NULL) {
 		result ^= hash_ptr(parameter->type);
 		parameter = parameter->next;
@@ -100,16 +100,16 @@ static unsigned hash_type(const type_t *type)
 	}
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
-		return hash_compound_type((const compound_type_t*) type);
-	case TYPE_METHOD:
-		return hash_method_type((const method_type_t*) type);
+		return hash_compound_type(&type->compound);
+	case TYPE_FUNCTION:
+		return hash_function_type(&type->function);
 	case TYPE_POINTER:
-		return hash_pointer_type((const pointer_type_t*) type);
+		return hash_pointer_type(&type->pointer);
 	case TYPE_ARRAY:
-		return hash_array_type((const array_type_t*) type);
+		return hash_array_type(&type->array);
 	case TYPE_BIND_TYPEVARIABLES:
 		return hash_bind_typevariables_type_t(
-				(const bind_typevariables_type_t*) type);
+				&type->bind_typevariables);
 	}
 	abort();
 }
@@ -130,8 +130,8 @@ static bool compound_types_equal(const compound_type_t *type1,
 	return true;
 }
 
-static bool method_types_equal(const method_type_t *type1,
-                               const method_type_t *type2)
+static bool function_types_equal(const function_type_t *type1,
+                                 const function_type_t *type2)
 {
 	if (type1->result_type != type2->result_type)
 		return false;
@@ -139,8 +139,8 @@ static bool method_types_equal(const method_type_t *type1,
 	if (type1->variable_arguments != type2->variable_arguments)
 		return false;
 
-	method_parameter_type_t *param1 = type1->parameter_types;
-	method_parameter_type_t *param2 = type2->parameter_types;
+	function_parameter_type_t *param1 = type1->parameter_types;
+	function_parameter_type_t *param2 = type2->parameter_types;
 	while (param1 != NULL && param2 != NULL) {
 		if (param1->type != param2->type)
 			return false;
@@ -214,28 +214,21 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 	}
 	case TYPE_REFERENCE_TYPE_VARIABLE:
 		return type_references_type_variable_equal(
-				(const type_reference_t*) type1,
-		        (const type_reference_t*) type2);
+				&type1->reference, &type2->reference);
 	case TYPE_ATOMIC:
-		return atomic_types_equal((const atomic_type_t*) type1,
-		                          (const atomic_type_t*) type2);
+		return atomic_types_equal(&type1->atomic, &type2->atomic);
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
-		return compound_types_equal((const compound_type_t*) type1,
-		                            (const compound_type_t*) type2);
-	case TYPE_METHOD:
-		return method_types_equal((const method_type_t*) type1,
-		                          (const method_type_t*) type2);
+		return compound_types_equal(&type1->compound, &type2->compound);
+	case TYPE_FUNCTION:
+		return function_types_equal(&type1->function, &type2->function);
 	case TYPE_POINTER:
-		return pointer_types_equal((const pointer_type_t*) type1,
-		                           (const pointer_type_t*) type2);
+		return pointer_types_equal(&type1->pointer, &type2->pointer);
 	case TYPE_ARRAY:
-		return array_types_equal((const array_type_t*) type1,
-		                         (const array_type_t*) type2);
+		return array_types_equal(&type1->array, &type2->array);
 	case TYPE_BIND_TYPEVARIABLES:
 		return bind_typevariables_type_equal(
-				(const bind_typevariables_type_t*) type1,
-				(const bind_typevariables_type_t*) type2);
+				&type1->bind_typevariables,	&type2->bind_typevariables);
 	}
 	panic("invalid type encountered");
 }

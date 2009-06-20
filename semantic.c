@@ -49,7 +49,7 @@ static void check_and_push_context(context_t *context);
 static void check_method(method_t *method, symbol_t *symbol,
                          const source_position_t source_position);
 
-static void resolve_method_types(method_t *method);
+static void resolve_function_types(method_t *method);
 
 void print_error_prefix(const source_position_t position)
 {
@@ -299,18 +299,18 @@ static type_t *normalize_array_type(array_type_t *type)
 	return typehash_insert((type_t*) type);
 }
 
-static type_t *normalize_method_type(method_type_t *method_type)
+static type_t *normalize_function_type(function_type_t *function_type)
 {
-	method_type->result_type = normalize_type(method_type->result_type);
+	function_type->result_type = normalize_type(function_type->result_type);
 
-	method_parameter_type_t *parameter = method_type->parameter_types;
+	function_parameter_type_t *parameter = function_type->parameter_types;
 	while (parameter != NULL) {
 		parameter->type = normalize_type(parameter->type);
 
 		parameter = parameter->next;
 	}
 
-	return typehash_insert((type_t*) method_type);
+	return typehash_insert((type_t*) function_type);
 }
 
 static void check_compound_type(compound_type_t *type)
@@ -385,8 +385,8 @@ static type_t *normalize_type(type_t *type)
 	case TYPE_ARRAY:
 		return normalize_array_type((array_type_t*) type);
 	
-	case TYPE_METHOD:
-		return normalize_method_type((method_type_t*) type);
+	case TYPE_FUNCTION:
+		return normalize_function_type((function_type_t*) type);
 
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
@@ -442,7 +442,7 @@ static type_t *check_reference(declaration_t *declaration,
 		return method_parameter->type;
 	case DECLARATION_CONCEPT_METHOD:
 		concept_method = (concept_method_t*) declaration;
-		return make_pointer_type((type_t*) concept_method->method_type);
+		return make_pointer_type((type_t*) concept_method->type);
 	case DECLARATION_ITERATOR:
 		panic("TODO iterator reference");
 		break;
@@ -1129,9 +1129,9 @@ static type_t *get_default_param_type(type_t *type,
 	case TYPE_POINTER:
 		return type_void_ptr;
 
-	case TYPE_METHOD:
+	case TYPE_FUNCTION:
 		print_error_prefix(source_position);
-		fprintf(stderr, "method type (");
+		fprintf(stderr, "function type (");
 		print_type(type);
 		fprintf(stderr, ") not supported for function parameters.\n");
 		return error_type;
@@ -1185,14 +1185,14 @@ static void check_call_expression(call_expression_t *call)
 	pointer_type_t *pointer_type = (pointer_type_t*) type;
 
 	type = pointer_type->points_to;
-	if (type->kind != TYPE_METHOD) {
+	if (type->kind != TYPE_FUNCTION) {
 		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call a non-method value of type");
 		print_type(type);
 		fprintf(stderr, "\n");
 		return;
 	}
-	method_type_t *method_type = (method_type_t*) type;
+	function_type_t *function_type = (function_type_t*) type;
 
 	/* match parameter types against type variables */
 	type_variable_t *type_variables = NULL;
@@ -1245,11 +1245,11 @@ static void check_call_expression(call_expression_t *call)
 
 	/* check call arguments, match argument types against expected types
 	 * and try to determine type variable configuration */
-	call_argument_t         *argument   = call->arguments;
-	method_parameter_type_t *param_type = method_type->parameter_types;
+	call_argument_t           *argument   = call->arguments;
+	function_parameter_type_t *param_type = function_type->parameter_types;
 	int                      i          = 0;
 	while (argument != NULL) {
-		if (param_type == NULL && !method_type->variable_arguments) {
+		if (param_type == NULL && !function_type->variable_arguments) {
 			error_at(call->base.source_position,
 			         "too much arguments for method call\n");
 			break;
@@ -1324,7 +1324,7 @@ static void check_call_expression(call_expression_t *call)
 	}
 	
 	/* normalize result type, as we know the concrete types for the typevars */
-	type_t *result_type = method_type->result_type;
+	type_t *result_type = function_type->result_type;
 	if (type_variables != NULL) {
 		reference_expression_t *ref = (reference_expression_t*) method;
 		declaration_t          *declaration = ref->declaration;
@@ -1780,7 +1780,7 @@ static void check_sizeof_expression(sizeof_expression_t *expression)
 static void check_func_expression(func_expression_t *expression)
 {
 	method_t *method = & expression->method;
-	resolve_method_types(method);
+	resolve_function_types(method);
 	check_method(method, NULL, expression->base.source_position);
 
 	expression->base.type = make_pointer_type((type_t*) method->type);
@@ -2190,7 +2190,7 @@ static void resolve_type_variable_constraints(type_variable_t *type_variables)
 	}
 }
 
-static void resolve_method_types(method_t *method)
+static void resolve_function_types(method_t *method)
 {
 	int old_top = environment_top();
 
@@ -2204,7 +2204,7 @@ static void resolve_method_types(method_t *method)
 		parameter->type = normalize_type(parameter->type);
 	}
 
-	method->type = (method_type_t*) normalize_type((type_t*) method->type);
+	method->type = (function_type_t*) normalize_type((type_t*) method->type);
 
 	environment_pop_to(old_top);
 }
@@ -2214,7 +2214,7 @@ static void check_concept_instance(concept_instance_t *instance)
 	concept_method_instance_t *method_instance = instance->method_instances;
 	while (method_instance != NULL) {
 		method_t *method = &method_instance->method;
-		resolve_method_types(method);
+		resolve_function_types(method);
 		check_method(method, method_instance->symbol,
 		             method_instance->source_position);
 
@@ -2240,9 +2240,9 @@ static void resolve_concept_types(concept_t *concept)
 	concept_method_t *concept_method = concept->methods;
 	for ( ; concept_method != NULL; concept_method = concept_method->next) {
 		type_t *normalized_type 
-			= normalize_type((type_t*) concept_method->method_type);
-		assert(normalized_type->kind == TYPE_METHOD);
-		concept_method->method_type = (method_type_t*) normalized_type;
+			= normalize_type((type_t*) concept_method->type);
+		assert(normalized_type->kind == TYPE_FUNCTION);
+		concept_method->type = (function_type_t*) normalized_type;
 	}
 
 	environment_pop_to(old_top);
@@ -2337,7 +2337,7 @@ static void resolve_concept_instance(concept_instance_t *instance)
 		}
 		
 		imethod->type 
-			= (method_type_t*) normalize_type((type_t*) imethod->type);
+			= (function_type_t*) normalize_type((type_t*) imethod->type);
 	}
 
 	size_t n = 0;
@@ -2382,7 +2382,7 @@ static void check_and_push_context(context_t *context)
 				= normalize_type(declaration->variable.type);
 			break;
 		case DECLARATION_METHOD:
-			resolve_method_types(&declaration->method.method);
+			resolve_function_types(&declaration->method.method);
 			break;
 		case DECLARATION_TYPEALIAS: {
 			type_t *type = normalize_type(declaration->typealias.type);
