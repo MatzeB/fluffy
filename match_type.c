@@ -166,7 +166,6 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 		}
 		return true;
 
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return match_compound_type((compound_type_t*) variant_type,

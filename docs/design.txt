@@ -47,6 +47,51 @@ Coroutine Support:
 	  In the coroutine code this would be yield vs. return.
 	  How would one go about this when using the coroutine?
 
+Entities in the language:
+	[t] typed entity
+	- numeric value[t]
+	- string[t]
+	- function[t]: a piece of (generic) code. Contains:
+		* a list of parameters
+		* a list of type variables
+		* a list of concept instances
+	- external functions[t]: (stuff imported from a C library)
+	- function parameter[t]: parameter of a function
+	- variable[t]: contains reference to an entity, can be changed while
+	               the program runs
+	- expression[t]: tree of calculation operations yielding a value
+	  (sub-entity: constant expression)
+	- concept: mapping of names to constant entities
+	- type: sets constraints on some value/entity in the language
+		* pointer type
+		* function type
+		* concept type
+		* struct/union type
+			conglomerate of data values with addresses relative to a base
+			address
+	- type variable:
+
+Definition:
+	- connects a name with an entity
+
+Structure:
+	A collection of definitions for:
+		- Types,
+		- Type Variables,
+		- Functions
+
+	Examples:
+		mathematical group:
+			+ - (infix operator) Function with type T -> T -> T
+			N - value with type T and additional calculation rules:
+				x + N = x
+				N + x = x
+			Rule x + y = y + x (abelsche Gruppe)
+			Rule x + (y + z) = (x + y) + z
+
+Type-System:
+	- Provide Hindley-Milner type inference inside a module
+
 Namespacing:
 	- How to handle modules, imports, exports, libraries?
 	- Is there a concept of file-local? module-local? global?

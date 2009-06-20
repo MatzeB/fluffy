@@ -3,9 +3,9 @@
  *
  * Compile when BACK_END_IS_CP_FIRM_BE is defined
  *
- * (C) 2005  Michael Beck  beck@ipd.info.uni-karlsruhe.de
+ * (C) 2005-2009  Michael Beck  beck@ipd.info.uni-karlsruhe.de
  *
- * $Id: firm_codegen.c 20448 2008-07-14 14:04:53Z matze $
+ * $Id: firm_codegen.c 25818 2009-04-07 14:36:48Z beck $
  */
 #include <string.h>
 #include <stdio.h>
@@ -41,9 +41,11 @@ static char *generate_asm_file_name(const char *file_name) {
     break;
 #endif
 
+#ifdef FIRM_BACKEND
   case BE_FIRM_BE:
     strncat(asm_file_name, ".s", 4);
     break;
+#endif
   }
 
   return asm_file_name;
@@ -76,12 +78,14 @@ void do_codegen(FILE *out, const char *file_name) {
     break;
 #endif
 
+#ifdef FIRM_BACKEND
   case BE_FIRM_BE:
     timer_start(TV_FIRM_BE);
       ir_set_debug_retrieve(dbg_retrieve);
       be_main(out, file_name);
     timer_stop(TV_FIRM_BE);
     break;
+#endif
 
   default:
     fprintf(stderr, "Fatal: Unknown backend %d\n", firm_be_opt.selection);

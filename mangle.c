@@ -157,7 +157,6 @@ void mangle_type(const type_t *type)
 		mangle_type(typeof_type->expression->base.type);
 		return;
 	}
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		mangle_compound_type((const compound_type_t*) type);

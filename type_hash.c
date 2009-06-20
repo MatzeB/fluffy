@@ -98,7 +98,6 @@ static unsigned hash_type(const type_t *type)
 	case TYPE_TYPEOF: {
 		return hash_ptr(type->typeof.expression);
 	}
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return hash_compound_type((const compound_type_t*) type);
@@ -220,7 +219,6 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 	case TYPE_ATOMIC:
 		return atomic_types_equal((const atomic_type_t*) type1,
 		                          (const atomic_type_t*) type2);
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return compound_types_equal((const compound_type_t*) type1,

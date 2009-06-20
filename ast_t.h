@@ -52,6 +52,14 @@ typedef enum {
 	DECLARATION_LAST = DECLARATION_LABEL
 } declaration_kind_t;
 
+typedef enum {
+	ENTITY_FUNCTION,
+	ENTITY_FUNCTION_PARAMETER,
+	ENTITY_EXPRESSION,
+	ENTITY_LABEL,
+	ENTITY_CONCEPT,
+} entity_kind_t;
+
 /**
  * base struct for a declaration
  */

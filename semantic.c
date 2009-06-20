@@ -223,8 +223,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 	type_t          *type = typealias->type;
 	type_variable_t *type_parameters = NULL;
 	compound_type_t *compound_type   = NULL;
-	if (type->kind == TYPE_COMPOUND_STRUCT || type->kind == TYPE_COMPOUND_UNION
-			|| type->kind == TYPE_COMPOUND_CLASS) {
+	if (type->kind == TYPE_COMPOUND_STRUCT || type->kind == TYPE_COMPOUND_UNION) {
 		compound_type   = (compound_type_t*) type;
 		type_parameters = compound_type->type_parameters;
 	}
@@ -324,8 +323,7 @@ static void check_compound_type(compound_type_t *type)
 	while (entry != NULL) {
 		type_t *type = entry->type;
 		if (type->kind == TYPE_COMPOUND_STRUCT
-				|| type->kind == TYPE_COMPOUND_UNION
-				|| type->kind == TYPE_COMPOUND_CLASS) {
+				|| type->kind == TYPE_COMPOUND_UNION) {
 			compound_type_t *compound_type = (compound_type_t*) type;
 			check_compound_type(compound_type);
 		}
@@ -349,8 +347,7 @@ static type_t *normalize_bind_typevariables(bind_typevariables_type_t *type)
 	type_t *polymorphic_type = (type_t*) type->polymorphic_type;
 	polymorphic_type = normalize_type(polymorphic_type);
 	assert(polymorphic_type->kind == TYPE_COMPOUND_STRUCT ||
-			polymorphic_type->kind == TYPE_COMPOUND_UNION ||
-			polymorphic_type->kind == TYPE_COMPOUND_CLASS);
+			polymorphic_type->kind == TYPE_COMPOUND_UNION);
 	type->polymorphic_type = (compound_type_t*) polymorphic_type;
 
 	type_t *result = typehash_insert((type_t*) type);
@@ -391,7 +388,6 @@ static type_t *normalize_type(type_t *type)
 	case TYPE_METHOD:
 		return normalize_method_type((method_type_t*) type);
 
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		return normalize_compound_type((compound_type_t*) type);
@@ -424,7 +420,6 @@ static type_t *check_reference(declaration_t *declaration,
 
 		if (type->kind == TYPE_COMPOUND_STRUCT
 				|| type->kind == TYPE_COMPOUND_UNION
-				|| type->kind == TYPE_COMPOUND_CLASS
 				|| type->kind == TYPE_BIND_TYPEVARIABLES
 				|| type->kind == TYPE_ARRAY) {
 			variable->needs_entity   = 1;
@@ -1142,7 +1137,6 @@ static type_t *get_default_param_type(type_t *type,
 		return error_type;
 
 	case TYPE_BIND_TYPEVARIABLES:
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		print_error_prefix(source_position);
@@ -1652,8 +1646,7 @@ static void check_select_expression(select_expression_t *select)
 		compound_type
 			= (compound_type_t*) bind_typevariables->polymorphic_type;
 	} else if (datatype->kind == TYPE_COMPOUND_STRUCT
-			|| datatype->kind == TYPE_COMPOUND_UNION
-			|| datatype->kind == TYPE_COMPOUND_CLASS) {
+			|| datatype->kind == TYPE_COMPOUND_UNION) {
 		compound_type = (compound_type_t*) datatype;
 	} else {
 		if (datatype->kind != TYPE_POINTER) {
@@ -1673,8 +1666,7 @@ static void check_select_expression(select_expression_t *select)
 			compound_type
 				= (compound_type_t*) bind_typevariables->polymorphic_type;
 		} else if (points_to->kind == TYPE_COMPOUND_STRUCT
-				|| points_to->kind == TYPE_COMPOUND_UNION
-				|| points_to->kind == TYPE_COMPOUND_CLASS) {
+				|| points_to->kind == TYPE_COMPOUND_UNION) {
 			compound_type = (compound_type_t*) points_to;
 		} else {
 			print_error_prefix(select->base.source_position);

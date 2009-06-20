@@ -74,9 +74,6 @@ struct a_firm_opt {
   a_byte   honor_restrict;  /**< enable restrict keyword */
   a_byte   lower_bitfields; /**< lower bitfield access */
   a_byte   pic;             /**< generate position independent code */
-  a_byte   ycomp_dbg;       /**< yComp debugger extension */
-  char     *ycomp_host;     /**< The host, yComp is running on */
-  int      ycomp_port;      /**< The port, yComp is listening on */
   int      clone_threshold; /**< The threshold value for procedure cloning. */
   unsigned inline_maxsize;  /**< Maximum function size for inlining. */
   unsigned inline_threshold;/**< Inlining benefice threshold. */

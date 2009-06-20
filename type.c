@@ -190,7 +190,6 @@ void print_type(const type_t *type)
 	case TYPE_ATOMIC:
 		print_atomic_type((const atomic_type_t*) type);
 		return;
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_UNION:
 	case TYPE_COMPOUND_STRUCT:
 		print_compound_type((const compound_type_t*) type);
@@ -456,7 +455,6 @@ type_t *create_concrete_type(type_t *type)
 	case TYPE_ERROR:
 	case TYPE_ATOMIC:
 		return type;
-	case TYPE_COMPOUND_CLASS:
 	case TYPE_COMPOUND_STRUCT:
 	case TYPE_COMPOUND_UNION:
 		return create_concrete_compound_type((compound_type_t*) type);

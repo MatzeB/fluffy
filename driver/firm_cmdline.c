@@ -3,9 +3,9 @@
  *
  * Compile when BACK_END_IS_CP_FIRM_BE is defined
  *
- * (C) 2005  Michael Beck  beck@ipd.info.uni-karlsruhe.de
+ * (C) 2005-2009  Michael Beck  beck@ipd.info.uni-karlsruhe.de
  *
- * $Id: firm_cmdline.c 24742 2008-12-17 08:37:39Z mallon $
+ * $Id: firm_cmdline.c 25818 2009-04-07 14:36:48Z beck $
  */
 #include <string.h>
 #include "firm_cmdline.h"
@@ -69,9 +69,6 @@ struct a_firm_opt firm_opt = {
   /* honor_restrict  = */ TRUE,
   /* lower_bitfields = */ TRUE,
   /* pic             = */ FALSE,
-  /* ycomp_dbg       = */ FALSE,
-  /* ycomp_host      = */ FIRM_YCOMP_DEFAULT_HOST,
-  /* ycomp_port      = */ FIRM_YCOMP_DEFAULT_PORT,
   /* clone_threshold = */ DEFAULT_CLONE_THRESHOLD,
   /* inline_maxsize  = */ 750,
   /* inline_threshold= */ 0,
@@ -255,9 +252,6 @@ static const struct params {
   { X("win32"),                  &firm_opt.os_support,       OS_SUPPORT_MINGW, "misc: generate MinGW Win32 code" },
   { X("mac"),                    &firm_opt.os_support,       OS_SUPPORT_MACHO, "misc: generate MacOS code" },
   { X("linux"),                  &firm_opt.os_support,       OS_SUPPORT_LINUX, "misc: generate Linux-ELF code" },
-  { X("ycomp"),                  &firm_opt.ycomp_dbg,        1, "misc: enable yComp debugger extension" },
-  { X("ycomp-host=<hostname>"),  NULL,                       0, "misc: yComp host" },
-  { X("ycomp-port=<port>"),      NULL,                       0, "misc: yComp port" },
 
   /* string options */
   { X("dump-filter=<string>"),   NULL,                       0, "misc: set dumper filter" },
@@ -282,14 +276,6 @@ static void set_dump_filter(const char *filter)
 {
   firm_dump.filter = StrDup(filter);
 }  /* set_dump_filter */
-
-/**
- * Set ycomp host
- */
-static void set_ycomp_host(const char *host)
-{
-  firm_opt.ycomp_host = StrDup(host);
-}  /* set_ycomp_host */
 
 /** Disable all optimizations. */
 static void disable_opts(void) {
@@ -353,15 +339,6 @@ int firm_option(const char *opt)
   }
   else if (strncmp("inline-threshold=", opt, 17) == 0) {
     sscanf(&opt[17], "%u", &firm_opt.inline_threshold);
-    return 1;
-  }
-  else if (strncmp("ycomp-host=", opt, 11) == 0) {
-    opt = &opt[11];
-    set_ycomp_host(opt);
-    return 1;
-  }
-  else if (strncmp("ycomp-port=", opt, 11) == 0) {
-    sscanf(&opt[11], "%d", &firm_opt.ycomp_port);
     return 1;
   }
   else if (strcmp("no-opt", opt) == 0) {

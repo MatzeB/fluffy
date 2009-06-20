@@ -138,7 +138,6 @@ static size_t get_type_struct_size(type_kind_t kind)
 		[TYPE_ERROR]                   = sizeof(type_base_t),
 		[TYPE_VOID]                    = sizeof(type_base_t),
 		[TYPE_ATOMIC]                  = sizeof(atomic_type_t),
-		[TYPE_COMPOUND_CLASS]          = sizeof(compound_type_t),
 		[TYPE_COMPOUND_STRUCT]         = sizeof(compound_type_t),
 		[TYPE_COMPOUND_UNION]          = sizeof(compound_type_t),
 		[TYPE_METHOD]                  = sizeof(method_type_t),
@@ -1867,50 +1866,6 @@ attribute_t *parse_attributes(void)
 	return last;
 }
 
-static void parse_class(void)
-{
-	eat(T_class);
-
-	declaration_t *declaration = allocate_declaration(DECLARATION_TYPEALIAS);
-
-	if (token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing class",
-		                     T_IDENTIFIER, 0);
-		eat_until_anchor();
-		return;
-	}
-	declaration->base.source_position = source_position;
-	declaration->base.symbol          = token.v.symbol;
-	next_token();
-
-	type_t *type = allocate_type(TYPE_COMPOUND_CLASS);
-	type->compound.symbol     = declaration->base.symbol;
-	type->compound.attributes = parse_attributes();
-
-	declaration->typealias.type = type;
-
-	expect(':', end_error);
-	expect(T_NEWLINE, end_error);
-
-	if (token.type == T_INDENT) {
-		next_token();
-
-		context_t *last_context = current_context;
-		current_context         = &type->compound.context;
-
-		while (token.type != T_EOF && token.type != T_DEDENT) {
-			parse_declaration();		
-		}
-		next_token();
-
-		assert(current_context == &type->compound.context);
-		current_context = last_context;
-	}
-
-end_error:
-	add_declaration(declaration);
-}
-
 static void parse_struct(void)
 {
 	eat(T_struct);
@@ -2319,7 +2274,6 @@ static void register_declaration_parsers(void)
 	register_declaration_parser(parse_method_declaration, T_func);
 	register_declaration_parser(parse_global_variable,    T_var);
 	register_declaration_parser(parse_constant,           T_const);
-	register_declaration_parser(parse_class,              T_class);
 	register_declaration_parser(parse_struct,             T_struct);
 	register_declaration_parser(parse_union,              T_union);
 	register_declaration_parser(parse_typealias,          T_typealias);

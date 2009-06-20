@@ -1,9 +1,9 @@
 /**
  * @file firm_timing.c -- timing for the Firm compiler
  *
- * (C) 2006  Michael Beck   beck@ipd.info.uni-karlsruhe.de
+ * (C) 2006-2009  Michael Beck   beck@ipd.info.uni-karlsruhe.de
  *
- * $Id: firm_timing.c 17717 2008-02-14 12:54:48Z matze $
+ * $Id: firm_timing.c 25818 2009-04-07 14:36:48Z beck $
  */
 #include <libfirm/timing.h>
 #include "firm_timing.h"

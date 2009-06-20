@@ -6,7 +6,7 @@ FIRM_CFLAGS ?= `pkg-config --cflags libfirm`
 FIRM_LIBS ?= `pkg-config --libs libfirm`
 
 CPPFLAGS = -I.
-CPPFLAGS += $(FIRM_CFLAGS)
+CPPFLAGS += $(FIRM_CFLAGS) -DFIRM_BACKEND
 
 CFLAGS += -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Werror -std=c99
 CFLAGS += -O0 -g3

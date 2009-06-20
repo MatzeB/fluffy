@@ -1,7 +1,7 @@
 /*
  * Generate Firm assembler from Firm graphs.
  *
- * (C) 2005-2006  Michael Beck   beck@ipd.info.uni-karlsruhe.de
+ * (C) 2005-2009  Michael Beck   beck@ipd.info.uni-karlsruhe.de
  */
 #include <stdio.h>
 #include <string.h>
@@ -530,7 +530,6 @@ static void generate_code_SymConst(FILE *f, ir_node *n)
   ident *id;
   ir_type *tp;
   ir_entity *ent;
-  ir_label_t label;
   symconst_kind kind = get_SymConst_kind(n);
   const char *k_name = "NULL";
   const char *str;
@@ -571,11 +570,6 @@ static void generate_code_SymConst(FILE *f, ir_node *n)
     str = get_id_str(id);
     fprintf(f, "  sym.ident_p = new_id_from_chars(\"%s\", %d);\n", str, get_id_strlen(id));
     k_name = "symconst_enum_const";
-    break;
-  case symconst_label:
-    label = get_SymConst_label(n);
-    fprintf(f, "  sym.label = %lu;\n", label);
-    k_name = "symconst_label";
     break;
   }
   name(f, "  ", n, " = new_r_SymConst(irg, ");

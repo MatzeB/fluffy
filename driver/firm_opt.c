@@ -2,9 +2,9 @@
  *
  * @file firm_opt.c -- Firm-generating back end optimizations.
  *
- * (C) 2005-2007  Michael Beck   beck@ipd.info.uni-karlsruhe.de
+ * (C) 2005-2009  Michael Beck   beck@ipd.info.uni-karlsruhe.de
  *
- * $Id: firm_opt.c 25631 2009-03-08 10:47:24Z beck $
+ * $Id: firm_opt.c 25818 2009-04-07 14:36:48Z beck $
  */
 
 #include <config.h>
