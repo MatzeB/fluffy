@@ -39,15 +39,15 @@ typedef enum precedence_t {
 typedef enum {
 	DECLARATION_INVALID,
 	DECLARATION_ERROR,
-	DECLARATION_METHOD,
-	DECLARATION_METHOD_PARAMETER,
+	DECLARATION_FUNCTION,
+	DECLARATION_FUNCTION_PARAMETER,
 	DECLARATION_ITERATOR,
 	DECLARATION_VARIABLE,
 	DECLARATION_CONSTANT,
 	DECLARATION_TYPE_VARIABLE,
 	DECLARATION_TYPEALIAS,
 	DECLARATION_CONCEPT,
-	DECLARATION_CONCEPT_METHOD,
+	DECLARATION_CONCEPT_FUNCTION,
 	DECLARATION_LABEL,
 	DECLARATION_LAST = DECLARATION_LABEL
 } declaration_kind_t;
@@ -115,14 +115,14 @@ struct type_variable_t {
 	type_t             *current_type;
 };
 
-struct method_t {
-	function_type_t    *type;
-	type_variable_t    *type_parameters;
-	method_parameter_t *parameters;
-	bool                is_extern;
+struct function_t {
+	function_type_t      *type;
+	type_variable_t      *type_parameters;
+	function_parameter_t *parameters;
+	bool                  is_extern;
 
-	context_t           context;
-	statement_t        *statement;
+	context_t    context;
+	statement_t *statement;
 
 	union {
 		ir_entity      *entity;
@@ -131,14 +131,14 @@ struct method_t {
 	int                 n_local_vars;
 };
 
-struct method_declaration_t {
+struct function_declaration_t {
 	declaration_base_t base;
-	method_t           method;
+	function_t         function;
 };
 
 struct iterator_declaration_t {
 	declaration_base_t base;
-	method_t           method;
+	function_t         function;
 };
 
 struct variable_declaration_t {
@@ -171,20 +171,20 @@ struct typealias_t {
 	type_t             *type;
 };
 
-struct concept_method_t {
-	declaration_base_t  base;
-	function_type_t    *type;
-	method_parameter_t *parameters;
-	concept_t          *concept;
+struct concept_function_t {
+	declaration_base_t    base;
+	function_type_t      *type;
+	function_parameter_t *parameters;
+	concept_t            *concept;
 
-	concept_method_t   *next;
+	concept_function_t   *next;
 };
 
 struct concept_t {
 	declaration_base_t  base;
 
 	type_variable_t    *type_parameters;
-	concept_method_t   *methods;
+	concept_function_t *functions;
 	concept_instance_t *instances;
 	context_t           context;
 };
@@ -201,14 +201,14 @@ union declaration_t {
 	declaration_kind_t      kind;
 	declaration_base_t      base;
 	type_variable_t         type_variable;
-	method_declaration_t    method;
+	function_declaration_t  function;
 	iterator_declaration_t  iterator;
 	variable_declaration_t  variable;
 	label_declaration_t     label;
 	constant_t              constant;
 	typealias_t             typealias;
 	concept_t               concept;
-	concept_method_t        concept_method;
+	concept_function_t      concept_function;
 };
 
 typedef enum {
@@ -325,7 +325,7 @@ struct string_const_t {
 
 struct func_expression_t {
 	expression_base_t base;
-	method_t          method;
+	function_t        function;
 };
 
 struct reference_expression_t {
@@ -342,7 +342,7 @@ struct call_argument_t {
 
 struct call_expression_t {
 	expression_base_t  base;
-	expression_t      *method;
+	expression_t      *function;
 	call_argument_t   *arguments;
 };
 
@@ -465,33 +465,33 @@ union statement_t {
 	if_statement_t           ifs;
 };
 
-struct method_parameter_t {
-	declaration_t       declaration;
-	method_parameter_t *next;
-	type_t             *type;
-	int                 num;
+struct function_parameter_t {
+	declaration_t         declaration;
+	function_parameter_t *next;
+	type_t               *type;
+	int                   num;
 };
 
-struct concept_method_instance_t {
-	method_t                   method;
-	symbol_t                  *symbol;
-	source_position_t          source_position;
-	concept_method_instance_t *next;
+struct concept_function_instance_t {
+	function_t                   function;
+	symbol_t                    *symbol;
+	source_position_t            source_position;
+	concept_function_instance_t *next;
 
-	concept_method_t          *concept_method;
-	concept_instance_t        *concept_instance;
+	concept_function_t          *concept_function;
+	concept_instance_t          *concept_instance;
 };
 
 struct concept_instance_t {
-	symbol_t                  *concept_symbol;
-	source_position_t          source_position;
-	concept_t                 *concept;
-	type_argument_t           *type_arguments;
-	concept_method_instance_t *method_instances;
-	concept_instance_t        *next;
-	concept_instance_t        *next_in_concept;
-	context_t                  context;
-	type_variable_t           *type_parameters;
+	symbol_t                    *concept_symbol;
+	source_position_t            source_position;
+	concept_t                   *concept;
+	type_argument_t             *type_arguments;
+	concept_function_instance_t *function_instances;
+	concept_instance_t          *next;
+	concept_instance_t          *next_in_concept;
+	context_t                    context;
+	type_variable_t             *type_parameters;
 };
 
 static inline void *_allocate_ast(size_t size)

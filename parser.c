@@ -47,17 +47,17 @@ static inline void *allocate_ast_zero(size_t size)
 static size_t get_declaration_struct_size(declaration_kind_t kind)
 {
 	static const size_t sizes[] = {
-		[DECLARATION_ERROR]            = sizeof(declaration_base_t),
-		[DECLARATION_METHOD]           = sizeof(method_declaration_t),
-		[DECLARATION_METHOD_PARAMETER] = sizeof(method_parameter_t),
-		[DECLARATION_ITERATOR]         = sizeof(iterator_declaration_t),
-		[DECLARATION_VARIABLE]         = sizeof(variable_declaration_t),
-		[DECLARATION_CONSTANT]         = sizeof(constant_t),
-		[DECLARATION_TYPE_VARIABLE]    = sizeof(type_variable_t),
-		[DECLARATION_TYPEALIAS]        = sizeof(typealias_t),
-		[DECLARATION_CONCEPT]          = sizeof(concept_t),
-		[DECLARATION_CONCEPT_METHOD]   = sizeof(concept_method_t),
-		[DECLARATION_LABEL]            = sizeof(label_declaration_t)
+		[DECLARATION_ERROR]              = sizeof(declaration_base_t),
+		[DECLARATION_FUNCTION]           = sizeof(function_declaration_t),
+		[DECLARATION_FUNCTION_PARAMETER] = sizeof(function_parameter_t),
+		[DECLARATION_ITERATOR]           = sizeof(iterator_declaration_t),
+		[DECLARATION_VARIABLE]           = sizeof(variable_declaration_t),
+		[DECLARATION_CONSTANT]           = sizeof(constant_t),
+		[DECLARATION_TYPE_VARIABLE]      = sizeof(type_variable_t),
+		[DECLARATION_TYPEALIAS]          = sizeof(typealias_t),
+		[DECLARATION_CONCEPT]            = sizeof(concept_t),
+		[DECLARATION_CONCEPT_FUNCTION]   = sizeof(concept_function_t),
+		[DECLARATION_LABEL]              = sizeof(label_declaration_t)
 	};
 	assert(kind < sizeof(sizes)/sizeof(sizes[0]));
 	assert(sizes[kind] != 0);
@@ -357,12 +357,12 @@ static void eat_until_anchor(void)
 		next_token();                                      \
 	} while (0)                      
 
-static void parse_method(method_t *method);
+static void parse_function(function_t *function);
 
 static statement_t *parse_block(void);
 
 static void parse_parameter_declarations(function_type_t *function_type,
-                                         method_parameter_t **parameters);
+                                         function_parameter_t **parameters);
 
 static atomic_type_kind_t parse_unsigned_atomic_type(void)
 {
@@ -761,7 +761,7 @@ static expression_t *parse_func_expression(void)
 {
 	eat(T_func);
 	expression_t *expression = allocate_expression(EXPR_FUNC);
-	parse_method(&expression->func.method);
+	parse_function(&expression->func.function);
 
 	return expression;
 }
@@ -970,8 +970,8 @@ end_error:
 
 static expression_t *parse_call_expression(expression_t *left)
 {
-	expression_t *expression = allocate_expression(EXPR_CALL);
-	expression->call.method  = left;
+	expression_t *expression  = allocate_expression(EXPR_CALL);
+	expression->call.function = left;
 
 	/* parse arguments */
 	eat('(');
@@ -1483,12 +1483,12 @@ end_error:
 }
 
 static void parse_parameter_declarations(function_type_t *function_type,
-                                         method_parameter_t **parameters)
+                                         function_parameter_t **parameters)
 {
 	assert(function_type != NULL);
 
 	function_parameter_type_t *last_type = NULL;
-	method_parameter_t      *last_param = NULL;
+	function_parameter_t      *last_param = NULL;
 	if (parameters != NULL)
 		*parameters = NULL;
 
@@ -1537,20 +1537,20 @@ static void parse_parameter_declarations(function_type_t *function_type,
 		last_type = param_type;
 
 		if (parameters != NULL) {
-			method_parameter_t *method_param
-				= allocate_ast_zero(sizeof(method_param[0]));
-			method_param->declaration.base.kind
-				= DECLARATION_METHOD_PARAMETER;
-			method_param->declaration.base.symbol          = symbol;
-			method_param->declaration.base.source_position = source_position;
-			method_param->type                 = param_type->type;
+			function_parameter_t *function_param
+				= allocate_ast_zero(sizeof(function_param[0]));
+			function_param->declaration.base.kind
+				= DECLARATION_FUNCTION_PARAMETER;
+			function_param->declaration.base.symbol          = symbol;
+			function_param->declaration.base.source_position = source_position;
+			function_param->type                             = param_type->type;
 
 			if (last_param != NULL) {
-				last_param->next = method_param;
+				last_param->next = function_param;
 			} else {
-				*parameters = method_param;
+				*parameters = function_param;
 			}
-			last_param = method_param;
+			last_param = function_param;
 		}
 
 		if (token.type != ',')
@@ -1654,26 +1654,26 @@ void add_declaration(declaration_t *declaration)
 	current_context->declarations = declaration;
 }
 
-static void parse_method(method_t *method)
+static void parse_function(function_t *function)
 {
 	type_t *type = allocate_type(TYPE_FUNCTION);
 
 	context_t *last_context = current_context;
-	current_context         = &method->context;
+	current_context         = &function->context;
 
 	if (token.type == '<') {
 		next_token();
 		add_anchor_token('>');
-		method->type_parameters = parse_type_parameters(current_context);
+		function->type_parameters = parse_type_parameters(current_context);
 		rem_anchor_token('>');
 		expect('>', end_error);
 	}
 
-	parse_parameter_declarations(&type->function, &method->parameters);
-	method->type = &type->function;
+	parse_parameter_declarations(&type->function, &function->parameters);
+	function->type = &type->function;
 
 	/* add parameters to context */
-	method_parameter_t *parameter = method->parameters;
+	function_parameter_t *parameter = function->parameters;
 	for ( ; parameter != NULL; parameter = parameter->next) {
 		declaration_t *declaration    = (declaration_t*) parameter;
 		declaration->base.next        = current_context->declarations;
@@ -1684,36 +1684,36 @@ static void parse_method(method_t *method)
 	if (token.type == ':') {
 		next_token();
 		if (token.type == T_NEWLINE) {
-			method->statement = parse_sub_block();
-			goto method_parser_end;
+			function->statement = parse_sub_block();
+			goto function_parser_end;
 		}
 
 		type->function.result_type = parse_type();
 
 		if (token.type == ':') {
 			next_token();
-			method->statement = parse_sub_block();
-			goto method_parser_end;
+			function->statement = parse_sub_block();
+			goto function_parser_end;
 		}
 	}
 	expect(T_NEWLINE, end_error);
 
-method_parser_end:
-	assert(current_context == &method->context);
+function_parser_end:
+	assert(current_context == &function->context);
 	current_context = last_context;
 
 end_error:
 	;
 }
 
-static void parse_method_declaration(void)
+static void parse_function_declaration(void)
 {
 	eat(T_func);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_METHOD);
+	declaration_t *declaration = allocate_declaration(DECLARATION_FUNCTION);
 
 	if (token.type == T_extern) {
-		declaration->method.method.is_extern = true;
+		declaration->function.function.is_extern = true;
 		next_token();
 	}
 
@@ -1727,7 +1727,7 @@ static void parse_method_declaration(void)
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
-	parse_method(&declaration->method.method);
+	parse_function(&declaration->function.function);
 
 	add_declaration(declaration);
 }
@@ -1946,17 +1946,17 @@ end_error:
 	add_declaration(declaration);
 }
 
-static concept_method_t *parse_concept_method(void)
+static concept_function_t *parse_concept_function(void)
 {
 	expect(T_func, end_error);
 
 	declaration_t *declaration 
-		= allocate_declaration(DECLARATION_CONCEPT_METHOD);
+		= allocate_declaration(DECLARATION_CONCEPT_FUNCTION);
 
 	type_t *type = allocate_type(TYPE_FUNCTION);
 	
 	if (token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing concept method",
+		parse_error_expected("Problem while parsing concept function",
 		                     T_IDENTIFIER, 0);
 		eat_until_anchor();
 		goto end_error;
@@ -1967,7 +1967,7 @@ static concept_method_t *parse_concept_method(void)
 	next_token();
 
 	parse_parameter_declarations(&type->function,
-	                             &declaration->concept_method.parameters);
+	                             &declaration->concept_function.parameters);
 
 	if (token.type == ':') {
 		next_token();
@@ -1977,11 +1977,11 @@ static concept_method_t *parse_concept_method(void)
 	}
 	expect(T_NEWLINE, end_error);
 
-	declaration->concept_method.type = &type->function;
+	declaration->concept_function.type = &type->function;
 
 	add_declaration(declaration);
 
-	return &declaration->concept_method;
+	return &declaration->concept_function;
 
 end_error:
 	return NULL;
@@ -2020,22 +2020,22 @@ static void parse_concept(void)
 	}
 	next_token();
 
-	concept_method_t *last_method = NULL;
+	concept_function_t *last_function = NULL;
 	while (token.type != T_DEDENT) {
 		if (token.type == T_EOF) {
 			parse_error("EOF while parsing concept");
 			goto end_of_parse_concept;
 		}
 
-		concept_method_t *method = parse_concept_method();
-		method->concept          = &declaration->concept;
+		concept_function_t *function = parse_concept_function();
+		function->concept            = &declaration->concept;
 
-		if (last_method != NULL) {
-			last_method->next = method;
+		if (last_function != NULL) {
+			last_function->next = function;
 		} else {
-			declaration->concept.methods = method;
+			declaration->concept.functions = function;
 		}
-		last_method = method;
+		last_function = function;
 	}
 	next_token();
 
@@ -2047,24 +2047,24 @@ end_error:
 	;
 }
 
-static concept_method_instance_t *parse_concept_method_instance(void)
+static concept_function_instance_t *parse_concept_function_instance(void)
 {
-	concept_method_instance_t *method_instance
-		= allocate_ast_zero(sizeof(method_instance[0]));
+	concept_function_instance_t *function_instance
+		= allocate_ast_zero(sizeof(function_instance[0]));
 
 	expect(T_func, end_error);
 	if (token.type != T_IDENTIFIER) {
-		parse_error_expected("Problem while parsing concept method "
+		parse_error_expected("Problem while parsing concept function "
 		                     "instance", T_IDENTIFIER, 0);
 		eat_until_anchor();
 		goto end_error;
 	}
-	method_instance->source_position = source_position;
-	method_instance->symbol          = token.v.symbol;
+	function_instance->source_position = source_position;
+	function_instance->symbol          = token.v.symbol;
 	next_token();
 
-	parse_method(& method_instance->method);
-	return method_instance;
+	parse_function(&function_instance->function);
+	return function_instance;
 
 end_error:
 	return NULL;
@@ -2103,7 +2103,7 @@ static void parse_concept_instance(void)
 	}
 	eat(T_INDENT);
 
-	concept_method_instance_t *last_method = NULL;
+	concept_function_instance_t *last_function = NULL;
 	while (token.type != T_DEDENT) {
 		if (token.type == T_EOF) {
 			parse_error("EOF while parsing concept instance");
@@ -2114,16 +2114,16 @@ static void parse_concept_instance(void)
 			continue;
 		}
 
-		concept_method_instance_t *method = parse_concept_method_instance();
-		if (method == NULL)
+		concept_function_instance_t *function = parse_concept_function_instance();
+		if (function == NULL)
 			continue;
 
-		if (last_method != NULL) {
-			last_method->next = method;
+		if (last_function != NULL) {
+			last_function->next = function;
 		} else {
-			instance->method_instances = method;
+			instance->function_instances = function;
 		}
-		last_method = method;
+		last_function = function;
 	}
 	eat(T_DEDENT);
 
@@ -2271,18 +2271,18 @@ void parse_declaration(void)
 
 static void register_declaration_parsers(void)
 {
-	register_declaration_parser(parse_method_declaration, T_func);
-	register_declaration_parser(parse_global_variable,    T_var);
-	register_declaration_parser(parse_constant,           T_const);
-	register_declaration_parser(parse_struct,             T_struct);
-	register_declaration_parser(parse_union,              T_union);
-	register_declaration_parser(parse_typealias,          T_typealias);
-	register_declaration_parser(parse_concept,            T_concept);
-	register_declaration_parser(parse_concept_instance,   T_instance);
-	register_declaration_parser(parse_export,             T_export);
-	register_declaration_parser(parse_import,             T_import);
-	register_declaration_parser(parse_module,             T_module);
-	register_declaration_parser(skip_declaration,         T_NEWLINE);
+	register_declaration_parser(parse_function_declaration, T_func);
+	register_declaration_parser(parse_global_variable,      T_var);
+	register_declaration_parser(parse_constant,             T_const);
+	register_declaration_parser(parse_struct,               T_struct);
+	register_declaration_parser(parse_union,                T_union);
+	register_declaration_parser(parse_typealias,            T_typealias);
+	register_declaration_parser(parse_concept,              T_concept);
+	register_declaration_parser(parse_concept_instance,     T_instance);
+	register_declaration_parser(parse_export,               T_export);
+	register_declaration_parser(parse_import,               T_import);
+	register_declaration_parser(parse_module,               T_module);
+	register_declaration_parser(skip_declaration,           T_NEWLINE);
 }
 
 static module_t *get_module(symbol_t *name)

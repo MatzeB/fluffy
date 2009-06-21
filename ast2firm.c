@@ -22,16 +22,16 @@ static label_declaration_t           *labels           = NULL;
  * be something else for things like coroutines */
 static ir_node                       *variable_context = NULL;
 
-typedef struct instantiate_method_t  instantiate_method_t;
+typedef struct instantiate_function_t  instantiate_function_t;
 
 static ir_type *byte_ir_type  = NULL;
 static ir_type *void_ptr_type = NULL;
 static type_t  *type_bool     = NULL;
 
-struct instantiate_method_t {
-	method_t             *method;
-	ir_entity            *entity;
-	type_argument_t      *type_arguments;
+struct instantiate_function_t {
+	function_t       *function;
+	ir_entity        *entity;
+	type_argument_t  *type_arguments;
 };
 
 typedef struct type2firm_env_t type2firm_env_t;
@@ -41,8 +41,8 @@ struct type2firm_env_t {
 };
 
 static struct obstack     obst;
-static strset_t           instantiated_methods;
-static pdeq              *instantiate_methods   = NULL;
+static strset_t           instantiated_functions;
+static pdeq              *instantiate_functions   = NULL;
 
 static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type);
 static ir_type *get_ir_type(type_t *type);
@@ -228,7 +228,7 @@ static unsigned get_type_size(type_t *type)
 	case TYPE_COMPOUND_STRUCT:
 		return get_compound_type_size((compound_type_t*) type);
 	case TYPE_FUNCTION:
-		/* just a pointer to the method */
+		/* just a pointer to the function */
 		return get_mode_size_bytes(mode_P_code);
 	case TYPE_POINTER:
 		return get_mode_size_bytes(mode_P_data);
@@ -593,42 +593,42 @@ ir_mode *get_ir_mode(type_t *type)
 	return mode;
 }
 
-static instantiate_method_t *queue_method_instantiation(method_t  *method,
-                                                 ir_entity *entity)
+static instantiate_function_t *queue_function_instantiation(
+		function_t *function, ir_entity *entity)
 {
-	instantiate_method_t *instantiate
+	instantiate_function_t *instantiate
 		= obstack_alloc(&obst, sizeof(instantiate[0]));
 	memset(instantiate, 0, sizeof(instantiate[0]));
 
-	instantiate->method = method;
-	instantiate->entity = entity;
-	pdeq_putr(instantiate_methods, instantiate);
+	instantiate->function = function;
+	instantiate->entity   = entity;
+	pdeq_putr(instantiate_functions, instantiate);
 
 	return instantiate;
 }
 
-static int is_polymorphic_method(const method_t *method)
+static int is_polymorphic_function(const function_t *function)
 {
-	return method->type_parameters != NULL;
+	return function->type_parameters != NULL;
 }
 
-static ir_entity* get_concept_method_instance_entity(
-		concept_method_instance_t *method_instance)
+static ir_entity* get_concept_function_instance_entity(
+		concept_function_instance_t *function_instance)
 {
-	method_t *method = & method_instance->method;
-	if (method->e.entity != NULL)
-		return method->e.entity;
+	function_t *function = & function_instance->function;
+	if (function->e.entity != NULL)
+		return function->e.entity;
 
-	function_type_t *function_type = method->type;
+	function_type_t *function_type = function->type;
 
-	concept_method_t *concept_method = method_instance->concept_method;
-	concept_t        *concept        = concept_method->concept;
+	concept_function_t *concept_function = function_instance->concept_function;
+	concept_t          *concept          = concept_function->concept;
 
 	start_mangle();
 	mangle_concept_name(concept->base.symbol);
-	mangle_symbol(concept_method->base.symbol);
+	mangle_symbol(concept_function->base.symbol);
 
-	concept_instance_t *instance = method_instance->concept_instance;
+	concept_instance_t *instance = function_instance->concept_instance;
 	type_argument_t    *argument = instance->type_arguments;
 	for ( ; argument != NULL; argument = argument->next) {
 		mangle_type(argument->type);
@@ -643,24 +643,24 @@ static ir_entity* get_concept_method_instance_entity(
 	set_entity_ld_ident(entity, id);
 	set_entity_visibility(entity, visibility_local);
 
-	method->e.entity = entity;
+	function->e.entity = entity;
 
 	return entity;
 }
 
-static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
+static ir_entity* get_function_entity(function_t *function, symbol_t *symbol)
 {
-	function_type_t *function_type  = method->type;
-	int              is_polymorphic = is_polymorphic_method(method);
+	function_type_t *function_type  = function->type;
+	int              is_polymorphic = is_polymorphic_function(function);
 
-	if (!is_polymorphic && method->e.entity != NULL) {
-		return method->e.entity;
+	if (!is_polymorphic && function->e.entity != NULL) {
+		return function->e.entity;
 	}
 
 	start_mangle();
 	mangle_symbol_simple(symbol);
 	if (is_polymorphic) {
-		type_variable_t *type_variable = method->type_parameters;
+		type_variable_t *type_variable = function->type_parameters;
 		for ( ; type_variable != NULL; type_variable = type_variable->next) {
 			mangle_type(type_variable->current_type);
 		}
@@ -668,10 +668,10 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 	ident *id = finish_mangle();
 
 	/* search for an existing entity */
-	if (is_polymorphic && method->e.entities != NULL) {
-		int len = ARR_LEN(method->e.entities);
+	if (is_polymorphic && function->e.entities != NULL) {
+		int len = ARR_LEN(function->e.entities);
 		for (int i = 0; i < len; ++i) {
-			ir_entity *entity = method->e.entities[i];
+			ir_entity *entity = function->e.entities[i];
 			if (get_entity_ident(entity) == id) {
 				return entity;
 			}
@@ -684,18 +684,18 @@ static ir_entity* get_method_entity(method_t *method, symbol_t *symbol)
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	if (method->is_extern) {
+	if (function->is_extern) {
 		set_entity_visibility(entity, visibility_external_allocated);
 	} else {
 		set_entity_visibility(entity, visibility_local);
 	}
 
 	if (!is_polymorphic) {
-		method->e.entity = entity;
+		function->e.entity = entity;
 	} else {
-		if (method->e.entities == NULL)
-			method->e.entities = NEW_ARR_F(ir_entity*, 0);
-		ARR_APP1(ir_entity*, method->e.entities, entity);
+		if (function->e.entities == NULL)
+			function->e.entities = NEW_ARR_F(ir_entity*, 0);
+		ARR_APP1(ir_entity*, function->e.entities, entity);
 	}
 	return entity;
 }
@@ -917,14 +917,14 @@ static ir_node *declaration_addr(declaration_t *declaration)
 
 	case DECLARATION_INVALID:
 	case DECLARATION_ERROR:
-	case DECLARATION_METHOD:
-	case DECLARATION_METHOD_PARAMETER:
+	case DECLARATION_FUNCTION:
+	case DECLARATION_FUNCTION_PARAMETER:
 	case DECLARATION_ITERATOR:
 	case DECLARATION_CONSTANT:
 	case DECLARATION_LABEL:
 	case DECLARATION_TYPEALIAS:
 	case DECLARATION_CONCEPT:
-	case DECLARATION_CONCEPT_METHOD:
+	case DECLARATION_CONCEPT_FUNCTION:
 	case DECLARATION_TYPE_VARIABLE:
 		panic("internal error: trying to create address nodes for non-lvalue");
 	}
@@ -1259,14 +1259,14 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 static ir_entity *assure_instance(declaration_t *declaration,
                                   type_argument_t *type_arguments)
 {
-	assert(declaration->kind == DECLARATION_METHOD);
-	method_t *method = &declaration->method.method;
+	assert(declaration->kind == DECLARATION_FUNCTION);
+	function_t *function = &declaration->function.function;
 	symbol_t *symbol = declaration->base.symbol;
 
 	int old_top        = typevar_binding_stack_top();
-	push_type_variable_bindings(method->type_parameters, type_arguments);
+	push_type_variable_bindings(function->type_parameters, type_arguments);
 
-	ir_entity  *entity = get_method_entity(method, symbol);
+	ir_entity  *entity = get_function_entity(function, symbol);
 	const char *name   = get_entity_name(entity);
 
 	if (declaration->base.exported 
@@ -1276,12 +1276,12 @@ static ir_entity *assure_instance(declaration_t *declaration,
 
 	pop_type_variable_bindings(old_top);
 
-	if (strset_find(&instantiated_methods, name) != NULL) {
+	if (strset_find(&instantiated_functions, name) != NULL) {
 		return entity;
 	}
 
-	instantiate_method_t *instantiate 
-		= queue_method_instantiation(method, entity);
+	instantiate_function_t *instantiate 
+		= queue_function_instantiation(function, entity);
 
 	type_argument_t *type_argument = type_arguments;
 	type_argument_t *last_argument = NULL;
@@ -1303,14 +1303,14 @@ static ir_entity *assure_instance(declaration_t *declaration,
 		type_argument = type_argument->next;
 	}
 
-	strset_insert(&instantiated_methods, name);
+	strset_insert(&instantiated_functions, name);
 
 	return entity;
 }
 
-static ir_node *method_reference_to_firm(declaration_t *declaration,
-                                         type_argument_t *type_arguments,
-                                         const source_position_t *source_position)
+static ir_node *function_reference_to_firm(declaration_t *declaration,
+                                           type_argument_t *type_arguments,
+                                           const source_position_t *source_position)
 {
 	dbg_info  *dbgi   = get_dbg_info(source_position);
 	ir_entity *entity = assure_instance(declaration, type_arguments);
@@ -1322,37 +1322,37 @@ static ir_node *method_reference_to_firm(declaration_t *declaration,
 	return symconst;
 }
 
-static ir_node *concept_method_reference_to_firm(concept_method_t *method,
+static ir_node *concept_function_reference_to_firm(concept_function_t *function,
                                        type_argument_t *type_arguments,
                                        const source_position_t *source_position)
 {
-	concept_t *concept = method->concept;
+	concept_t *concept = function->concept;
 
 	int old_top = typevar_binding_stack_top();
 	push_type_variable_bindings(concept->type_parameters, type_arguments);
 
 	concept_instance_t *instance = find_concept_instance(concept);
 	if (instance == NULL) {
-		fprintf(stderr, "while looking at method '%s' from '%s'\n",
-		        method->base.symbol->string,
+		fprintf(stderr, "while looking at function '%s' from '%s'\n",
+		        function->base.symbol->string,
 		        concept->base.symbol->string);
 		print_type(concept->type_parameters->current_type);
 		panic("no concept instance found in ast2firm phase");
 		return NULL;
 	}
 
-	concept_method_instance_t *method_instance 
-		= get_method_from_concept_instance(instance, method);
-	if (method_instance == NULL) {
-		fprintf(stderr, "panic: no method '%s' in instance of concept '%s'\n",
-		        method->base.symbol->string,
+	concept_function_instance_t *function_instance 
+		= get_function_from_concept_instance(instance, function);
+	if (function_instance == NULL) {
+		fprintf(stderr, "panic: no function '%s' in instance of concept '%s'\n",
+		        function->base.symbol->string,
 		        concept->base.symbol->string);
 		panic("panic");
 		return NULL;
 	}
 
 	dbg_info  *dbgi     = get_dbg_info(source_position);
-	ir_entity *entity   = get_concept_method_instance_entity(method_instance);
+	ir_entity *entity   = get_concept_function_instance_entity(function_instance);
 	ir_node   *symconst = new_d_SymConst(dbgi, mode_P,
 	                                     (union symconst_symbol) entity,
 	                                     symconst_addr_ent);
@@ -1361,7 +1361,7 @@ static ir_node *concept_method_reference_to_firm(concept_method_t *method,
 	return symconst;
 }
 
-static ir_node *method_parameter_reference_to_firm(method_parameter_t *parameter)
+static ir_node *function_parameter_reference_to_firm(function_parameter_t *parameter)
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
 	ir_mode *mode  = get_ir_mode(parameter->type);
@@ -1384,11 +1384,11 @@ static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 
 static ir_node *call_expression_to_firm(const call_expression_t *call)
 {
-	expression_t  *method = call->method;
-	ir_node       *callee = expression_to_firm(method);
+	expression_t  *function = call->function;
+	ir_node       *callee = expression_to_firm(function);
 
-	assert(method->base.type->kind == TYPE_POINTER);
-	pointer_type_t *pointer_type = (pointer_type_t*) method->base.type;
+	assert(function->base.type->kind == TYPE_POINTER);
+	pointer_type_t *pointer_type = (pointer_type_t*) function->base.type;
 	type_t         *points_to    = pointer_type->points_to;
 
 	assert(points_to->kind == TYPE_FUNCTION);
@@ -1461,14 +1461,14 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 
 static ir_node *func_expression_to_firm(func_expression_t *expression)
 {
-	method_t  *method = & expression->method;
-	ir_entity *entity = method->e.entity;
+	function_t *function = &expression->function;
+	ir_entity  *entity   = function->e.entity;
 
 	if (entity == NULL) {
 		symbol_t *symbol = unique_symbol("anonfunc");
-		entity           = get_method_entity(method, symbol);
+		entity           = get_function_entity(function, symbol);
 	}
-	queue_method_instantiation(method, entity);
+	queue_function_instantiation(function, entity);
 
 	ir_node *symconst = new_SymConst(mode_P, (union symconst_symbol) entity,
 	                                 symconst_addr_ent);
@@ -1480,24 +1480,24 @@ static ir_node *declaration_reference_to_firm(declaration_t *declaration,
                                        type_argument_t *type_arguments,
 									   const source_position_t *source_position)
 {
-	method_declaration_t *method_declaration;
+	function_declaration_t *function_declaration;
 
 	switch (declaration->kind) {
-	case DECLARATION_METHOD:
-		method_declaration = (method_declaration_t*) declaration;
-		return method_reference_to_firm(declaration, type_arguments,
-		                                source_position);
+	case DECLARATION_FUNCTION:
+		function_declaration = (function_declaration_t*) declaration;
+		return function_reference_to_firm(declaration, type_arguments,
+		                                  source_position);
 	case DECLARATION_ITERATOR:
 		// TODO
 		panic("TODO: iterator to firm");
 		break;
-	case DECLARATION_CONCEPT_METHOD:
-		return concept_method_reference_to_firm(
-				(concept_method_t*) declaration, type_arguments,
+	case DECLARATION_CONCEPT_FUNCTION:
+		return concept_function_reference_to_firm(
+				(concept_function_t*) declaration, type_arguments,
 		        source_position);
-	case DECLARATION_METHOD_PARAMETER:
-		return method_parameter_reference_to_firm(
-				(method_parameter_t*) declaration);
+	case DECLARATION_FUNCTION_PARAMETER:
+		return function_parameter_reference_to_firm(
+				(function_parameter_t*) declaration);
 	case DECLARATION_CONSTANT:
 		return constant_reference_to_firm((constant_t*) declaration);
 	case DECLARATION_VARIABLE:
@@ -1720,32 +1720,32 @@ static void statement_to_firm(statement_t *statement)
 	panic("Invalid statement kind found");
 }
 
-static void create_method(method_t *method, ir_entity *entity,
-                          type_argument_t *type_arguments)
+static void create_function(function_t *function, ir_entity *entity,
+                            type_argument_t *type_arguments)
 {
-	if (method->is_extern)
+	if (function->is_extern)
 		return;
 
 	int old_top = typevar_binding_stack_top();
-	if (is_polymorphic_method(method)) {
+	if (is_polymorphic_function(function)) {
 		assert(type_arguments != NULL);
-		push_type_variable_bindings(method->type_parameters, type_arguments);
+		push_type_variable_bindings(function->type_parameters, type_arguments);
 	}
 
-	ir_graph *irg     = new_ir_graph(entity, method->n_local_vars);
+	ir_graph *irg     = new_ir_graph(entity, function->n_local_vars);
 
 	assert(variable_context == NULL);
 	variable_context = get_irg_frame(irg);
 
 	assert(value_numbers == NULL);
-	value_numbers = xmalloc(method->n_local_vars * sizeof(value_numbers[0]));
+	value_numbers = xmalloc(function->n_local_vars * sizeof(value_numbers[0]));
 
-	context2firm(&method->context);
+	context2firm(&function->context);
 
 	ir_node *firstblock = get_cur_block();
 
-	if (method->statement)
-		statement_to_firm(method->statement);
+	if (function->statement)
+		statement_to_firm(function->statement);
 
 	/* no return statement seen yet? */
 	ir_node *end_block = get_irg_end_block(irg);
@@ -1807,15 +1807,16 @@ static void create_concept_instance(concept_instance_t *instance)
 	if (instance->type_parameters != NULL)
 		return;
 
-	concept_method_instance_t *method_instance = instance->method_instances;
-	for ( ; method_instance != NULL; method_instance = method_instance->next) {
+	concept_function_instance_t *function_instance = instance->function_instances;
+	for ( ; function_instance != NULL; function_instance = function_instance->next) {
 		/* we have to construct this instance lazily
 		   TODO: construct all instances lazily might be a good idea */
-		method_t *method = & method_instance->method;
-		/* make sure the method entity is set */
-		ir_entity *entity = get_concept_method_instance_entity(method_instance);
-		/* we can emit it like a normal method */
-		queue_method_instantiation(method, entity);
+		function_t *function = & function_instance->function;
+		/* make sure the function entity is set */
+		ir_entity *entity
+			= get_concept_function_instance_entity(function_instance);
+		/* we can emit it like a normal function */
+		queue_function_instantiation(function, entity);
 	}
 }
 
@@ -1825,8 +1826,8 @@ static void context2firm(const context_t *context)
 	declaration_t *declaration = context->declarations;
 	for ( ; declaration != NULL; declaration = declaration->base.next) {
 		switch (declaration->kind) {
-		case DECLARATION_METHOD:
-			if (!is_polymorphic_method(&declaration->method.method)) {
+		case DECLARATION_FUNCTION:
+			if (!is_polymorphic_function(&declaration->function.function)) {
 				assure_instance(declaration, NULL);
 			}
 
@@ -1839,8 +1840,8 @@ static void context2firm(const context_t *context)
 		case DECLARATION_CONCEPT:
 		case DECLARATION_CONSTANT:
 		case DECLARATION_LABEL:
-		case DECLARATION_METHOD_PARAMETER:
-		case DECLARATION_CONCEPT_METHOD:
+		case DECLARATION_FUNCTION_PARAMETER:
+		case DECLARATION_CONCEPT_FUNCTION:
 		case DECLARATION_TYPE_VARIABLE:
 			break;
 		case DECLARATION_INVALID:
@@ -1862,8 +1863,8 @@ static void context2firm(const context_t *context)
 void ast2firm(const module_t *modules)
 {
 	obstack_init(&obst);
-	strset_init(&instantiated_methods);
-	instantiate_methods = new_pdeq();
+	strset_init(&instantiated_functions);
+	instantiate_functions = new_pdeq();
 
 	init_ir_types();
 
@@ -1876,21 +1877,21 @@ void ast2firm(const module_t *modules)
 	}
 
 	/* work generic code instantiation queue */
-	while (!pdeq_empty(instantiate_methods)) {
-		instantiate_method_t *instantiate_method 
-			= pdeq_getl(instantiate_methods);
+	while (!pdeq_empty(instantiate_functions)) {
+		instantiate_function_t *instantiate_function 
+			= pdeq_getl(instantiate_functions);
 
 		assert(typevar_binding_stack_top() == 0);
 
-		create_method(instantiate_method->method,
-		              instantiate_method->entity,
-		              instantiate_method->type_arguments);
+		create_function(instantiate_function->function,
+		                instantiate_function->entity,
+		                instantiate_function->type_arguments);
 	}
 
 	assert(typevar_binding_stack_top() == 0);
 
-	del_pdeq(instantiate_methods);
+	del_pdeq(instantiate_functions);
 	obstack_free(&obst, NULL);
-	strset_destroy(&instantiated_methods);
+	strset_destroy(&instantiated_functions);
 }
 

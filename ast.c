@@ -44,7 +44,7 @@ static void print_string_const(const string_const_t *string_const)
 
 static void print_call_expression(const call_expression_t *call)
 {
-	print_expression(call->method);
+	print_expression(call->function);
 	fprintf(out, "(");
 	call_argument_t *argument = call->arguments;
 	int              first    = 1;
@@ -403,13 +403,13 @@ static void print_type_parameters(const type_variable_t *type_parameters)
 		fprintf(out, ">");
 }
 
-static void print_method_parameters(const method_parameter_t *parameters,
-                                    const function_type_t    *function_type)
+static void print_function_parameters(const function_parameter_t *parameters,
+                                      const function_type_t    *function_type)
 {
 	fprintf(out, "(");
 
-	int                            first          = 1;
-	const method_parameter_t      *parameter      = parameters;
+	int                              first          = 1;
+	const function_parameter_t      *parameter      = parameters;
 	const function_parameter_type_t *parameter_type 
 		= function_type->parameter_types;
 	while (parameter != NULL && parameter_type != NULL) {
@@ -430,41 +430,41 @@ static void print_method_parameters(const method_parameter_t *parameters,
 	fprintf(out, ")");
 }
 
-static void print_method(const method_declaration_t *method_declaration)
+static void print_function(const function_declaration_t *function_declaration)
 {
-	const method_t  *method = &method_declaration->method;
-	function_type_t *type   = method->type;
+	const function_t *function = &function_declaration->function;
+	function_type_t  *type     = function->type;
 
 	fprintf(out, "func ");
 
-	if (method->is_extern) {
+	if (function->is_extern) {
 		fprintf(out, "extern ");
 	}
 
-	fprintf(out, " %s", method_declaration->base.symbol->string);
+	fprintf(out, " %s", function_declaration->base.symbol->string);
 
-	print_type_parameters(method->type_parameters);
+	print_type_parameters(function->type_parameters);
 
-	print_method_parameters(method->parameters, type);
+	print_function_parameters(function->parameters, type);
 
 	fprintf(out, " : ");
 	print_type(type->result_type);
 
-	if (method->statement != NULL) {
+	if (function->statement != NULL) {
 		fprintf(out, ":\n");
-		print_statement(method->statement);
+		print_statement(function->statement);
 	} else {
 		fprintf(out, "\n");
 	}
 }
 
-static void print_concept_method(const concept_method_t *method)
+static void print_concept_function(const concept_function_t *function)
 {
 	fprintf(out, "\tfunc ");
-	fprintf(out, "%s", method->base.symbol->string);
-	print_method_parameters(method->parameters, method->type);
+	fprintf(out, "%s", function->base.symbol->string);
+	print_function_parameters(function->parameters, function->type);
 	fprintf(out, " : ");
-	print_type(method->type->result_type);
+	print_type(function->type->result_type);
 	fprintf(out, "\n\n");
 }
 
@@ -474,35 +474,35 @@ static void print_concept(const concept_t *concept)
 	print_type_parameters(concept->type_parameters);
 	fprintf(out, ":\n");
 
-	concept_method_t *method = concept->methods;
-	while (method != NULL) {
-		print_concept_method(method);
+	concept_function_t *function = concept->functions;
+	while (function != NULL) {
+		print_concept_function(function);
 
-		method = method->next;
+		function = function->next;
 	}
 }
 
-static void print_concept_method_instance(
-                                   concept_method_instance_t *method_instance)
+static void print_concept_function_instance(
+		concept_function_instance_t *function_instance)
 {
 	fprintf(out, "\tfunc ");
 
-	const method_t *method = &method_instance->method;
-	if (method_instance->concept_method != NULL) {
-		concept_method_t *method = method_instance->concept_method;
-		fprintf(out, "%s", method->base.symbol->string);
+	const function_t *function = &function_instance->function;
+	if (function_instance->concept_function != NULL) {
+		concept_function_t *function = function_instance->concept_function;
+		fprintf(out, "%s", function->base.symbol->string);
 	} else {
-		fprintf(out, "?%s", method_instance->symbol->string);
+		fprintf(out, "?%s", function_instance->symbol->string);
 	}
 
-	print_method_parameters(method->parameters, method->type);
+	print_function_parameters(function->parameters, function->type);
 
 	fprintf(out, " : ");
-	print_type(method_instance->method.type->result_type);
+	print_type(function_instance->function.type->result_type);
 
-	if (method->statement != NULL) {
+	if (function->statement != NULL) {
 		fprintf(out, ":\n");
-		print_statement(method->statement);
+		print_statement(function->statement);
 	} else {
 		fprintf(out, "\n");
 	}
@@ -519,11 +519,12 @@ static void print_concept_instance(const concept_instance_t *instance)
 	print_type_arguments(instance->type_arguments);
 	fprintf(out, ":\n");
 
-	concept_method_instance_t *method_instance = instance->method_instances;
-	while (method_instance != NULL) {
-		print_concept_method_instance(method_instance);
+	concept_function_instance_t *function_instance
+		= instance->function_instances;
+	while (function_instance != NULL) {
+		print_concept_function_instance(function_instance);
 
-		method_instance = method_instance->next;
+		function_instance = function_instance->next;
 	}
 }
 
@@ -553,8 +554,8 @@ static void print_declaration(const declaration_t *declaration)
 	print_indent();
 
 	switch (declaration->kind) {
-	case DECLARATION_METHOD:
-		print_method((const method_declaration_t*) declaration);
+	case DECLARATION_FUNCTION:
+		print_function(&declaration->function);
 		break;
 	case DECLARATION_CONCEPT:
 		print_concept((const concept_t*) declaration);
@@ -569,8 +570,8 @@ static void print_declaration(const declaration_t *declaration)
 		print_constant((const constant_t*) declaration);
 		break;
 	case DECLARATION_ITERATOR:
-	case DECLARATION_CONCEPT_METHOD:
-	case DECLARATION_METHOD_PARAMETER:
+	case DECLARATION_CONCEPT_FUNCTION:
+	case DECLARATION_FUNCTION_PARAMETER:
 	case DECLARATION_ERROR:
 		// TODO
 		fprintf(out, "some declaration of type '%s'\n",
@@ -615,18 +616,18 @@ void print_ast(FILE *new_out, const context_t *context)
 const char *get_declaration_kind_name(declaration_kind_t type)
 {
 	switch (type) {
-	case DECLARATION_ERROR:            return "parse error";
-	case DECLARATION_INVALID:          return "invalid reference";
-	case DECLARATION_VARIABLE:         return "variable";
-	case DECLARATION_CONSTANT:         return "constant";
-	case DECLARATION_METHOD_PARAMETER: return "method parameter";
-	case DECLARATION_METHOD:           return "method";
-	case DECLARATION_ITERATOR:         return "iterator";
-	case DECLARATION_CONCEPT:          return "concept";
-	case DECLARATION_TYPEALIAS:        return "type alias";
-	case DECLARATION_TYPE_VARIABLE:    return "type variable";
-	case DECLARATION_LABEL:            return "label";
-	case DECLARATION_CONCEPT_METHOD:   return "concept method";
+	case DECLARATION_ERROR:              return "parse error";
+	case DECLARATION_INVALID:            return "invalid reference";
+	case DECLARATION_VARIABLE:           return "variable";
+	case DECLARATION_CONSTANT:           return "constant";
+	case DECLARATION_FUNCTION_PARAMETER: return "function parameter";
+	case DECLARATION_FUNCTION:           return "function";
+	case DECLARATION_ITERATOR:           return "iterator";
+	case DECLARATION_CONCEPT:            return "concept";
+	case DECLARATION_TYPEALIAS:          return "type alias";
+	case DECLARATION_TYPE_VARIABLE:      return "type variable";
+	case DECLARATION_LABEL:              return "label";
+	case DECLARATION_CONCEPT_FUNCTION:   return "concept function";
 	}
 	panic("invalid environment entry found");
 }

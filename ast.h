@@ -42,18 +42,18 @@ typedef struct label_statement_t        label_statement_t;
 
 typedef struct module_t                 module_t;
 
-typedef struct method_parameter_t       method_parameter_t;
-typedef struct method_t                 method_t;
-typedef struct method_declaration_t     method_declaration_t;
+typedef struct function_parameter_t     function_parameter_t;
+typedef struct function_t               function_t;
+typedef struct function_declaration_t   function_declaration_t;
 typedef struct iterator_declaration_t   iterator_declaration_t;
 typedef struct constant_t               constant_t;
 typedef struct global_variable_t        global_variable_t;
 typedef struct typealias_t              typealias_t;
 typedef struct concept_instance_t       concept_instance_t;
-typedef struct concept_method_instance_t
-                                        concept_method_instance_t;
+typedef struct concept_function_instance_t
+                                        concept_function_instance_t;
 typedef struct concept_t                concept_t;
-typedef struct concept_method_t         concept_method_t;
+typedef struct concept_function_t       concept_function_t;
 
 void  init_ast_module(void);
 void  exit_ast_module(void);

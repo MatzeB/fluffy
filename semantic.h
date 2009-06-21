@@ -9,8 +9,8 @@ bool check_semantic(void);
 
 concept_instance_t *find_concept_instance(concept_t *concept);
 
-concept_method_instance_t *get_method_from_concept_instance(
-		concept_instance_t *instance, concept_method_t *method);
+concept_function_instance_t *get_function_from_concept_instance(
+		concept_instance_t *instance, concept_function_t *function);
 
 void init_semantic_module(void);
 void exit_semantic_module(void);

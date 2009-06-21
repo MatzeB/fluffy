@@ -41,15 +41,15 @@ static type_t *type_void_ptr = NULL;
 static type_t *error_type    = NULL;
 
 
-static method_t *current_method            = NULL;
-bool             last_statement_was_return = false;
+static function_t *current_function          = NULL;
+bool               last_statement_was_return = false;
 
 static void check_and_push_context(context_t *context);
 
-static void check_method(method_t *method, symbol_t *symbol,
-                         const source_position_t source_position);
+static void check_function(function_t *function, symbol_t *symbol,
+                           const source_position_t source_position);
 
-static void resolve_function_types(method_t *method);
+static void resolve_function_types(function_t *function);
 
 void print_error_prefix(const source_position_t position)
 {
@@ -134,9 +134,9 @@ void environment_pop_to(size_t new_top)
 
 		if (declaration->base.refs == 0 && !declaration->base.exported) {
 			switch (declaration->kind) {
-			/* only warn for methods/variables at the moment, we don't
+			/* only warn for functions/variables at the moment, we don't
 			   count refs on types yet */
-			case DECLARATION_METHOD:
+			case DECLARATION_FUNCTION:
 			case DECLARATION_VARIABLE:
 				print_warning_prefix(declaration->base.source_position);
 				fprintf(stderr, "%s '%s' was declared but never read\n",
@@ -403,10 +403,10 @@ static type_t *check_reference(declaration_t *declaration,
                                const source_position_t source_position)
 {
 	variable_declaration_t *variable;
-	method_declaration_t   *method;
-	method_parameter_t     *method_parameter;
+	function_declaration_t *function;
+	function_parameter_t   *function_parameter;
 	constant_t             *constant;
-	concept_method_t       *concept_method;
+	concept_function_t     *concept_function;
 	type_t                 *type;
 
 	declaration->base.refs++;
@@ -425,9 +425,9 @@ static type_t *check_reference(declaration_t *declaration,
 			variable->needs_entity   = 1;
 		}
 		return type;
-	case DECLARATION_METHOD:
-		method = (method_declaration_t*) declaration;
-		return make_pointer_type((type_t*) method->method.type);
+	case DECLARATION_FUNCTION:
+		function = (function_declaration_t*) declaration;
+		return make_pointer_type((type_t*) function->function.type);
 	case DECLARATION_CONSTANT:
 		constant = (constant_t*) declaration;
 		/* do type inference for the constant if needed */
@@ -436,13 +436,13 @@ static type_t *check_reference(declaration_t *declaration,
 			constant->type       = constant->expression->base.type;
 		}
 		return constant->type;
-	case DECLARATION_METHOD_PARAMETER:
-		method_parameter = (method_parameter_t*) declaration;
-		assert(method_parameter->type != NULL);
-		return method_parameter->type;
-	case DECLARATION_CONCEPT_METHOD:
-		concept_method = (concept_method_t*) declaration;
-		return make_pointer_type((type_t*) concept_method->type);
+	case DECLARATION_FUNCTION_PARAMETER:
+		function_parameter = (function_parameter_t*) declaration;
+		assert(function_parameter->type != NULL);
+		return function_parameter->type;
+	case DECLARATION_CONCEPT_FUNCTION:
+		concept_function = (concept_function_t*) declaration;
+		return make_pointer_type((type_t*) concept_function->type);
 	case DECLARATION_ITERATOR:
 		panic("TODO iterator reference");
 		break;
@@ -566,7 +566,7 @@ static expression_t *make_cast(expression_t *from,
 
 	/* TODO: - test which types can be implicitely casted... 
 	 *       - improve error reporting (want to know the context of the cast)
-	 *          ("can't implicitely cast for argument 2 of method call...")
+	 *          ("can't implicitely cast for argument 2 of function call...")
 	 */
 	dest_type = skip_typeref(dest_type);
 
@@ -933,32 +933,33 @@ static bool type_variable_has_constraint(const type_variable_t *type_variable,
 	return false;
 }
 
-concept_method_instance_t *get_method_from_concept_instance(
-		concept_instance_t *instance, concept_method_t *method)
+concept_function_instance_t *get_function_from_concept_instance(
+		concept_instance_t *instance, concept_function_t *function)
 {
-	concept_method_instance_t *method_instance = instance->method_instances;
-	while (method_instance != NULL) {
-		if (method_instance->concept_method == method) {
-			return method_instance;
+	concept_function_instance_t *function_instance
+		= instance->function_instances;
+	while (function_instance != NULL) {
+		if (function_instance->concept_function == function) {
+			return function_instance;
 		}
 
-		method_instance = method_instance->next;
+		function_instance = function_instance->next;
 	}
 
 	return NULL;
 }
 
-static void resolve_concept_method_instance(reference_expression_t *reference)
+static void resolve_concept_function_instance(reference_expression_t *reference)
 {
 	declaration_t *declaration = reference->declaration;
-	assert(declaration->kind == DECLARATION_CONCEPT_METHOD);
+	assert(declaration->kind == DECLARATION_CONCEPT_FUNCTION);
 
-	concept_method_t *concept_method = (concept_method_t*) declaration;
-	concept_t        *concept        = concept_method->concept;
+	concept_function_t *concept_function = (concept_function_t*) declaration;
+	concept_t          *concept        = concept_function->concept;
 
 	/* test whether 1 of the type variables points to another type variable.
-	 * this can happen when concept methods are invoked inside polymorphic
-	 * methods. We can't resolve the method right now, but we have to check
+	 * this can happen when concept functions are invoked inside polymorphic
+	 * functions. We can't resolve the function right now, but we have to check
 	 * the constraints of the type variable */
 	bool cant_resolve = false;
 	type_variable_t *type_var = concept->type_parameters;
@@ -974,10 +975,10 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 			if (!type_variable_has_constraint(type_variable, concept)) {
 				print_error_prefix(reference->base.source_position);
 				fprintf(stderr, "type variable '%s' needs a constraint for "
-				        "concept '%s' when using method '%s'.\n",
+				        "concept '%s' when using function '%s'.\n",
 				        type_variable->base.symbol->string,
 				        concept->base.symbol->string,
-				        concept_method->base.symbol->string);
+				        concept_function->base.symbol->string);
 				return;
 			}
 			cant_resolve = true;
@@ -1010,20 +1011,20 @@ static void resolve_concept_method_instance(reference_expression_t *reference)
 	}
 
 #if 0
-	concept_method_instance_t *method_instance 
-		= get_method_from_concept_instance(instance, concept_method);
-	if (method_instance == NULL) {
+	concept_function_instance_t *function_instance 
+		= get_function_from_concept_instance(instance, concept_function);
+	if (function_instance == NULL) {
 		print_error_prefix(reference->base.source_position);
-		fprintf(stderr, "no instance of method '%s' found in concept "
-		        "instance?\n", concept_method->declaration.symbol->string);
+		fprintf(stderr, "no instance of function '%s' found in concept "
+		        "instance?\n", concept_function->declaration.symbol->string);
 		panic("panic");
 	}
 
-	type_t *type         = (type_t*) method_instance->method.type;
+	type_t *type         = (type_t*) function_instance->function.type;
 	type_t *pointer_type = make_pointer_type(type);
 
 	reference->base.type   = pointer_type;
-	reference->declaration = (declaration_t*) &method_instance->method;
+	reference->declaration = (declaration_t*) &function_instance->function;
 #endif
 }
 
@@ -1063,7 +1064,7 @@ static void check_type_constraints(type_variable_t *type_variables,
 			if (instance == NULL) {
 				print_error_prefix(source_position);
 				fprintf(stderr, "concrete type for type variable '%s' of "
-				        "method doesn't match type constraints:\n",
+				        "function doesn't match type constraints:\n",
 				        type_var->base.symbol->string);
 				print_error_prefix(source_position);
 				fprintf(stderr, "type ");
@@ -1165,16 +1166,16 @@ static type_t *get_default_param_type(type_t *type,
 
 static void check_call_expression(call_expression_t *call)
 {
-	call->method                    = check_expression(call->method);
-	expression_t    *method         = call->method;
-	type_t          *type           = method->base.type;
+	call->function                  = check_expression(call->function);
+	expression_t    *function       = call->function;
+	type_t          *type           = function->base.type;
 	type_argument_t *type_arguments = NULL;
 
 	/* can happen if we had a deeper semantic error */
 	if (type == NULL)
 		return;
 
-	/* determine method type */
+	/* determine function type */
 	if (type->kind != TYPE_POINTER) {
 		print_error_prefix(call->base.source_position);
 		fprintf(stderr, "trying to call non-pointer type ");
@@ -1187,7 +1188,7 @@ static void check_call_expression(call_expression_t *call)
 	type = pointer_type->points_to;
 	if (type->kind != TYPE_FUNCTION) {
 		print_error_prefix(call->base.source_position);
-		fprintf(stderr, "trying to call a non-method value of type");
+		fprintf(stderr, "trying to call a non-function value of type");
 		print_type(type);
 		fprintf(stderr, "\n");
 		return;
@@ -1196,22 +1197,23 @@ static void check_call_expression(call_expression_t *call)
 
 	/* match parameter types against type variables */
 	type_variable_t *type_variables = NULL;
-	if (method->kind == EXPR_REFERENCE) {
+	if (function->kind == EXPR_REFERENCE) {
 		reference_expression_t *reference
-			= (reference_expression_t*) method;
+			= (reference_expression_t*) function;
 		declaration_t *declaration = reference->declaration;
 
-		if (declaration->kind == DECLARATION_CONCEPT_METHOD) {
-			concept_method_t *concept_method = (concept_method_t*) declaration;
-			concept_t        *concept        = concept_method->concept;
+		if (declaration->kind == DECLARATION_CONCEPT_FUNCTION) {
+			concept_function_t *concept_function
+				= (concept_function_t*) declaration;
+			concept_t *concept = concept_function->concept;
 		
 			type_variables = concept->type_parameters;
 			type_arguments = reference->type_arguments;
-		} else if (declaration->kind == DECLARATION_METHOD) {
-			method_declaration_t *method_declaration
-				= (method_declaration_t*) declaration;
+		} else if (declaration->kind == DECLARATION_FUNCTION) {
+			function_declaration_t *function_declaration
+				= (function_declaration_t*) declaration;
 
-			type_variables = method_declaration->method.type_parameters;
+			type_variables = function_declaration->function.type_parameters;
 			type_arguments = reference->type_arguments;
 		}
 	}
@@ -1238,8 +1240,8 @@ static void check_call_expression(call_expression_t *call)
 		}
 
 		if (type_argument != NULL || type_var != NULL) {
-			error_at(method->base.source_position,
-			         "wrong number of type arguments on method reference");
+			error_at(function->base.source_position,
+			         "wrong number of type arguments on function reference");
 		}
 	}
 
@@ -1251,7 +1253,7 @@ static void check_call_expression(call_expression_t *call)
 	while (argument != NULL) {
 		if (param_type == NULL && !function_type->variable_arguments) {
 			error_at(call->base.source_position,
-			         "too much arguments for method call\n");
+			         "too much arguments for function call\n");
 			break;
 		}
 
@@ -1300,7 +1302,7 @@ static void check_call_expression(call_expression_t *call)
 	}
 	if (param_type != NULL) {
 		error_at(call->base.source_position,
-		         "too few arguments for method call\n");
+		         "too few arguments for function call\n");
 	}
 
 	/* test whether we could determine the concrete types for all type
@@ -1326,28 +1328,29 @@ static void check_call_expression(call_expression_t *call)
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = function_type->result_type;
 	if (type_variables != NULL) {
-		reference_expression_t *ref = (reference_expression_t*) method;
+		reference_expression_t *ref = (reference_expression_t*) function;
 		declaration_t          *declaration = ref->declaration;
 		type_variable_t        *type_parameters;
 
 		result_type = create_concrete_type(result_type);
 
-		if (declaration->kind == DECLARATION_CONCEPT_METHOD) {
-			/* we might be able to resolve the concept_method_instance now */
-			resolve_concept_method_instance(ref);
+		if (declaration->kind == DECLARATION_CONCEPT_FUNCTION) {
+			/* we might be able to resolve the concept_function_instance now */
+			resolve_concept_function_instance(ref);
 
-			concept_method_t *concept_method = (concept_method_t*) declaration;
-			concept_t        *concept        = concept_method->concept;
-			type_parameters                  = concept->type_parameters;
+			concept_function_t *concept_function
+				= (concept_function_t*) declaration;
+			concept_t        *concept = concept_function->concept;
+			type_parameters           = concept->type_parameters;
 		} else {
 			/* check type constraints */
-			assert(declaration->kind == DECLARATION_METHOD);
+			assert(declaration->kind == DECLARATION_FUNCTION);
 			check_type_constraints(type_variables,
 			                       call->base.source_position);
 
-			method_declaration_t *method_declaration
-				= (method_declaration_t*) declaration;
-			type_parameters = method_declaration->method.type_parameters;
+			function_declaration_t *function_declaration
+				= (function_declaration_t*) declaration;
+			type_parameters = function_declaration->function.type_parameters;
 		}
 
 		/* set type arguments on the reference expression */
@@ -1779,11 +1782,11 @@ static void check_sizeof_expression(sizeof_expression_t *expression)
 
 static void check_func_expression(func_expression_t *expression)
 {
-	method_t *method = & expression->method;
-	resolve_function_types(method);
-	check_method(method, NULL, expression->base.source_position);
+	function_t *function = & expression->function;
+	resolve_function_types(function);
+	check_function(function, NULL, expression->base.source_position);
 
-	expression->base.type = make_pointer_type((type_t*) method->type);
+	expression->base.type = make_pointer_type((type_t*) function->type);
 }
 
 WARN_UNUSED
@@ -1858,33 +1861,33 @@ expression_t *check_expression(expression_t *expression)
 
 static void check_return_statement(return_statement_t *statement)
 {
-	method_t     *method             = current_method;
-	type_t       *method_result_type = method->type->result_type;
+	function_t *function             = current_function;
+	type_t     *function_result_type = function->type->result_type;
 	statement->value                 = check_expression(statement->value);
 	expression_t *return_value       = statement->value;
 
 	last_statement_was_return = true;
 
 	if (return_value != NULL) {
-		if (method_result_type == type_void
+		if (function_result_type == type_void
 				&& return_value->base.type != type_void) {
 			error_at(statement->base.source_position,
-			         "return with value in void method\n");
+			         "return with value in void function\n");
 			return;
 		}
 
 		/* do we need a cast ?*/
-		if (return_value->base.type != method_result_type) {
+		if (return_value->base.type != function_result_type) {
 			return_value
-				= make_cast(return_value, method_result_type,
+				= make_cast(return_value, function_result_type,
 				            statement->base.source_position, false);
 
 			statement->value = return_value;
 		}
 	} else {
-		if (method_result_type != type_void) {
+		if (function_result_type != type_void) {
 			error_at(statement->base.source_position,
-			         "missing return value in non-void method\n");
+			         "missing return value in non-void function\n");
 			return;
 		}
 	}
@@ -1949,11 +1952,11 @@ static void check_block_statement(block_statement_t *block)
 
 static void check_variable_declaration(declaration_statement_t *statement)
 {
-	method_t *method = current_method;
-	assert(method != NULL);
+	function_t *function = current_function;
+	assert(function != NULL);
 
-	statement->declaration.value_number = method->n_local_vars;
-	method->n_local_vars++;
+	statement->declaration.value_number = function->n_local_vars;
+	function->n_local_vars++;
 
 	/* TODO: try to catch cases where a variable is used before it is defined
 	 * (Note: Adding the variable just here to the environment is not a good
@@ -2089,20 +2092,20 @@ statement_t *check_statement(statement_t *statement)
 	return statement;
 }
 
-static void check_method(method_t *method, symbol_t *symbol,
-                         const source_position_t source_position)
+static void check_function(function_t *function, symbol_t *symbol,
+                           const source_position_t source_position)
 {
-	if (method->is_extern)
+	if (function->is_extern)
 		return;
 
 	int old_top = environment_top();
-	push_context(&method->context);
+	push_context(&function->context);
 
-	method_t *last_method = current_method;
-	current_method        = method;
+	function_t *last_function = current_function;
+	current_function          = function;
 
-	/* set method parameter numbers */
-	method_parameter_t *parameter = method->parameters;
+	/* set function parameter numbers */
+	function_parameter_t *parameter = function->parameters;
 	int n = 0;
 	while (parameter != NULL) {
 		parameter->num = n;
@@ -2112,12 +2115,12 @@ static void check_method(method_t *method, symbol_t *symbol,
 
 	bool last_last_statement_was_return = last_statement_was_return;
 	last_statement_was_return = false;
-	if (method->statement != NULL) {
-		method->statement = check_statement(method->statement);
+	if (function->statement != NULL) {
+		function->statement = check_statement(function->statement);
 	}
 
 	if (!last_statement_was_return) {
-		type_t *result_type = method->type->result_type;
+		type_t *result_type = function->type->result_type;
 		if (result_type != type_void) {
 			/* TODO: report end-position of block-statement? */
 			print_error_prefix(source_position);
@@ -2132,7 +2135,7 @@ static void check_method(method_t *method, symbol_t *symbol,
 		}
 	}
 
-	current_method            = last_method;
+	current_function          = last_function;
 	last_statement_was_return = last_last_statement_was_return;
 
 	environment_pop_to(old_top);
@@ -2190,35 +2193,36 @@ static void resolve_type_variable_constraints(type_variable_t *type_variables)
 	}
 }
 
-static void resolve_function_types(method_t *method)
+static void resolve_function_types(function_t *function)
 {
 	int old_top = environment_top();
 
 	/* push type variables */
-	push_context(&method->context);
-	resolve_type_variable_constraints(method->type_parameters);
+	push_context(&function->context);
+	resolve_type_variable_constraints(function->type_parameters);
 
 	/* normalize parameter types */
-	method_parameter_t *parameter = method->parameters;
+	function_parameter_t *parameter = function->parameters;
 	for ( ; parameter != NULL; parameter = parameter->next) {
 		parameter->type = normalize_type(parameter->type);
 	}
 
-	method->type = (function_type_t*) normalize_type((type_t*) method->type);
+	function->type = (function_type_t*) normalize_type((type_t*)function->type);
 
 	environment_pop_to(old_top);
 }
 
 static void check_concept_instance(concept_instance_t *instance)
 {
-	concept_method_instance_t *method_instance = instance->method_instances;
-	while (method_instance != NULL) {
-		method_t *method = &method_instance->method;
-		resolve_function_types(method);
-		check_method(method, method_instance->symbol,
-		             method_instance->source_position);
+	concept_function_instance_t *function_instance 
+		= instance->function_instances;
+	while (function_instance != NULL) {
+		function_t *function = &function_instance->function;
+		resolve_function_types(function);
+		check_function(function, function_instance->symbol,
+		               function_instance->source_position);
 
-		method_instance = method_instance->next;
+		function_instance = function_instance->next;
 	}
 }
 
@@ -2236,13 +2240,13 @@ static void resolve_concept_types(concept_t *concept)
 	}
 	resolve_type_variable_constraints(concept->type_parameters);
 
-	/* normalize method types */
-	concept_method_t *concept_method = concept->methods;
-	for ( ; concept_method != NULL; concept_method = concept_method->next) {
+	/* normalize function types */
+	concept_function_t *concept_function = concept->functions;
+	for (; concept_function!=NULL; concept_function = concept_function->next) {
 		type_t *normalized_type 
-			= normalize_type((type_t*) concept_method->type);
+			= normalize_type((type_t*) concept_function->type);
 		assert(normalized_type->kind == TYPE_FUNCTION);
-		concept_method->type = (function_type_t*) normalized_type;
+		concept_function->type = (function_type_t*) normalized_type;
 	}
 
 	environment_pop_to(old_top);
@@ -2290,64 +2294,66 @@ static void resolve_concept_instance(concept_instance_t *instance)
 		type_argument = type_argument->next;
 	}
 
-	/* link methods and normalize their types */
-	size_t n_concept_methods = 0;
-	concept_method_t *method;
-	for (method = concept->methods; method != NULL; method = method->next) {
-		++n_concept_methods;
+	/* link functions and normalize their types */
+	size_t n_concept_functions = 0;
+	concept_function_t *function = concept->functions;
+	for ( ; function != NULL; function = function->next) {
+		++n_concept_functions;
 	}
-	bool have_method[n_concept_methods];
-	memset(&have_method, 0, sizeof(have_method));
+	bool have_function[n_concept_functions];
+	memset(&have_function, 0, sizeof(have_function));
 
-	concept_method_instance_t *method_instance;
-	for (method_instance = instance->method_instances; method_instance != NULL;
-			method_instance = method_instance->next) {
+	concept_function_instance_t *function_instance
+		= instance->function_instances;
+	for (; function_instance != NULL; 
+			function_instance = function_instance->next) {
 
-		/* find corresponding concept method */
+		/* find corresponding concept function */
 		int n = 0;
-		for (method = concept->methods; method != NULL;
-				method = method->next, ++n) {
-			if (method->base.symbol == method_instance->symbol)
+		for (function = concept->functions; function != NULL;
+		     function = function->next, ++n) {
+			if (function->base.symbol == function_instance->symbol)
 				break;
 		}
 
-		if (method == NULL) {
-			print_warning_prefix(method_instance->source_position);
-			fprintf(stderr, "concept '%s' does not declare a method '%s'\n",
+		if (function == NULL) {
+			print_warning_prefix(function_instance->source_position);
+			fprintf(stderr, "concept '%s' does not declare a function '%s'\n",
 			        concept->base.symbol->string,
-					method->base.symbol->string);
+					function->base.symbol->string);
 		} else {
-			method_instance->concept_method   = method;
-			method_instance->concept_instance = instance;
-			if (have_method[n]) {
-				print_error_prefix(method_instance->source_position);
-				fprintf(stderr, "multiple implementations of method '%s' found "
-						"in instance of concept '%s'\n",
-						method->base.symbol->string,
+			function_instance->concept_function = function;
+			function_instance->concept_instance = instance;
+			if (have_function[n]) {
+				print_error_prefix(function_instance->source_position);
+				fprintf(stderr,
+				        "multiple implementations of function '%s' found in instance of concept '%s'\n",
+						function->base.symbol->string,
 						concept->base.symbol->string);
 			}
-			have_method[n] = true;
+			have_function[n] = true;
 		}
-		method_t *imethod = & method_instance->method;
+		function_t *ifunction = & function_instance->function;
 
-		if (imethod->type_parameters != NULL) {
-			print_error_prefix(method_instance->source_position);
-			fprintf(stderr, "instance method '%s' must not have type parameters\n",
-					method_instance->symbol->string);
+		if (ifunction->type_parameters != NULL) {
+			print_error_prefix(function_instance->source_position);
+			fprintf(stderr,
+			        "instance function '%s' must not have type parameters\n",
+					function_instance->symbol->string);
 		}
 		
-		imethod->type 
-			= (function_type_t*) normalize_type((type_t*) imethod->type);
+		ifunction->type 
+			= (function_type_t*) normalize_type((type_t*) ifunction->type);
 	}
 
 	size_t n = 0;
-	for (method = concept->methods; method != NULL;
-			method = method->next, ++n) {
-		if (!have_method[n]) {
+	for (function = concept->functions; function != NULL;
+	     function = function->next, ++n) {
+		if (!have_function[n]) {
 			print_error_prefix(instance->source_position);
 			fprintf(stderr, "instance of concept '%s' does not implement "
-					"method '%s'\n", concept->base.symbol->string,
-			        method->base.symbol->string);
+					"function '%s'\n", concept->base.symbol->string,
+			        function->base.symbol->string);
 		}
 	}
 
@@ -2381,8 +2387,8 @@ static void check_and_push_context(context_t *context)
 			declaration->variable.type 
 				= normalize_type(declaration->variable.type);
 			break;
-		case DECLARATION_METHOD:
-			resolve_function_types(&declaration->method.method);
+		case DECLARATION_FUNCTION:
+			resolve_function_types(&declaration->function.function);
 			break;
 		case DECLARATION_TYPEALIAS: {
 			type_t *type = normalize_type(declaration->typealias.type);
@@ -2412,13 +2418,14 @@ static void check_and_push_context(context_t *context)
 		check_concept_instance(instance);
 	}
 
-	/* check semantics in methods */
+	/* check semantics in functions */
 	declaration = context->declarations;
 	for ( ; declaration != NULL; declaration = declaration->base.next) {
 		switch (declaration->kind) {
-		case DECLARATION_METHOD: {
-			check_method(&declaration->method.method, declaration->base.symbol,
-			             declaration->base.source_position);
+		case DECLARATION_FUNCTION: {
+			check_function(&declaration->function.function,
+			               declaration->base.symbol,
+			               declaration->base.source_position);
 			break;
 		}
 		case DECLARATION_CONSTANT:
