@@ -36,32 +36,17 @@ typedef enum precedence_t {
 	PREC_TOP
 } precedence_t;
 
-typedef enum {
-	DECLARATION_INVALID,
-	DECLARATION_ERROR,
-	DECLARATION_FUNCTION,
-	DECLARATION_FUNCTION_PARAMETER,
-	DECLARATION_ITERATOR,
-	DECLARATION_VARIABLE,
-	DECLARATION_CONSTANT,
-	DECLARATION_TYPE_VARIABLE,
-	DECLARATION_TYPEALIAS,
-	DECLARATION_CONCEPT,
-	DECLARATION_CONCEPT_FUNCTION,
-	DECLARATION_LABEL,
-	DECLARATION_LAST = DECLARATION_LABEL
-} declaration_kind_t;
-
 /**
  * base struct for a declaration
  */
-struct declaration_base_t {
-	declaration_kind_t  kind;
-	symbol_t           *symbol;
-	declaration_t      *next;
-	int                 refs;         /**< temporarily used by semantic phase */
-	bool                exported : 1;
-	source_position_t   source_position;
+struct declaration_t {
+	symbol_t          *symbol;
+	declaration_t     *next;
+	int                refs;         /**< temporarily used by semantic phase */
+	expression_t      *value;
+	bool               exported : 1;
+	bool               mutable : 1;
+	source_position_t  source_position;
 };
 
 struct export_t {
@@ -89,78 +74,12 @@ struct context_t {
 	import_t           *imports;
 };
 
-/**
- * base structure for attributes (meta-data which can be attached to several
- * language elements)
- */
-struct attribute_t {
-	unsigned           type;
-	source_position_t  source_position;
-	attribute_t       *next;
-};
-
 struct type_variable_t {
 	declaration_base_t  base;
 	type_constraint_t  *constraints;
 	type_variable_t    *next;
 
 	type_t             *current_type;
-};
-
-struct function_t {
-	function_type_t      *type;
-	type_variable_t      *type_parameters;
-	function_parameter_t *parameters;
-	bool                  is_extern;
-
-	context_t    context;
-	statement_t *statement;
-
-	union {
-		ir_entity      *entity;
-		ir_entity     **entities;
-	} e;
-	int                 n_local_vars;
-};
-
-struct function_declaration_t {
-	declaration_base_t base;
-	function_t         function;
-};
-
-struct iterator_declaration_t {
-	declaration_base_t base;
-	function_t         function;
-};
-
-struct variable_declaration_t {
-	declaration_base_t  base;
-	type_t             *type;
-
-	bool                is_extern;
-	bool                export;
-	bool                is_global;
-	bool                needs_entity;
-
-	ir_entity          *entity;
-	int                 value_number;
-};
-
-struct label_declaration_t {
-	declaration_base_t   base;
-	ir_node             *block;
-	label_declaration_t *next;
-};
-
-struct constant_t {
-	declaration_base_t  base;
-	type_t             *type;
-	expression_t       *expression;
-};
-
-struct typealias_t {
-	declaration_base_t  base;
-	type_t             *type;
 };
 
 struct concept_function_t {
@@ -187,20 +106,6 @@ struct module_t {
 	module_t  *next;
 	bool       processing : 1;
 	bool       processed : 1;
-};
-
-union declaration_t {
-	declaration_kind_t      kind;
-	declaration_base_t      base;
-	type_variable_t         type_variable;
-	function_declaration_t  function;
-	iterator_declaration_t  iterator;
-	variable_declaration_t  variable;
-	label_declaration_t     label;
-	constant_t              constant;
-	typealias_t             typealias;
-	concept_t               concept;
-	concept_function_t      concept_function;
 };
 
 typedef enum {
@@ -295,6 +200,11 @@ struct expression_base_t {
 	bool               lowered;
 };
 
+struct expression_bind_typevariable_t {
+	expression_base_t  base;
+	expression_t      *value;
+};
+
 struct bool_const_t {
 	expression_base_t base;
 	bool              value;
@@ -315,27 +225,28 @@ struct string_const_t {
 	const char        *value;
 };
 
-struct func_expression_t {
-	expression_base_t base;
-	function_t        function;
+struct do_expression_t {
+	expression_base_t  base;
+	parameter_t       *parameters;
+	statement_t       *statement;
+};
+
+struct concept_expression_t {
+	expression_base_t   base;
+	concept_function_t *functions;
+	concept_instance_t *instances;
 };
 
 struct reference_expression_t {
 	expression_base_t  base;
 	symbol_t          *symbol;
 	declaration_t     *declaration;
-	type_argument_t   *type_arguments;
 };
 
-struct call_argument_t {
-	expression_t    *expression;
-	call_argument_t *next;
-};
-
-struct call_expression_t {
+struct application_t {
 	expression_base_t  base;
 	expression_t      *function;
-	call_argument_t   *arguments;
+	expression_t      *argument;
 };
 
 struct unary_expression_t {
@@ -500,7 +411,6 @@ const char *get_declaration_kind_name(declaration_kind_t type);
 unsigned register_expression(void);
 unsigned register_statement(void);
 unsigned register_declaration(void);
-unsigned register_attribute(void);
 
 expression_t *allocate_expression(expression_kind_t kind);
 declaration_t *allocate_declaration(declaration_kind_t kind);

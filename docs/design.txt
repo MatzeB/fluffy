@@ -88,6 +88,7 @@ Structure:
 				N + x = x
 			Rule x + y = y + x (abelsche Gruppe)
 			Rule x + (y + z) = (x + y) + z
+		Question: What to do with these rules? When should we apply them?
 
 Type-System:
 	- Provide Hindley-Milner type inference inside a module

@@ -19,17 +19,17 @@ SOURCES := \
 	adt/obstack_printf.c \
 	adt/xmalloc.c \
 	ast.c \
+	type.c \
+	parser.c \
 	ast2firm.c \
 	lexer.c \
 	main.c \
 	mangle.c \
 	match_type.c \
-	parser.c \
 	plugins.c \
 	semantic.c \
 	symbol_table.c \
 	token.c \
-	type.c \
 	type_hash.c \
 	driver/firm_cmdline.c \
 	driver/firm_codegen.c \
