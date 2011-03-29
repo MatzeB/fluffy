@@ -92,6 +92,11 @@ struct bind_typevariables_type_t {
 	compound_type_t *polymorphic_type;
 };
 
+struct function_parameter_type_t {
+	type_t                    *type;
+	function_parameter_type_t *next;
+};
+
 struct type_constraint_t {
 	symbol_t          *concept_symbol;
 	concept_t         *concept;
@@ -99,14 +104,10 @@ struct type_constraint_t {
 };
 
 struct function_type_t {
-	type_base_t  base;
-	type_t      *argument_type;
-	type_t      *result_type;
-};
-
-struct effect_type_t {
-	type_base_t  base;
-	type_t      *data_type;
+	type_base_t                base;
+	type_t                    *result_type;
+	function_parameter_type_t *parameter_types;
+	bool                       variable_arguments;
 };
 
 struct compound_entry_t {

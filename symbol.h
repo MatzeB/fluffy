@@ -9,7 +9,7 @@ struct symbol_t {
 	const char      *string;
 	unsigned         ID;
 
-	declaration_t   *declaration;
+	entity_t        *entity;
 	const context_t *context;
 };
 

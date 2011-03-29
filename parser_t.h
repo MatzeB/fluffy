@@ -24,20 +24,23 @@ typedef struct expression_parse_function_t {
 extern token_t token;
 
 void register_expression_parser(parse_expression_function parser,
-                                int token_type);
+                                token_type_t token_type);
 
 void register_expression_infix_parser(parse_expression_infix_function parser,
-                                      int token_type, unsigned precedence);
+                                      token_type_t token_type,
+									  unsigned precedence);
 
-void register_statement_parser(parse_statement_function parser, int token_type);
+void register_statement_parser(parse_statement_function parser,
+                               token_type_t token_type);
 
 void register_declaration_parser(parse_declaration_function parser,
-                                 int token_type);
+                                 token_type_t token_type);
 
-void register_attribute_parser(parse_attribute_function parser, int token_type);
+void register_attribute_parser(parse_attribute_function parser,
+                               token_type_t token_type);
 
 expression_t *parse_sub_expression(unsigned precedence);
-void add_declaration(declaration_t *entry);
+void add_entity(entity_t *entry);
 
 void parser_print_error_prefix(void);
 

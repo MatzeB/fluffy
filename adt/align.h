@@ -1,6 +1,6 @@
 /*
  * This file is part of cparser.
- * Copyright (C) 2007-2008 Matthias Braun <matze@braunis.de>
+ * Copyright (C) 2007-2009 Matthias Braun <matze@braunis.de>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,7 +25,7 @@
  * Author:      Markus Armbruster
  * Modified by:
  * Created:     1999 by getting from fiasco
- * CVS-ID:      $Id: align.h 22078 2008-09-18 12:16:23Z mallon $
+ * CVS-ID:      $Id$
  * Copyright:   (c) 1995, 1996 Markus Armbruster
  * Licence:     This file protected by GPL -  GNU GENERAL PUBLIC LICENSE.
  */

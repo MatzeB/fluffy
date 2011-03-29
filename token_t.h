@@ -5,8 +5,8 @@
 #include "symbol.h"
 #include "symbol_table.h"
 
-typedef enum {
-	T_ERROR = -1,
+typedef enum token_type_tokens_t {
+	T_ERROR = (unsigned)-1,
 	T_EOF   = '\x04', // EOT
 #define T(x,str,val) T_##x val,
 #define TS(x,str,val) T_##x val,
@@ -14,10 +14,11 @@ typedef enum {
 #undef TS
 #undef T
 
-} token_type_t;
+} token_type_tokens_t;
+typedef unsigned token_type_t;
 
 typedef struct {
-	int type;
+	token_type_t type;
 	union {
 		symbol_t   *symbol;
 		int         intvalue;

@@ -44,32 +44,31 @@ static inline void *allocate_ast_zero(size_t size)
 	return res;
 }
 
-static size_t get_declaration_struct_size(declaration_kind_t kind)
+static size_t get_entity_struct_size(entity_kind_t kind)
 {
 	static const size_t sizes[] = {
-		[DECLARATION_ERROR]              = sizeof(declaration_base_t),
-		[DECLARATION_FUNCTION]           = sizeof(function_declaration_t),
-		[DECLARATION_FUNCTION_PARAMETER] = sizeof(function_parameter_t),
-		[DECLARATION_ITERATOR]           = sizeof(iterator_declaration_t),
-		[DECLARATION_VARIABLE]           = sizeof(variable_declaration_t),
-		[DECLARATION_CONSTANT]           = sizeof(constant_t),
-		[DECLARATION_TYPE_VARIABLE]      = sizeof(type_variable_t),
-		[DECLARATION_TYPEALIAS]          = sizeof(typealias_t),
-		[DECLARATION_CONCEPT]            = sizeof(concept_t),
-		[DECLARATION_CONCEPT_FUNCTION]   = sizeof(concept_function_t),
-		[DECLARATION_LABEL]              = sizeof(label_declaration_t)
+		[ENTITY_ERROR]              = sizeof(entity_base_t),
+		[ENTITY_FUNCTION]           = sizeof(function_entity_t),
+		[ENTITY_FUNCTION_PARAMETER] = sizeof(function_parameter_t),
+		[ENTITY_VARIABLE]           = sizeof(variable_t),
+		[ENTITY_CONSTANT]           = sizeof(constant_t),
+		[ENTITY_TYPE_VARIABLE]      = sizeof(type_variable_t),
+		[ENTITY_TYPEALIAS]          = sizeof(typealias_t),
+		[ENTITY_CONCEPT]            = sizeof(concept_t),
+		[ENTITY_CONCEPT_FUNCTION]   = sizeof(concept_function_t),
+		[ENTITY_LABEL]              = sizeof(label_t)
 	};
 	assert(kind < sizeof(sizes)/sizeof(sizes[0]));
 	assert(sizes[kind] != 0);
 	return sizes[kind];
 }
 
-declaration_t *allocate_declaration(declaration_kind_t kind)
+entity_t *allocate_entity(entity_kind_t kind)
 {
-	size_t         size        = get_declaration_struct_size(kind);
-	declaration_t *declaration = allocate_ast_zero(size);
-	declaration->kind          = kind;
-	return declaration;
+	size_t    size   = get_entity_struct_size(kind);
+	entity_t *entity = allocate_ast_zero(size);
+	entity->kind     = kind;
+	return entity;
 }
 
 static size_t get_expression_struct_size(expression_kind_t kind)
@@ -183,15 +182,15 @@ static inline void eat(token_type_t type)
 	next_token();
 }
 
-static void add_anchor_token(int token_type)
+static void add_anchor_token(token_type_t token_type)
 {
-	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	assert(token_type < T_LAST_TOKEN);
 	++token_anchor_set[token_type];
 }
 
-static void rem_anchor_token(int token_type)
+static void rem_anchor_token(token_type_t token_type)
 {
-	assert(0 <= token_type && token_type < T_LAST_TOKEN);
+	assert(token_type < T_LAST_TOKEN);
 	assert(token_anchor_set[token_type] != 0);
 	--token_anchor_set[token_type];
 }
@@ -273,9 +272,9 @@ static void maybe_eat_block(void)
 /**
  * eats nested brace groups
  */
-static void eat_until_matching_token(int type)
+static void eat_until_matching_token(token_type_t type)
 {
-	int end_token;
+	token_type_t end_token;
 	switch (type) {
 		case '(': end_token = ')';  break;
 		case '{': end_token = '}';  break;
@@ -818,12 +817,10 @@ end_error:
 	return create_error_expression();
 }
 
-void register_statement_parser(parse_statement_function parser, int token_type)
+void register_statement_parser(parse_statement_function parser,
+                               token_type_t token_type)
 {
-	if (token_type < 0)
-		panic("can't register parser for negative token");
-
-	int len = ARR_LEN(statement_parsers);
+	unsigned len = (unsigned) ARR_LEN(statement_parsers);
 	if (token_type >= len) {
 		ARR_RESIZE(parse_statement_function, statement_parsers, token_type + 1);
 		memset(& statement_parsers[len], 0,
@@ -840,12 +837,9 @@ void register_statement_parser(parse_statement_function parser, int token_type)
 }
 
 void register_declaration_parser(parse_declaration_function parser,
-                                 int token_type)
+                                 token_type_t token_type)
 {
-	if (token_type < 0)
-		panic("can't register parser for negative token");
-
-	int len = ARR_LEN(declaration_parsers);
+	unsigned len = (unsigned) ARR_LEN(declaration_parsers);
 	if (token_type >= len) {
 		ARR_RESIZE(parse_declaration_function, declaration_parsers, token_type + 1);
 		memset(& declaration_parsers[len], 0,
@@ -861,12 +855,10 @@ void register_declaration_parser(parse_declaration_function parser,
 	declaration_parsers[token_type] = parser;
 }
 
-void register_attribute_parser(parse_attribute_function parser, int token_type)
+void register_attribute_parser(parse_attribute_function parser,
+                               token_type_t token_type)
 {
-	if (token_type < 0)
-		panic("can't register parser for negative token");
-
-	int len = ARR_LEN(attribute_parsers);
+	unsigned len = (unsigned) ARR_LEN(attribute_parsers);
 	if (token_type >= len) {
 		ARR_RESIZE(parse_attribute_function, attribute_parsers, token_type + 1);
 		memset(& attribute_parsers[len], 0,
@@ -882,12 +874,9 @@ void register_attribute_parser(parse_attribute_function parser, int token_type)
 	attribute_parsers[token_type] = parser;
 }
 
-static expression_parse_function_t *get_expression_parser_entry(int token_type)
+static expression_parse_function_t *get_expression_parser_entry(token_type_t token_type)
 {
-	if (token_type < 0)
-		panic("can't register parser for negative token");
-
-	int len = ARR_LEN(expression_parsers);
+	unsigned len = (unsigned) ARR_LEN(expression_parsers);
 	if (token_type >= len) {
 		ARR_RESIZE(expression_parse_function_t, expression_parsers, token_type + 1);
 		memset(& expression_parsers[len], 0,
@@ -898,7 +887,7 @@ static expression_parse_function_t *get_expression_parser_entry(int token_type)
 }
 
 void register_expression_parser(parse_expression_function parser,
-                                int token_type)
+                                token_type_t token_type)
 {
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(token_type);
@@ -913,7 +902,8 @@ void register_expression_parser(parse_expression_function parser,
 }
 
 void register_expression_infix_parser(parse_expression_infix_function parser,
-                                      int token_type, unsigned precedence)
+                                      token_type_t token_type,
+									  unsigned precedence)
 {
 	expression_parse_function_t *entry
 		= get_expression_parser_entry(token_type);
@@ -1144,7 +1134,7 @@ static void register_expression_parsers(void)
 
 expression_t *parse_sub_expression(unsigned precedence)
 {
-	if (token.type < 0) {
+	if (token.type == T_ERROR) {
 		return expected_expression_error();
 	}
 
@@ -1162,7 +1152,7 @@ expression_t *parse_sub_expression(unsigned precedence)
 	left->base.source_position = start;
 
 	while (true) {
-		if (token.type < 0) {
+		if (token.type == T_ERROR) {
 			return expected_expression_error();
 		}
 
@@ -1236,12 +1226,12 @@ static statement_t *parse_label_statement(void)
 		eat_until_anchor();
 		goto end_error;
 	}
-	label->label.declaration.base.kind            = DECLARATION_LABEL;
-	label->label.declaration.base.source_position = source_position;
-	label->label.declaration.base.symbol          = token.v.symbol;
+	label->label.label.base.kind            = ENTITY_LABEL;
+	label->label.label.base.source_position = source_position;
+	label->label.label.base.symbol          = token.v.symbol;
 	next_token();
 
-	add_declaration((declaration_t*) &label->label.declaration);
+	add_entity((entity_t*) &label->label.label);
 
 	expect(T_NEWLINE, end_error);
 
@@ -1326,21 +1316,18 @@ static statement_t *parse_variable_declaration(void)
 
 		statement_t *statement = allocate_statement(STATEMENT_DECLARATION);
 
-		declaration_t *declaration 
-			= (declaration_t*) &statement->declaration.declaration;
-		declaration->base.kind            = DECLARATION_VARIABLE;
-		declaration->base.source_position = source_position;
-		declaration->base.symbol          = token.v.symbol;
+		entity_t *entity = (entity_t*) &statement->declaration.entity;
+		symbol_t *symbol = token.v.symbol;
+		entity->base.kind            = ENTITY_VARIABLE;
+		entity->base.source_position = source_position;
+		entity->base.symbol          = symbol;
 		next_token();
 
-		add_declaration(declaration);
-
-		variable_declaration_t *variable_declaration
-		   = &statement->declaration.declaration;
+		add_entity(entity);
 
 		if (token.type == ':') {
 			next_token();
-			variable_declaration->type = parse_type();
+			entity->variable.type = parse_type();
 		}
 
 		/* append multiple variable declarations */
@@ -1354,8 +1341,7 @@ static statement_t *parse_variable_declaration(void)
 		/* do we have an assignment expression? */
 		if (token.type == '=') {
 			next_token();
-			statement_t *assign 
-				= parse_initial_assignment(declaration->base.symbol);
+			statement_t *assign = parse_initial_assignment(symbol);
 
 			last_statement->base.next = assign;
 			last_statement            = assign;
@@ -1487,8 +1473,8 @@ static void parse_parameter_declarations(function_type_t *function_type,
 {
 	assert(function_type != NULL);
 
-	function_parameter_type_t *last_type = NULL;
-	function_parameter_t      *last_param = NULL;
+	function_parameter_type_t *last_type      = NULL;
+	function_parameter_t      *last_parameter = NULL;
 	if (parameters != NULL)
 		*parameters = NULL;
 
@@ -1537,20 +1523,18 @@ static void parse_parameter_declarations(function_type_t *function_type,
 		last_type = param_type;
 
 		if (parameters != NULL) {
-			function_parameter_t *function_param
-				= allocate_ast_zero(sizeof(function_param[0]));
-			function_param->declaration.base.kind
-				= DECLARATION_FUNCTION_PARAMETER;
-			function_param->declaration.base.symbol          = symbol;
-			function_param->declaration.base.source_position = source_position;
-			function_param->type                             = param_type->type;
+			entity_t *entity = allocate_entity(ENTITY_FUNCTION_PARAMETER);
+			entity->base.kind            = ENTITY_FUNCTION_PARAMETER;
+			entity->base.symbol          = symbol;
+			entity->base.source_position = source_position;
+			entity->parameter.type       = param_type->type;
 
-			if (last_param != NULL) {
-				last_param->next = function_param;
+			if (last_parameter != NULL) {
+				last_parameter->next = &entity->parameter;
 			} else {
-				*parameters = function_param;
+				*parameters = &entity->parameter;
 			}
-			last_param = function_param;
+			last_parameter = &entity->parameter;
 		}
 
 		if (token.type != ',')
@@ -1594,10 +1578,9 @@ static type_constraint_t *parse_type_constraints(void)
 	return first_constraint;
 }
 
-static declaration_t *parse_type_parameter(void)
+static entity_t *parse_type_parameter(void)
 {
-	declaration_t *declaration
-		= allocate_declaration(DECLARATION_TYPE_VARIABLE);
+	entity_t *entity = allocate_entity(ENTITY_TYPE_VARIABLE);
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("problem while parsing type parameter",
@@ -1605,24 +1588,24 @@ static declaration_t *parse_type_parameter(void)
 		eat_until_anchor();
 		return NULL;
 	}
-	declaration->base.source_position = source_position;
-	declaration->base.symbol          = token.v.symbol;
+	entity->base.source_position = source_position;
+	entity->base.symbol          = token.v.symbol;
 	next_token();
 
 	if (token.type == ':') {
 		next_token();
-		declaration->type_variable.constraints = parse_type_constraints();
+		entity->type_variable.constraints = parse_type_constraints();
 	}
 
-	return declaration;
+	return entity;
 }
 
 static type_variable_t *parse_type_parameters(context_t *context)
 {
-	declaration_t *first_variable = NULL;
-	declaration_t *last_variable  = NULL;
+	entity_t *first_variable = NULL;
+	entity_t *last_variable  = NULL;
 	while (true) {
-		declaration_t *type_variable = parse_type_parameter();
+		entity_t *type_variable = parse_type_parameter();
 
 		if (last_variable != NULL) {
 			last_variable->type_variable.next = &type_variable->type_variable;
@@ -1632,8 +1615,8 @@ static type_variable_t *parse_type_parameters(context_t *context)
 		last_variable = type_variable;
 
 		if (context != NULL) {
-			type_variable->base.next = context->declarations;
-			context->declarations    = type_variable;
+			type_variable->base.next = context->entities;
+			context->entities        = type_variable;
 		}
 
 		if (token.type != ',')
@@ -1644,14 +1627,14 @@ static type_variable_t *parse_type_parameters(context_t *context)
 	return &first_variable->type_variable;
 }
 
-void add_declaration(declaration_t *declaration)
+void add_entity(entity_t *entity)
 {
-	assert(declaration != NULL);
-	assert(declaration->base.source_position.input_name != NULL);
+	assert(entity != NULL);
+	assert(entity->base.source_position.input_name != NULL);
 	assert(current_context != NULL);
 
-	declaration->base.next        = current_context->declarations;
-	current_context->declarations = declaration;
+	entity->base.next         = current_context->entities;
+	current_context->entities = entity;
 }
 
 static void parse_function(function_t *function)
@@ -1675,9 +1658,7 @@ static void parse_function(function_t *function)
 	/* add parameters to context */
 	function_parameter_t *parameter = function->parameters;
 	for ( ; parameter != NULL; parameter = parameter->next) {
-		declaration_t *declaration    = (declaration_t*) parameter;
-		declaration->base.next        = current_context->declarations;
-		current_context->declarations = declaration;
+		add_entity((entity_t*) parameter);
 	}
 
 	type->function.result_type = type_void;
@@ -1710,7 +1691,7 @@ static void parse_function_declaration(void)
 {
 	eat(T_func);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_FUNCTION);
+	entity_t *declaration = allocate_entity(ENTITY_FUNCTION);
 
 	if (token.type == T_extern) {
 		declaration->function.function.is_extern = true;
@@ -1729,14 +1710,14 @@ static void parse_function_declaration(void)
 
 	parse_function(&declaration->function.function);
 
-	add_declaration(declaration);
+	add_entity(declaration);
 }
 
 static void parse_global_variable(void)
 {
 	eat(T_var);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_VARIABLE);
+	entity_t *declaration = allocate_entity(ENTITY_VARIABLE);
 	declaration->variable.is_global = true;
 
 	if (token.type == T_extern) {
@@ -1766,14 +1747,14 @@ static void parse_global_variable(void)
 	}
 
 end_error:
-	add_declaration(declaration);
+	add_entity(declaration);
 }
 
 static void parse_constant(void)
 {
 	eat(T_const);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_CONSTANT);
+	entity_t *declaration = allocate_entity(ENTITY_CONSTANT);
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing constant", T_IDENTIFIER, 0);
@@ -1795,14 +1776,14 @@ static void parse_constant(void)
 	expect(T_NEWLINE, end_error);
 
 end_error:
-	add_declaration(declaration);
+	add_entity(declaration);
 }
 
 static void parse_typealias(void)
 {
 	eat(T_typealias);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_TYPEALIAS);
+	entity_t *declaration = allocate_entity(ENTITY_TYPEALIAS);
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing typealias",
@@ -1819,7 +1800,7 @@ static void parse_typealias(void)
 	expect(T_NEWLINE, end_error);
 
 end_error:
-	add_declaration(declaration);
+	add_entity(declaration);
 }
 
 static attribute_t *parse_attribute(void)
@@ -1828,7 +1809,7 @@ static attribute_t *parse_attribute(void)
 
 	attribute_t *attribute = NULL;
 
-	if (token.type < 0) {
+	if (token.type == T_ERROR) {
 		parse_error("problem while parsing attribute");
 		return NULL;
 	}
@@ -1870,7 +1851,7 @@ static void parse_struct(void)
 {
 	eat(T_struct);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_TYPEALIAS);
+	entity_t *declaration = allocate_entity(ENTITY_TYPEALIAS);
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing struct",
@@ -1905,7 +1886,7 @@ static void parse_struct(void)
 		eat(T_DEDENT);
 	}
 
-	add_declaration(declaration);
+	add_entity(declaration);
 
 end_error:
 	;
@@ -1915,7 +1896,7 @@ static void parse_union(void)
 {
 	eat(T_union);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_TYPEALIAS);
+	entity_t *declaration = allocate_entity(ENTITY_TYPEALIAS);
 
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing union",
@@ -1943,15 +1924,15 @@ static void parse_union(void)
 	}
 
 end_error:
-	add_declaration(declaration);
+	add_entity(declaration);
 }
 
 static concept_function_t *parse_concept_function(void)
 {
 	expect(T_func, end_error);
 
-	declaration_t *declaration 
-		= allocate_declaration(DECLARATION_CONCEPT_FUNCTION);
+	entity_t *declaration 
+		= allocate_entity(ENTITY_CONCEPT_FUNCTION);
 
 	type_t *type = allocate_type(TYPE_FUNCTION);
 	
@@ -1979,7 +1960,7 @@ static concept_function_t *parse_concept_function(void)
 
 	declaration->concept_function.type = &type->function;
 
-	add_declaration(declaration);
+	add_entity(declaration);
 
 	return &declaration->concept_function;
 
@@ -1991,7 +1972,7 @@ static void parse_concept(void)
 {
 	eat(T_concept);
 
-	declaration_t *declaration = allocate_declaration(DECLARATION_CONCEPT);
+	entity_t *declaration = allocate_entity(ENTITY_CONCEPT);
 	
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept",
@@ -2040,7 +2021,7 @@ static void parse_concept(void)
 	next_token();
 
 end_of_parse_concept:
-	add_declaration(declaration);
+	add_entity(declaration);
 	return;
 
 end_error:
@@ -2244,10 +2225,10 @@ end_error:
 
 void parse_declaration(void)
 {
-	if (token.type < 0) {
-		if (token.type == T_EOF)
-			return;
+	if (token.type == T_EOF)
+		return;
 
+	if (token.type == T_ERROR) {
 		/* this shouldn't happen if the lexer is correct... */
 		parse_error_expected("problem while parsing declaration",
 		                     T_DEDENT, 0);
@@ -2298,7 +2279,7 @@ static module_t *get_module(symbol_t *name)
 			break;
 	}
 	if (module == NULL) {
-		module = allocate_ast_zero(sizeof(module[0]));
+		module       = allocate_ast_zero(sizeof(module[0]));
 		module->name = name;
 		module->next = modules;
 		modules      = module;
@@ -2308,14 +2289,14 @@ static module_t *get_module(symbol_t *name)
 
 static void append_context(context_t *dest, const context_t *source)
 {
-	declaration_t *last = dest->declarations;
+	entity_t *last = dest->entities;
 	if (last != NULL) {
 		while (last->base.next != NULL) {
 			last = last->base.next;
 		}
-		last->base.next = source->declarations;
+		last->base.next = source->entities;
 	} else {
-		dest->declarations = source->declarations;
+		dest->entities = source->entities;
 	}
 
 	concept_instance_t *last_concept_instance = dest->concept_instances;

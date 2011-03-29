@@ -17,7 +17,6 @@ SOURCES := \
 	adt/strset.c \
 	adt/obstack.c \
 	adt/obstack_printf.c \
-	adt/xmalloc.c \
 	ast.c \
 	type.c \
 	parser.c \
@@ -32,10 +31,9 @@ SOURCES := \
 	token.c \
 	type_hash.c \
 	driver/firm_cmdline.c \
-	driver/firm_codegen.c \
 	driver/firm_opt.c \
-	driver/firm_timing.c \
-	driver/gen_firm_asm.c
+	driver/firm_machine.c \
+	driver/firm_timing.c
 
 OBJECTS = $(SOURCES:%.c=build/%.o)
 
@@ -53,7 +51,7 @@ endif
 	@echo "===> DEPEND"
 	@rm -f $@ && touch $@ && makedepend -p "$@ build/" -Y -f $@ -- $(CPPFLAGS) -- $(SOURCES) 2> /dev/null && rm $@.bak
 
-$(GOAL): build/driver build/adt $(OBJECTS)
+$(GOAL): $(OBJECTS) | build/driver build/adt
 	@echo "===> LD $@"
 	$(Q)$(CC) -rdynamic $(OBJECTS) $(LFLAGS) -o $(GOAL)
 
@@ -65,7 +63,7 @@ build/driver:
 	@echo "===> MKDIR $@"
 	$(Q)mkdir -p $@
 
-build/%.o: %.c
+build/%.o: %.c | build/adt build/driver
 	@echo '===> CC $<'
 	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 

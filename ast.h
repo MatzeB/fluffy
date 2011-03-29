@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 typedef struct attribute_t              attribute_t;
-typedef struct declaration_t            declaration_t;
+typedef union  entity_t                 entity_t;
 typedef union  expression_t             expression_t;
 typedef union  statement_t              statement_t;
 
@@ -35,13 +35,15 @@ typedef struct if_statement_t           if_statement_t;
 typedef struct declaration_statement_t  declaration_statement_t;
 typedef struct expression_statement_t   expression_statement_t;
 typedef struct goto_statement_t         goto_statement_t;
-typedef struct label_declaration_t      label_declaration_t;
+typedef struct label_t                  label_t;
 typedef struct label_statement_t        label_statement_t;
 
 typedef struct module_t                 module_t;
 
 typedef struct function_parameter_t     function_parameter_t;
 typedef struct function_t               function_t;
+typedef struct variable_t               variable_t;
+typedef struct function_entity_t        function_entity_t;
 typedef struct constant_t               constant_t;
 typedef struct global_variable_t        global_variable_t;
 typedef struct typealias_t              typealias_t;

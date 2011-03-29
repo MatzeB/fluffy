@@ -16,11 +16,11 @@
 #include "adt/xmalloc.h"
 #include <libfirm/adt/pdeq.h>
 
-static const variable_declaration_t **value_numbers    = NULL;
-static label_declaration_t           *labels           = NULL;
+static const variable_t **value_numbers    = NULL;
+static label_t           *labels           = NULL;
 /** context for the variables, this is usually the stack frame but might
  * be something else for things like coroutines */
-static ir_node                       *variable_context = NULL;
+static ir_node           *variable_context = NULL;
 
 typedef struct instantiate_function_t  instantiate_function_t;
 
@@ -50,12 +50,11 @@ static void context2firm(const context_t *context);
 
 ir_node *uninitialized_local_var(ir_graph *irg, ir_mode *mode, int pos)
 {
-	const declaration_t *declaration 
-		= (const declaration_t*) &value_numbers[pos];
+	const variable_t *variable = value_numbers[pos];
 
-	print_warning_prefix(declaration->base.source_position);
+	print_warning_prefix(variable->base.source_position);
 	fprintf(stderr, "variable '%s' might be used uninitialized\n",
-			declaration->base.symbol->string);
+			variable->base.symbol->string);
 	return new_r_Unknown(irg, mode);
 }
 
@@ -94,8 +93,7 @@ static void init_ir_types(void)
 	byte_ir_type = get_ir_type((type_t*) &byte_type);
 
 	ir_type *ir_type_void = get_ir_type(type_void);
-	void_ptr_type         = new_type_pointer(new_id_from_str("void_ptr"),
-	                                         ir_type_void, mode_P_data);
+	void_ptr_type         = new_type_pointer(ir_type_void);
 }
 
 void exit_ast2firm(void)
@@ -270,8 +268,7 @@ static ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 {
 	(void) env;
 	ir_mode *mode   = get_atomic_mode(type);
-	ident   *id     = get_mode_ident(mode);
-	ir_type *irtype = new_type_primitive(id, mode);
+	ir_type *irtype = new_type_primitive(mode);
 
 	return irtype;
 }
@@ -281,10 +278,9 @@ static ir_type *get_function_type(type2firm_env_t *env,
 {
 	type_t  *result_type  = function_type->result_type;
 
-	ident   *id           = unique_ident("functiontype");
 	int      n_parameters = count_parameters(function_type);
 	int      n_results    = result_type->kind == TYPE_VOID ? 0 : 1;
-	ir_type *irtype       = new_type_method(id, n_parameters, n_results);
+	ir_type *irtype       = new_type_method(n_parameters, n_results);
 
 	if (result_type->kind != TYPE_VOID) {
 		ir_type *restype = _get_ir_type(env, result_type);
@@ -317,8 +313,7 @@ static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 	 * and then set the real points_to type
 	 */
 	ir_type *ir_type_void = get_ir_type(type_void);
-	ir_type *ir_type      = new_type_pointer(unique_ident("pointer"),
-                                             ir_type_void, mode_P_data);
+	ir_type *ir_type      = new_type_pointer(ir_type_void);
 	type->base.firm_type  = ir_type;
 
 	ir_points_to = _get_ir_type(env, points_to);
@@ -329,7 +324,7 @@ static ir_type *get_pointer_type(type2firm_env_t *env, pointer_type_t *type)
 
 static ir_node *expression_to_firm(expression_t *expression);
 
-static tarval *fold_constant_to_tarval(expression_t *expression)
+static ir_tarval *fold_constant_to_tarval(expression_t *expression)
 {
 	assert(is_constant_expression(expression));
 
@@ -343,7 +338,7 @@ static tarval *fold_constant_to_tarval(expression_t *expression)
 		panic("couldn't fold constant");
 	}
 
-	tarval* tv = get_Const_tarval(cnst);
+	ir_tarval* tv = get_Const_tarval(cnst);
 	return tv;
 }
 
@@ -352,7 +347,7 @@ long fold_constant_to_int(expression_t *expression)
 	if (expression->kind == EXPR_ERROR)
 		return 0;
 
-	tarval *tv = fold_constant_to_tarval(expression);
+	ir_tarval *tv = fold_constant_to_tarval(expression);
 	if (!tarval_is_long(tv)) {
 		panic("result of constant folding is not an integer");
 	}
@@ -364,9 +359,8 @@ static ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 {
 	type_t  *element_type    = type->element_type;
 	ir_type *ir_element_type = _get_ir_type(env, element_type);
-
-	ir_type *ir_type = new_type_array(unique_ident("array"), 1, ir_element_type);
-	int size = fold_constant_to_int(type->size_expression);
+	ir_type *ir_type         = new_type_array(1, ir_element_type);
+	int      size            = fold_constant_to_int(type->size_expression);
 	set_array_bounds_int(ir_type, 0, 0, size);
 
 	size_t elemsize = get_type_size_bytes(ir_element_type);
@@ -410,7 +404,6 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 
 		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
 		set_entity_offset(entity, offset);
-		add_struct_member(ir_type, entity);
 		entry->entity = entity;
 
 		offset += entry_size;
@@ -456,7 +449,6 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
 
 		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
-		add_union_member(ir_type, entity);
 		set_entity_offset(entity, 0);
 		entry->entity = entity;
 
@@ -538,8 +530,8 @@ static ir_type *_get_ir_type(type2firm_env_t *env, type_t *type)
 		firm_type = get_array_type(env, &type->array);
 		break;
 	case TYPE_VOID:
-		/* there is no mode_VOID in firm, use mode_C */
-		firm_type = new_type_primitive(new_id_from_str("void"), mode_ANY);
+		/* there is no mode_VOID in firm, use mode_ANY */
+		firm_type = new_type_primitive(mode_ANY);
 		break;
 	case TYPE_COMPOUND_STRUCT:
 		firm_type = get_struct_type(env, &type->compound);
@@ -641,7 +633,7 @@ static ir_entity* get_concept_function_instance_entity(
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	set_entity_visibility(entity, visibility_local);
+	set_entity_visibility(entity, ir_visibility_local);
 
 	function->e.entity = entity;
 
@@ -685,9 +677,9 @@ static ir_entity* get_function_entity(function_t *function, symbol_t *symbol)
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
 	if (function->is_extern) {
-		set_entity_visibility(entity, visibility_external_allocated);
+		set_entity_visibility(entity, ir_visibility_external);
 	} else {
-		set_entity_visibility(entity, visibility_local);
+		set_entity_visibility(entity, ir_visibility_local);
 	}
 
 	if (!is_polymorphic) {
@@ -710,18 +702,18 @@ static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 
 static ir_node *int_const_to_firm(const int_const_t *cnst)
 {
-	ir_mode  *mode = get_ir_mode(cnst->base.type);
-	tarval   *tv   = new_tarval_from_long(cnst->value, mode);
-	dbg_info *dbgi = get_dbg_info(&cnst->base.source_position);
+	ir_mode   *mode = get_ir_mode(cnst->base.type);
+	ir_tarval *tv   = new_tarval_from_long(cnst->value, mode);
+	dbg_info  *dbgi = get_dbg_info(&cnst->base.source_position);
 
 	return new_d_Const(dbgi, tv);
 }
 
 static ir_node *float_const_to_firm(const float_const_t *cnst)
 {
-	ir_mode  *mode = get_ir_mode(cnst->base.type);
-	tarval   *tv   = new_tarval_from_double(cnst->value, mode);
-	dbg_info *dbgi = get_dbg_info(&cnst->base.source_position);
+	ir_mode   *mode = get_ir_mode(cnst->base.type);
+	ir_tarval *tv   = new_tarval_from_double(cnst->value, mode);
+	dbg_info  *dbgi = get_dbg_info(&cnst->base.source_position);
 
 	return new_d_Const(dbgi, tv);
 }
@@ -737,45 +729,56 @@ static ir_node *bool_const_to_firm(const bool_const_t *cnst)
 	}
 }
 
+static ir_node *create_symconst(dbg_info *dbgi, ir_entity *entity)
+{
+	assert(entity != NULL);
+	union symconst_symbol sym;
+	sym.entity_p = entity;
+	return new_d_SymConst(dbgi, mode_P, sym, symconst_addr_ent);
+}
+
 static ir_node *string_const_to_firm(const string_const_t* cnst)
 {
 	ir_type   *global_type = get_glob_type();
-	ir_type   *type        = new_type_array(unique_ident("bytearray"), 1,
-	                                        byte_ir_type);
+	ir_type   *type        = new_type_array(1, byte_ir_type);
 
-	ir_entity *ent = new_entity(global_type, unique_ident("str"), type);
-	set_entity_variability(ent, variability_constant);
-	set_entity_allocation(ent, allocation_static);
-	set_entity_visibility(ent, visibility_local);
+	ir_entity *entity = new_entity(global_type, unique_ident("str"), type);
+	add_entity_linkage(entity, IR_LINKAGE_CONSTANT);
+	set_entity_allocation(entity, allocation_static);
+	set_entity_visibility(entity, ir_visibility_private);
 
 	ir_type    *elem_type = byte_ir_type;
 	ir_mode    *mode      = get_type_mode(elem_type);
 
-	const char *string = cnst->value;
-	size_t      slen   = strlen(string) + 1;
+	const char   *string = cnst->value;
+	const size_t  slen   = strlen(string) + 1;
 
 	set_array_lower_bound_int(type, 0, 0);
 	set_array_upper_bound_int(type, 0, slen);
 	set_type_size_bytes(type, slen);
 	set_type_state(type, layout_fixed);
 
-	tarval    **tvs = xmalloc(slen * sizeof(tvs[0]));
+	ir_tarval **tvs = xmalloc(slen * sizeof(tvs[0]));
 	for (size_t i = 0; i < slen; ++i) {
 		tvs[i] = new_tarval_from_long(string[i], mode);
 	}
 
-	set_array_entity_values(ent, tvs, slen);
-	free(tvs);
+	ir_initializer_t *initializer = create_initializer_compound(slen);
+	for (size_t i = 0; i < slen; ++i) {
+		ir_tarval        *tv  = new_tarval_from_long(string[i], mode);
+		ir_initializer_t *val = create_initializer_tarval(tv);
+		set_initializer_compound_value(initializer, i, val);
+	}
+	set_entity_initializer(entity, initializer);
 
 	dbg_info *dbgi = get_dbg_info(&cnst->base.source_position);
-
-	return new_d_SymConst(dbgi, mode_P, (union symconst_symbol) ent, symconst_addr_ent);
+	return create_symconst(dbgi, entity);
 }
 
 static ir_node *null_pointer_to_firm(void)
 {
-	ir_mode *mode = get_type_mode(void_ptr_type);
-	tarval  *tv   = get_tarval_null(mode);
+	ir_mode   *mode = get_type_mode(void_ptr_type);
+	ir_tarval *tv   = get_tarval_null(mode);
 
 	return new_Const(tv);
 }
@@ -809,7 +812,7 @@ static ir_node *array_access_expression_addr(const array_access_expression_t* ac
 	ir_node      *index_node = expression_to_firm(index);
 
 	int           elem_size       = get_type_size(access->base.type);
-	tarval       *elem_size_tv    = new_tarval_from_long(elem_size, mode_Is);
+	ir_tarval    *elem_size_tv    = new_tarval_from_long(elem_size, mode_Is);
 	ir_node      *elem_size_const = new_Const(elem_size_tv);
 	dbg_info     *dbgi 
 		= get_dbg_info(&access->base.source_position);
@@ -819,7 +822,7 @@ static ir_node *array_access_expression_addr(const array_access_expression_t* ac
 	return add;
 }
 
-static ir_entity *create_variable_entity(variable_declaration_t *variable)
+static ir_entity *create_variable_entity(variable_t *variable)
 {
 	if (variable->entity != NULL)
 		return variable->entity;
@@ -845,19 +848,17 @@ static ir_entity *create_variable_entity(variable_declaration_t *variable)
 
 	ir_entity *entity = new_entity(parent_type, ident, irtype);
 	set_entity_ld_ident(entity, ident);
-	set_entity_variability(entity, variability_uninitialized);
-	set_entity_allocation(entity, allocation_static);
 	if (variable->is_extern) {
-		set_entity_visibility(entity, visibility_external_allocated);
+		set_entity_visibility(entity, ir_visibility_external);
 	} else {
-		set_entity_visibility(entity, visibility_local);
+		set_entity_visibility(entity, ir_visibility_local);
 	}
 
 	variable->entity = entity;
 	return entity;
 }
 
-static ir_node *variable_addr(variable_declaration_t *variable)
+static ir_node *variable_addr(variable_t *variable)
 {
 	ir_entity *entity = create_variable_entity(variable);
 	dbg_info  *dbgi   = get_dbg_info(&variable->base.source_position);
@@ -865,8 +866,7 @@ static ir_node *variable_addr(variable_declaration_t *variable)
 	ir_node *result;
 
 	if (variable->is_global) {
-		result = new_d_SymConst(dbgi, mode_P, (union symconst_symbol) entity,
-		                        symconst_addr_ent);
+		result = create_symconst(dbgi, entity);
 	} else {
 		assert(variable->needs_entity);
 
@@ -878,8 +878,8 @@ static ir_node *variable_addr(variable_declaration_t *variable)
 	return result;
 }
 
-static ir_node *variable_to_firm(variable_declaration_t *variable,
-                          const source_position_t *source_position)
+static ir_node *variable_to_firm(variable_t *variable,
+                                 const source_position_t *source_position)
 {
 	if (variable->is_global || variable->needs_entity) {
 		ir_node *addr = variable_addr(variable);
@@ -899,8 +899,7 @@ static ir_node *variable_to_firm(variable_declaration_t *variable,
 		assert(variable->value_number < get_irg_n_locs(current_ir_graph));
 		value_numbers[variable->value_number] = variable;
 
-		dbg_info *dbgi = get_dbg_info(source_position);
-		return get_d_value(dbgi, variable->value_number, mode);
+		return get_value(variable->value_number, mode);
 	}
 }
 
@@ -909,32 +908,26 @@ static ir_node *constant_reference_to_firm(const constant_t *constant)
 	return expression_to_firm(constant->expression);
 }
 
-static ir_node *declaration_addr(declaration_t *declaration)
+static ir_node *reference_expression_addr(const reference_expression_t *reference)
 {
-	switch (declaration->kind) {
-	case DECLARATION_VARIABLE:
-		return variable_addr((variable_declaration_t*) declaration);
+	entity_t *entity = reference->entity;
+	switch (entity->kind) {
+	case ENTITY_VARIABLE:
+		return variable_addr(&entity->variable);
 
-	case DECLARATION_INVALID:
-	case DECLARATION_ERROR:
-	case DECLARATION_FUNCTION:
-	case DECLARATION_FUNCTION_PARAMETER:
-	case DECLARATION_ITERATOR:
-	case DECLARATION_CONSTANT:
-	case DECLARATION_LABEL:
-	case DECLARATION_TYPEALIAS:
-	case DECLARATION_CONCEPT:
-	case DECLARATION_CONCEPT_FUNCTION:
-	case DECLARATION_TYPE_VARIABLE:
+	case ENTITY_INVALID:
+	case ENTITY_ERROR:
+	case ENTITY_FUNCTION:
+	case ENTITY_FUNCTION_PARAMETER:
+	case ENTITY_CONSTANT:
+	case ENTITY_LABEL:
+	case ENTITY_TYPEALIAS:
+	case ENTITY_CONCEPT:
+	case ENTITY_CONCEPT_FUNCTION:
+	case ENTITY_TYPE_VARIABLE:
 		panic("internal error: trying to create address nodes for non-lvalue");
 	}
 	panic("Unknown declaration found in reference expression");
-}
-
-static ir_node *reference_expression_addr(const reference_expression_t *reference)
-{
-	declaration_t *declaration = reference->declaration;
-	return declaration_addr(declaration);
 }
 
 static ir_node *expression_addr(const expression_t *expression)
@@ -969,11 +962,10 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 	if (dest_expr->kind == EXPR_REFERENCE) {
 		const reference_expression_t *ref 
 			= (const reference_expression_t*) dest_expr;
-		declaration_t *declaration = ref->declaration;
+		entity_t *entity = ref->entity;
 
-		if (declaration->kind == DECLARATION_VARIABLE) {
-			variable_declaration_t *variable 
-				= (variable_declaration_t*) declaration;
+		if (entity->kind == ENTITY_VARIABLE) {
+			variable_t *variable = &entity->variable;
 
 			if (!variable->is_global && !variable->needs_entity) {
 				value_numbers[variable->value_number] = variable;
@@ -994,7 +986,7 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 		ir_type *irtype = get_ir_type(type);
 
 		result       = new_d_CopyB(dbgi, store, addr, value, irtype);
-		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M_regular);
+		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M);
 		set_store(mem);
 	} else {
 		result        = new_d_Store(dbgi, store, addr, value, cons_none);
@@ -1014,24 +1006,19 @@ static ir_node *assign_expression_to_firm(const binary_expression_t *assign)
 	return value;
 }
 
-static long binexpr_kind_to_cmp_pn(expression_kind_t kind)
+static ir_relation binexpr_kind_to_relation(expression_kind_t kind)
 {
 	switch (kind) {
-	case EXPR_BINARY_EQUAL:
-		return pn_Cmp_Eq;
-	case EXPR_BINARY_NOTEQUAL:
-		return pn_Cmp_Lg;
-	case EXPR_BINARY_LESS:
-		return pn_Cmp_Lt;
-	case EXPR_BINARY_LESSEQUAL:
-		return pn_Cmp_Le;
-	case EXPR_BINARY_GREATER:
-		return pn_Cmp_Gt;
-	case EXPR_BINARY_GREATEREQUAL:
-		return pn_Cmp_Ge;
+	case EXPR_BINARY_EQUAL:     return ir_relation_equal;
+	case EXPR_BINARY_NOTEQUAL:  return ir_relation_less_greater;
+	case EXPR_BINARY_LESS:      return ir_relation_less;
+	case EXPR_BINARY_LESSEQUAL: return ir_relation_less_equal;
+	case EXPR_BINARY_GREATER:   return ir_relation_greater;
+	case EXPR_BINARY_GREATEREQUAL: return ir_relation_greater_equal;
 	default:
-		return 0;
+		break;
 	}
+	panic("unknown relation");
 }
 
 static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
@@ -1110,20 +1097,11 @@ static ir_node *binary_expression_to_firm(
 	if (kind == EXPR_BINARY_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->base.type);
 		ir_node *store = get_store();
-		ir_node *node, *res;
-		if (mode_is_float(mode)) {
-			node  = new_d_Quot(dbgi, store, left, right, mode,
-			                   op_pin_state_floats);
-			store = new_d_Proj(dbgi, node, mode_M, pn_Quot_M);
-			res   = new_d_Proj(dbgi, node, mode, pn_Quot_res);
-		} else {
-			node = new_d_Div(dbgi, store, left, right, mode,
-			                 op_pin_state_floats);
-			store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
-			res   = new_d_Proj(dbgi, node, mode, pn_Div_res);
-		}
-		
-		set_store(store);
+		ir_node *node  = new_d_Div(dbgi, store, left, right, mode,
+		                           op_pin_state_floats);
+		ir_node *new_store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
+		ir_node *res       = new_d_Proj(dbgi, node, mode, pn_Div_res);
+		set_store(new_store);
 		return res;
 	}
 
@@ -1162,15 +1140,10 @@ static ir_node *binary_expression_to_firm(
 	}
 
 	/* a comparison expression? */
-	long compare_pn = binexpr_kind_to_cmp_pn(kind);
-	if (compare_pn != 0) {
-		ir_node *cmp  = new_d_Cmp(dbgi, left, right);
-		ir_node *proj = new_d_Proj(dbgi, cmp, mode_b, compare_pn);
+	ir_relation relation = binexpr_kind_to_relation(kind);
+	ir_node *cmp  = new_d_Cmp(dbgi, left, right, relation);
 
-		return proj;
-	}
-
-	panic("found unknown binary expression");
+	return cmp;
 }
 
 static ir_node *cast_expression_to_firm(const unary_expression_t *cast)
@@ -1256,12 +1229,12 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 	                                 &select->base.source_position);
 }
 
-static ir_entity *assure_instance(declaration_t *declaration,
+static ir_entity *assure_instance(function_entity_t *function_entity,
                                   type_argument_t *type_arguments)
 {
-	assert(declaration->kind == DECLARATION_FUNCTION);
-	function_t *function = &declaration->function.function;
-	symbol_t *symbol = declaration->base.symbol;
+	assert(function_entity->base.kind == ENTITY_FUNCTION);
+	function_t *function = &function_entity->function;
+	symbol_t   *symbol   = function_entity->base.symbol;
 
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(function->type_parameters, type_arguments);
@@ -1269,9 +1242,9 @@ static ir_entity *assure_instance(declaration_t *declaration,
 	ir_entity  *entity = get_function_entity(function, symbol);
 	const char *name   = get_entity_name(entity);
 
-	if (declaration->base.exported 
-			&& get_entity_visibility(entity) != visibility_external_allocated) {
-		set_entity_visibility(entity, visibility_external_visible);
+	if (function_entity->base.exported 
+			&& get_entity_visibility(entity) != ir_visibility_external) {
+		set_entity_visibility(entity, ir_visibility_default);
 	}
 
 	pop_type_variable_bindings(old_top);
@@ -1308,17 +1281,14 @@ static ir_entity *assure_instance(declaration_t *declaration,
 	return entity;
 }
 
-static ir_node *function_reference_to_firm(declaration_t *declaration,
+static ir_node *function_reference_to_firm(function_entity_t *function,
                                            type_argument_t *type_arguments,
                                            const source_position_t *source_position)
 {
 	dbg_info  *dbgi   = get_dbg_info(source_position);
-	ir_entity *entity = assure_instance(declaration, type_arguments);
+	ir_entity *entity = assure_instance(function, type_arguments);
 
-	ir_node *symconst = new_d_SymConst(dbgi, mode_P,
-	                                   (union symconst_symbol) entity,
-	                                   symconst_addr_ent);
-
+	ir_node *symconst = create_symconst(dbgi, entity);
 	return symconst;
 }
 
@@ -1353,10 +1323,7 @@ static ir_node *concept_function_reference_to_firm(concept_function_t *function,
 
 	dbg_info  *dbgi     = get_dbg_info(source_position);
 	ir_entity *entity   = get_concept_function_instance_entity(function_instance);
-	ir_node   *symconst = new_d_SymConst(dbgi, mode_P,
-	                                     (union symconst_symbol) entity,
-	                                     symconst_addr_ent);
-
+	ir_node   *symconst = create_symconst(dbgi, entity);
 	pop_type_variable_bindings(old_top);
 	return symconst;
 }
@@ -1365,19 +1332,18 @@ static ir_node *function_parameter_reference_to_firm(function_parameter_t *param
 {
 	ir_node *args  = get_irg_args(current_ir_graph);
 	ir_mode *mode  = get_ir_mode(parameter->type);
-	ir_node *block = get_irg_start_block(current_ir_graph);
 	long     pn    = parameter->num;
-	ir_node *proj  = new_r_Proj(current_ir_graph, block, args, mode, pn);
+	ir_node *proj  = new_r_Proj(args, mode, pn);
 
 	return proj;
 }
 
 static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 {
-	ir_mode  *mode = get_ir_mode(expression->base.type);
-	unsigned  size = get_type_size(expression->type);
-	tarval   *tv   = new_tarval_from_long(size, mode);
-	ir_node  *res  = new_Const(tv);
+	ir_mode   *mode = get_ir_mode(expression->base.type);
+	unsigned   size = get_type_size(expression->type);
+	ir_tarval *tv   = new_tarval_from_long(size, mode);
+	ir_node   *res  = new_Const(tv);
 
 	return res;
 }
@@ -1406,15 +1372,14 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	if (function_type->variable_arguments) {
 		/* we need to construct a new method type matching the call
 		 * arguments... */
-		new_method_type = new_type_method(unique_ident("calltype"),
-		                                  n_parameters,
+		new_method_type = new_type_method(n_parameters,
 		                                  get_method_n_ress(ir_method_type));
 		set_method_calling_convention(new_method_type,
 		               get_method_calling_convention(ir_method_type));
 		set_method_additional_properties(new_method_type,
 		               get_method_additional_properties(ir_method_type));
 
-		for (int i = 0; i < get_method_n_ress(ir_method_type); ++i) {
+		for (size_t i = 0; i < get_method_n_ress(ir_method_type); ++i) {
 			set_method_res_type(new_method_type, i,
 			                    get_method_res_type(ir_method_type, i));
 		}
@@ -1445,7 +1410,7 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node  *store = get_store();
 	ir_node  *node  = new_d_Call(dbgi, store, callee, n_parameters, in,
 	                             ir_method_type);
-	ir_node  *mem   = new_d_Proj(dbgi, node, mode_M, pn_Call_M_regular);
+	ir_node  *mem   = new_d_Proj(dbgi, node, mode_M, pn_Call_M);
 	set_store(mem);
 
 	type_t  *result_type = function_type->result_type;
@@ -1476,51 +1441,35 @@ static ir_node *func_expression_to_firm(func_expression_t *expression)
 	return symconst;
 }
 
-static ir_node *declaration_reference_to_firm(declaration_t *declaration,
-                                       type_argument_t *type_arguments,
-									   const source_position_t *source_position)
+static ir_node *reference_expression_to_firm(const reference_expression_t *reference)
 {
-	function_declaration_t *function_declaration;
+	entity_t                *entity          = reference->entity;
+	type_argument_t         *type_arguments  = reference->type_arguments;
+	const source_position_t *source_position = &reference->base.source_position;
 
-	switch (declaration->kind) {
-	case DECLARATION_FUNCTION:
-		function_declaration = (function_declaration_t*) declaration;
-		return function_reference_to_firm(declaration, type_arguments,
+	switch (entity->kind) {
+	case ENTITY_FUNCTION:
+		return function_reference_to_firm(&entity->function, type_arguments,
 		                                  source_position);
-	case DECLARATION_ITERATOR:
-		// TODO
-		panic("TODO: iterator to firm");
-		break;
-	case DECLARATION_CONCEPT_FUNCTION:
+	case ENTITY_CONCEPT_FUNCTION:
 		return concept_function_reference_to_firm(
-				(concept_function_t*) declaration, type_arguments,
-		        source_position);
-	case DECLARATION_FUNCTION_PARAMETER:
-		return function_parameter_reference_to_firm(
-				(function_parameter_t*) declaration);
-	case DECLARATION_CONSTANT:
-		return constant_reference_to_firm((constant_t*) declaration);
-	case DECLARATION_VARIABLE:
-		return variable_to_firm((variable_declaration_t*) declaration,
-		                        source_position);
-	case DECLARATION_INVALID:
-	case DECLARATION_ERROR:
-	case DECLARATION_TYPEALIAS:
-	case DECLARATION_CONCEPT:
-	case DECLARATION_LABEL:
-	case DECLARATION_TYPE_VARIABLE:
+				&entity->concept_function, type_arguments, source_position);
+	case ENTITY_FUNCTION_PARAMETER:
+		return function_parameter_reference_to_firm(&entity->parameter);
+	case ENTITY_CONSTANT:
+		return constant_reference_to_firm(&entity->constant);
+	case ENTITY_VARIABLE:
+		return variable_to_firm(&entity->variable, source_position);
+	case ENTITY_INVALID:
+	case ENTITY_ERROR:
+	case ENTITY_TYPEALIAS:
+	case ENTITY_CONCEPT:
+	case ENTITY_LABEL:
+	case ENTITY_TYPE_VARIABLE:
 		panic("internal error: trying to construct node for non-data "
 		      "reference");
 	}
 	panic("unknown declaration type found");
-}
-
-static ir_node *reference_expression_to_firm(const reference_expression_t *reference)
-{
-	declaration_t   *declaration    = reference->declaration;
-	type_argument_t *type_arguments = reference->type_arguments;
-	return declaration_reference_to_firm(declaration, type_arguments,
-	                                    &reference->base.source_position);
 }
 
 static ir_node *expression_to_firm(expression_t *expression)
@@ -1647,10 +1596,10 @@ static void block_statement_to_firm(const block_statement_t *block)
 
 static void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
-	dbg_info            *dbgi  
+	dbg_info *dbgi  
 		= get_dbg_info(&goto_statement->base.source_position);
-	label_declaration_t *label = goto_statement->label;
-	ir_node             *block = label->block;
+	label_t  *label = goto_statement->label;
+	ir_node  *block = label->block;
 
 	if (block == NULL) {
 		block        = new_immBlock();
@@ -1666,7 +1615,7 @@ static void goto_statement_to_firm(goto_statement_t *goto_statement)
 
 static void label_statement_to_firm(label_statement_t *label_statement)
 {
-	label_declaration_t *label = &label_statement->declaration;
+	label_t *label = &label_statement->label;
 	ir_node *block = label->block;
 
 	if (block == NULL) {
@@ -1732,7 +1681,7 @@ static void create_function(function_t *function, ir_entity *entity,
 		push_type_variable_bindings(function->type_parameters, type_arguments);
 	}
 
-	ir_graph *irg     = new_ir_graph(entity, function->n_local_vars);
+	ir_graph *irg = new_ir_graph(entity, function->n_local_vars);
 
 	assert(variable_context == NULL);
 	variable_context = get_irg_frame(irg);
@@ -1742,6 +1691,7 @@ static void create_function(function_t *function, ir_entity *entity,
 
 	context2firm(&function->context);
 
+	current_ir_graph = irg;
 	ir_node *firstblock = get_cur_block();
 
 	if (function->statement)
@@ -1757,7 +1707,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	mature_immBlock(firstblock);
 	mature_immBlock(end_block);
 
-	label_declaration_t *label = labels;
+	label_t *label = labels;
 	while (label != NULL) {
 		mature_immBlock(label->block);
 		label->block = NULL;
@@ -1792,7 +1742,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	set_type_alignment_bytes(frame_type, align_all);
 	set_type_state(frame_type, layout_fixed);
 
-	irg_vrfy(irg);
+	irg_verify(irg, VERIFY_ENFORCE_SSA);
 
 	free(value_numbers);
 	value_numbers = NULL;
@@ -1823,29 +1773,28 @@ static void create_concept_instance(concept_instance_t *instance)
 static void context2firm(const context_t *context)
 {
 	/* scan context for functions */
-	declaration_t *declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		switch (declaration->kind) {
-		case DECLARATION_FUNCTION:
-			if (!is_polymorphic_function(&declaration->function.function)) {
-				assure_instance(declaration, NULL);
+	entity_t *entity = context->entities;
+	for ( ; entity != NULL; entity = entity->base.next) {
+		switch (entity->kind) {
+		case ENTITY_FUNCTION:
+			if (!is_polymorphic_function(&entity->function.function)) {
+				assure_instance(&entity->function, NULL);
 			}
 
 			break;
-		case DECLARATION_VARIABLE:
-			create_variable_entity((variable_declaration_t*) declaration);
+		case ENTITY_VARIABLE:
+			create_variable_entity(&entity->variable);
 			break;
-		case DECLARATION_ITERATOR:
-		case DECLARATION_TYPEALIAS:
-		case DECLARATION_CONCEPT:
-		case DECLARATION_CONSTANT:
-		case DECLARATION_LABEL:
-		case DECLARATION_FUNCTION_PARAMETER:
-		case DECLARATION_CONCEPT_FUNCTION:
-		case DECLARATION_TYPE_VARIABLE:
+		case ENTITY_TYPEALIAS:
+		case ENTITY_CONCEPT:
+		case ENTITY_CONSTANT:
+		case ENTITY_LABEL:
+		case ENTITY_FUNCTION_PARAMETER:
+		case ENTITY_CONCEPT_FUNCTION:
+		case ENTITY_TYPE_VARIABLE:
 			break;
-		case DECLARATION_INVALID:
-		case DECLARATION_ERROR:
+		case ENTITY_INVALID:
+		case ENTITY_ERROR:
 			panic("Invalid namespace entry type found");
 		}
 	}

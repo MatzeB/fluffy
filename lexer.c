@@ -68,7 +68,7 @@ static void init_tables(void)
 	char_type['\''] = START_CHARACTER_CONSTANT;
 
 	static const int single_char_ops[] = {
-		'(', ')', '[', ']', '{', '}', ',', ';', '*'
+		'(', ')', '[', ']', '{', '}', ',', ';', ':', '*'
 	};
 	for (size_t i = 0; i < sizeof(single_char_ops)/sizeof(single_char_ops[0]);
 	    ++i) {
@@ -78,7 +78,7 @@ static void init_tables(void)
 
 	static const int ops[] = {
 		'+', '-', '/', '=', '<', '>', '.', '^', '!', '?', '&', '%',
-		'~', '|', '\\', '$', ':'
+		'~', '|', '\\', '$'
 	};
 	for (size_t i = 0; i < sizeof(ops)/sizeof(ops[0]); ++i) {
 		int c        = ops[i];

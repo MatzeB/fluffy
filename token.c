@@ -53,7 +53,7 @@ int register_new_token(const char *token)
 
 void print_token_type(FILE *f, token_type_t token_type)
 {
-	if (token_type >= 0 && token_type < 256) {
+	if (token_type < 256) {
 		fprintf(f, "'%c'", token_type);
 		return;
 	}
@@ -62,8 +62,8 @@ void print_token_type(FILE *f, token_type_t token_type)
 		return;
 	}
 
-	int token_symbols_len = ARR_LEN(token_symbols);
-	if (token_type < 0 || token_type >= token_symbols_len) {
+	unsigned token_symbols_len = (unsigned)ARR_LEN(token_symbols);
+	if (token_type >= token_symbols_len) {
 		fputs("invalid token", f);
 		return;
 	}

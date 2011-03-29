@@ -1,6 +1,6 @@
 /*
  * This file is part of cparser.
- * Copyright (C) 2007-2008 Matthias Braun <matze@braunis.de>
+ * Copyright (C) 2007-2009 Matthias Braun <matze@braunis.de>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
  * @date    28.9.2004
  * @brief   Functions from hackers delight.
  * @author  Sebastian Hack, Matthias Braun
- * @version $Id: bitfiddle.h 22078 2008-09-18 12:16:23Z mallon $
+ * @version $Id$
  */
 #ifndef _FIRM_BITFIDDLE_H_
 #define _FIRM_BITFIDDLE_H_
@@ -100,7 +100,7 @@ unsigned nlz(unsigned x) {
 			: "r" (x));
 	return 31 - res;
 #else
-   	x |= x >> 1;
+	x |= x >> 1;
 	x |= x >> 2;
 	x |= x >> 4;
 	x |= x >> 8;

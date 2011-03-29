@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1995-2008 University of Karlsruhe.  All right reserved.
+ * Copyright (C) 1995-2009 University of Karlsruhe.  All right reserved.
  *
  * This file is part of libFirm.
  *
@@ -23,7 +23,7 @@
  * @author  Matthias Braun, inspiration from densehash from google sparsehash
  *          package
  * @date    17.03.2007
- * @version $Id: hashset.c 23013 2008-10-19 16:42:19Z mallon $
+ * @version $Id$
  *
  *
  * You have to specialize this file by defining:
@@ -37,7 +37,7 @@
  *  <li><b>Hash(hashset,key)</b> calculates the hash value for a given key</li>
  * </ul>
  *
- * Note that by default it is assumed that the data values themselfes are used
+ * Note that by default it is assumed that the data values themselves are used
  * as keys. However you can change that with additional defines:
  *
  * <ul>
@@ -94,7 +94,7 @@
 #endif /* DO_REHASH */
 
 #ifndef Alloc
-#include "xmalloc.h"
+#include "libfirm/adt/xmalloc.h"
 #define Alloc(size)    (HashSetEntry*) xmalloc((size) * sizeof(HashSetEntry))
 #define Free(ptr)      free(ptr)
 #endif /* Alloc */

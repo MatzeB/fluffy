@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 1995-2008 University of Karlsruhe.  All right reserved.
+ * Copyright (C) 1995-2009 University of Karlsruhe.  All right reserved.
  *
  * This file is part of libFirm.
  *
@@ -22,7 +22,7 @@
  * @date    16.03.2007
  * @brief   Generic hashset functions
  * @author  Matthias Braun
- * @version $Id: hashset.h 19969 2008-06-04 12:34:29Z matze $
+ * @version $Id$
  *
  * You have to specialize this header by defining HashSet, HashSetIterator and
  * ValueType

@@ -13,6 +13,7 @@
 
 #include "driver/firm_opt.h"
 #include "driver/firm_cmdline.h"
+#include "driver/firm_machine.h"
 
 #include "type.h"
 #include "parser.h"
@@ -23,15 +24,12 @@
 #include "type_hash.h"
 #include "mangle.h"
 #include "adt/error.h"
+#include "adt/strutil.h"
 
-#ifdef _WIN32
-	#define LINKER "gcc.exe"
-	#define TMPDIR ""
-#else
-	#define LINKER "gcc"
-	#define TMPDIR "/tmp/"
-#endif
+#define LINKER "gcc -m32"
+#define TMPDIR "/tmp/"
 
+static machine_triple_t *target_machine;
 static bool dump_graphs;
 static bool dump_asts;
 static bool verbose;
@@ -45,10 +43,6 @@ typedef enum compile_mode_t {
 static void initialize_firm(void)
 {
 	firm_early_init();
-	dump_consts_local(1);
-	dump_keepalive_edges(1);
-
-	dbg_init(NULL, NULL, dbg_snprint);
 }
 
 static void get_output_name(char *buf, size_t buflen, const char *inputname,
@@ -145,45 +139,22 @@ static void usage(const char *argv0)
 	fprintf(stderr, "Usage: %s input1 input2 [-o output]\n", argv0);
 }
 
-void lower_compound_params(void)
+static void setup_target(void)
 {
-}
-
-static void set_be_option(const char *arg)
-{
-	int res = be_parse_arg(arg);
-	(void) res;
-	assert(res);
-}
-
-static void init_os_support(void)
-{
-	/* OS option must be set to the backend */
-	switch (firm_opt.os_support) {
-	case OS_SUPPORT_MINGW:
-		set_be_option("ia32-gasmode=mingw");
-		break;
-	case OS_SUPPORT_LINUX:
-		set_be_option("ia32-gasmode=elf");
-		break;
-	case OS_SUPPORT_MACHO:
-		set_be_option("ia32-gasmode=macho");
-		set_be_option("ia32-stackalign=4");
-		set_be_option("pic");
-		break;
+	const char *os = target_machine->operating_system;
+	if (strstr(os, "linux") != NULL || strstr(os, "bsd") != NULL
+			|| streq(os, "solaris")) {
+		set_add_underscore_prefix(false);
+	} else if (streq(os, "darwin") || strstr(os, "mingw") || strstr(os, "win32")) {
+		set_add_underscore_prefix(true);
+	} else {
+		panic("Unsupported operating system ");
 	}
-}
-
-static void set_option(const char *arg)
-{
-	int res = firm_option(arg);
-	(void) res;
-	assert(res);
 }
 
 int main(int argc, const char **argv)
 {
-	int opt_level;
+	int opt_level = 2;
 
 	init_symbol_table();
 	init_tokens();
@@ -208,41 +179,15 @@ int main(int argc, const char **argv)
 		if (option[0] == 'O') {
 			sscanf(&option[1], "%d", &opt_level);
 		}
-		if (strcmp(arg, "-fwin32") == 0) {
-			firm_opt.os_support = OS_SUPPORT_MINGW;
-		} else if (strcmp(arg, "-fmac") == 0) {
-			firm_opt.os_support = OS_SUPPORT_MACHO;
-		} else if (strcmp(arg, "-flinux") == 0) {
-			firm_opt.os_support = OS_SUPPORT_LINUX;
-		}
 	}
-
-	/* set target/os specific stuff */
-	init_os_support();
-
-	/* set optimisations based on optimisation level */
-	switch(opt_level) {
-	case 0:
-		set_option("no-opt");
-		break;
-	case 1:
-		set_option("no-inline");
-		break;
-	default:
-	case 4:
-		set_option("strict-aliasing");
-		/* use_builtins = true; */
-		/* fallthrough */
-	case 3:
-		set_option("cond-eval");
-		set_option("if-conv");
-		/* fallthrough */
-	case 2:
-		set_option("inline");
-		set_option("deconv");
-		set_be_option("omitfp");
-		break;
-	}
+	const char *target = getenv("TARGET");
+	if (target != NULL)
+		target_machine = firm_parse_machine_triple(target);
+	if (target_machine == NULL)
+		target_machine = firm_get_host_machine();
+	choose_optimization_pack(opt_level);
+	setup_firm_for_machine(target_machine);
+	setup_target();
 
 	const char *outname = NULL;
 	compile_mode_t mode = CompileAndLink;
@@ -257,10 +202,7 @@ int main(int argc, const char **argv)
 				return 1;
 			}
 			outname = argv[i];
-		} else if (arg[0] == 'O'
-				|| strcmp(arg, "-fmac") == 0
-				|| strcmp(arg, "-fwin32") == 0
-				|| strcmp(arg, "-flinux") == 0) {
+		} else if (strstart(arg, "-O")) {
 			/* already processed in first pass */
 		} else if (strcmp(arg, "--dump") == 0) {
 			dump_graphs = 1;
@@ -347,10 +289,7 @@ int main(int argc, const char **argv)
 		fprintf(stderr, "Couldn't open output '%s'\n", asmname);
 		return 1;
 	}
-	set_ll_modes(
-			mode_Ls, mode_Lu,
-			mode_Is, mode_Iu);
-	gen_firm_finish(asm_out, asmname, 1, true);
+	gen_firm_finish(asm_out, asmname);
 	fclose(asm_out);
 
 	if (mode == CompileAndLink) {

@@ -9,6 +9,7 @@
 #include "driver/firm_cmdline.h"
 
 static struct obstack obst;
+static bool add_underscore_prefix;
 
 static void mangle_string(const char *str)
 {
@@ -75,6 +76,11 @@ static void mangle_atomic_type(const atomic_type_t *type)
 	}
 
 	obstack_1grow(&obst, c);
+}
+
+void set_add_underscore_prefix(bool new_add_underscore_prefix)
+{
+	add_underscore_prefix = new_add_underscore_prefix;
 }
 
 static void mangle_type_variables(type_variable_t *type_variables)
@@ -203,8 +209,7 @@ void mangle_concept_name(symbol_t *symbol)
 
 void start_mangle(void)
 {
-	if (firm_opt.os_support == OS_SUPPORT_MACHO
-			|| firm_opt.os_support == OS_SUPPORT_MINGW) {
+	if (add_underscore_prefix) {
 		obstack_1grow(&obst, '_');
 	}
 }

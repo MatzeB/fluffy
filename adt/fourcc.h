@@ -1,6 +1,6 @@
 /*
  * This file is part of cparser.
- * Copyright (C) 2007-2008 Matthias Braun <matze@braunis.de>
+ * Copyright (C) 2007-2009 Matthias Braun <matze@braunis.de>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,7 +25,7 @@
  * Author:
  * Modified by:
  * Created:     02.01.2004
- * CVS-ID:      $Id: fourcc.h 22078 2008-09-18 12:16:23Z mallon $
+ * CVS-ID:      $Id$
  * Copyright:   (C) 2004 University of Karlsruhe
  * Licence:     This file protected by GPL -  GNU GENERAL PUBLIC LICENSE.
  */

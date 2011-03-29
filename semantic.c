@@ -18,9 +18,9 @@
 
 typedef struct environment_entry_t environment_entry_t;
 struct environment_entry_t {
-	symbol_t      *symbol;
-	declaration_t *up;
-	const void    *up_context;
+	symbol_t    *symbol;
+	entity_t    *up;
+	const void  *up_context;
 };
 
 static lower_statement_function  *statement_lowerers  = NULL;
@@ -76,8 +76,7 @@ void error_at(const source_position_t position,
  * pushs an environment_entry on the environment stack and links the
  * corresponding symbol to the new entry
  */
-static 
-void environment_push(declaration_t *declaration, const void *context)
+static void environment_push(entity_t *entity, const void *context)
 {
 	environment_entry_t *entry 
 		= obstack_alloc(&symbol_environment_obstack, sizeof(entry[0]));
@@ -87,28 +86,28 @@ void environment_push(declaration_t *declaration, const void *context)
 	ARR_RESIZE(environment_entry_t*, symbol_stack, top + 1);
 	symbol_stack[top] = entry;
 
-	symbol_t *symbol = declaration->base.symbol;
+	symbol_t *symbol = entity->base.symbol;
 
-	assert(declaration != symbol->declaration);
+	assert(entity != symbol->entity);
 
 	if (symbol->context == context) {
-		assert(symbol->declaration != NULL);
-		print_error_prefix(declaration->base.source_position);
+		assert(symbol->entity != NULL);
+		print_error_prefix(entity->base.source_position);
 		fprintf(stderr, "multiple definitions for symbol '%s'.\n",
 		        symbol->string);
-		print_error_prefix(symbol->declaration->base.source_position);
-		fprintf(stderr, "this is the location of the previous declaration.\n");
+		print_error_prefix(symbol->entity->base.source_position);
+		fprintf(stderr, "this is the location of the previous entity.\n");
 	}
 
 #ifdef DEBUG_ENVIRONMENT
 	fprintf(stderr, "Push symbol '%s'\n", symbol->string);
 #endif
 
-	entry->up           = symbol->declaration;
-	entry->up_context   = symbol->context;
-	entry->symbol       = symbol;
-	symbol->declaration = declaration;
-	symbol->context     = context;
+	entry->up         = symbol->entity;
+	entry->up_context = symbol->context;
+	entry->symbol     = symbol;
+	symbol->entity    = entity;
+	symbol->context   = context;
 }
 
 /**
@@ -129,19 +128,18 @@ void environment_pop_to(size_t new_top)
 	do {
 		entry  = symbol_stack[i - 1];
 
-		symbol_t      *symbol      = entry->symbol;
-		declaration_t *declaration = symbol->declaration;
+		symbol_t *symbol = entry->symbol;
+		entity_t *entity = symbol->entity;
 
-		if (declaration->base.refs == 0 && !declaration->base.exported) {
-			switch (declaration->kind) {
+		if (entity->base.refs == 0 && !entity->base.exported) {
+			switch (entity->kind) {
 			/* only warn for functions/variables at the moment, we don't
 			   count refs on types yet */
-			case DECLARATION_FUNCTION:
-			case DECLARATION_VARIABLE:
-				print_warning_prefix(declaration->base.source_position);
+			case ENTITY_FUNCTION:
+			case ENTITY_VARIABLE:
+				print_warning_prefix(entity->base.source_position);
 				fprintf(stderr, "%s '%s' was declared but never read\n",
-						get_declaration_kind_name(declaration->kind),
-				        symbol->string);
+						get_entity_kind_name(entity->kind), symbol->string);
 			default:
 				break;
 			}
@@ -151,8 +149,8 @@ void environment_pop_to(size_t new_top)
 		fprintf(stderr, "Pop symbol '%s'\n", symbol->string);
 #endif
 
-		symbol->declaration = entry->up;
-		symbol->context     = entry->up_context;
+		symbol->entity  = entry->up;
+		symbol->context = entry->up_context;
 
 		--i;
 	} while (i != new_top);
@@ -187,17 +185,17 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 {
 	normalize_type_arguments(type_ref->type_arguments);
 
-	symbol_t      *symbol      = type_ref->symbol;
-	declaration_t *declaration = symbol->declaration;
-	if (declaration == NULL) {
+	symbol_t *symbol = type_ref->symbol;
+	entity_t *entity = symbol->entity;
+	if (entity == NULL) {
 		print_error_prefix(type_ref->source_position);
 		fprintf(stderr, "can't resolve type: symbol '%s' is unknown\n",
 		        symbol->string);
 		return type_invalid;
 	}
 
-	if (declaration->kind == DECLARATION_TYPE_VARIABLE) {
-		type_variable_t *type_variable = (type_variable_t*) declaration;
+	if (entity->kind == ENTITY_TYPE_VARIABLE) {
+		type_variable_t *type_variable = &entity->type_variable;
 
 		if (type_variable->current_type != NULL) {
 			/* not sure if this is really a problem... */
@@ -210,14 +208,14 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		return typehash_insert((type_t*) type_ref);
 	}
 
-	if (declaration->kind != DECLARATION_TYPEALIAS) {
+	if (entity->kind != ENTITY_TYPEALIAS) {
 		print_error_prefix(type_ref->source_position);
-		fprintf(stderr, "expected a type alias, but '%s' is a '%s'\n",
-		        symbol->string, get_declaration_kind_name(declaration->kind));
+		fprintf(stderr, "expected a type alias or type variable, but '%s' is a '%s'\n",
+		        symbol->string, get_entity_kind_name(entity->kind));
 		return type_invalid;
 	}
 
-	typealias_t *typealias = (typealias_t*) declaration;
+	typealias_t *typealias = &entity->typealias;
 	typealias->type        = normalize_type(typealias->type);
 
 	type_t          *type = typealias->type;
@@ -399,22 +397,15 @@ static type_t *normalize_type(type_t *type)
 	panic("Unknown type found");
 }
 
-static type_t *check_reference(declaration_t *declaration,
+static type_t *check_reference(entity_t *entity,
                                const source_position_t source_position)
 {
-	variable_declaration_t *variable;
-	function_declaration_t *function;
-	function_parameter_t   *function_parameter;
-	constant_t             *constant;
-	concept_function_t     *concept_function;
-	type_t                 *type;
+	type_t *type;
+	entity->base.refs++;
 
-	declaration->base.refs++;
-
-	switch (declaration->kind) {
-	case DECLARATION_VARIABLE:
-		variable = (variable_declaration_t*) declaration;
-		type = variable->type;
+	switch (entity->kind) {
+	case ENTITY_VARIABLE:
+		type = entity->variable.type;
 		if (type == NULL)
 			return NULL;
 
@@ -422,71 +413,66 @@ static type_t *check_reference(declaration_t *declaration,
 				|| type->kind == TYPE_COMPOUND_UNION
 				|| type->kind == TYPE_BIND_TYPEVARIABLES
 				|| type->kind == TYPE_ARRAY) {
-			variable->needs_entity   = 1;
+			entity->variable.needs_entity = true;
 		}
 		return type;
-	case DECLARATION_FUNCTION:
-		function = (function_declaration_t*) declaration;
-		return make_pointer_type((type_t*) function->function.type);
-	case DECLARATION_CONSTANT:
-		constant = (constant_t*) declaration;
+	case ENTITY_FUNCTION:
+		return make_pointer_type((type_t*) entity->function.function.type);
+	case ENTITY_CONSTANT: {
+		constant_t *constant = &entity->constant;
 		/* do type inference for the constant if needed */
 		if (constant->type == NULL) {
 			constant->expression = check_expression(constant->expression);
 			constant->type       = constant->expression->base.type;
 		}
 		return constant->type;
-	case DECLARATION_FUNCTION_PARAMETER:
-		function_parameter = (function_parameter_t*) declaration;
-		assert(function_parameter->type != NULL);
-		return function_parameter->type;
-	case DECLARATION_CONCEPT_FUNCTION:
-		concept_function = (concept_function_t*) declaration;
-		return make_pointer_type((type_t*) concept_function->type);
-	case DECLARATION_ITERATOR:
-		panic("TODO iterator reference");
-		break;
-	case DECLARATION_LABEL:
-	case DECLARATION_TYPEALIAS:
-	case DECLARATION_CONCEPT:
-	case DECLARATION_TYPE_VARIABLE:
+	}
+	case ENTITY_FUNCTION_PARAMETER:
+		assert(entity->parameter.type != NULL);
+		return entity->parameter.type;
+	case ENTITY_CONCEPT_FUNCTION:
+		return make_pointer_type((type_t*) entity->concept_function.type);
+	case ENTITY_LABEL:
+	case ENTITY_TYPEALIAS:
+	case ENTITY_CONCEPT:
+	case ENTITY_TYPE_VARIABLE:
 		print_error_prefix(source_position);
 		fprintf(stderr, "'%s' (a '%s') can't be used as expression\n",
-		        declaration->base.symbol->string,
-		        get_declaration_kind_name(declaration->kind));
+		        entity->base.symbol->string,
+		        get_entity_kind_name(entity->kind));
 		return NULL;
-	case DECLARATION_ERROR:
+	case ENTITY_ERROR:
 		found_errors = true;
 		return NULL;
-	case DECLARATION_INVALID:
+	case ENTITY_INVALID:
 		panic("reference to invalid declaration type encountered");
 	}
 	panic("reference to unknown declaration type encountered");
 }
 
-static declaration_t *create_error_declarataion(symbol_t *symbol)
+static entity_t *create_error_entity(symbol_t *symbol)
 {
-	declaration_t *declaration = allocate_declaration(DECLARATION_ERROR);
-	declaration->base.symbol   = symbol;
-	declaration->base.exported = true;
-	return declaration;
+	entity_t *entity = allocate_entity(ENTITY_ERROR);
+	entity->base.symbol   = symbol;
+	entity->base.exported = true;
+	return entity;
 }
 
 static void check_reference_expression(reference_expression_t *ref)
 {
-	symbol_t      *symbol      = ref->symbol;
-	declaration_t *declaration = symbol->declaration;
-	if (declaration == NULL) {
+	symbol_t *symbol = ref->symbol;
+	entity_t *entity = symbol->entity;
+	if (entity == NULL) {
 		print_error_prefix(ref->base.source_position);
 		fprintf(stderr, "no known definition for '%s'\n", symbol->string);
-		declaration = create_error_declarataion(symbol);
+		entity = create_error_entity(symbol);
 	}
 
 	normalize_type_arguments(ref->type_arguments);
 
-	ref->declaration = declaration;
-	type_t *type     = check_reference(declaration, ref->base.source_position);
-	ref->base.type   = type;
+	ref->entity    = entity;
+	type_t *type   = check_reference(entity, ref->base.source_position);
+	ref->base.type = type;
 }
 
 static bool is_lvalue(const expression_t *expression)
@@ -495,8 +481,8 @@ static bool is_lvalue(const expression_t *expression)
 	case EXPR_REFERENCE: {
 		const reference_expression_t *reference
 			= (const reference_expression_t*) expression;
-		const declaration_t *declaration = reference->declaration;
-		if (declaration->kind == DECLARATION_VARIABLE) {
+		const entity_t *entity = reference->entity;
+		if (entity->kind == ENTITY_VARIABLE) {
 			return true;
 		}
 		break;
@@ -525,13 +511,12 @@ static void check_assign_expression(binary_expression_t *assign)
 		return;
 	}
 	if (left->kind == EXPR_REFERENCE) {
-		reference_expression_t *reference   = (reference_expression_t*) left;
-		declaration_t          *declaration = reference->declaration;
+		reference_expression_t *reference = (reference_expression_t*) left;
+		entity_t               *entity    = reference->entity;
 
-		if (declaration->kind == DECLARATION_VARIABLE) {
-			variable_declaration_t *variable 
-				= (variable_declaration_t*) declaration;
-			symbol_t *symbol = variable->base.symbol;
+		if (entity->kind == ENTITY_VARIABLE) {
+			variable_t *variable = (variable_t*) entity;
+			symbol_t   *symbol   = variable->base.symbol;
 
 			/* do type inference if needed */
 			if (left->base.type == NULL) {
@@ -951,11 +936,11 @@ concept_function_instance_t *get_function_from_concept_instance(
 
 static void resolve_concept_function_instance(reference_expression_t *reference)
 {
-	declaration_t *declaration = reference->declaration;
-	assert(declaration->kind == DECLARATION_CONCEPT_FUNCTION);
+	entity_t *entity = reference->entity;
+	assert(entity->kind == ENTITY_CONCEPT_FUNCTION);
 
-	concept_function_t *concept_function = (concept_function_t*) declaration;
-	concept_t          *concept        = concept_function->concept;
+	concept_function_t *concept_function = &entity->concept_function;
+	concept_t          *concept          = concept_function->concept;
 
 	/* test whether 1 of the type variables points to another type variable.
 	 * this can happen when concept functions are invoked inside polymorphic
@@ -1200,20 +1185,20 @@ static void check_call_expression(call_expression_t *call)
 	if (function->kind == EXPR_REFERENCE) {
 		reference_expression_t *reference
 			= (reference_expression_t*) function;
-		declaration_t *declaration = reference->declaration;
+		entity_t *entity = reference->entity;
 
-		if (declaration->kind == DECLARATION_CONCEPT_FUNCTION) {
+		if (entity->kind == ENTITY_CONCEPT_FUNCTION) {
 			concept_function_t *concept_function
-				= (concept_function_t*) declaration;
+				= &entity->concept_function;
 			concept_t *concept = concept_function->concept;
 		
 			type_variables = concept->type_parameters;
 			type_arguments = reference->type_arguments;
-		} else if (declaration->kind == DECLARATION_FUNCTION) {
-			function_declaration_t *function_declaration
-				= (function_declaration_t*) declaration;
+		} else if (entity->kind == ENTITY_FUNCTION) {
+			function_entity_t *function_entity
+				= &entity->function;
 
-			type_variables = function_declaration->function.type_parameters;
+			type_variables = function_entity->function.type_parameters;
 			type_arguments = reference->type_arguments;
 		}
 	}
@@ -1328,29 +1313,27 @@ static void check_call_expression(call_expression_t *call)
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = function_type->result_type;
 	if (type_variables != NULL) {
-		reference_expression_t *ref = (reference_expression_t*) function;
-		declaration_t          *declaration = ref->declaration;
+		reference_expression_t *ref    = (reference_expression_t*) function;
+		entity_t               *entity = ref->entity;
 		type_variable_t        *type_parameters;
 
 		result_type = create_concrete_type(result_type);
 
-		if (declaration->kind == DECLARATION_CONCEPT_FUNCTION) {
+		if (entity->kind == ENTITY_CONCEPT_FUNCTION) {
 			/* we might be able to resolve the concept_function_instance now */
 			resolve_concept_function_instance(ref);
 
-			concept_function_t *concept_function
-				= (concept_function_t*) declaration;
-			concept_t        *concept = concept_function->concept;
-			type_parameters           = concept->type_parameters;
+			concept_function_t *concept_function = &entity->concept_function;
+			concept_t          *concept          = concept_function->concept;
+			type_parameters                      = concept->type_parameters;
 		} else {
 			/* check type constraints */
-			assert(declaration->kind == DECLARATION_FUNCTION);
+			assert(entity->kind == ENTITY_FUNCTION);
 			check_type_constraints(type_variables,
 			                       call->base.source_position);
 
-			function_declaration_t *function_declaration
-				= (function_declaration_t*) declaration;
-			type_parameters = function_declaration->function.type_parameters;
+			function_entity_t *function_entity = &entity->function;
+			type_parameters = function_entity->function.type_parameters;
 		}
 
 		/* set type arguments on the reference expression */
@@ -1444,13 +1427,12 @@ static void check_take_address_expression(unary_expression_t *expression)
 	}
 
 	if (value->kind == EXPR_REFERENCE) {
-		reference_expression_t *reference   = (reference_expression_t*) value;
-		declaration_t          *declaration = reference->declaration;
+		reference_expression_t *reference = &value->reference;
+		entity_t               *entity    = reference->entity;
 
-		if (declaration->kind == DECLARATION_VARIABLE) {
-			variable_declaration_t *variable 
-				= (variable_declaration_t*) declaration;
-			variable->needs_entity = 1;
+		if (entity->kind == ENTITY_VARIABLE) {
+			variable_t *variable = &entity->variable;
+			variable->needs_entity = true;
 		}
 	}
 
@@ -1632,6 +1614,16 @@ static void check_unary_expression(unary_expression_t *unary_expression)
 	panic("Unknown unary expression found");
 }
 
+static entity_t *find_entity(const context_t *context, symbol_t *symbol)
+{
+	entity_t *entity = context->entities;
+	for ( ; entity != NULL; entity = entity->base.next) {
+		if (entity->base.symbol == symbol)
+			break;
+	}
+	return entity;
+}
+
 static void check_select_expression(select_expression_t *select)
 {
 	select->compound       = check_expression(select->compound);
@@ -1684,16 +1676,11 @@ static void check_select_expression(select_expression_t *select)
 	symbol_t *symbol = select->symbol;
 
 	/* try to find a matching declaration */
-	declaration_t *declaration = compound_type->context.declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		if (declaration->base.symbol == symbol)
-			break;
-	}
-	if (declaration != NULL) {
-		type_t *type = check_reference(declaration,
-		                               select->base.source_position);
-		select->base.type   = type;
-		select->declaration = declaration;
+	entity_t *entity = find_entity(&compound_type->context, symbol);
+	if (entity != NULL) {
+		type_t *type = check_reference(entity, select->base.source_position);
+		select->base.type = type;
+		select->entity    = entity;
 		return;
 	}
 
@@ -1916,9 +1903,9 @@ static void check_if_statement(if_statement_t *statement)
 
 static void push_context(const context_t *context)
 {
-	declaration_t *declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		environment_push(declaration, context);
+	entity_t *entity = context->entities;
+	for ( ; entity != NULL; entity = entity->base.next) {
+		environment_push(entity, context);
 	}
 }
 
@@ -1953,9 +1940,10 @@ static void check_block_statement(block_statement_t *block)
 static void check_variable_declaration(declaration_statement_t *statement)
 {
 	function_t *function = current_function;
+	variable_t *variable = &statement->entity;
 	assert(function != NULL);
 
-	statement->declaration.value_number = function->n_local_vars;
+	variable->value_number = function->n_local_vars;
 	function->n_local_vars++;
 
 	/* TODO: try to catch cases where a variable is used before it is defined
@@ -1964,10 +1952,9 @@ static void check_variable_declaration(declaration_statement_t *statement)
 	 *  typically)
 	 */
 
-	statement->declaration.base.refs = 0;
-	if (statement->declaration.type != NULL) {
-		statement->declaration.type 
-			= normalize_type(statement->declaration.type);
+	variable->base.refs = 0;
+	if (variable->type != NULL) {
+		variable->type = normalize_type(variable->type);
 	}
 }
 
@@ -2022,21 +2009,21 @@ static void check_goto_statement(goto_statement_t *goto_statement)
 		return;
 	}
 
-	declaration_t *declaration = symbol->declaration;
-	if (declaration == NULL) {
+	entity_t *entity = symbol->entity;
+	if (entity == NULL) {
 		print_error_prefix(goto_statement->base.source_position);
 		fprintf(stderr, "goto argument '%s' is an unknown symbol.\n",
 		        symbol->string);
 		return;
 	}
-	if (declaration->kind != DECLARATION_LABEL) {
+	if (entity->kind != ENTITY_LABEL) {
 		print_error_prefix(goto_statement->base.source_position);
 		fprintf(stderr, "goto argument '%s' should be a label but is a '%s'.\n",
-		        symbol->string, get_declaration_kind_name(declaration->kind));
+		        symbol->string, get_entity_kind_name(entity->kind));
 		return;
 	}
 
-	label_declaration_t *label = (label_declaration_t*) declaration;
+	label_t *label = &entity->label;
 	goto_statement->label = label;
 }
 
@@ -2162,22 +2149,22 @@ static void check_constant(constant_t *constant)
 static void resolve_type_constraint(type_constraint_t *constraint,
                                     const source_position_t source_position)
 {
-	symbol_t      *symbol      = constraint->concept_symbol;
-	declaration_t *declaration = symbol->declaration;
+	symbol_t *symbol = constraint->concept_symbol;
+	entity_t *entity = symbol->entity;
 
-	if (declaration == NULL) {
+	if (entity == NULL) {
 		print_error_prefix(source_position);
 		fprintf(stderr, "nothing known about symbol '%s'\n", symbol->string);
 		return;
 	}
-	if (declaration->kind != DECLARATION_CONCEPT) {
+	if (entity->kind != ENTITY_CONCEPT) {
 		print_error_prefix(source_position);
 		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
-		        symbol->string, get_declaration_kind_name(declaration->kind));
+		        symbol->string, get_entity_kind_name(entity->kind));
 		return;
 	}
 
-	constraint->concept = (concept_t*) declaration;
+	constraint->concept = &entity->concept;
 }
 
 static void resolve_type_variable_constraints(type_variable_t *type_variables)
@@ -2228,13 +2215,13 @@ static void check_concept_instance(concept_instance_t *instance)
 
 static void resolve_concept_types(concept_t *concept)
 {
-	int old_top            = environment_top();
+	int old_top = environment_top();
 
 	/* push type variables */
 	type_variable_t *type_parameter = concept->type_parameters;
 	while (type_parameter != NULL) {
-		declaration_t *declaration = (declaration_t*) type_parameter;
-		environment_push(declaration, concept);
+		entity_t *entity = (entity_t*) type_parameter;
+		environment_push(entity, concept);
 
 		type_parameter = type_parameter->next;
 	}
@@ -2255,22 +2242,22 @@ static void resolve_concept_types(concept_t *concept)
 
 static void resolve_concept_instance(concept_instance_t *instance)
 {
-	symbol_t      *symbol      = instance->concept_symbol;
-	declaration_t *declaration = symbol->declaration;
+	symbol_t *symbol = instance->concept_symbol;
+	entity_t *entity = symbol->entity;
 
-	if (declaration == NULL) {
+	if (entity == NULL) {
 		print_error_prefix(instance->source_position);
 		fprintf(stderr, "symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
-	if (declaration->kind != DECLARATION_CONCEPT) {
-		print_error_prefix(declaration->base.source_position);
+	if (entity->kind != ENTITY_CONCEPT) {
+		print_error_prefix(entity->base.source_position);
 		fprintf(stderr, "expected a concept but symbol '%s' is a '%s'\n",
-		        symbol->string, get_declaration_kind_name(declaration->kind));
+		        symbol->string, get_entity_kind_name(entity->kind));
 		return;
 	}
 
-	concept_t *concept        = (concept_t*) declaration;
+	concept_t *concept        = &entity->concept;
 	instance->concept         = concept;
 	instance->next_in_concept = concept->instances;
 	concept->instances        = instance;
@@ -2282,8 +2269,8 @@ static void resolve_concept_instance(concept_instance_t *instance)
 
 	type_variable_t *type_parameter = instance->type_parameters;
 	for ( ; type_parameter != NULL; type_parameter = type_parameter->next) {
-		declaration_t *declaration = (declaration_t*) type_parameter;
-		environment_push(declaration, instance);
+		entity_t *entity = (entity_t*) type_parameter;
+		environment_push(entity, instance);
 	}
 
 	/* normalize argument types */
@@ -2362,17 +2349,17 @@ static void resolve_concept_instance(concept_instance_t *instance)
 
 static void check_export(const export_t *export)
 {
-	symbol_t      *symbol      = export->symbol;
-	declaration_t *declaration = symbol->declaration;
+	symbol_t *symbol = export->symbol;
+	entity_t *entity = symbol->entity;
 
-	if (declaration == NULL) {
+	if (entity == NULL) {
 		print_error_prefix(export->source_position);
 		fprintf(stderr, "Exported symbol '%s' is unknown\n", symbol->string);
 		return;
 	}
 
-	declaration->base.exported = true;
-	found_export               = true;
+	entity->base.exported = true;
+	found_export          = true;
 }
 
 static void check_and_push_context(context_t *context)
@@ -2380,27 +2367,26 @@ static void check_and_push_context(context_t *context)
 	push_context(context);
 
 	/* normalize types, resolve concept instance references */
-	declaration_t *declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		switch (declaration->kind) {
-		case DECLARATION_VARIABLE:
-			declaration->variable.type 
-				= normalize_type(declaration->variable.type);
+	entity_t *entity = context->entities;
+	for ( ; entity != NULL; entity = entity->base.next) {
+		switch (entity->kind) {
+		case ENTITY_VARIABLE:
+			entity->variable.type = normalize_type(entity->variable.type);
 			break;
-		case DECLARATION_FUNCTION:
-			resolve_function_types(&declaration->function.function);
+		case ENTITY_FUNCTION:
+			resolve_function_types(&entity->function.function);
 			break;
-		case DECLARATION_TYPEALIAS: {
-			type_t *type = normalize_type(declaration->typealias.type);
+		case ENTITY_TYPEALIAS: {
+			type_t *type = normalize_type(entity->typealias.type);
 			if (type->kind == TYPE_COMPOUND_UNION
 				|| type->kind == TYPE_COMPOUND_STRUCT) {
 				check_compound_type((compound_type_t*) type);
 			}
-			declaration->typealias.type = type;
+			entity->typealias.type = type;
 			break;
 		}
-		case DECLARATION_CONCEPT:
-			resolve_concept_types(&declaration->concept);
+		case ENTITY_CONCEPT:
+			resolve_concept_types(&entity->concept);
 			break;
 		default:
 			break;
@@ -2419,17 +2405,17 @@ static void check_and_push_context(context_t *context)
 	}
 
 	/* check semantics in functions */
-	declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		switch (declaration->kind) {
-		case DECLARATION_FUNCTION: {
-			check_function(&declaration->function.function,
-			               declaration->base.symbol,
-			               declaration->base.source_position);
+	entity = context->entities;
+	for ( ; entity != NULL; entity = entity->base.next) {
+		switch (entity->kind) {
+		case ENTITY_FUNCTION: {
+			check_function(&entity->function.function,
+			               entity->base.symbol,
+			               entity->base.source_position);
 			break;
 		}
-		case DECLARATION_CONSTANT:
-			check_constant((constant_t*) declaration);
+		case ENTITY_CONSTANT:
+			check_constant(&entity->constant);
 			break;
 		default:
 			break;
@@ -2485,17 +2471,6 @@ static module_t *find_module(symbol_t *name)
 	return module;
 }
 
-static declaration_t *find_declaration(const context_t *context,
-                                       symbol_t *symbol)
-{
-	declaration_t *declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		if (declaration->base.symbol == symbol)
-			break;
-	}
-	return declaration;
-}
-
 static void check_module(module_t *module)
 {
 	if (module->processed)
@@ -2509,7 +2484,7 @@ static void check_module(module_t *module)
 	import_t *import = module->context.imports;
 	for( ; import != NULL; import = import->next) {
 		const context_t *ref_context = NULL;
-		declaration_t   *declaration;
+		entity_t        *entity;
 
 		symbol_t *symbol     = import->symbol;
 		symbol_t *modulename = import->module;
@@ -2518,39 +2493,39 @@ static void check_module(module_t *module)
 			print_error_prefix(import->source_position);
 			fprintf(stderr, "Referenced module \"%s\" does not exist\n",
 			        modulename->string);
-			declaration = create_error_declarataion(symbol);
+			entity = create_error_entity(symbol);
 		} else {
 			if (ref_module->processing) {
 				print_error_prefix(import->source_position);
 				fprintf(stderr, "Reference to module '%s' is recursive\n",
 				        modulename->string);
-				declaration = create_error_declarataion(symbol);
+				entity = create_error_entity(symbol);
 			} else {
 				check_module(ref_module);
-				declaration = find_declaration(&ref_module->context, symbol);
-				if (declaration == NULL) {
+				entity = find_entity(&ref_module->context, symbol);
+				if (entity == NULL) {
 					print_error_prefix(import->source_position);
 					fprintf(stderr, "Module '%s' does not declare '%s'\n",
 					        modulename->string, symbol->string);
-					declaration = create_error_declarataion(symbol);
+					entity = create_error_entity(symbol);
 				} else {
 					ref_context = &ref_module->context;
 				}
 			}
 		}
-		if (!declaration->base.exported) {
+		if (!entity->base.exported) {
 			print_error_prefix(import->source_position);
 			fprintf(stderr, "Cannot import '%s' from \"%s\" because it is not exported\n",
 			        symbol->string, modulename->string);
 		}
-		if (symbol->declaration == declaration) {
+		if (symbol->entity == entity) {
 			print_warning_prefix(import->source_position);
 			fprintf(stderr, "'%s' imported twice\n", symbol->string);
 			/* imported twice, ignore */
 			continue;
 		}
 
-		environment_push(declaration, ref_context);
+		environment_push(entity, ref_context);
 	}
 
 	check_and_push_context(&module->context);

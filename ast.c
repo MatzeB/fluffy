@@ -84,10 +84,10 @@ static void print_type_arguments(const type_argument_t *type_arguments)
 
 static void print_reference_expression(const reference_expression_t *ref)
 {
-	if (ref->declaration == NULL) {
+	if (ref->entity == NULL) {
 		fprintf(out, "?%s", ref->symbol->string);
 	} else {
-		fprintf(out, "%s", ref->declaration->base.symbol->string);
+		fprintf(out, "%s", ref->entity->base.symbol->string);
 	}
 
 	print_type_arguments(ref->type_arguments);
@@ -287,11 +287,11 @@ static void print_goto_statement(const goto_statement_t *statement)
 
 static void print_label_statement(const label_statement_t *statement)
 {
-	symbol_t *symbol = statement->declaration.base.symbol;
+	symbol_t *symbol = statement->label.base.symbol;
 	if (symbol != NULL) {
 		fprintf(out, ":%s", symbol->string);
 	} else {
-		const label_declaration_t *label = &statement->declaration;
+		const label_t *label = &statement->label;
 		fprintf(out, ":$%p$", label);
 	}
 }
@@ -311,20 +311,20 @@ static void print_if_statement(const if_statement_t *statement)
 	}
 }
 
-static void print_variable_declaration(const variable_declaration_t *var)
+static void print_variable(const variable_t *variable)
 {
 	fprintf(out, "var");
-	if (var->type != NULL) {
+	if (variable->type != NULL) {
 		fprintf(out, "<");
-		print_type(var->type);
+		print_type(variable->type);
 		fprintf(out, ">");
 	}
-	fprintf(out, " %s", var->base.symbol->string);
+	fprintf(out, " %s", variable->base.symbol->string);
 }
 
 static void print_declaration_statement(const declaration_statement_t *statement)
 {
-	print_variable_declaration(&statement->declaration);
+	print_variable(&statement->entity);
 }
 
 void print_statement(const statement_t *statement)
@@ -420,7 +420,7 @@ static void print_function_parameters(const function_parameter_t *parameters,
 		}
 
 		print_type(parameter_type->type);
-		fprintf(out, " %s", parameter->declaration.base.symbol->string);
+		fprintf(out, " %s", parameter->base.symbol->string);
 
 		parameter      = parameter->next;
 		parameter_type = parameter_type->next;
@@ -430,9 +430,9 @@ static void print_function_parameters(const function_parameter_t *parameters,
 	fprintf(out, ")");
 }
 
-static void print_function(const function_declaration_t *function_declaration)
+static void print_function(const function_entity_t *function_entity)
 {
-	const function_t *function = &function_declaration->function;
+	const function_t *function = &function_entity->function;
 	function_type_t  *type     = function->type;
 
 	fprintf(out, "func ");
@@ -441,7 +441,7 @@ static void print_function(const function_declaration_t *function_declaration)
 		fprintf(out, "extern ");
 	}
 
-	fprintf(out, " %s", function_declaration->base.symbol->string);
+	fprintf(out, " %s", function_entity->base.symbol->string);
 
 	print_type_parameters(function->type_parameters);
 
@@ -549,51 +549,50 @@ static void print_typealias(const typealias_t *alias)
 	fprintf(out, "\n");
 }
 
-static void print_declaration(const declaration_t *declaration)
+static void print_entity(const entity_t *entity)
 {
 	print_indent();
 
-	switch (declaration->kind) {
-	case DECLARATION_FUNCTION:
-		print_function(&declaration->function);
+	switch (entity->kind) {
+	case ENTITY_FUNCTION:
+		print_function(&entity->function);
 		break;
-	case DECLARATION_CONCEPT:
-		print_concept((const concept_t*) declaration);
+	case ENTITY_CONCEPT:
+		print_concept(&entity->concept);
 		break;
-	case DECLARATION_VARIABLE:
-		print_variable_declaration((const variable_declaration_t*) declaration);
+	case ENTITY_VARIABLE:
+		print_variable(&entity->variable);
 		break;
-	case DECLARATION_TYPEALIAS:
-		print_typealias((const typealias_t*) declaration);
+	case ENTITY_TYPEALIAS:
+		print_typealias(&entity->typealias);
 		break;
-	case DECLARATION_CONSTANT:
-		print_constant((const constant_t*) declaration);
+	case ENTITY_CONSTANT:
+		print_constant(&entity->constant);
 		break;
-	case DECLARATION_ITERATOR:
-	case DECLARATION_CONCEPT_FUNCTION:
-	case DECLARATION_FUNCTION_PARAMETER:
-	case DECLARATION_ERROR:
+	case ENTITY_CONCEPT_FUNCTION:
+	case ENTITY_FUNCTION_PARAMETER:
+	case ENTITY_ERROR:
 		// TODO
-		fprintf(out, "some declaration of type '%s'\n",
-		        get_declaration_kind_name(declaration->kind));
+		fprintf(out, "some entity of type '%s'\n",
+		        get_entity_kind_name(entity->kind));
 		break;
 
-	case DECLARATION_TYPE_VARIABLE:
-	case DECLARATION_LABEL:
+	case ENTITY_TYPE_VARIABLE:
+	case ENTITY_LABEL:
 		break;
 
-	case DECLARATION_INVALID:
-		fprintf(out, "invalid declaration (%s)\n",
-		        get_declaration_kind_name(declaration->kind));
+	case ENTITY_INVALID:
+		fprintf(out, "invalid entity (%s)\n",
+		        get_entity_kind_name(entity->kind));
 		break;
 	}
 }
 
 static void print_context(const context_t *context)
 {
-	declaration_t *declaration = context->declarations;
-	for ( ; declaration != NULL; declaration = declaration->base.next) {
-		print_declaration(declaration);
+	for (entity_t *entity = context->entities; entity != NULL;
+	     entity = entity->base.next) {
+		print_entity(entity);
 	}
 
 	concept_instance_t *instance = context->concept_instances;
@@ -613,21 +612,20 @@ void print_ast(FILE *new_out, const context_t *context)
 	out = NULL;
 }
 
-const char *get_declaration_kind_name(declaration_kind_t type)
+const char *get_entity_kind_name(entity_kind_t type)
 {
 	switch (type) {
-	case DECLARATION_ERROR:              return "parse error";
-	case DECLARATION_INVALID:            return "invalid reference";
-	case DECLARATION_VARIABLE:           return "variable";
-	case DECLARATION_CONSTANT:           return "constant";
-	case DECLARATION_FUNCTION_PARAMETER: return "function parameter";
-	case DECLARATION_FUNCTION:           return "function";
-	case DECLARATION_ITERATOR:           return "iterator";
-	case DECLARATION_CONCEPT:            return "concept";
-	case DECLARATION_TYPEALIAS:          return "type alias";
-	case DECLARATION_TYPE_VARIABLE:      return "type variable";
-	case DECLARATION_LABEL:              return "label";
-	case DECLARATION_CONCEPT_FUNCTION:   return "concept function";
+	case ENTITY_ERROR:              return "parse error";
+	case ENTITY_INVALID:            return "invalid reference";
+	case ENTITY_VARIABLE:           return "variable";
+	case ENTITY_CONSTANT:           return "constant";
+	case ENTITY_FUNCTION_PARAMETER: return "function parameter";
+	case ENTITY_FUNCTION:           return "function";
+	case ENTITY_CONCEPT:            return "concept";
+	case ENTITY_TYPEALIAS:          return "type alias";
+	case ENTITY_TYPE_VARIABLE:      return "type variable";
+	case ENTITY_LABEL:              return "label";
+	case ENTITY_CONCEPT_FUNCTION:   return "concept function";
 	}
 	panic("invalid environment entry found");
 }
@@ -648,30 +646,23 @@ void* (allocate_ast) (size_t size)
 	return _allocate_ast(size);
 }
 
-unsigned register_expression()
+unsigned register_expression(void)
 {
 	static unsigned nextid = EXPR_LAST;
 	++nextid;
 	return nextid;
 }
 
-unsigned register_statement()
+unsigned register_statement(void)
 {
 	static unsigned nextid = STATEMENT_LAST;
 	++nextid;
 	return nextid;
 }
 
-unsigned register_declaration()
+unsigned register_entity(void)
 {
-	static unsigned nextid = DECLARATION_LAST;
-	++nextid;
-	return nextid;
-}
-
-unsigned register_attribute()
-{
-	static unsigned nextid = 0;
+	static unsigned nextid = ENTITY_LAST;
 	++nextid;
 	return nextid;
 }
@@ -716,8 +707,8 @@ bool is_constant_expression(const expression_t *expression)
 		return is_linktime_constant(expression->unary.value);
 
 	case EXPR_REFERENCE: {
-		declaration_t *declaration = expression->reference.declaration;
-		if (declaration->kind == DECLARATION_CONSTANT)
+		entity_t *entity = expression->reference.entity;
+		if (entity->kind == ENTITY_CONSTANT)
 			return true;
 		return false;
 	}

@@ -6,6 +6,8 @@
 #include "type.h"
 #include <libfirm/firm_types.h>
 
+void set_add_underscore_prefix(bool add_underscore_prefix);
+
 void start_mangle(void);
 void mangle_symbol_simple(symbol_t *symbol);
 void mangle_symbol(symbol_t *symbol);

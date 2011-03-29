@@ -1,6 +1,6 @@
 /*
  * This file is part of cparser.
- * Copyright (C) 2007-2008 Matthias Braun <matze@braunis.de>
+ * Copyright (C) 2007-2009 Matthias Braun <matze@braunis.de>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
  * @date    16.03.2007
  * @brief   Various utility functions that wrap compiler specific extensions
  * @author  Matthias Braun
- * @version $Id: util.h 24738 2008-12-17 07:52:22Z mallon $
+ * @version $Id$
  */
 #ifndef _FIRM_UTIL_H_
 #define _FIRM_UTIL_H_
@@ -34,9 +34,9 @@
  *
  * @note This uses the fact, that double case labels are not allowed.
  */
-#define COMPILETIME_ASSERT(x, name)	\
+#define COMPILETIME_ASSERT(x, name) \
 	static __attribute__((unused)) void compiletime_assert_##name (int h) { \
-		switch(h) { case 0:	case (x): {} } \
+		switch(h) { case 0: case (x): {} } \
 	}
 
 /**

@@ -36,18 +36,33 @@ typedef enum precedence_t {
 	PREC_TOP
 } precedence_t;
 
+typedef enum declaration_kind_t {
+	ENTITY_INVALID,
+	ENTITY_ERROR,
+	ENTITY_FUNCTION,
+	ENTITY_FUNCTION_PARAMETER,
+	ENTITY_TYPE_VARIABLE,
+	ENTITY_CONCEPT_FUNCTION,
+	ENTITY_CONCEPT,
+	ENTITY_VARIABLE,
+	ENTITY_CONSTANT,
+	ENTITY_TYPEALIAS,
+	ENTITY_LABEL,
+	ENTITY_LAST = ENTITY_LABEL,
+} entity_kind_t;
+
 /**
- * base struct for a declaration
+ * a named entity is something which can be referenced by its name
+ * (a symbol)
  */
-struct declaration_t {
+typedef struct entity_base_t {
+	entity_kind_t      kind;
 	symbol_t          *symbol;
-	declaration_t     *next;
-	int                refs;         /**< temporarily used by semantic phase */
-	expression_t      *value;
-	bool               exported : 1;
-	bool               mutable : 1;
 	source_position_t  source_position;
-};
+	entity_t          *next;
+	bool               exported : 1;
+	int                refs;         /**< temporarily used by semantic phase */
+} entity_base_t;
 
 struct export_t {
 	symbol_t          *symbol;
@@ -68,22 +83,90 @@ struct import_t {
  *  not explicitely included)
  */
 struct context_t {
-	declaration_t      *declarations;
+	entity_t           *entities;
 	concept_instance_t *concept_instances;
 	export_t           *exports;
 	import_t           *imports;
 };
 
-struct type_variable_t {
-	declaration_base_t  base;
-	type_constraint_t  *constraints;
-	type_variable_t    *next;
+/**
+ * base structure for attributes (meta-data which can be attached to several
+ * language elements)
+ */
+struct attribute_t {
+	unsigned           type;
+	source_position_t  source_position;
+	attribute_t       *next;
+};
 
-	type_t             *current_type;
+struct type_variable_t {
+	entity_base_t      base;
+	type_constraint_t *constraints;
+	type_variable_t   *next;
+
+	type_t            *current_type;
+};
+
+struct function_parameter_t {
+	entity_base_t         base;
+	function_parameter_t *next;
+	type_t               *type;
+	int                   num;
+};
+
+struct function_t {
+	function_type_t     *type;
+	type_variable_t     *type_parameters;
+	function_parameter_t *parameters;
+	bool                  is_extern;
+	
+	context_t    context;
+	statement_t *statement;
+
+	union {
+		ir_entity   *entity;
+		ir_entity  **entities;
+	} e;
+	unsigned n_local_vars;
+};
+
+struct function_entity_t {
+	entity_base_t  base;
+	function_t     function;
+};
+
+struct variable_t {
+	entity_base_t  base;
+	type_t        *type;
+	bool           is_extern;
+	bool           export;
+	bool           is_global;
+	bool           needs_entity;
+
+	ir_entity     *entity;
+	int            value_number;
+};
+
+struct label_t {
+	entity_base_t base;
+
+	ir_node *block;
+	label_t *next;
+};
+
+struct constant_t {
+	entity_base_t  base;
+	type_t        *type;
+	expression_t  *expression;
+};
+
+struct typealias_t {
+	entity_base_t  base;
+	type_t        *type;
 };
 
 struct concept_function_t {
-	declaration_base_t    base;
+	entity_base_t         base;
 	function_type_t      *type;
 	function_parameter_t *parameters;
 	concept_t            *concept;
@@ -92,12 +175,26 @@ struct concept_function_t {
 };
 
 struct concept_t {
-	declaration_base_t  base;
+	entity_base_t       base;
 
 	type_variable_t    *type_parameters;
 	concept_function_t *functions;
 	concept_instance_t *instances;
 	context_t           context;
+};
+
+union entity_t {
+	entity_kind_t        kind;
+	entity_base_t        base;
+	type_variable_t      type_variable;
+	variable_t           variable;
+	function_entity_t    function;
+	function_parameter_t parameter;
+	constant_t           constant;
+	label_t              label;
+	typealias_t          typealias;
+	concept_t            concept;
+	concept_function_t   concept_function;
 };
 
 struct module_t {
@@ -200,11 +297,6 @@ struct expression_base_t {
 	bool               lowered;
 };
 
-struct expression_bind_typevariable_t {
-	expression_base_t  base;
-	expression_t      *value;
-};
-
 struct bool_const_t {
 	expression_base_t base;
 	bool              value;
@@ -225,28 +317,27 @@ struct string_const_t {
 	const char        *value;
 };
 
-struct do_expression_t {
-	expression_base_t  base;
-	parameter_t       *parameters;
-	statement_t       *statement;
-};
-
-struct concept_expression_t {
-	expression_base_t   base;
-	concept_function_t *functions;
-	concept_instance_t *instances;
+struct func_expression_t {
+	expression_base_t base;
+	function_t        function;
 };
 
 struct reference_expression_t {
 	expression_base_t  base;
 	symbol_t          *symbol;
-	declaration_t     *declaration;
+	entity_t          *entity;
+	type_argument_t   *type_arguments;
 };
 
-struct application_t {
+struct call_argument_t {
+	expression_t    *expression;
+	call_argument_t *next;
+};
+
+struct call_expression_t {
 	expression_base_t  base;
 	expression_t      *function;
-	expression_t      *argument;
+	call_argument_t   *arguments;
 };
 
 struct unary_expression_t {
@@ -266,7 +357,7 @@ struct select_expression_t {
 	symbol_t          *symbol;
 
 	compound_entry_t *compound_entry;
-	declaration_t    *declaration;
+	entity_t         *entity;
 };
 
 struct array_access_expression_t {
@@ -329,8 +420,8 @@ struct block_statement_t {
 };
 
 struct declaration_statement_t {
-	statement_base_t        base;
-	variable_declaration_t  declaration;
+	statement_base_t base;
+	variable_t       entity;
 };
 
 struct if_statement_t {
@@ -341,14 +432,14 @@ struct if_statement_t {
 };
 
 struct goto_statement_t {
-	statement_base_t     base;
-	symbol_t            *label_symbol;
-	label_declaration_t *label;
+	statement_base_t  base;
+	symbol_t         *label_symbol;
+	label_t          *label;
 };
 
 struct label_statement_t {
-	statement_base_t     base;
-	label_declaration_t  declaration;
+	statement_base_t base;
+	label_t          label;
 };
 
 struct expression_statement_t {
@@ -366,13 +457,6 @@ union statement_t {
 	label_statement_t        label;
 	expression_statement_t   expression;
 	if_statement_t           ifs;
-};
-
-struct function_parameter_t {
-	declaration_t         declaration;
-	function_parameter_t *next;
-	type_t               *type;
-	int                   num;
 };
 
 struct concept_function_instance_t {
@@ -404,15 +488,15 @@ static inline void *_allocate_ast(size_t size)
 
 #define allocate_ast(size)                 _allocate_ast(size)
 
-const char *get_declaration_kind_name(declaration_kind_t type);
+const char *get_entity_kind_name(entity_kind_t type);
 
 /* ----- helpers for plugins ------ */
 
 unsigned register_expression(void);
 unsigned register_statement(void);
-unsigned register_declaration(void);
+unsigned register_entity(void);
 
 expression_t *allocate_expression(expression_kind_t kind);
-declaration_t *allocate_declaration(declaration_kind_t kind);
+entity_t *allocate_entity(entity_kind_t kind);
 
 #endif
