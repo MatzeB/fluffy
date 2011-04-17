@@ -111,12 +111,12 @@ struct function_parameter_t {
 	entity_base_t         base;
 	function_parameter_t *next;
 	type_t               *type;
-	int                   num;
+	int                   value_number;
 };
 
 struct function_t {
-	function_type_t     *type;
-	type_variable_t     *type_parameters;
+	function_type_t      *type;
+	type_variable_t      *type_parameters;
 	function_parameter_t *parameters;
 	bool                  is_extern;
 	

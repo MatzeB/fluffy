@@ -2093,11 +2093,8 @@ static void check_function(function_t *function, symbol_t *symbol,
 
 	/* set function parameter numbers */
 	function_parameter_t *parameter = function->parameters;
-	int n = 0;
-	while (parameter != NULL) {
-		parameter->num = n;
-		n++;
-		parameter = parameter->next;
+	for ( ; parameter != NULL; parameter = parameter->next) {
+		parameter->value_number = function->n_local_vars++;
 	}
 
 	bool last_last_statement_was_return = last_statement_was_return;

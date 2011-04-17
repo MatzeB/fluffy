@@ -1316,12 +1316,7 @@ static ir_node *concept_function_reference_to_firm(concept_function_t *function,
 
 static ir_node *function_parameter_reference_to_firm(function_parameter_t *parameter)
 {
-	ir_node *args  = get_irg_args(current_ir_graph);
-	ir_mode *mode  = get_ir_mode(parameter->type);
-	long     pn    = parameter->num;
-	ir_node *proj  = new_r_Proj(args, mode, pn);
-
-	return proj;
+	return get_value(parameter->value_number, NULL);
 }
 
 static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
@@ -1674,6 +1669,16 @@ static void create_function(function_t *function, ir_entity *entity,
 
 	assert(value_numbers == NULL);
 	value_numbers = xmalloc(function->n_local_vars * sizeof(value_numbers[0]));
+
+	/* create initial values for variables */
+	ir_node *args          = get_irg_args(irg);
+	int      parameter_num = 0;
+	for (function_parameter_t *parameter = function->parameters;
+	     parameter != NULL; parameter = parameter->next, ++parameter_num) {
+		ir_mode *mode = get_ir_mode(parameter->type);
+		ir_node *proj = new_r_Proj(args, mode, parameter_num);
+		set_value(parameter->value_number, proj);
+	}
 
 	context2firm(&function->context);
 
