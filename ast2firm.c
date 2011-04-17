@@ -127,34 +127,20 @@ static symbol_t *unique_symbol(const char *tag)
 static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 {
 	switch (atomic_type->akind) {
-	case ATOMIC_TYPE_BYTE:
-		return mode_Bs;
-	case ATOMIC_TYPE_UBYTE:
-		return mode_Bu;
-	case ATOMIC_TYPE_SHORT:
-		return mode_Hs;
-	case ATOMIC_TYPE_USHORT:
-		return mode_Hu;
-	case ATOMIC_TYPE_INT:
-		return mode_Is;
-	case ATOMIC_TYPE_UINT:
-		return mode_Iu;
-	case ATOMIC_TYPE_LONG:
-		return mode_Ls;
-	case ATOMIC_TYPE_ULONG:
-		return mode_Lu;
-	case ATOMIC_TYPE_LONGLONG:
-		return mode_LLs;
-	case ATOMIC_TYPE_ULONGLONG:
-		return mode_LLu;
-	case ATOMIC_TYPE_FLOAT:
-		return mode_F;
-	case ATOMIC_TYPE_DOUBLE:
-		return mode_D;
-	case ATOMIC_TYPE_BOOL:
-		return mode_b;
-	case ATOMIC_TYPE_INVALID:
-		break;
+	case ATOMIC_TYPE_BYTE:      return mode_Bs;
+	case ATOMIC_TYPE_UBYTE:     return mode_Bu;
+	case ATOMIC_TYPE_SHORT:     return mode_Hs;
+	case ATOMIC_TYPE_USHORT:    return mode_Hu;
+	case ATOMIC_TYPE_INT:       return mode_Is;
+	case ATOMIC_TYPE_UINT:      return mode_Iu;
+	case ATOMIC_TYPE_LONG:      return mode_Ls;
+	case ATOMIC_TYPE_ULONG:     return mode_Lu;
+	case ATOMIC_TYPE_LONGLONG:  return mode_LLs;
+	case ATOMIC_TYPE_ULONGLONG: return mode_LLu;
+	case ATOMIC_TYPE_FLOAT:     return mode_F;
+	case ATOMIC_TYPE_DOUBLE:    return mode_D;
+	case ATOMIC_TYPE_BOOL:      return mode_b;
+	case ATOMIC_TYPE_INVALID:   break;
 	}
 	panic("Encountered unknown atomic type");
 }
@@ -167,19 +153,19 @@ static unsigned get_atomic_type_size(const atomic_type_t *type)
 	switch (type->akind) {
 	case ATOMIC_TYPE_UBYTE:
 	case ATOMIC_TYPE_BYTE:
+	case ATOMIC_TYPE_BOOL:
 		return 1;
 
-	case ATOMIC_TYPE_BOOL:
+	case ATOMIC_TYPE_SHORT:
+	case ATOMIC_TYPE_USHORT:
+		return 2;
+
 	case ATOMIC_TYPE_INT:
 	case ATOMIC_TYPE_UINT:
 	case ATOMIC_TYPE_LONG:
 	case ATOMIC_TYPE_ULONG:
 	case ATOMIC_TYPE_FLOAT:
 		return 4;
-
-	case ATOMIC_TYPE_SHORT:
-	case ATOMIC_TYPE_USHORT:
-		return 2;
 
 	case ATOMIC_TYPE_LONGLONG:
 	case ATOMIC_TYPE_ULONGLONG:
@@ -227,9 +213,9 @@ static unsigned get_type_size(type_t *type)
 		return get_compound_type_size((compound_type_t*) type);
 	case TYPE_FUNCTION:
 		/* just a pointer to the function */
-		return get_mode_size_bytes(mode_P_code);
+		return get_mode_size_bytes(mode_P);
 	case TYPE_POINTER:
-		return get_mode_size_bytes(mode_P_data);
+		return get_mode_size_bytes(mode_P);
 	case TYPE_ARRAY:
 		return get_array_type_size((array_type_t*) type);
 	case TYPE_TYPEOF: {
@@ -818,7 +804,7 @@ static ir_node *array_access_expression_addr(const array_access_expression_t* ac
 		= get_dbg_info(&access->base.source_position);
 
 	ir_node      *mul = new_d_Mul(dbgi, index_node, elem_size_const, mode_Is);
-	ir_node      *add = new_d_Add(dbgi, base_addr, mul, mode_P_data);
+	ir_node      *add = new_d_Add(dbgi, base_addr, mul, mode_P);
 	return add;
 }
 
@@ -1758,10 +1744,11 @@ static void create_concept_instance(concept_instance_t *instance)
 		return;
 
 	concept_function_instance_t *function_instance = instance->function_instances;
-	for ( ; function_instance != NULL; function_instance = function_instance->next) {
+	for ( ; function_instance != NULL;
+	     function_instance = function_instance->next) {
 		/* we have to construct this instance lazily
 		   TODO: construct all instances lazily might be a good idea */
-		function_t *function = & function_instance->function;
+		function_t *function = &function_instance->function;
 		/* make sure the function entity is set */
 		ir_entity *entity
 			= get_concept_function_instance_entity(function_instance);
@@ -1843,4 +1830,3 @@ void ast2firm(const module_t *modules)
 	obstack_free(&obst, NULL);
 	strset_destroy(&instantiated_functions);
 }
-
