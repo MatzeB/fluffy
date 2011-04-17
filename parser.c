@@ -543,6 +543,8 @@ static compound_entry_t *parse_compound_entries(void)
 		if (token.type != T_IDENTIFIER) {
 			parse_error_expected("Problem while parsing compound entry",
 								 T_IDENTIFIER, 0);
+			eat_until_matching_token(T_NEWLINE);
+			next_token();
 			continue;
 		}
 		entry->symbol = token.v.symbol;
