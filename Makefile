@@ -9,7 +9,7 @@ CPPFLAGS = -I.
 CPPFLAGS += $(FIRM_CFLAGS) -DFIRM_BACKEND
 
 CFLAGS += -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Werror -std=c99
-CFLAGS += -O0 -g3
+CFLAGS += -O0 -g3 -m32
 
 LFLAGS += $(FIRM_LIBS) -ldl
 
@@ -53,7 +53,7 @@ endif
 
 $(GOAL): $(OBJECTS) | build/driver build/adt
 	@echo "===> LD $@"
-	$(Q)$(CC) -rdynamic $(OBJECTS) $(LFLAGS) -o $(GOAL)
+	$(Q)$(CC) -m32 -rdynamic $(OBJECTS) $(LFLAGS) -o $(GOAL)
 
 build/adt:
 	@echo "===> MKDIR $@"
