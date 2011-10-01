@@ -36,7 +36,7 @@ typedef enum precedence_t {
 	PREC_TOP
 } precedence_t;
 
-typedef enum declaration_kind_t {
+typedef enum entity_kind_t {
 	ENTITY_INVALID,
 	ENTITY_ERROR,
 	ENTITY_FUNCTION,
@@ -60,7 +60,7 @@ typedef struct entity_base_t {
 	symbol_t          *symbol;
 	source_position_t  source_position;
 	entity_t          *next;
-	bool               exported : 1;
+	bool               exported;
 	int                refs;         /**< temporarily used by semantic phase */
 } entity_base_t;
 

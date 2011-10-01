@@ -26,7 +26,6 @@ typedef struct instantiate_function_t  instantiate_function_t;
 
 static ir_type *byte_ir_type  = NULL;
 static ir_type *void_ptr_type = NULL;
-static type_t  *type_bool     = NULL;
 
 struct instantiate_function_t {
 	function_t       *function;
@@ -83,8 +82,6 @@ void init_ast2firm(void)
 
 static void init_ir_types(void)
 {
-	type_bool = make_atomic_type(ATOMIC_TYPE_BOOL);
-
 	atomic_type_t byte_type;
 	memset(&byte_type, 0, sizeof(byte_type));
 	byte_type.base.kind = TYPE_ATOMIC;
@@ -124,9 +121,9 @@ static symbol_t *unique_symbol(const char *tag)
 	return symbol;
 }
 
-static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
+static ir_mode *get_atomic_mode(const atomic_type_kind_t atomic_kind)
 {
-	switch (atomic_type->akind) {
+	switch (atomic_kind) {
 	case ATOMIC_TYPE_BYTE:      return mode_Bs;
 	case ATOMIC_TYPE_UBYTE:     return mode_Bu;
 	case ATOMIC_TYPE_SHORT:     return mode_Hs;
@@ -139,7 +136,7 @@ static ir_mode *get_atomic_mode(const atomic_type_t* atomic_type)
 	case ATOMIC_TYPE_ULONGLONG: return mode_LLu;
 	case ATOMIC_TYPE_FLOAT:     return mode_F;
 	case ATOMIC_TYPE_DOUBLE:    return mode_D;
-	case ATOMIC_TYPE_BOOL:      return mode_b;
+	case ATOMIC_TYPE_BOOL:      return mode_Bu;
 	case ATOMIC_TYPE_INVALID:   break;
 	}
 	panic("Encountered unknown atomic type");
@@ -253,7 +250,7 @@ static int count_parameters(const function_type_t *function_type)
 static ir_type *get_atomic_type(type2firm_env_t *env, const atomic_type_t *type)
 {
 	(void) env;
-	ir_mode *mode   = get_atomic_mode(type);
+	ir_mode *mode   = get_atomic_mode(type->akind);
 	ir_type *irtype = new_type_primitive(mode);
 
 	return irtype;
@@ -372,23 +369,23 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 	} else {
 		id = unique_ident("__anonymous_struct");
 	}
-	ir_type *ir_type = new_type_struct(id);
+	ir_type *type_ir = new_type_struct(id);
 
-	type->base.firm_type = ir_type;
+	type->base.firm_type = type_ir;
 
 	int align_all = 1;
 	int offset    = 0;
 	compound_entry_t *entry = type->entries;
 	while (entry != NULL) {
-		ident       *ident         = new_id_from_str(entry->symbol->string);
-		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
+		ident   *ident         = new_id_from_str(entry->symbol->string);
+		ir_type *entry_ir_type = _get_ir_type(env, entry->type);
 
 		int entry_size      = get_type_size_bytes(entry_ir_type);
 		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
 		int misalign = offset % entry_alignment;
 		offset += misalign;
 
-		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
+		ir_entity *entity = new_entity(type_ir, ident, entry_ir_type);
 		set_entity_offset(entity, offset);
 		entry->entity = entity;
 
@@ -404,11 +401,11 @@ static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 
 	int misalign = offset % align_all;
 	offset += misalign;
-	set_type_alignment_bytes(ir_type, align_all);
-	set_type_size_bytes(ir_type, offset);
-	set_type_state(ir_type, layout_fixed);
+	set_type_alignment_bytes(type_ir, align_all);
+	set_type_size_bytes(type_ir, offset);
+	set_type_state(type_ir, layout_fixed);
 
-	return ir_type;
+	return type_ir;
 }
 
 static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
@@ -420,21 +417,21 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 	} else {
 		id = unique_ident("__anonymous_union");
 	}
-	ir_type  *ir_type = new_type_union(id);
+	ir_type *type_ir = new_type_union(id);
 
-	type->base.firm_type = ir_type;
+	type->base.firm_type = type_ir;
 
 	int align_all = 1;
 	int size      = 0;
 	compound_entry_t *entry = type->entries;
 	while (entry != NULL) {
-		ident       *ident         = new_id_from_str(entry->symbol->string);
-		ir_type_ptr  entry_ir_type = _get_ir_type(env, entry->type);
+		ident   *ident         = new_id_from_str(entry->symbol->string);
+		ir_type *entry_ir_type = _get_ir_type(env, entry->type);
 
 		int entry_size      = get_type_size_bytes(entry_ir_type);
 		int entry_alignment = get_type_alignment_bytes(entry_ir_type);
 
-		ir_entity *entity = new_entity(ir_type, ident, entry_ir_type);
+		ir_entity *entity = new_entity(type_ir, ident, entry_ir_type);
 		set_entity_offset(entity, 0);
 		entry->entity = entity;
 
@@ -451,11 +448,11 @@ static ir_type *get_union_type(type2firm_env_t *env, compound_type_t *type)
 		entry = entry->next;
 	}
 
-	set_type_alignment_bytes(ir_type, align_all);
-	set_type_size_bytes(ir_type, size);
-	set_type_state(ir_type, layout_fixed);
+	set_type_alignment_bytes(type_ir, align_all);
+	set_type_size_bytes(type_ir, size);
+	set_type_state(type_ir, layout_fixed);
 
-	return ir_type;
+	return type_ir;
 }
 
 static ir_type *get_type_for_type_variable(type2firm_env_t *env,
@@ -562,13 +559,21 @@ static ir_type *get_ir_type(type_t *type)
 	return _get_ir_type(&env, type);
 }
 
-static inline
-ir_mode *get_ir_mode(type_t *type)
+static ir_mode *get_ir_mode(type_t *type)
 {
 	ir_type *irtype = get_ir_type(type);
 	ir_mode *mode   = get_type_mode(irtype);
 	assert(mode != NULL);
 	return mode;
+}
+
+static ir_mode *get_arithmetic_mode(type_t *type)
+{
+	if (type->kind == TYPE_ATOMIC && type->atomic.akind == ATOMIC_TYPE_BOOL) {
+		return mode_b;
+	}
+	/* TODO: does not work for typealiases, typevariables, etc. */
+	return get_ir_mode(type);
 }
 
 static instantiate_function_t *queue_function_instantiation(
@@ -975,6 +980,9 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M);
 		set_store(mem);
 	} else {
+		if (get_irn_mode(value) == mode_b) {
+			value = new_Conv(value, get_atomic_mode(ATOMIC_TYPE_BOOL));
+		}
 		result        = new_d_Store(dbgi, store, addr, value, cons_none);
 		ir_node  *mem = new_d_Proj(dbgi, result, mode_M, pn_Store_M);
 		set_store(mem);
@@ -1012,10 +1020,8 @@ static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	bool is_or = binary_expression->base.kind == EXPR_BINARY_LAZY_OR;
 	assert(is_or || binary_expression->base.kind == EXPR_BINARY_LAZY_AND);
 
-	dbg_info *dbgi 
-		= get_dbg_info(&binary_expression->base.source_position);
-
-	ir_node *val1 = expression_to_firm(binary_expression->left);
+	dbg_info *dbgi = get_dbg_info(&binary_expression->base.source_position);
+	ir_node  *val1 = expression_to_firm(binary_expression->left);
 
 	ir_node *cond       = new_d_Cond(dbgi, val1);
 	ir_node *true_proj  = new_d_Proj(dbgi, cond, mode_X, pn_Cond_true);
@@ -1078,7 +1084,6 @@ static ir_node *binary_expression_to_firm(
 	ir_node  *right = expression_to_firm(binary_expression->right);
 	dbg_info *dbgi
 		= get_dbg_info(&binary_expression->base.source_position);
-
 
 	if (kind == EXPR_BINARY_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->base.type);
@@ -1154,6 +1159,10 @@ static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 	ir_node  *mem   = new_d_Proj(dbgi, load, mode_M, pn_Load_M);
 	ir_node  *val   = new_d_Proj(dbgi, load, mode, pn_Load_res);
 	set_store(mem);
+
+	ir_mode *result_mode = get_arithmetic_mode(type);
+	if (result_mode != mode)
+		val = new_Conv(val, result_mode);
 
 	return val;
 }
@@ -1372,11 +1381,14 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	while (argument != NULL) {
 		expression_t *expression = argument->expression;
 
+		ir_type *irtype   = get_ir_type(expression->base.type);
 		ir_node *arg_node = expression_to_firm(expression);
-
+		ir_mode *mode     = get_type_mode(irtype);
+		if (mode != NULL && get_irn_mode(arg_node) != mode) {
+			arg_node = new_Conv(arg_node, mode);
+		}
 		in[n] = arg_node;
 		if (new_method_type != NULL) {
-			ir_type *irtype = get_ir_type(expression->base.type);
 			set_method_param_type(new_method_type, n, irtype);
 		}
 
@@ -1400,6 +1412,11 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 		ir_mode *mode    = get_ir_mode(result_type);
 		ir_node *resproj = new_d_Proj(dbgi, node, mode_T, pn_Call_T_result);
 		result           = new_d_Proj(dbgi, resproj, mode, 0);
+
+		ir_mode *result_mode = get_arithmetic_mode(result_type);
+		if (result_mode != mode) {
+			result = new_Conv(result, result_mode);
+		}
 	}
 
 	return result;
@@ -1499,13 +1516,18 @@ static void statement_to_firm(statement_t *statement);
 
 static void return_statement_to_firm(const return_statement_t *statement)
 {
-	dbg_info *dbgi = get_dbg_info(&statement->base.source_position);
-	ir_node *ret;
-	if (statement->value != NULL) {
-		ir_node *retval = expression_to_firm(statement->value);
-		ir_node *in[1];
+	dbg_info     *dbgi  = get_dbg_info(&statement->base.source_position);
+	expression_t *value = statement->value;
+	ir_node      *ret;
+	if (value != NULL) {
+		ir_node *retval = expression_to_firm(value);
+		ir_mode *mode   = get_ir_mode(value->base.type);
 
-		in[0] = retval;
+		if (get_irn_mode(retval) != mode) {
+			retval = new_d_Conv(dbgi, retval, mode);
+		}
+
+		ir_node *in[1] = { retval };
 		ret = new_d_Return(dbgi, get_store(), 1, in);
 	} else {
 		ret = new_d_Return(dbgi, get_store(), 0, NULL);
@@ -1677,7 +1699,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	     parameter != NULL; parameter = parameter->next, ++parameter_num) {
 		ir_mode *mode = get_ir_mode(parameter->type);
 		ir_node *proj = new_r_Proj(args, mode, parameter_num);
-		set_value(parameter->value_number, proj);
+		set_r_value(irg, parameter->value_number, proj);
 	}
 
 	context2firm(&function->context);
