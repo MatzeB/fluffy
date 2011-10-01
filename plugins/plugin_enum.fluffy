@@ -1,3 +1,11 @@
+import "fluffy.org/stdlib" assert
+import "fluffy.org/compiler/pluginapi" token, next_token, Type, \
+	register_new_token, make_atomic_type, expect, Constant, allocate, \
+	BinaryExpression, Expression, IntConst, parse_expression, add_declaration, \
+	register_declaration_parser, ATOMIC_TYPE_INT, T_IDENTIFIER, T_INDENT, \
+	T_DEDENT, BINEXPR_ADD, T_NEWLINE, T_EOF, \
+	source_position, Declaration
+
 var token_enum : int
 var type_int   : Type*
 

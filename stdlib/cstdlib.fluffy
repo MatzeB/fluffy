@@ -3,7 +3,7 @@ module "fluffy.org/stdlib"
 export calloc, malloc, realloc, free
 export abort, atexit, exit
 export getenc, system, abs, llabs, atof, atoi, atoll
-export rand, srand, assert
+export rand, srand
 
 func extern calloc(nmemb : size_t, size : size_t) : void*
 func extern malloc(size : size_t) : void*
@@ -25,7 +25,3 @@ func extern atoll(nptr : String) : long
 
 func extern rand() : int
 func extern srand(seed : unsigned int)
-
-func assert(condition : bool):
-	if !condition:
-		abort()

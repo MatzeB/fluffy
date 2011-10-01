@@ -1,4 +1,6 @@
 module "fluffy.org/stdlib"
+export memcpy, memmove, memcmp, memset, strcpy, strncpy, strcat, strncat, \
+       strcmp, strncmp, strlen, strerror
 
 func extern memcpy(dest : void*, src : void*, size : size_t) : void*
 func extern memmove(dest : void*, src : void*, size : size_t) : void*

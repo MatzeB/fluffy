@@ -1,13 +1,30 @@
 module "fluffy.org/compiler/pluginapi"
 export SourcePosition, Symbol, Token, Type, Attribute, CompoundEntry, \
-       CompoundType, TypeConstraint, Declaration, Export, Context, \
+       CompoundType, TypeConstraint, Entity, Export, Context, \
        TypeVariable, Constant, Statement, Expression, IntConst, \
        BinaryExpression, BlockStatement, ExpressionStatement, \
-       LabelStatement, GotoStatement, IfStatement, TypeClass, \
-       TypeClassMethod, TypeClassInstance, Lexer, \
+       LabelStatement, GotoStatement, IfStatement, Concept, \
+       ConceptFunction, ConceptInstance, Lexer, \
        STATEMENT_INAVLID, STATEMENT_ERROR, STATEMENT_BLOCK, \
-       STATEMENT_RETURN, STATEMENT_VARIABLE_DECLARATION, STATEMENT_IF, \
-       STATEMENT_EXPRESSION, STATEMENT_GOTO, STATEMENT_LABEL
+       STATEMENT_RETURN, STATEMENT_DECLARATION, STATEMENT_IF, \
+       STATEMENT_EXPRESSION, STATEMENT_GOTO, STATEMENT_LABEL, \
+       EXPR_BINARY_ADD, EXPR_BINARY_ASSIGN, \
+       register_new_token, register_statement, register_expression, \
+       register_declaration, register_attribute, register_statement_parser, \
+       register_attribute_parser, register_expression_parser, \
+       register_expression_infix_parser, register_declaration_parser, \
+       print_token, lexer_next_token, add_entity, parse_sub_expression, \
+       parse_expression, parse_statement, check_expression, \
+       register_statement_lowerer, register_expression_lowerer, \
+       make_atomic_type, make_pointer_type, symbol_table_insert, \
+       parse_type, print_error_prefix, print_warning_prefix, \
+       check_statement, source_position, api_init, expect, \
+       context_append, block_append, allocate, allocate_zero, AllocateOnAst, \
+       token, next_token, \
+       T_IDENTIFIER, T_INDENT, T_NEWLINE, T_EOF, ATOMIC_TYPE_INT, \
+       T_DEDENT
+
+import "fluffy.org/stdlib" stderr, fputs, abort, assert, memset
 
 struct SourcePosition:
 	input_name : byte*
@@ -54,37 +71,81 @@ struct CompoundType:
 	context         : Context*
 	source_position : SourcePosition
 
+struct FunctionParameterType:
+	type            : Type*
+	next            : FunctionParameterType*
+
 struct TypeConstraint:
 	concept_symbol : Symbol*
-	type_class     : TypeClass*
+	conceptt       : Concept*
 	next           : TypeConstraint*
 
-struct Declaration:
+struct FunctionType:
+	base               : Type
+	result_type        : Type*
+	parameter_types    : FunctionParameterType*
+	variable_arguments : bool
+
+struct TypeArgument:
+	type             : Type*
+	next             : TypeArgument*
+
+struct Entity:
 	kind             : unsigned int
 	symbol           : Symbol*
-	next             : Declaration*
 	source_position  : SourcePosition
+	next             : Entity*
+	exported         : bool
+	refs             : int
 
 struct Export:
-	symbol           : Symbol
+	symbol           : Symbol*
 	next             : Export*
 	source_position  : SourcePosition
 
+struct Import:
+	modulename       : Symbol*
+	symbol           : Symbol*
+	next             : Import*
+	source_position  : SourcePosition
+
 struct Context:
-	declarations      : Declaration*
-	concept_instances : TypeClassInstance*
+	entities          : Entity*
+	concept_instances : ConceptInstance*
 	exports           : Export*
+	imports           : Import*
 
 struct TypeVariable:
-	declaration      : Declaration
-	constraints      : TypeConstraint*
-	next             : TypeVariable*
-	current_type     : Type*
+	base            : Entity
+	constraints     : TypeConstraint*
+	next            : TypeVariable*
+	current_type    : Type*
+
+struct FunctionParameter:
+	base            : Entity
+	next            : FunctionParameter*
+	type            : Type*
+	num             : int
 
 struct Constant:
-	declaration     : Declaration
+	base            : Entity
 	type            : Type*
 	expression      : Expression*
+
+struct Function:
+	type            : FunctionType*
+	type_parameters : TypeVariable*
+	parameters      : FunctionParameter*
+	is_extern       : bool
+	context         : Context
+	statement       : Statement*
+	/* Missing here: union { ir_entity*entity, ir_entity ** entities; } */
+	dummy           : void*
+	n_local_vars    : unsigned int
+
+struct FunctionEntity:
+	base            : Entity
+	function        : Function
 
 struct Statement:
 	type            : unsigned int
@@ -108,48 +169,67 @@ struct BinaryExpression:
 	right           : Expression*
 
 struct BlockStatement:
-	statement       : Statement
+	base            : Statement
 	statements      : Statement*
 	end_position    : SourcePosition
 	context         : Context
 
 struct ExpressionStatement:
-	statement       : Statement
+	base            : Statement
 	expression      : Expression*
 
-struct LabelDeclaration:
-	declaration     : Declaration
+struct Label:
+	base            : Entity
 	block           : IrNode*
-	next            : LabelDeclaration*
+	next            : Label*
 
 struct LabelStatement:
-	statement       : Statement
-	declaration     : LabelDeclaration
+	base            : Statement
+	label           : Label
 
 struct GotoStatement:
-	statement       : Statement
-	symbol          : Symbol*
-	label           : LabelDeclaration*
+	base            : Statement
+	label_symbol    : Symbol*
+	label           : Label*
 
 struct IfStatement:
-	statement       : Statement
+	base            : Statement
 	condition       : Expression*
 	true_statement  : Statement*
 	false_statement : Statement*
 
-struct TypeClass:
-	declaration     : Declaration*
-	
+struct Concept:
+	base            : Entity
 	type_parameters : TypeVariable*
-	methods         : TypeClassMethod*
-	instances       : TypeClassInstance*
+	functions       : ConceptFunction*
+	instances       : ConceptInstance
 	context         : Context
 
-struct TypeClassMethod:
-	// TODO
+struct ConceptFunction:
+	base            : Entity
+	type            : FunctionType*
+	parameters      : FunctionParameter*
+	conceptt        : Concept*
+	next            : ConceptFunction*
 
-struct TypeClassInstance:
-	// TODO
+struct ConceptFunctionInstance:
+	function          : Function
+	symbol            : Symbol*
+	source_position   : SourcePosition
+	next              : ConceptFunctionInstance*
+	concept_function  : ConceptFunction*
+	concept_instances : ConceptInstance*	
+
+struct ConceptInstance:
+	concept_symbol     : Symbol*
+	source_position    : SourcePosition
+	conceptt           : Concept*
+	type_arguments     : TypeArgument*
+	function_instances : ConceptFunctionInstance*
+	next               : ConceptInstance*
+	next_in_concept    : ConceptInstance*
+	context            : Context
+	type_parameters    : TypeVariable*
 
 struct Lexer:
 	c               : int
@@ -157,53 +237,56 @@ struct Lexer:
 	input           : FILE*
 	// more stuff...
 
-const STATEMENT_INAVLID              = 0
-const STATEMENT_ERROR                = 1
-const STATEMENT_BLOCK                = 2
-const STATEMENT_RETURN               = 3
-const STATEMENT_VARIABLE_DECLARATION = 4
-const STATEMENT_IF                   = 5
-const STATEMENT_EXPRESSION           = 6
-const STATEMENT_GOTO                 = 7
-const STATEMENT_LABEL                = 8
+const STATEMENT_INAVLID            = 0
+const STATEMENT_ERROR              = 1
+const STATEMENT_BLOCK              = 2
+const STATEMENT_RETURN             = 3
+const STATEMENT_DECLARATION        = 4
+const STATEMENT_IF                 = 5
+const STATEMENT_EXPRESSION         = 6
+const STATEMENT_GOTO               = 7
+const STATEMENT_LABEL              = 8
 
 const TYPE_INVALID                 = 0
 const TYPE_ERROR                   = 1
 const TYPE_VOID                    = 2
 const TYPE_ATOMIC                  = 3
-const TYPE_COMPOUND_CLASS          = 4
-const TYPE_COMPOUND_STRUCT         = 5
-const TYPE_COMPOUND_UNION          = 6
-const TYPE_METHOD                  = 7
-const TYPE_POINTER                 = 8
-const TYPE_ARRAY                   = 9
+const TYPE_COMPOUND_STRUCT         = 4
+const TYPE_COMPOUND_UNION          = 5
+const TYPE_FUNCTION                = 6
+const TYPE_POINTER                 = 7
+const TYPE_ARRAY                   = 8
+const TYPE_TYPEOF                  = 9
 const TYPE_REFERENCE               = 10
 const TYPE_REFERENCE_TYPE_VARIABLE = 11
 const TYPE_BIND_TYPEVARIABLES      = 12
 
-const DECLARATION_INVALID          = 0
-const DECLARATION_ERROR            = 1
-const DECLARATION_METHOD           = 2
-const DECLARATION_METHOD_PARAMETER = 3
-const DECLARATION_ITERATOR         = 4
-const DECLARATION_VARIABLE         = 5
-const DECLARATION_CONSTANT         = 6
-const DECLARATION_TYPE_VARIABLE    = 7
-const DECLARATION_TYPEALIAS        = 8
-const DECLARATION_CONCEPT          = 9
-const DECLARATION_CONCEPT_METHOD   = 10
-const DECLARATION_LABEL            = 11
+const ENTITY_INVALID            = 0
+const ENTITY_ERROR              = 1
+const ENTITY_FUNCTION           = 2
+const ENTITY_FUNCTION_PARAMETER = 3
+const ENTITY_TYPE_VARIABLE      = 4
+const ENTITY_CONCEPT_FUNCTION   = 5
+const ENTITY_CONCEPT            = 6
+const ENTITY_VARIABLE           = 7
+const ENTITY_CONSTANT           = 8
+const ENTITY_TYPEALIAS          = 9
+const ENTITY_LABEL              = 10
 
-const ATOMIC_TYPE_INVALID          = 0
-const ATOMIC_TYPE_BOOL             = 1
-const ATOMIC_TYPE_BYTE             = 2
-const ATOMIC_TYPE_UBYTE            = 3
-const ATOMIC_TYPE_SHORT            = 4
-const ATOMIC_TYPE_USHORT           = 5
-const ATOMIC_TYPE_INT              = 6
-const ATOMIC_TYPE_UINT             = 7
-const ATOMIC_TYPE_LONG             = 8
-const ATOMIC_TYPE_ULONG            = 9
+const ATOMIC_TYPE_INVALID       = 0
+const ATOMIC_TYPE_BOOL          = 1
+const ATOMIC_TYPE_BYTE          = 2
+const ATOMIC_TYPE_UBYTE         = 3
+const ATOMIC_TYPE_SHORT         = 4
+const ATOMIC_TYPE_USHORT        = 5
+const ATOMIC_TYPE_INT           = 6
+const ATOMIC_TYPE_UINT          = 7
+const ATOMIC_TYPE_LONG          = 8
+const ATOMIC_TYPE_ULONG         = 9
+const ATOMIC_TYPE_LONGLONG      = 10
+const ATOMIC_TYPE_ULONGLONG     = 11
+const ATOMIC_TYPE_FLOAT         = 12
+const ATOMIC_TYPE_DOUBLE        = 13
 
 const EXPR_INVALID                 = 0
 const EXPR_ERROR                   = 1
@@ -214,12 +297,37 @@ const EXPR_STRING_CONST            = 5
 const EXPR_NULL_POINTER            = 6
 const EXPR_REFERENCE               = 7
 const EXPR_CALL                    = 8
-const EXPR_UNARY                   = 9
-const EXPR_BINARY                  = 10
-
-const BINEXPR_INVALID              = 0
-const BINEXPR_ASSIGN               = 1
-const BINEXPR_ADD                  = 2
+const EXPR_SELECT                  = 9
+const EXPR_ARRAY_ACCESS            = 10
+const EXPR_SIZEOF                  = 11
+const EXPR_FUNC                    = 12
+const EXPR_UNARY_NEGATE            = 13
+const EXPR_UNARY_NOT               = 14
+const EXPR_UNARY_BITWISE_NOT       = 15
+const EXPR_UNARY_DEREFERENCE       = 16
+const EXPR_UNARY_TAKE_ADDRESS      = 17
+const EXPR_UNARY_CAST              = 18
+const EXPR_UNARY_INCREMENT         = 19
+const EXPR_UNARY_DECREMENT         = 20
+const EXPR_BINARY_ASSIGN           = 21
+const EXPR_BINARY_ADD              = 22
+const EXPR_BINARY_SUB              = 23
+const EXPR_BINARY_MUL              = 24
+const EXPR_BINARY_DIV              = 25
+const EXPR_BINARY_MOD              = 26
+const EXPR_BINARY_EQUAL            = 27
+const EXPR_BINARY_NOTEQUAL         = 28
+const EXPR_BINARY_LESS             = 29
+const EXPR_BINARY_LESSEQUAL        = 30
+const EXPR_BINARY_GREATER          = 31
+const EXPR_BINARY_GREATEREQUAL     = 32
+const EXPR_BINARY_LAZY_AND         = 33
+const EXPR_BINARY_LAZY_OR          = 34
+const EXPR_BINARY_AND              = 35
+const EXPR_BINARY_OR               = 36
+const EXPR_BINARY_XOR              = 37
+const EXPR_BINARY_SHIFTLEFT        = 38
+const EXPR_BINARY_SHIFTRIGHT       = 39
 
 const T_EOF            = 4
 const T_NEWLINE        = 256
@@ -249,12 +357,6 @@ func extern register_expression() : unsigned int
 func extern register_declaration() : unsigned int
 func extern register_attribute() : unsigned int
 
-func extern puts(string : String) : int
-func extern fputs(string : String, stream : FILE*) : int
-func extern printf(string : String, ptr : void*)
-func extern abort()
-func extern memset(ptr : void*, c : int, size : unsigned int)
-
 func extern register_statement_parser(parser : ParseStatementFunction*, \
                                       token_type : int)
 func extern register_attribute_parser(parser : ParseAttributeFunction*, \
@@ -271,7 +373,7 @@ func extern lexer_next_token(token : Token*)
 func extern allocate_ast(size : unsigned int) : void*
 func extern parser_print_error_prefix()
 func extern next_token()
-func extern add_declaration(declaration : Declaration*)
+func extern add_entity(entity : Entity*)
 
 func extern parse_sub_expression(precedence : unsigned int) : Expression*
 func extern parse_expression() : Expression*
@@ -279,7 +381,7 @@ func extern parse_statement() : Statement*
 func extern parse_type() : Type*
 
 func extern print_error_prefix(position : SourcePosition)
-func extern print_warning_preifx(position : SourcePosition)
+func extern print_warning_prefix(position : SourcePosition)
 func extern check_statement(statement : Statement*) : Statement*
 func extern check_expression(expression : Expression*) : Expression*
 func extern register_statement_lowerer(function : LowerStatementFunction*, \
@@ -293,9 +395,6 @@ func extern make_pointer_type(type : Type*) : Type*
 func extern symbol_table_insert(string : String) : Symbol*
 
 
-var extern stdout          : FILE*
-var stderr                 : FILE*
-var extern __stderrp       : FILE*
 var extern token           : Token
 var extern source_position : SourcePosition
 
@@ -310,44 +409,43 @@ func allocate_zero<T>() : T*:
 instance AllocateOnAst BlockStatement:
 	func allocate() : BlockStatement*:
 		var res = allocate_zero<$BlockStatement>()
-		res.statement.type = STATEMENT_BLOCK
+		res.base.type = STATEMENT_BLOCK
 		return res
 	
 instance AllocateOnAst IfStatement:
 	func allocate() : IfStatement*:
 		var res = allocate_zero<$IfStatement>()
-		res.statement.type = STATEMENT_IF
+		res.base.type = STATEMENT_IF
 		return res
 
 instance AllocateOnAst ExpressionStatement:
 	func allocate() : ExpressionStatement*:
 		var res = allocate_zero<$ExpressionStatement>()
-		res.statement.type = STATEMENT_EXPRESSION
+		res.base.type = STATEMENT_EXPRESSION
 		return res
 
 instance AllocateOnAst GotoStatement:
 	func allocate() : GotoStatement*:
 		var res = allocate_zero<$GotoStatement>()
-		res.statement.type = STATEMENT_GOTO
+		res.base.type = STATEMENT_GOTO
 		return res
 
 instance AllocateOnAst LabelStatement:
 	func allocate() : LabelStatement*:
 		var res = allocate_zero<$LabelStatement>()
-		res.statement.type               = STATEMENT_LABEL
-		res.declaration.declaration.kind = DECLARATION_LABEL
+		res.base.type       = STATEMENT_LABEL
+		res.label.base.kind = ENTITY_LABEL
 		return res
 
 instance AllocateOnAst Constant:
 	func allocate() : Constant*:
 		var res = allocate_zero<$Constant>()
-		res.declaration.kind = DECLARATION_CONSTANT
+		res.base.kind = ENTITY_CONSTANT
 		return res
 
 instance AllocateOnAst BinaryExpression:
 	func allocate() : BinaryExpression*:
 		var res = allocate_zero<$BinaryExpression>()
-		res.expression.kind = EXPR_BINARY
 		return res
 
 instance AllocateOnAst IntConst:
@@ -357,7 +455,6 @@ instance AllocateOnAst IntConst:
 		return res
 
 func api_init():
-	stderr = __stderrp
 
 func expect(token_type : int):
 	if token.type /= token_type:
@@ -366,14 +463,9 @@ func expect(token_type : int):
 		abort()
 	next_token()
 
-func assert(expr : bool):
-	if !expr:
-		fputs("Assert failed\n", stderr)
-		abort()
-
-func context_append(context : Context*, declaration : Declaration*):
-	declaration.next     = context.declarations
-	context.declarations = declaration
+func context_append(context : Context*, entity : Entity*):
+	entity.next      = context.entities
+	context.entities = entity
 
 func block_append(block : BlockStatement*, append : Statement*):
 	var statement = block.statements

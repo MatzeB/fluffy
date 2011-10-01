@@ -1,5 +1,13 @@
+import "fluffy.org/compiler/pluginapi" Statement, Expression, AllocateOnAst, \
+	allocate_zero, register_new_token, register_statement, \
+	register_statement_parser, register_statement_lowerer, LabelStatement, \
+	symbol_table_insert, allocate, IfStatement, BlockStatement, \
+	block_append, GotoStatement, source_position, context_append, next_token, \
+	parse_statement, token, expect, parse_expression, ExpressionStatement
+import "fluffy.org/stdlib" assert
+
 struct WhileStatement:
-	statement    : Statement
+	base         : Statement
 	loop_control : Expression*
 	loop_body    : Statement*
 	loop_step    : Statement*
@@ -15,12 +23,12 @@ var current_loop         : WhileStatement*
 instance AllocateOnAst WhileStatement:
 	func allocate() : WhileStatement*:
 		var res = allocate_zero<$WhileStatement>()
-		res.statement.type = while_statement_type
+		res.base.type = while_statement_type
 		return res
 
 func parse_while_statement() : Statement*:
-	var statement                       = allocate<$WhileStatement>()
-	statement.statement.source_position = source_position
+	var statement                  = allocate<$WhileStatement>()
+	statement.base.source_position = source_position
 
 	assert(token.type == token_while)
 	next_token()
@@ -29,10 +37,10 @@ func parse_while_statement() : Statement*:
 
 	if token.type == token_step:
 		next_token()
-		var step_statement = allocate<$ExpressionStatement>()
-		step_statement.statement.source_position = source_position
-		step_statement.expression = parse_expression()
-		statement.loop_step = cast<Statement*> step_statement
+		var step_statement                  = allocate<$ExpressionStatement>()
+		step_statement.base.source_position = source_position
+		step_statement.expression           = parse_expression()
+		statement.loop_step                 = cast<Statement*> step_statement
 
 	expect(':')
 
@@ -46,8 +54,8 @@ func parse_while_statement() : Statement*:
 	return cast<Statement*> statement
 
 func parse_loop_statement() : Statement*:
-	var statement                       = allocate<$WhileStatement>()
-	statement.statement.source_position = source_position
+	var statement                  = allocate<$WhileStatement>()
+	statement.base.source_position = source_position
 
 	assert(token.type == token_loop)
 	next_token()
@@ -64,16 +72,16 @@ func parse_continue_statement() : Statement*:
 	assert(token.type == token_continue)
 	next_token()
 
-	var statement                       = allocate<$GotoStatement>()
-	statement.statement.source_position = source_position
-	statement.symbol                    = symbol_table_insert("__loop_next")
+	var statement                  = allocate<$GotoStatement>()
+	statement.base.source_position = source_position
+	statement.label_symbol         = symbol_table_insert("__loop_next")
 
 	return cast<Statement*> statement
 
 func parse_break_statement() : Statement*:
-	var statement                       = allocate<$GotoStatement>()
-	statement.statement.source_position = source_position
-	statement.symbol                    = symbol_table_insert("__loop_end")
+	var statement                  = allocate<$GotoStatement>()
+	statement.base.source_position = source_position
+	statement.label_symbol         = symbol_table_insert("__loop_end")
 	
 	assert(token.type == token_break)
 	next_token()
@@ -85,45 +93,42 @@ func lower_while_statement(statement : Statement*) : Statement*:
 	var loop_body       = while_statement.loop_body
 
 	var label = allocate<$LabelStatement>()
-	label.declaration.declaration.symbol = symbol_table_insert("__loop_begin")
+	label.label.base.symbol = symbol_table_insert("__loop_begin")
 
 	var body
 	if while_statement.loop_control /= null:
-		var if_statement            = allocate<$IfStatement>()
-		if_statement.statement.source_position \
-			= while_statement.statement.source_position
-		if_statement.condition      = while_statement.loop_control
-		if_statement.true_statement = loop_body
-		body                        = cast<Statement*> if_statement
+		var if_statement                  = allocate<$IfStatement>()
+		if_statement.base.source_position = while_statement.base.source_position
+		if_statement.condition            = while_statement.loop_control
+		if_statement.true_statement       = loop_body
+		body                              = cast<Statement*> if_statement
 	else:
 		body = loop_body 
 
 	var loop_body_block  = cast<BlockStatement*> loop_body
 
 	var next_label = allocate<$LabelStatement>()
-	next_label.declaration.declaration.symbol \
-		= symbol_table_insert("__loop_next")
+	next_label.label.base.symbol = symbol_table_insert("__loop_next")
 	block_append(loop_body_block, cast<Statement*> next_label)
 
 	if while_statement.loop_step /= null:
 		block_append(loop_body_block, while_statement.loop_step)
 
 	var goto_statement   = allocate<$GotoStatement>()
-	goto_statement.statement.source_position \
-		= loop_body.source_position
-	goto_statement.label = & label.declaration
+	goto_statement.base.source_position = loop_body.source_position
+	goto_statement.label = & label.label
 	block_append(loop_body_block, cast<Statement*> goto_statement)
 
 	var endlabel = allocate<$LabelStatement>()
-	endlabel.declaration.declaration.symbol = symbol_table_insert("__loop_end")
+	endlabel.label.base.symbol = symbol_table_insert("__loop_end")
 
 	var block = allocate<$BlockStatement>()
 	block_append(block, cast<Statement*> label)
 	block_append(block, body)
 	block_append(block, cast<Statement*> endlabel)
-	context_append(&block.context, &label.declaration.declaration)
-	context_append(&block.context, &endlabel.declaration.declaration)
-	context_append(&block.context, &next_label.declaration.declaration)
+	context_append(&block.context, &label.label.base)
+	context_append(&block.context, &endlabel.label.base)
+	context_append(&block.context, &next_label.label.base)
 
 	return cast<Statement*> block
 
