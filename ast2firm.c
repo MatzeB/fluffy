@@ -977,14 +977,14 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 		ir_type *irtype = get_ir_type(type);
 
 		result       = new_d_CopyB(dbgi, store, addr, value, irtype);
-		ir_node *mem = new_d_Proj(dbgi, result, mode_M, pn_CopyB_M);
+		ir_node *mem = new_Proj(result, mode_M, pn_CopyB_M);
 		set_store(mem);
 	} else {
 		if (get_irn_mode(value) == mode_b) {
 			value = new_Conv(value, get_atomic_mode(ATOMIC_TYPE_BOOL));
 		}
 		result        = new_d_Store(dbgi, store, addr, value, cons_none);
-		ir_node  *mem = new_d_Proj(dbgi, result, mode_M, pn_Store_M);
+		ir_node  *mem = new_Proj(result, mode_M, pn_Store_M);
 		set_store(mem);
 	}
 }
@@ -1024,8 +1024,8 @@ static ir_node *create_lazy_op(const binary_expression_t *binary_expression)
 	ir_node  *val1 = expression_to_firm(binary_expression->left);
 
 	ir_node *cond       = new_d_Cond(dbgi, val1);
-	ir_node *true_proj  = new_d_Proj(dbgi, cond, mode_X, pn_Cond_true);
-	ir_node *false_proj = new_d_Proj(dbgi, cond, mode_X, pn_Cond_false);
+	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
+	ir_node *false_proj = new_Proj(cond, mode_X, pn_Cond_false);
 
 	ir_node *fallthrough_block = new_immBlock();
 
@@ -1087,24 +1087,18 @@ static ir_node *binary_expression_to_firm(
 
 	if (kind == EXPR_BINARY_DIV) {
 		ir_mode *mode  = get_ir_mode(binary_expression->base.type);
-		ir_node *store = get_store();
+		ir_node *store = new_Pin(new_NoMem());
 		ir_node *node  = new_d_Div(dbgi, store, left, right, mode,
 		                           op_pin_state_floats);
-		ir_node *new_store = new_d_Proj(dbgi, node, mode_M, pn_Div_M);
-		ir_node *res       = new_d_Proj(dbgi, node, mode, pn_Div_res);
-		set_store(new_store);
-		return res;
+		return new_Proj(node, mode, pn_Div_res);
 	}
 
 	if (kind == EXPR_BINARY_MOD) {
 		ir_mode *mode  = get_ir_mode(binary_expression->base.type);
-		ir_node *store = get_store();
+		ir_node *store = new_Pin(new_NoMem());
 		ir_node *node  = new_d_Mod(dbgi, store, left, right, mode,
 		                           op_pin_state_floats);
-		
-		store = new_d_Proj(dbgi, node, mode_M, pn_Mod_M);
-		set_store(store);
-		return new_d_Proj(dbgi, node, mode, pn_Mod_res);
+		return new_Proj(node, mode, pn_Mod_res);
 	}
 
 	/* an arithmetic binexpression? */
@@ -1141,12 +1135,15 @@ static ir_node *cast_expression_to_firm(const unary_expression_t *cast)
 {
 	type_t   *to_type = cast->base.type;
 	ir_node  *node    = expression_to_firm(cast->value);
-	ir_mode  *mode    = get_ir_mode(to_type);
-	dbg_info *dbgi    = get_dbg_info(&cast->base.source_position);
-
 	assert(node != NULL);
 
-	return new_d_Conv(dbgi, node, mode);
+	if (to_type == type_void) {
+		return NULL;
+	} else {
+		ir_mode  *mode    = get_ir_mode(to_type);
+		dbg_info *dbgi    = get_dbg_info(&cast->base.source_position);
+		return new_d_Conv(dbgi, node, mode);
+	}
 }
 
 static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
@@ -1156,8 +1153,8 @@ static ir_node *load_from_expression_addr(type_t *type, ir_node *addr,
 	ir_mode  *mode  = get_ir_mode(type);
 	ir_node  *store = get_store();
 	ir_node  *load  = new_d_Load(dbgi, store, addr, mode, cons_none);
-	ir_node  *mem   = new_d_Proj(dbgi, load, mode_M, pn_Load_M);
-	ir_node  *val   = new_d_Proj(dbgi, load, mode, pn_Load_res);
+	ir_node  *mem   = new_Proj(load, mode_M, pn_Load_M);
+	ir_node  *val   = new_Proj(load, mode, pn_Load_res);
 	set_store(mem);
 
 	ir_mode *result_mode = get_arithmetic_mode(type);
@@ -1325,7 +1322,8 @@ static ir_node *concept_function_reference_to_firm(concept_function_t *function,
 
 static ir_node *function_parameter_reference_to_firm(function_parameter_t *parameter)
 {
-	return get_value(parameter->value_number, NULL);
+	ir_mode *mode = get_ir_mode(parameter->type);
+	return get_value(parameter->value_number, mode);
 }
 
 static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
@@ -1336,6 +1334,19 @@ static ir_node *sizeof_expression_to_firm(const sizeof_expression_t *expression)
 	ir_node   *res  = new_Const(tv);
 
 	return res;
+}
+
+static ir_node *create_conv(dbg_info *dbgi, ir_node *op, ir_mode *dest_mode)
+{
+	ir_mode *src_mode = get_irn_mode(op);
+	if (src_mode == dest_mode)
+		return op;
+	if (dest_mode == mode_b) {
+		ir_tarval *tv_zero = get_mode_null(src_mode);
+		ir_node   *zero    = new_Const(tv_zero);
+		return new_d_Cmp(dbgi, op, zero, ir_relation_less_greater);
+	}
+	return new_d_Conv(dbgi, op, dest_mode);
 }
 
 static ir_node *call_expression_to_firm(const call_expression_t *call)
@@ -1403,20 +1414,18 @@ static ir_node *call_expression_to_firm(const call_expression_t *call)
 	ir_node  *store = get_store();
 	ir_node  *node  = new_d_Call(dbgi, store, callee, n_parameters, in,
 	                             ir_method_type);
-	ir_node  *mem   = new_d_Proj(dbgi, node, mode_M, pn_Call_M);
+	ir_node  *mem   = new_Proj(node, mode_M, pn_Call_M);
 	set_store(mem);
 
 	type_t  *result_type = function_type->result_type;
 	ir_node *result      = NULL;
 	if (result_type->kind != TYPE_VOID) {
 		ir_mode *mode    = get_ir_mode(result_type);
-		ir_node *resproj = new_d_Proj(dbgi, node, mode_T, pn_Call_T_result);
-		result           = new_d_Proj(dbgi, resproj, mode, 0);
+		ir_node *resproj = new_Proj(node, mode_T, pn_Call_T_result);
+		result           = new_Proj(resproj, mode, 0);
 
 		ir_mode *result_mode = get_arithmetic_mode(result_type);
-		if (result_mode != mode) {
-			result = new_Conv(result, result_mode);
-		}
+		result = create_conv(dbgi, result, result_mode);
 	}
 
 	return result;
@@ -1545,8 +1554,8 @@ static void if_statement_to_firm(const if_statement_t *statement)
 	assert(condition != NULL);
 
 	ir_node *cond       = new_d_Cond(dbgi, condition);
-	ir_node *true_proj  = new_d_Proj(dbgi, cond, mode_X, pn_Cond_true);
-	ir_node *false_proj = new_d_Proj(dbgi, cond, mode_X, pn_Cond_false);
+	ir_node *true_proj  = new_Proj(cond, mode_X, pn_Cond_true);
+	ir_node *false_proj = new_Proj(cond, mode_X, pn_Cond_false);
 
 	ir_node *fallthrough_block = new_immBlock();
 
@@ -1685,6 +1694,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	}
 
 	ir_graph *irg = new_ir_graph(entity, function->n_local_vars);
+	set_current_ir_graph(irg);
 
 	assert(variable_context == NULL);
 	variable_context = get_irg_frame(irg);
@@ -1707,7 +1717,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	current_ir_graph = irg;
 	ir_node *firstblock = get_cur_block();
 
-	if (function->statement)
+	if (function->statement != NULL)
 		statement_to_firm(function->statement);
 
 	/* no return statement seen yet? */

@@ -164,7 +164,6 @@ struct IntConst:
 
 struct BinaryExpression:
 	expression      : Expression
-	type            : int
 	left            : Expression*
 	right           : Expression*
 

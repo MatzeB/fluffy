@@ -6,7 +6,6 @@
 #include "type_t.h"
 #include "adt/error.h"
 #include <libfirm/firm.h>
-#include "driver/firm_cmdline.h"
 
 static struct obstack obst;
 static bool add_underscore_prefix;

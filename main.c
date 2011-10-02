@@ -6,13 +6,13 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <sys/time.h>
 
 #include <libfirm/firm.h>
 #include <libfirm/be.h>
 
 #include "driver/firm_opt.h"
-#include "driver/firm_cmdline.h"
 #include "driver/firm_machine.h"
 
 #include "type.h"
@@ -27,7 +27,14 @@
 #include "adt/strutil.h"
 
 #define LINKER "gcc -m32"
-#define TMPDIR "/tmp/"
+
+typedef struct file_list_entry_t file_list_entry_t;
+struct file_list_entry_t {
+	const char  *name; /**< filename or NULL for stdin */
+	file_list_entry_t *next;
+};
+
+static file_list_entry_t *temp_files;
 
 static machine_triple_t *target_machine;
 static bool dump_graphs;
@@ -112,7 +119,7 @@ static void do_check_semantic(void)
 	}
 }
 
-static void link(const char *in, const char *out)
+static void do_link(const char *in, const char *out)
 {
 	char buf[4096];
 
@@ -120,7 +127,7 @@ static void link(const char *in, const char *out)
 		out = "a.out";
 	}
 
-	int res = snprintf(buf, sizeof(buf), "%s %s -o %s", LINKER, in, out);
+	int res = snprintf(buf, sizeof(buf), "%s -x assembler %s -o %s", LINKER, in, out);
 	if (res < 0 || res >= (int) sizeof(buf)) {
 		panic("Couldn't construct linker commandline (too long?)");
 	}
@@ -150,6 +157,99 @@ static void setup_target(void)
 	} else {
 		panic("Unsupported operating system ");
 	}
+}
+
+static const char *try_dir(const char *dir)
+{
+	if (dir == NULL)
+		return dir;
+	if (access(dir, R_OK | W_OK | X_OK) == 0)
+		return dir;
+	return NULL;
+}
+
+static const char *get_tempdir(void)
+{
+	static const char *tmpdir = NULL;
+
+	if (tmpdir != NULL)
+		return tmpdir;
+
+	if (tmpdir == NULL)
+		tmpdir = try_dir(getenv("TMPDIR"));
+	if (tmpdir == NULL)
+		tmpdir = try_dir(getenv("TMP"));
+	if (tmpdir == NULL)
+		tmpdir = try_dir(getenv("TEMP"));
+
+#ifdef P_tmpdir
+	if (tmpdir == NULL)
+		tmpdir = try_dir(P_tmpdir);
+#endif
+
+	if (tmpdir == NULL)
+		tmpdir = try_dir("/var/tmp");
+	if (tmpdir == NULL)
+		tmpdir = try_dir("/usr/tmp");
+	if (tmpdir == NULL)
+		tmpdir = try_dir("/tmp");
+
+	if (tmpdir == NULL)
+		tmpdir = ".";
+
+	return tmpdir;
+}
+
+
+
+/**
+ * an own version of tmpnam, which: writes in a buffer, emits no warnings
+ * during linking (like glibc/gnu ld do for tmpnam)...
+ */
+static FILE *make_temp_file(char *buffer, size_t buflen, const char *prefix)
+{
+	const char *tempdir = get_tempdir();
+
+	snprintf(buffer, buflen, "%s/%sXXXXXX", tempdir, prefix);
+
+	int fd = mkstemp(buffer);
+	if (fd == -1) {
+		fprintf(stderr, "could not create temporary file: %s\n",
+		        strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	FILE *out = fdopen(fd, "w");
+	if (out == NULL) {
+		fprintf(stderr, "could not create temporary file FILE*\n");
+		exit(EXIT_FAILURE);
+	}
+
+	file_list_entry_t *entry = xmalloc(sizeof(*entry));
+	memset(entry, 0, sizeof(*entry));
+
+	size_t  name_len = strlen(buffer) + 1;
+	char   *name     = malloc(name_len);
+	memcpy(name, buffer, name_len);
+	entry->name      = name;
+
+	entry->next = temp_files;
+	temp_files  = entry;
+
+	return out;
+}
+
+static void free_temp_files(void)
+{
+	file_list_entry_t *entry = temp_files;
+	file_list_entry_t *next;
+	for ( ; entry != NULL; entry = next) {
+		next = entry->next;
+
+		unlink(entry->name);
+		free((char*) entry->name);
+		free(entry);
+	}
+	temp_files = NULL;
 }
 
 int main(int argc, const char **argv)
@@ -279,10 +379,13 @@ int main(int argc, const char **argv)
 	ast2firm(modules);
 
 	const char *asmname;
+	char        temp[1024];
 	if (mode == Compile) {
 		asmname = outname;
 	} else {
-		asmname = TMPDIR "fluffy.s";
+		FILE *tempf = make_temp_file(temp, sizeof(temp), "ccs");
+		fclose(tempf);
+		asmname = temp;
 	}
 	FILE* asm_out = fopen(asmname, "w");
 	if (asm_out == NULL) {
@@ -293,8 +396,11 @@ int main(int argc, const char **argv)
 	fclose(asm_out);
 
 	if (mode == CompileAndLink) {
-		link(asmname, outname);
+		do_link(asmname, outname);
 	}
+
+	//free_temp_files();
+	(void)free_temp_files;
 
 	exit_mangle();
 	exit_ast2firm();

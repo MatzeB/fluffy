@@ -1,10 +1,10 @@
 import "fluffy.org/stdlib" assert
 import "fluffy.org/compiler/pluginapi" token, next_token, Type, \
-	register_new_token, make_atomic_type, expect, Constant, allocate, \
-	BinaryExpression, Expression, IntConst, parse_expression, add_declaration, \
+	register_new_token, make_atomic_type, expect, Entity, Constant, allocate, \
+	BinaryExpression, Expression, IntConst, parse_expression, add_entity, \
 	register_declaration_parser, ATOMIC_TYPE_INT, T_IDENTIFIER, T_INDENT, \
-	T_DEDENT, BINEXPR_ADD, T_NEWLINE, T_EOF, \
-	source_position, Declaration
+	T_DEDENT, EXPR_BINARY_ADD, T_NEWLINE, T_EOF, \
+	source_position
 
 var token_enum : int
 var type_int   : Type*
@@ -25,10 +25,10 @@ func parse_enum():
 	while token.type /= T_DEDENT && token.type /= T_EOF:
 		assert(token.type == T_IDENTIFIER)
 
-		var constant                         = allocate<$Constant>()
-		constant.declaration.symbol          = token.v.symbol
-		constant.declaration.source_position = source_position
-		constant.type                        = type_int
+		var constant                  = allocate<$Constant>()
+		constant.base.symbol          = token.v.symbol
+		constant.base.source_position = source_position
+		constant.type                 = type_int
 		next_token()
 
 		if token.type == '=':
@@ -42,7 +42,7 @@ func parse_enum():
 				var expression      = allocate<$BinaryExpression>()
 				var intconst        = allocate<$IntConst>()
 				intconst.value      = idx
-				expression.type     = BINEXPR_ADD
+				expression.expression.kind = EXPR_BINARY_ADD
 				expression.left     = last_expression
 				expression.right    = cast<Expression* > intconst
 				constant.expression = cast<Expression* > expression
@@ -51,7 +51,7 @@ func parse_enum():
 				expression.value    = idx
 				constant.expression = cast<Expression* > expression
 
-		add_declaration(cast<Declaration* > constant)
+		add_entity(cast<Entity* > constant)
 		expect(T_NEWLINE)
 		idx = idx + 1
 	next_token()
