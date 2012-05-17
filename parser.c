@@ -2337,7 +2337,8 @@ bool parse_file(FILE *in, const char *input_name)
 	memset(token_anchor_set, 0, sizeof(token_anchor_set));
 
 	/* get the lexer running */
-	lexer_init(in, input_name);
+	input_t *input = input_from_stream(in, NULL);
+	lexer_init(input, input_name);
 	next_token();
 
 	context_t file_context;
@@ -2371,6 +2372,7 @@ bool parse_file(FILE *in, const char *input_name)
 #endif
 
 	lexer_destroy();
+	input_free(input);
 
 	return !error;
 }

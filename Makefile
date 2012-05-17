@@ -8,31 +8,32 @@ FIRM_LIBS ?= `pkg-config --libs libfirm`
 CPPFLAGS = -I.
 CPPFLAGS += $(FIRM_CFLAGS) -DFIRM_BACKEND
 
-CFLAGS += -Wall -W -Wstrict-prototypes -Wmissing-prototypes -Werror -std=c99
+CFLAGS += -Wall -W -Wextra -Wstrict-prototypes -Wwrite-strings -Wmissing-prototypes -Werror -std=c99
 CFLAGS += -O0 -g3 -m32
 
 LFLAGS += $(FIRM_LIBS) -ldl
 
 SOURCES := \
-	adt/strset.c \
 	adt/obstack.c \
 	adt/obstack_printf.c \
+	adt/strset.c \
 	ast.c \
-	type.c \
-	parser.c \
 	ast2firm.c \
+	driver/firm_machine.c \
+	driver/firm_opt.c \
+	driver/firm_timing.c \
+	input.c \
 	lexer.c \
 	main.c \
 	mangle.c \
 	match_type.c \
+	parser.c \
 	plugins.c \
 	semantic.c \
 	symbol_table.c \
 	token.c \
-	type_hash.c \
-	driver/firm_opt.c \
-	driver/firm_machine.c \
-	driver/firm_timing.c
+	type.c \
+	type_hash.c
 
 OBJECTS = $(SOURCES:%.c=build/%.o)
 

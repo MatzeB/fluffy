@@ -3,6 +3,7 @@
 
 #include "symbol_table_t.h"
 #include "token_t.h"
+#include "input.h"
 
 typedef struct source_position_t source_position_t;
 struct source_position_t {
@@ -11,7 +12,7 @@ struct source_position_t {
 };
 extern source_position_t source_position;
 
-void lexer_init(FILE *stream, const char *input_name);
+void lexer_init(input_t *input, const char *input_name);
 void lexer_destroy(void);
 
 void lexer_next_token(token_t *token);

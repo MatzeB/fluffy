@@ -1,6 +1,8 @@
 #include <config.h>
 
 #include "lexer.h"
+#include "input.h"
+#include "unicode.h"
 #include "symbol_table.h"
 #include "adt/error.h"
 #include "adt/strset.h"
@@ -12,8 +14,9 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_PUTBACK  1
+#define MAX_PUTBACK  16   // 1 would be enough, 16 gives a nicer alignment
 #define MAX_INDENT   256
+#define C_EOF        ((utf32)EOF)
 
 enum TOKEN_START_TYPE {
 	START_UNKNOWN = 0,
@@ -27,23 +30,23 @@ enum TOKEN_START_TYPE {
 	START_NEWLINE,
 };
 
-static int  tables_init = 0;
-static char char_type[256];
-static char ident_char[256];
+static bool          tables_init = false;
+static unsigned char char_type[256];
+static unsigned char ident_char[256];
 
-static int         c;
+static utf32       c;
 source_position_t  source_position;
-static FILE       *input;
-static char        buf[1024 + MAX_PUTBACK];
-static const char *bufend;
-static const char *bufpos;
+static input_t    *input;
+static utf32       input_buf[1024 + MAX_PUTBACK];
+static utf32      *bufend;
+static utf32      *bufpos;
 static strset_t    stringset;
-static int         at_line_begin;
+static bool        at_line_begin;
 static unsigned    not_returned_dedents;
 static unsigned    newline_after_dedents;
 static unsigned    indent_levels[MAX_INDENT];
 static unsigned    indent_levels_len;
-static char        last_line_indent[MAX_INDENT];
+static utf32       last_line_indent[MAX_INDENT];
 static unsigned    last_line_indent_len;
 
 
@@ -88,7 +91,7 @@ static void init_tables(void)
 	char_type['\n'] = START_NEWLINE;
 	char_type['\\'] = START_BACKSLASH;
 
-	tables_init = 1;
+	tables_init = true;
 }
 
 static inline int is_ident_char(int c)
@@ -114,26 +117,22 @@ static void parse_error(const char *msg)
 
 static inline void next_char(void)
 {
-	bufpos++;
 	if (bufpos >= bufend) {
-		size_t s = fread(buf + MAX_PUTBACK, 1, sizeof(buf) - MAX_PUTBACK,
-		                 input);
-		if (s == 0) {
+		size_t n = decode(input, input_buf+MAX_PUTBACK,
+		                  sizeof(input_buf)-MAX_PUTBACK);
+		if (n == 0) {
 			c = EOF;
 			return;
 		}
-		bufpos = buf + MAX_PUTBACK;
-		bufend = buf + MAX_PUTBACK + s;
+		bufpos = input_buf + MAX_PUTBACK;
+		bufend = bufpos + n;
 	}
-	c = *(bufpos);
+	c = *(bufpos++);
 }
 
-static inline void put_back(int c)
+static inline void put_back(const utf32 pc)
 {
-	char *p = (char*) bufpos - 1;
-	bufpos--;
-	assert(p >= buf);
-	*p = c;
+	*(--bufpos - input_buf + input_buf) = pc;
 }
 
 static void parse_symbol(token_t *token)
@@ -325,14 +324,14 @@ static void parse_string_literal(token_t *token)
 			source_position.linenr++;
 		}
 
-		if (c == EOF) {
+		if (c == C_EOF) {
 			error_prefix_at(source_position.input_name, start_linenr);
 			fprintf(stderr, "string has no end\n");
 			token->type = T_ERROR;
 			return;
 		}
 
-		obstack_1grow(&symbol_obstack, c);
+		obstack_grow_symbol(&symbol_obstack, c);
 		next_char();
 	}
 	next_char();
@@ -391,7 +390,7 @@ static void skip_multiline_comment(void)
 
 static void skip_line_comment(void)
 {
-	while (c != '\n' && c != EOF) {
+	while (c != '\n' && c != C_EOF) {
 		next_char();
 	}
 }
@@ -440,19 +439,19 @@ static void parse_indent(token_t *token)
 		token->type = T_DEDENT;
 		not_returned_dedents--;
 		if (not_returned_dedents == 0 && !newline_after_dedents)
-			at_line_begin = 0;
+			at_line_begin = false;
 		return;
 	}
 
 	if (newline_after_dedents) {
 		token->type = T_NEWLINE;
-		at_line_begin         = 0;
+		at_line_begin         = false;
 		newline_after_dedents = 0;
 		return;
 	}
 
 	int      skipped_line = 0;
-	char     indent[MAX_INDENT];
+	utf32    indent[MAX_INDENT];
 	unsigned indent_len;
 
 start_indent_parsing:
@@ -485,7 +484,7 @@ start_indent_parsing:
 		skipped_line = 1;
 		goto start_indent_parsing;
 	}
-	at_line_begin = 0;
+	at_line_begin = false;
 
 	unsigned i;
 	for (i = 0; i < indent_len && i < last_line_indent_len; ++i) {
@@ -527,11 +526,11 @@ start_indent_parsing:
 		not_returned_dedents = dedents - 1;
 		if (skipped_line) {
 			newline_after_dedents = 1;
-			at_line_begin         = 1;
+			at_line_begin         = true;
 		} else {
 			newline_after_dedents = 0;
 			if (not_returned_dedents > 0) {
-				at_line_begin = 1;
+				at_line_begin = true;
 			}
 		}
 
@@ -559,12 +558,12 @@ void lexer_next_token(token_t *token)
 		}
 	}
 
-	if (c < 0 || c >= 256) {
+	if (c == C_EOF) {
 		/* if we're indented at end of file, then emit a newline, dedent, ...
 		 * sequence of tokens */
 		if (indent_levels_len > 1) {
 			not_returned_dedents = indent_levels_len - 1;
-			at_line_begin        = 1;
+			at_line_begin        = true;
 			indent_levels_len    = 1;
 			token->type          = T_NEWLINE;
 			return;
@@ -616,7 +615,7 @@ void lexer_next_token(token_t *token)
 
 		{
 			int err_displayed = 0;
-			while (c != '\'' && c != EOF) {
+			while (c != '\'' && c != C_EOF) {
 				if (!err_displayed) {
 					parse_error("multibyte character constant");
 					err_displayed = 1;
@@ -632,7 +631,7 @@ void lexer_next_token(token_t *token)
 		next_char();
 		token->type = T_NEWLINE;
 		source_position.linenr++;
-		at_line_begin = 1;
+		at_line_begin = true;
 		break;
 
 	case START_BACKSLASH:
@@ -656,20 +655,30 @@ void lexer_next_token(token_t *token)
 	}
 }
 
-void lexer_init(FILE *stream, const char *input_name)
+static void input_error(unsigned delta_lines, unsigned delta_cols,
+                        const char *message)
 {
-	input                      = stream;
+	source_position.linenr += delta_lines;
+	(void) delta_cols;
+	parse_error(message);
+}
+
+void lexer_init(input_t *new_input, const char *input_name)
+{
+	input                      = new_input;
 	bufpos                     = NULL;
 	bufend                     = NULL;
 	source_position.linenr     = 1;
 	source_position.input_name = input_name;
-	at_line_begin              = 1;
+	at_line_begin              = true;
 	indent_levels[0]           = 0;
 	indent_levels_len          = 1;
 	last_line_indent_len       = 0;
 	strset_init(&stringset);
 	not_returned_dedents       = 0;
 	newline_after_dedents      = 0;
+
+	set_input_error_callback(input_error);
 
 	if (!tables_init) {
 		init_tables();
