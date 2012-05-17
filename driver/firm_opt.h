@@ -91,16 +91,21 @@ enum rts_names {
 	rts_max
 };
 
-extern ir_entity_ptr rts_entities[rts_max];
+extern ir_entity *rts_entities[rts_max];
 
 /** Initialize for the Firm-generating back end. */
 void gen_firm_init(void);
 
-/** called, after the Firm generation is completed. */
-void gen_firm_finish(FILE *out, const char *input_filename);
+/** free resources hold by firm-generating back end */
+void gen_firm_finish(void);
 
-/** early initialization. */
-void firm_early_init(void);
+/**
+ * Transform, optimize and generate code
+ *
+ * @param out                a file handle for the output, may be NULL
+ * @param input_filename     the name of the (main) source file
+ */
+void generate_code(FILE *out, const char *input_filename);
 
 /** process optimization commandline option */
 int firm_option(const char *opt);
@@ -112,5 +117,11 @@ void firm_option_help(print_option_help_func func);
 /** Choose an optimization level. (Typically used to interpret the -O compiler
  * switches) */
 void choose_optimization_pack(int level);
+
+/**
+ * Initialize implicit optimization settings in firm. Frontends should call this
+ * before starting graph construction
+ */
+void init_implicit_optimizations(void);
 
 #endif

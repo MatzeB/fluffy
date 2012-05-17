@@ -358,7 +358,7 @@ static ir_type *get_array_type(type2firm_env_t *env, array_type_t *type)
 	return ir_type;
 }
 
-#define INVALID_TYPE ((ir_type_ptr)-1)
+#define INVALID_TYPE ((ir_type*)-1)
 
 static ir_type *get_struct_type(type2firm_env_t *env, compound_type_t *type)
 {
@@ -631,7 +631,8 @@ static ir_entity* get_concept_function_instance_entity(
 	return entity;
 }
 
-static ir_entity* get_function_entity(function_t *function, symbol_t *symbol)
+static ir_entity* get_function_entity(function_t *function, symbol_t *symbol,
+                                      bool exported)
 {
 	function_type_t *function_type  = function->type;
 	int              is_polymorphic = is_polymorphic_function(function);
@@ -667,9 +668,7 @@ static ir_entity* get_function_entity(function_t *function, symbol_t *symbol)
 
 	ir_entity *entity       = new_entity(global_type, id, ir_method_type);
 	set_entity_ld_ident(entity, id);
-	if (function->is_extern) {
-		set_entity_visibility(entity, ir_visibility_external);
-	} else {
+	if (!function->is_extern && !exported) {
 		set_entity_visibility(entity, ir_visibility_local);
 	}
 
@@ -1231,13 +1230,9 @@ static ir_entity *assure_instance(function_entity_t *function_entity,
 	int old_top        = typevar_binding_stack_top();
 	push_type_variable_bindings(function->type_parameters, type_arguments);
 
-	ir_entity  *entity = get_function_entity(function, symbol);
+	ir_entity  *entity = get_function_entity(function, symbol,
+	                                         function_entity->base.exported);
 	const char *name   = get_entity_name(entity);
-
-	if (function_entity->base.exported 
-			&& get_entity_visibility(entity) != ir_visibility_external) {
-		set_entity_visibility(entity, ir_visibility_default);
-	}
 
 	pop_type_variable_bindings(old_top);
 
@@ -1438,7 +1433,7 @@ static ir_node *func_expression_to_firm(func_expression_t *expression)
 
 	if (entity == NULL) {
 		symbol_t *symbol = unique_symbol("anonfunc");
-		entity           = get_function_entity(function, symbol);
+		entity           = get_function_entity(function, symbol, false);
 	}
 	queue_function_instantiation(function, entity);
 

@@ -47,11 +47,6 @@ typedef enum compile_mode_t {
 	CompileAndLink
 } compile_mode_t;
 
-static void initialize_firm(void)
-{
-	firm_early_init();
-}
-
 static void get_output_name(char *buf, size_t buflen, const char *inputname,
                             const char *newext)
 {
@@ -148,11 +143,10 @@ static void usage(const char *argv0)
 
 static void setup_target(void)
 {
-	const char *os = target_machine->operating_system;
-	if (strstr(os, "linux") != NULL || strstr(os, "bsd") != NULL
-			|| streq(os, "solaris")) {
+	if (firm_is_unixish_os(target_machine)) {
 		set_add_underscore_prefix(false);
-	} else if (streq(os, "darwin") || strstr(os, "mingw") || strstr(os, "win32")) {
+	} else if (firm_is_darwin_os(target_machine)
+	           || firm_is_windows_os(target_machine)) {
 		set_add_underscore_prefix(true);
 	} else {
 		panic("Unsupported operating system ");
@@ -265,7 +259,7 @@ int main(int argc, const char **argv)
 	init_semantic_module();
 	search_plugins();
 	initialize_plugins();
-	initialize_firm();
+	gen_firm_init();
 	init_ast2firm();
 	init_mangle();
 
@@ -372,8 +366,6 @@ int main(int argc, const char **argv)
 		return 1;
 	}
 
-	gen_firm_init();
-
 	do_check_semantic();
 
 	ast2firm(modules);
@@ -392,7 +384,7 @@ int main(int argc, const char **argv)
 		fprintf(stderr, "Couldn't open output '%s'\n", asmname);
 		return 1;
 	}
-	gen_firm_finish(asm_out, asmname);
+	generate_code(asm_out, asmname);
 	fclose(asm_out);
 
 	if (mode == CompileAndLink) {
@@ -402,6 +394,7 @@ int main(int argc, const char **argv)
 	//free_temp_files();
 	(void)free_temp_files;
 
+	gen_firm_finish();
 	exit_mangle();
 	exit_ast2firm();
 	free_plugins();
