@@ -413,7 +413,7 @@ static type_t *create_concrete_typevar_binding_type(bind_typevariables_type_t *t
 			changed = 1;
 		}
 
-		type_argument_t *new_argument 
+		type_argument_t *new_argument
 			= obstack_alloc(type_obst, sizeof(new_argument[0]));
 		memset(new_argument, 0, sizeof(new_argument[0]));
 		new_argument->type = new_type;

@@ -39,7 +39,7 @@ static void load_plugin(const char *filename)
 	plugin->init_function = (init_plugin_function) init_func;
 	plugin->dlhandle      = handle;
 	plugin->next          = plugins;
-	plugins               = plugin;	
+	plugins               = plugin;
 #endif
 }
 

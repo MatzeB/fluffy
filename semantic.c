@@ -78,7 +78,7 @@ void error_at(const source_position_t position,
  */
 static void environment_push(entity_t *entity, const void *context)
 {
-	environment_entry_t *entry 
+	environment_entry_t *entry
 		= obstack_alloc(&symbol_environment_obstack, sizeof(entry[0]));
 	memset(entry, 0, sizeof(entry[0]));
 
@@ -226,7 +226,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 		type_parameters = compound_type->type_parameters;
 	}
 
-	/* check that type arguments match type parameters 
+	/* check that type arguments match type parameters
 	 * and normalize the type arguments */
 	type_argument_t *type_arguments = type_ref->type_arguments;
 	type_variable_t *type_parameter = type_parameters;
@@ -239,7 +239,7 @@ static type_t *resolve_type_reference(type_reference_t *type_ref)
 			fprintf(stderr, "\n");
 			break;
 		}
-		
+
 		type_parameter = type_parameter->next;
 		type_argument  = type_argument->next;
 	}
@@ -549,7 +549,7 @@ static expression_t *make_cast(expression_t *from,
 	if (dest_type == NULL || from->base.type == dest_type)
 		return from;
 
-	/* TODO: - test which types can be implicitely casted... 
+	/* TODO: - test which types can be implicitely casted...
 	 *       - improve error reporting (want to know the context of the cast)
 	 *          ("can't implicitely cast for argument 2 of function call...")
 	 */
@@ -691,7 +691,7 @@ static expression_t *lower_sub_expression(expression_t *expression)
 	expression_t *left      = check_expression(sub->left);
 	expression_t *right     = check_expression(sub->right);
 	type_t       *lefttype  = left->base.type;
-	type_t       *righttype = right->base.type;	
+	type_t       *righttype = right->base.type;
 
 	if (lefttype->kind != TYPE_POINTER && righttype->kind != TYPE_POINTER)
 		return expression;
@@ -882,7 +882,7 @@ static concept_instance_t *_find_concept_instance(concept_t *concept,
 				match = false;
 				break;
 			}
-			
+
 			argument  = argument->next;
 			parameter = parameter->next;
 		}
@@ -996,7 +996,7 @@ static void resolve_concept_function_instance(reference_expression_t *reference)
 	}
 
 #if 0
-	concept_function_instance_t *function_instance 
+	concept_function_instance_t *function_instance
 		= get_function_from_concept_instance(instance, concept_function);
 	if (function_instance == NULL) {
 		print_error_prefix(reference->base.source_position);
@@ -1043,8 +1043,8 @@ static void check_type_constraints(type_variable_t *type_variables,
 			/* set typevariable values for the concept
 			 * This currently only works for conceptes with 1 parameter */
 			concept->type_parameters->current_type = type_var->current_type;
-		
-			concept_instance_t *instance 
+
+			concept_instance_t *instance
 				= _find_concept_instance(concept, & source_position);
 			if (instance == NULL) {
 				print_error_prefix(source_position);
@@ -1191,7 +1191,7 @@ static void check_call_expression(call_expression_t *call)
 			concept_function_t *concept_function
 				= &entity->concept_function;
 			concept_t *concept = concept_function->concept;
-		
+
 			type_variables = concept->type_parameters;
 			type_arguments = reference->type_arguments;
 		} else if (entity->kind == ENTITY_FUNCTION) {
@@ -1264,7 +1264,7 @@ static void check_call_expression(call_expression_t *call)
 			/* be a bit lenient for varargs function, to not make using
 			   C printf too much of a pain... */
 			bool lenient = param_type == NULL;
-			expression_t *new_expression 
+			expression_t *new_expression
 				= make_cast(expression, wanted_type,
 			                expression->base.source_position, lenient);
 			if (new_expression == NULL) {
@@ -1309,7 +1309,7 @@ static void check_call_expression(call_expression_t *call)
 
 		type_var = type_var->next;
 	}
-	
+
 	/* normalize result type, as we know the concrete types for the typevars */
 	type_t *result_type = function_type->result_type;
 	if (type_variables != NULL) {
@@ -1654,7 +1654,7 @@ static void check_select_expression(select_expression_t *select)
 		}
 
 		pointer_type_t *pointer_type = (pointer_type_t*) datatype;
-		
+
 		type_t *points_to = pointer_type->points_to;
 		if (points_to->kind == TYPE_BIND_TYPEVARIABLES) {
 			bind_typevariables = (bind_typevariables_type_t*) points_to;
@@ -1722,7 +1722,7 @@ static void check_array_access_expression(array_access_expression_t *access)
 	expression_t *index     = access->index;
 
 	type_t *type = array_ref->base.type;
-	if (type == NULL || 
+	if (type == NULL ||
 			(type->kind != TYPE_POINTER && type->kind != TYPE_ARRAY)) {
 		print_error_prefix(access->base.source_position);
 		fprintf(stderr, "expected pointer or array type for array access, "
@@ -1784,7 +1784,7 @@ expression_t *check_expression(expression_t *expression)
 
 	/* try to lower the expression */
 	if ((unsigned) expression->kind < (unsigned) ARR_LEN(expression_lowerers)) {
-		lower_expression_function lowerer 
+		lower_expression_function lowerer
 			= expression_lowerers[expression->kind];
 
 		if (lowerer != NULL && !expression->base.lowered) {
@@ -2198,7 +2198,7 @@ static void resolve_function_types(function_t *function)
 
 static void check_concept_instance(concept_instance_t *instance)
 {
-	concept_function_instance_t *function_instance 
+	concept_function_instance_t *function_instance
 		= instance->function_instances;
 	while (function_instance != NULL) {
 		function_t *function = &function_instance->function;
@@ -2227,7 +2227,7 @@ static void resolve_concept_types(concept_t *concept)
 	/* normalize function types */
 	concept_function_t *concept_function = concept->functions;
 	for (; concept_function!=NULL; concept_function = concept_function->next) {
-		type_t *normalized_type 
+		type_t *normalized_type
 			= normalize_type((type_t*) concept_function->type);
 		assert(normalized_type->kind == TYPE_FUNCTION);
 		concept_function->type = (function_type_t*) normalized_type;
@@ -2289,7 +2289,7 @@ static void resolve_concept_instance(concept_instance_t *instance)
 
 	concept_function_instance_t *function_instance
 		= instance->function_instances;
-	for (; function_instance != NULL; 
+	for (; function_instance != NULL;
 			function_instance = function_instance->next) {
 
 		/* find corresponding concept function */
@@ -2325,8 +2325,8 @@ static void resolve_concept_instance(concept_instance_t *instance)
 			        "instance function '%s' must not have type parameters\n",
 					function_instance->symbol->string);
 		}
-		
-		ifunction->type 
+
+		ifunction->type
 			= (function_type_t*) normalize_type((type_t*) ifunction->type);
 	}
 
@@ -2394,7 +2394,7 @@ static void check_and_push_context(context_t *context)
 	for ( ; instance != NULL; instance = instance->next) {
 		resolve_concept_instance(instance);
 	}
-	
+
 	/* check semantics in conceptes */
 	instance = context->concept_instances;
 	for ( ; instance != NULL; instance = instance->next) {

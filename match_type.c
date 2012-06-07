@@ -67,9 +67,9 @@ static bool match_compound_type(compound_type_t *variant_type,
 			match_error((type_t*) variant_type, concrete_type, source_position);
 		return false;
 	}
-	bind_typevariables_type_t *bind_typevariables 
+	bind_typevariables_type_t *bind_typevariables
 		= (bind_typevariables_type_t*) concrete_type;
-	compound_type_t           *polymorphic_type 
+	compound_type_t           *polymorphic_type
 		= bind_typevariables->polymorphic_type;
 	if (polymorphic_type != variant_type) {
 		if (report_errors)
@@ -183,7 +183,7 @@ bool match_variant_to_concrete_type(type_t *variant_type,
 		return match_variant_to_concrete_type(pointer_type_1->points_to,
 		                                      pointer_type_2->points_to,
 		                                      source_position,
-					       				   report_errors);
+		                                      report_errors);
 
 	case TYPE_FUNCTION:
 		if (concrete_type->kind != TYPE_FUNCTION) {

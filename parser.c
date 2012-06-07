@@ -354,7 +354,7 @@ static void eat_until_anchor(void)
 			goto error_label;                              \
 		}                                                  \
 		next_token();                                      \
-	} while (0)                      
+	} while (0)
 
 static void parse_function(function_t *function);
 
@@ -383,7 +383,7 @@ static atomic_type_kind_t parse_unsigned_atomic_type(void)
 		next_token();
 		return ATOMIC_TYPE_UINT;
 	default:
-		parse_error_expected("couldn't parse type",	T_byte, T_short, T_int,
+		parse_error_expected("couldn't parse type", T_byte, T_short, T_int,
 		                     T_long, 0);
 		return ATOMIC_TYPE_INVALID;
 	}
@@ -418,7 +418,7 @@ static atomic_type_kind_t parse_signed_atomic_type(void)
 		next_token();
 		return ATOMIC_TYPE_DOUBLE;
 	default:
-		parse_error_expected("couldn't parse type",	T_byte, T_short, T_int,
+		parse_error_expected("couldn't parse type", T_byte, T_short, T_int,
 		                     T_long, T_float, T_double, 0);
 		return ATOMIC_TYPE_INVALID;
 	}
@@ -578,8 +578,8 @@ static type_t *parse_union_type(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
-	
-	add_anchor_token(T_DEDENT);	
+
+	add_anchor_token(T_DEDENT);
 	type->compound.entries = parse_compound_entries();
 
 	/* force end of statement */
@@ -601,7 +601,7 @@ static type_t *parse_struct_type(void)
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 	expect(T_INDENT, end_error);
-	
+
 	add_anchor_token(T_DEDENT);
 	type->compound.entries = parse_compound_entries();
 
@@ -619,7 +619,7 @@ static type_t *make_pointer_type_no_hash(type_t *points_to)
 	type_t *type = allocate_type(TYPE_POINTER);
 	type->pointer.points_to = points_to;
 
-	return type;	
+	return type;
 }
 
 static type_t *parse_brace_type(void)
@@ -1088,8 +1088,8 @@ static void register_expression_parsers(void)
 	register_expression_infix_parser(parse_EXPR_BINARY_MUL,       '*', PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_EXPR_BINARY_DIV,       '/', PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_EXPR_BINARY_MOD,       '%', PREC_MULTIPLICATIVE);
-	register_expression_infix_parser(parse_EXPR_BINARY_SHIFTLEFT, 
-	                           T_LESSLESS, PREC_MULTIPLICATIVE);
+	register_expression_infix_parser(parse_EXPR_BINARY_SHIFTLEFT,
+	                                 T_LESSLESS, PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_EXPR_BINARY_SHIFTRIGHT,
 	                           T_GREATERGREATER, PREC_MULTIPLICATIVE);
 	register_expression_infix_parser(parse_EXPR_BINARY_ADD,       '+',         PREC_ADDITIVE);
@@ -1140,11 +1140,11 @@ expression_t *parse_sub_expression(unsigned precedence)
 		return expected_expression_error();
 	}
 
-	expression_parse_function_t *parser	
+	expression_parse_function_t *parser
 		= & expression_parsers[token.type];
 	source_position_t  start = source_position;
 	expression_t      *left;
-	
+
 	if (parser->parser != NULL) {
 		left = parser->parser();
 	} else {
@@ -1255,7 +1255,7 @@ static statement_t *parse_sub_block(void)
 		statement_t *block = allocate_statement(STATEMENT_BLOCK);
 		return block;
 	}
-		
+
 	return parse_block();
 }
 
@@ -1435,7 +1435,7 @@ static statement_t *parse_block(void)
 	eat(T_INDENT);
 
 	statement_t *block_statement = allocate_statement(STATEMENT_BLOCK);
-	
+
 	context_t *last_context = current_context;
 	current_context         = &block_statement->block.context;
 
@@ -1543,7 +1543,7 @@ static void parse_parameter_declarations(function_type_t *function_type,
 			break;
 		next_token();
 	}
-	
+
 	rem_anchor_token(',');
 	rem_anchor_token(')');
 	expect(')', end_error2);
@@ -1563,7 +1563,7 @@ static type_constraint_t *parse_type_constraints(void)
 	type_constraint_t *last_constraint  = NULL;
 
 	while (token.type == T_IDENTIFIER) {
-		type_constraint_t *constraint 
+		type_constraint_t *constraint
 			= allocate_ast_zero(sizeof(constraint[0]));
 
 		constraint->concept_symbol = token.v.symbol;
@@ -1763,7 +1763,7 @@ static void parse_constant(void)
 		eat_until_anchor();
 		return;
 	}
-	declaration->base.source_position = source_position; 
+	declaration->base.source_position = source_position;
 	declaration->base.symbol          = token.v.symbol;
 	next_token();
 
@@ -1870,7 +1870,7 @@ static void parse_struct(void)
 
 	if (token.type == '<') {
 		next_token();
-		type->compound.type_parameters 
+		type->compound.type_parameters
 			= parse_type_parameters(&type->compound.context);
 		expect('>', end_error);
 	}
@@ -1933,11 +1933,11 @@ static concept_function_t *parse_concept_function(void)
 {
 	expect(T_func, end_error);
 
-	entity_t *declaration 
+	entity_t *declaration
 		= allocate_entity(ENTITY_CONCEPT_FUNCTION);
 
 	type_t *type = allocate_type(TYPE_FUNCTION);
-	
+
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept function",
 		                     T_IDENTIFIER, 0);
@@ -1975,7 +1975,7 @@ static void parse_concept(void)
 	eat(T_concept);
 
 	entity_t *declaration = allocate_entity(ENTITY_CONCEPT);
-	
+
 	if (token.type != T_IDENTIFIER) {
 		parse_error_expected("Problem while parsing concept",
 		                     T_IDENTIFIER, 0);
@@ -2077,7 +2077,7 @@ static void parse_concept_instance(void)
 	}
 
 	instance->type_arguments = parse_type_arguments();
-	
+
 	expect(':', end_error);
 	expect(T_NEWLINE, end_error);
 
@@ -2149,7 +2149,7 @@ static void parse_import(void)
 		import->module          = modulename;
 		import->symbol          = token.v.symbol;
 		import->source_position = source_position;
-		
+
 		import->next = current_context->imports;
 		current_context->imports = import;
 		next_token();

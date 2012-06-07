@@ -804,7 +804,7 @@ static ir_node *array_access_expression_addr(const array_access_expression_t* ac
 	int           elem_size       = get_type_size(access->base.type);
 	ir_tarval    *elem_size_tv    = new_tarval_from_long(elem_size, mode_Is);
 	ir_node      *elem_size_const = new_Const(elem_size_tv);
-	dbg_info     *dbgi 
+	dbg_info     *dbgi
 		= get_dbg_info(&access->base.source_position);
 
 	ir_node      *mul = new_d_Mul(dbgi, index_node, elem_size_const, mode_Is);
@@ -875,7 +875,7 @@ static ir_node *variable_to_firm(variable_t *variable,
 		ir_node *addr = variable_addr(variable);
 		type_t  *type = variable->type;
 
-		if (type->kind == TYPE_COMPOUND_STRUCT 
+		if (type->kind == TYPE_COMPOUND_STRUCT
 				|| type->kind == TYPE_COMPOUND_UNION
 				|| type->kind == TYPE_BIND_TYPEVARIABLES
 				|| type->kind == TYPE_ARRAY) {
@@ -936,7 +936,7 @@ static ir_node *expression_addr(const expression_t *expression)
 		return reference_expression_addr(
 				(const reference_expression_t*) expression);
 	case EXPR_UNARY_DEREFERENCE: {
-		const unary_expression_t *unexpr 
+		const unary_expression_t *unexpr
 			= (const unary_expression_t*) expression;
 		return expression_to_firm(unexpr->value);
 	}
@@ -950,7 +950,7 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
                         const source_position_t *source_position)
 {
 	if (dest_expr->kind == EXPR_REFERENCE) {
-		const reference_expression_t *ref 
+		const reference_expression_t *ref
 			= (const reference_expression_t*) dest_expr;
 		entity_t *entity = ref->entity;
 
@@ -971,7 +971,7 @@ static void firm_assign(expression_t *dest_expr, ir_node *value,
 	type_t   *type  = dest_expr->base.type;
 	ir_node  *result;
 
-	if (type->kind == TYPE_COMPOUND_STRUCT 
+	if (type->kind == TYPE_COMPOUND_STRUCT
 	         || type->kind == TYPE_COMPOUND_UNION) {
 		ir_type *irtype = get_ir_type(type);
 
@@ -1211,7 +1211,7 @@ static ir_node *select_expression_to_firm(const select_expression_t *select)
 {
 	ir_node *addr       = select_expression_addr(select);
 	type_t  *entry_type = select->compound_entry->type;
-	if (entry_type->kind == TYPE_COMPOUND_STRUCT	
+	if (entry_type->kind == TYPE_COMPOUND_STRUCT
 			|| entry_type->kind == TYPE_COMPOUND_UNION
 			|| entry_type->kind == TYPE_ARRAY)
 		return addr;
@@ -1240,7 +1240,7 @@ static ir_entity *assure_instance(function_entity_t *function_entity,
 		return entity;
 	}
 
-	instantiate_function_t *instantiate 
+	instantiate_function_t *instantiate
 		= queue_function_instantiation(function, entity);
 
 	type_argument_t *type_argument = type_arguments;
@@ -1298,7 +1298,7 @@ static ir_node *concept_function_reference_to_firm(concept_function_t *function,
 		return NULL;
 	}
 
-	concept_function_instance_t *function_instance 
+	concept_function_instance_t *function_instance
 		= get_function_from_concept_instance(instance, function);
 	if (function_instance == NULL) {
 		fprintf(stderr, "panic: no function '%s' in instance of concept '%s'\n",
@@ -1603,7 +1603,7 @@ static void block_statement_to_firm(const block_statement_t *block)
 
 static void goto_statement_to_firm(goto_statement_t *goto_statement)
 {
-	dbg_info *dbgi  
+	dbg_info *dbgi
 		= get_dbg_info(&goto_statement->base.source_position);
 	label_t  *label = goto_statement->label;
 	ir_node  *block = label->block;
@@ -1743,7 +1743,7 @@ static void create_function(function_t *function, ir_entity *entity,
 	for (int i = 0; i < n; ++i) {
 		ir_entity *entity      = get_compound_member(frame_type, i);
 		ir_type   *entity_type = get_entity_type(entity);
-	
+
 		int align = get_type_alignment_bytes(entity_type);
 		if (align > align_all)
 			align_all = align;
@@ -1846,7 +1846,7 @@ void ast2firm(const module_t *modules)
 
 	/* work generic code instantiation queue */
 	while (!pdeq_empty(instantiate_functions)) {
-		instantiate_function_t *instantiate_function 
+		instantiate_function_t *instantiate_function
 			= pdeq_getl(instantiate_functions);
 
 		assert(typevar_binding_stack_top() == 0);

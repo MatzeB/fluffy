@@ -228,7 +228,7 @@ static bool types_equal(const type_t *type1, const type_t *type2)
 		return array_types_equal(&type1->array, &type2->array);
 	case TYPE_BIND_TYPEVARIABLES:
 		return bind_typevariables_type_equal(
-				&type1->bind_typevariables,	&type2->bind_typevariables);
+				&type1->bind_typevariables, &type2->bind_typevariables);
 	}
 	panic("invalid type encountered");
 }

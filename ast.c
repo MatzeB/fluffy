@@ -396,7 +396,7 @@ static void print_type_parameters(const type_variable_t *type_parameters)
 			fprintf(out, ", ");
 		}
 		print_type_variable(type_parameter);
-		
+
 		type_parameter = type_parameter->next;
 	}
 	if (type_parameters != NULL)
@@ -410,7 +410,7 @@ static void print_function_parameters(const function_parameter_t *parameters,
 
 	int                              first          = 1;
 	const function_parameter_t      *parameter      = parameters;
-	const function_parameter_type_t *parameter_type 
+	const function_parameter_type_t *parameter_type
 		= function_type->parameter_types;
 	while (parameter != NULL && parameter_type != NULL) {
 		if (!first) {
