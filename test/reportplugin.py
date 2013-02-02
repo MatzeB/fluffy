@@ -1,58 +1,65 @@
-# New testclass
-class TestFluffy(Test):
-	def __init__(self, filename, environment):
-		Test.__init__(self, filename, environment)
-	def _init_flags(self):
-		Test._init_flags(self)
-		environment = self.environment
-		environment.cflags = "-O3"
-		environment.ldflags = ""
-	def compile(self):
-		environment = self.environment
-		cmd = "%(compiler)s %(cflags)s %(filename)s %(ldflags)s -o %(executable)s" % environment.__dict__
-		self.compile_command = cmd
-		self.compiling = ""
-		try:
-			self.compile_out, self.compile_err, self.compile_retcode = my_execute(cmd, timeout=60)
-		except SigKill, e:
-			self.error_msg = "compiler: %s" % e.name
-			return False
-		c = self.parse_compiler_output()
-		if not c: return c
-		return True
-	def check_compiler_errors(self):
-		if self.compile_retcode != 0:
-			self.error_msg = "compilation not ok (returncode %d)" % self.compile_retcode
-			self.long_error_msg = "\n".join((self.compile_command, self.compiling))
-			return False
-		return True
+from test.test   import Test, ensure_dir
+from test.steps  import execute, step_execute
+from test.checks import check_no_errors, check_firm_problems, check_retcode_zero, create_check_reference_output, check_missing_errors
+import os
 
-class FluffyShouldFail(TestFluffy):
-	def __init__(self, filename, environment):
-		TestFluffy.__init__(self, filename, environment)
+def step_compile_fluffy(environment):
+    cmd = "%(flc)s %(filename)s %(flflags)s -o %(executable)s" % environment.__dict__
+    return execute(environment, cmd, timeout=30)
 
-	def check_compiler_errors(self):
-		if len(self.errors) == 0:
-			self.error_msg = "compiler missed error"
-			return False
-		return True
-	def check_execution(self):
-		return True # nothing to execute
+def make_fluffy_test(environment, filename):
+    environment.filename = filename
+    environment.executable = environment.builddir + "/" + environment.filename + ".exe"
+    ensure_dir(os.path.dirname(environment.executable))
 
-test_factories += [
-	( lambda name: name.endswith(".fluffy") and "should_fail" in name, FluffyShouldFail ),
-	( lambda name: name.endswith(".fluffy"), TestFluffy ),
+    test = Test(environment, filename)
+
+    compile = test.add_step("compile", step_compile_fluffy)
+    compile.add_check(check_no_errors)
+    compile.add_check(check_firm_problems)
+    compile.add_check(check_retcode_zero)
+
+    execute = test.add_step("execute", step_execute)
+    execute.add_check(check_retcode_zero)
+    execute.add_check(create_check_reference_output(environment))
+    return test
+
+def make_fluffy_should_fail(environment, filename):
+    environment.filename = filename
+    environment.executable = environment.builddir + "/" + environment.filename + ".exe"
+    ensure_dir(os.path.dirname(environment.executable))
+
+    test = Test(environment, filename)
+
+    compile = test.add_step("compile", step_compile_fluffy)
+    compile.add_check(check_missing_errors)
+    return test
+
+test_factories = [
+    (lambda name: name.endswith(".fluffy") and "fluffy/should_fail/" in name, make_fluffy_should_fail),
 ]
-_EXTENSIONS.append("fluffy")
+wildcard_factories = [
+    ("*.fluffy", make_fluffy_test),
+]
 
 # Configurations
-def setup_fluffy(option, opt_str, value, parser):
-	global _ARCH_DIRS
-	_ARCH_DIRS = []
-	global _DEFAULT_DIRS
-	_DEFAULT_DIRS = [ "fluffy", "fluffy/should_fail" ]
-	config = parser.values
-	config.compiler = "fluffy"
-	config.expect_url = "fluffy/fail_expectations"
+def config_fluffy(option, opt_str, value, parser):
+    config = parser.values
+    config.arch_dirs    = []
+    config.default_dirs = [ "fluffy", "fluffy/should_fail" ]
 
-configurations["fluffy"] = setup_fluffy
+configurations = {
+    "fluffy": config_fluffy,
+}
+
+def register_options(opts):
+    opts.add_option("--flc", dest="flc",
+                    help="Use FKC to compiler fluffy programs",
+                    metavar="FLC")
+    opts.add_option("--flflags", dest="flflags",
+                    help="Use FLFLAGS to compiler fluffy programs",
+                    metavar="FLFLAGS")
+    opts.set_defaults(
+        flc="fluffy",
+        flflags="-O3",
+    )
