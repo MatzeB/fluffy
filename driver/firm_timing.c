@@ -1,7 +1,11 @@
+/*
+ * This file is part of cparser.
+ * Copyright (C) 2012 Michael Beck <mm.beck@gmx.net>
+ */
+
 /**
- * @file firm_timing.c -- timing for the Firm compiler
- *
- * (C) 2006-2009  Michael Beck   beck@ipd.info.uni-karlsruhe.de
+ * @file
+ * @brief timing for the Firm compiler
  */
 #include "firm_timing.h"
 
@@ -45,14 +49,16 @@ void timer_term(FILE *f)
 
 	for (info = infos; info != NULL; info = next) {
 		ir_timer_t *timer = info->timer;
-		double      val         = (double)ir_timer_elapsed_usec(timer) / 1000.0;
-		const char *description = info->description;
-		fprintf(f, "%-45s %8.3f msec\n", description, val);
+		if (f != NULL) {
+			double      val         = (double)ir_timer_elapsed_usec(timer) / 1000.0;
+			const char *description = info->description;
+			fprintf(f, "%-60s %10.3f msec\n", description, val);
+		}
 
 		ir_timer_free(timer);
-		xfree(info->description);
+		free(info->description);
 		next = info->next;
-		xfree(info);
+		free(info);
 	}
 	infos = NULL;
 	last_info = NULL;
@@ -68,9 +74,8 @@ void timer_push(ir_timer_t *timer)
 
 void timer_pop(ir_timer_t *timer)
 {
-	(void) timer;
 	if (timers_inited)
-		ir_timer_pop();
+		ir_timer_pop(timer);
 }
 
 void timer_start(ir_timer_t *timer)
